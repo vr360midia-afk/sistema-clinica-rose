@@ -13,8 +13,9 @@ const Pacientes = () => {
   const [showForm, setShowForm] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [editingPatient, setEditingPatient] = useState(null);
 
-  const pacientes = [
+  const [pacientes, setPacientes] = useState([
     {
       id: 1,
       nome: 'Maria Silva Santos',
@@ -26,7 +27,11 @@ const Pacientes = () => {
       proximaConsulta: '2024-02-15',
       convenio: 'Unimed',
       status: 'Ativo',
-      historico: ['Limpeza (Jan/2024)', 'Restauração (Dez/2023)']
+      ultimaConsulta: '2024-01-15',
+      historicoMedico: 'Pressão alta controlada com medicamento',
+      alergias: 'Alergia a penicilina',
+      medicamentos: 'Losartana 50mg - 1x ao dia',
+      observacoes: 'Paciente colaborativa, boa higiene bucal'
     },
     {
       id: 2,
@@ -39,7 +44,11 @@ const Pacientes = () => {
       proximaConsulta: null,
       convenio: 'Particular',
       status: 'Inativo',
-      historico: ['Canal (Dez/2023)', 'Extração (Nov/2023)']
+      ultimaConsulta: '2023-12-20',
+      historicoMedico: 'Diabetes tipo 2',
+      alergias: 'Nenhuma alergia conhecida',
+      medicamentos: 'Metformina 850mg - 2x ao dia',
+      observacoes: 'Precisa retomar tratamento periodontal'
     },
     {
       id: 3,
@@ -52,15 +61,35 @@ const Pacientes = () => {
       proximaConsulta: '2024-02-10',
       convenio: 'Bradesco Dental',
       status: 'Ativo',
-      historico: ['Limpeza (Jan/2024)', 'Clareamento (Out/2023)']
+      ultimaConsulta: '2024-01-10',
+      historicoMedico: 'Histórico de cáries recorrentes',
+      alergias: 'Alergia a latex',
+      medicamentos: 'Nenhum',
+      observacoes: 'Paciente jovem, necessita orientação sobre higiene'
     },
-  ];
+  ]);
 
   const filteredPacientes = pacientes.filter(paciente =>
     paciente.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
     paciente.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
     paciente.telefone.includes(searchTerm)
   );
+
+  const handleSavePatient = (patientData: any) => {
+    if (editingPatient) {
+      setPacientes(prev => prev.map(p => p.id === editingPatient.id ? patientData : p));
+    } else {
+      setPacientes(prev => [...prev, patientData]);
+    }
+    setShowForm(false);
+    setEditingPatient(null);
+  };
+
+  const handleEditPatient = (patient: any) => {
+    setEditingPatient(patient);
+    setShowForm(true);
+    setSelectedPatient(null);
+  };
 
   const getStatusBadge = (status: string, proximaConsulta: string | null) => {
     if (status === 'Ativo' && proximaConsulta) {
@@ -76,11 +105,12 @@ const Pacientes = () => {
     return (
       <Layout>
         <PatientForm
-          onClose={() => setShowForm(false)}
-          onSave={(patientData) => {
-            console.log('Salvando paciente:', patientData);
+          patient={editingPatient}
+          onClose={() => {
             setShowForm(false);
+            setEditingPatient(null);
           }}
+          onSave={handleSavePatient}
         />
       </Layout>
     );
@@ -92,10 +122,7 @@ const Pacientes = () => {
         <PatientDetails
           patient={selectedPatient}
           onClose={() => setSelectedPatient(null)}
-          onEdit={() => {
-            setSelectedPatient(null);
-            setShowForm(true);
-          }}
+          onEdit={() => handleEditPatient(selectedPatient)}
         />
       </Layout>
     );
@@ -221,7 +248,7 @@ const Pacientes = () => {
                       </div>
                     </div>
                     <div className="mt-2 flex items-center text-xs text-gray-400">
-                      <span>Último tratamento: {paciente.ultimoTratamento}</span>
+                      <span>Última consulta: {paciente.ultimaConsulta}</span>
                       {paciente.proximaConsulta && (
                         <span className="ml-4">Próxima consulta: {paciente.proximaConsulta}</span>
                       )}
