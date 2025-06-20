@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 
 interface ToothStatus {
-  [key: number]: 'healthy' | 'cavity' | 'restoration' | 'crown' | 'extraction' | 'root-canal';
+  [key: number]: 'healthy' | 'cavity' | 'restoration' | 'crown' | 'extraction' | 'root-canal' | 'prophylaxis' | 'veneer' | 'wisdom' | 'whitening' | 'aesthetic-aligners' | 'invisible-aligners';
 }
 
 const Odontogram = () => {
@@ -21,7 +21,13 @@ const Odontogram = () => {
     { id: 'restoration', label: 'Restauração', color: 'bg-blue-500' },
     { id: 'crown', label: 'Coroa', color: 'bg-yellow-500' },
     { id: 'extraction', label: 'Extração', color: 'bg-black' },
-    { id: 'root-canal', label: 'Canal', color: 'bg-purple-500' }
+    { id: 'root-canal', label: 'Canal', color: 'bg-purple-500' },
+    { id: 'prophylaxis', label: 'Profilaxia', color: 'bg-green-400' },
+    { id: 'veneer', label: 'Facetas', color: 'bg-pink-400' },
+    { id: 'wisdom', label: 'Siso', color: 'bg-orange-500' },
+    { id: 'whitening', label: 'Clareamento', color: 'bg-cyan-300' },
+    { id: 'aesthetic-aligners', label: 'Alinhadores Estéticos', color: 'bg-indigo-400' },
+    { id: 'invisible-aligners', label: 'Alinhadores Invisíveis', color: 'bg-gray-300' }
   ];
 
   const handleToothClick = (toothNumber: number) => {
@@ -54,17 +60,17 @@ const Odontogram = () => {
       {/* Seletor de Tratamento */}
       <div>
         <h3 className="text-lg font-medium mb-3">Selecione o Tratamento:</h3>
-        <div className="flex flex-wrap gap-2">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
           {treatments.map((treatment) => (
             <Button
               key={treatment.id}
               variant={selectedTreatment === treatment.id ? 'default' : 'outline'}
               size="sm"
               onClick={() => setSelectedTreatment(treatment.id)}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 justify-start text-left h-auto p-2"
             >
-              <div className={`w-4 h-4 rounded ${treatment.color} border`}></div>
-              {treatment.label}
+              <div className={`w-4 h-4 rounded ${treatment.color} border flex-shrink-0`}></div>
+              <span className="text-xs">{treatment.label}</span>
             </Button>
           ))}
         </div>
@@ -95,10 +101,10 @@ const Odontogram = () => {
       </div>
 
       {/* Legenda */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mt-6">
         {treatments.map((treatment) => (
           <div key={treatment.id} className="flex items-center gap-2">
-            <div className={`w-4 h-4 rounded ${treatment.color} border`}></div>
+            <div className={`w-4 h-4 rounded ${treatment.color} border flex-shrink-0`}></div>
             <span className="text-sm">{treatment.label}</span>
           </div>
         ))}
