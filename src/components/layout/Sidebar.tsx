@@ -13,7 +13,8 @@ import {
   X,
   Clipboard,
   TrendingUp,
-  Palette
+  Palette,
+  Stethoscope
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -29,6 +30,7 @@ const menuItems = [
   { name: 'Agenda', icon: Calendar, path: '/agenda' },
   { name: 'Anamnese', icon: Clipboard, path: '/anamnese' },
   { name: 'Prontuários', icon: FileText, path: '/prontuarios' },
+  { name: 'Procedimentos', icon: Stethoscope, path: '/procedimentos' },
   { name: 'Financeiro', icon: CreditCard, path: '/financeiro' },
   { name: 'Comunicação', icon: MessageSquare, path: '/comunicacao' },
   { name: 'Estoque', icon: Package, path: '/estoque' },
