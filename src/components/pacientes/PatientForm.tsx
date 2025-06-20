@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,9 +9,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface PatientFormProps {
   onClose: () => void;
+  onSave?: (patientData: any) => void;
 }
 
-const PatientForm = ({ onClose }: PatientFormProps) => {
+const PatientForm = ({ onClose, onSave }: PatientFormProps) => {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -30,7 +30,9 @@ const PatientForm = ({ onClose }: PatientFormProps) => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     console.log('Dados do paciente:', formData);
-    // Aqui seria feita a integração com o backend
+    if (onSave) {
+      onSave(formData);
+    }
     onClose();
   };
 

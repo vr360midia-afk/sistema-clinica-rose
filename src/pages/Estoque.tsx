@@ -137,7 +137,7 @@ const Estoque = () => {
                     onChange={(e) => setNovoProduto({...novoProduto, preco: parseFloat(e.target.value) || 0})}
                   />
                 </div>
-                <Button onClick={adicionar_produto} className="w-full">
+                <Button onClick={adicionarProduto} className="w-full">
                   Adicionar Produto
                 </Button>
               </div>
