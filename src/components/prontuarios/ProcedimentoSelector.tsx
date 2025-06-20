@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -74,7 +73,7 @@ const mockProcedimentos: Procedimento[] = [
     complexidade: 'media',
     requererAnestesia: true,
     requererRaioX: true,
-    materiaisNecessários: ['Fórceps', 'Gaze'],
+    materiaisNecessarios: ['Fórceps', 'Gaze'],
     equipamentosNecessarios: ['Elevador'],
     ativo: true,
     criadoEm: new Date(),
