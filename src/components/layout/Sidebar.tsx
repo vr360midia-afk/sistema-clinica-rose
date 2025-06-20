@@ -10,7 +10,10 @@ import {
   BarChart3,
   Package,
   Settings,
-  X
+  X,
+  Clipboard,
+  TrendingUp,
+  Palette
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -24,12 +27,14 @@ const menuItems = [
   { name: 'Dashboard', icon: BarChart3, path: '/' },
   { name: 'Pacientes', icon: Users, path: '/pacientes' },
   { name: 'Agenda', icon: Calendar, path: '/agenda' },
+  { name: 'Anamnese', icon: Clipboard, path: '/anamnese' },
   { name: 'Prontuários', icon: FileText, path: '/prontuarios' },
   { name: 'Financeiro', icon: CreditCard, path: '/financeiro' },
   { name: 'Comunicação', icon: MessageSquare, path: '/comunicacao' },
   { name: 'Estoque', icon: Package, path: '/estoque' },
-  { name: 'Relatórios', icon: BarChart3, path: '/relatorios' },
+  { name: 'Relatórios', icon: TrendingUp, path: '/relatorios' },
   { name: 'Configurações', icon: Settings, path: '/configuracoes' },
+  { name: 'Personalização', icon: Palette, path: '/admin' },
 ];
 
 const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
@@ -55,7 +60,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
             <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-green-500 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-sm">D</span>
             </div>
-            <h2 className="text-lg font-bold">Dentiwise</h2>
+            <h2 className="text-lg font-bold">Dental IA</h2>
           </div>
           <Button
             variant="ghost"

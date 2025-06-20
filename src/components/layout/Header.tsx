@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Bell, Search, User, Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,16 @@ interface HeaderProps {
 }
 
 const Header = ({ onMenuToggle }: HeaderProps) => {
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchTerm.trim()) {
+      console.log('Buscando paciente:', searchTerm);
+      // Implementar busca de pacientes aqui
+    }
+  };
+
   return (
     <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
       <div className="flex items-center gap-4">
@@ -26,18 +36,20 @@ const Header = ({ onMenuToggle }: HeaderProps) => {
           <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-green-500 rounded-lg flex items-center justify-center">
             <span className="text-white font-bold text-sm">D</span>
           </div>
-          <h1 className="text-xl font-bold text-gray-900">Dentiwise</h1>
+          <h1 className="text-xl font-bold text-gray-900">Dental IA</h1>
         </div>
       </div>
 
       <div className="flex items-center gap-4">
-        <div className="relative hidden md:block">
+        <form onSubmit={handleSearch} className="relative hidden md:block">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
           <Input
-            placeholder="Buscar pacientes, procedimentos..."
+            placeholder="Buscar pacientes..."
             className="pl-10 w-64"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
           />
-        </div>
+        </form>
 
         <Button variant="ghost" size="sm" className="relative">
           <Bell className="h-5 w-5" />
