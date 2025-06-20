@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ArrowLeft, Save } from 'lucide-react';
 import { toast } from 'sonner';
-import PatientPhotoUpload from './PatientPhotoUpload';
+import PatientPhotoCapture from './PatientPhotoCapture';
 
 interface PatientFormProps {
   onClose: () => void;
@@ -28,6 +28,7 @@ const PatientForm = ({ onClose, onSave, patient }: PatientFormProps) => {
     profissao: patient?.profissao || '',
     estadoCivil: patient?.estadoCivil || '',
     convenio: patient?.convenio || '',
+    origemLead: patient?.origemLead || '',
     foto: patient?.foto || null,
     historicoMedico: patient?.historicoMedico || '',
     alergias: patient?.alergias || '',
@@ -52,7 +53,7 @@ const PatientForm = ({ onClose, onSave, patient }: PatientFormProps) => {
     const patientData = {
       ...formData,
       id: patient?.id || Date.now(),
-      status: 'Ativo',
+      status: patient?.status || 'Ativo',
       dataCadastro: patient?.dataCadastro || new Date().toLocaleDateString('pt-BR')
     };
 
@@ -181,20 +182,40 @@ const PatientForm = ({ onClose, onSave, patient }: PatientFormProps) => {
                 </div>
               </div>
 
-              <div>
-                <Label htmlFor="convenio">Convênio</Label>
-                <Select value={formData.convenio} onValueChange={(value) => handleInputChange('convenio', value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o convênio..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="particular">Particular</SelectItem>
-                    <SelectItem value="unimed">Unimed</SelectItem>
-                    <SelectItem value="bradesco">Bradesco Dental</SelectItem>
-                    <SelectItem value="amil">Amil</SelectItem>
-                    <SelectItem value="sulamerica">SulAmérica</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="convenio">Convênio</Label>
+                  <Select value={formData.convenio} onValueChange={(value) => handleInputChange('convenio', value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o convênio..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="particular">Particular</SelectItem>
+                      <SelectItem value="unimed">Unimed</SelectItem>
+                      <SelectItem value="bradesco">Bradesco Dental</SelectItem>
+                      <SelectItem value="amil">Amil</SelectItem>
+                      <SelectItem value="sulamerica">SulAmérica</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="origemLead">Origem do Lead</Label>
+                  <Select value={formData.origemLead} onValueChange={(value) => handleInputChange('origemLead', value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Como conheceu a clínica?" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="indicacao">Indicação</SelectItem>
+                      <SelectItem value="google">Google</SelectItem>
+                      <SelectItem value="facebook">Facebook</SelectItem>
+                      <SelectItem value="instagram">Instagram</SelectItem>
+                      <SelectItem value="site">Site</SelectItem>
+                      <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                      <SelectItem value="panfleto">Panfleto</SelectItem>
+                      <SelectItem value="outros">Outros</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -206,12 +227,12 @@ const PatientForm = ({ onClose, onSave, patient }: PatientFormProps) => {
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label htmlFor="ultimaConsulta">Quando foi a última consulta?</Label>
+                <Label htmlFor="ultimaConsulta">Quando foi a última consulta odontológica?</Label>
                 <Input
                   id="ultimaConsulta"
-                  type="date"
                   value={formData.ultimaConsulta}
                   onChange={(e) => handleInputChange('ultimaConsulta', e.target.value)}
+                  placeholder="Ex: 6 meses atrás, 1 ano, nunca fui, etc."
                 />
               </div>
 
@@ -269,7 +290,7 @@ const PatientForm = ({ onClose, onSave, patient }: PatientFormProps) => {
               <CardTitle>Foto do Paciente</CardTitle>
             </CardHeader>
             <CardContent>
-              <PatientPhotoUpload
+              <PatientPhotoCapture
                 currentPhoto={formData.foto}
                 onPhotoChange={(photo) => handleInputChange('foto', photo || '')}
               />
