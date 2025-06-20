@@ -4,10 +4,11 @@ import Layout from '@/components/layout/Layout';
 import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { CalendarDays, Clock, Plus, User } from 'lucide-react';
+import { CalendarDays, Clock, Plus } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import AppointmentCard from '@/components/agenda/AppointmentCard';
+import PatientSummaryModal from '@/components/agenda/PatientSummaryModal';
 
 const mockAppointments = [
   {
@@ -17,7 +18,14 @@ const mockAppointments = [
     duration: '1h',
     procedure: 'Limpeza',
     status: 'confirmado',
-    dentist: 'Dr. João'
+    dentist: 'Dr. João',
+    patientData: {
+      phone: '(11) 99999-9999',
+      age: 32,
+      insurance: 'Unimed',
+      lastVisit: '15/12/2023',
+      allergies: 'Alergia a penicilina'
+    }
   },
   {
     id: 2,
@@ -26,7 +34,14 @@ const mockAppointments = [
     duration: '30min',
     procedure: 'Consulta',
     status: 'pendente',
-    dentist: 'Dr. Ana'
+    dentist: 'Dr. Ana',
+    patientData: {
+      phone: '(11) 88888-8888',
+      age: 45,
+      insurance: 'Particular',
+      lastVisit: '20/11/2023',
+      allergies: ''
+    }
   },
   {
     id: 3,
@@ -35,21 +50,26 @@ const mockAppointments = [
     duration: '2h',
     procedure: 'Canal',
     status: 'confirmado',
-    dentist: 'Dr. João'
+    dentist: 'Dr. João',
+    patientData: {
+      phone: '(11) 77777-7777',
+      age: 28,
+      insurance: 'Bradesco Dental',
+      lastVisit: '10/01/2024',
+      allergies: 'Alergia a latex'
+    }
   }
 ];
 
 const Agenda = () => {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [view, setView] = useState<'day' | 'week' | 'month'>('day');
+  const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'confirmado': return 'bg-green-100 text-green-800';
-      case 'pendente': return 'bg-yellow-100 text-yellow-800';
-      case 'cancelado': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
+  const handleAppointmentClick = (appointment: any) => {
+    setSelectedAppointment(appointment);
+    setIsModalOpen(true);
   };
 
   return (
@@ -122,31 +142,23 @@ const Agenda = () => {
               <CardContent>
                 <div className="space-y-4">
                   {mockAppointments.map((appointment) => (
-                    <div key={appointment.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
-                      <div className="flex items-center gap-4">
-                        <div className="text-center">
-                          <div className="font-semibold text-lg">{appointment.time}</div>
-                          <div className="text-sm text-gray-500">{appointment.duration}</div>
-                        </div>
-                        <div>
-                          <div className="font-medium">{appointment.patient}</div>
-                          <div className="text-sm text-gray-600">{appointment.procedure}</div>
-                          <div className="flex items-center gap-1 text-sm text-gray-500 mt-1">
-                            <User className="h-3 w-3" />
-                            {appointment.dentist}
-                          </div>
-                        </div>
-                      </div>
-                      <Badge className={getStatusColor(appointment.status)}>
-                        {appointment.status}
-                      </Badge>
-                    </div>
+                    <AppointmentCard
+                      key={appointment.id}
+                      appointment={appointment}
+                      onClick={handleAppointmentClick}
+                    />
                   ))}
                 </div>
               </CardContent>
             </Card>
           </div>
         </div>
+
+        <PatientSummaryModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          appointment={selectedAppointment}
+        />
       </div>
     </Layout>
   );

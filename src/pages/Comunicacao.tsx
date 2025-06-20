@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import Layout from '@/components/layout/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,6 +19,7 @@ import {
 } from 'lucide-react';
 import InstagramPostCreator from '@/components/comunicacao/InstagramPostCreator';
 import WhatsAppManager from '@/components/comunicacao/WhatsAppManager';
+import PlatformLogin from '@/components/comunicacao/PlatformLogin';
 
 const mockCampaigns = [
   {
@@ -122,7 +122,7 @@ const Comunicacao = () => {
 
         {/* Tabs Principais */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="instagram" className="flex items-center gap-2">
               <Instagram className="h-4 w-4" />
               Instagram
@@ -130,6 +130,10 @@ const Comunicacao = () => {
             <TabsTrigger value="whatsapp" className="flex items-center gap-2">
               <MessageCircle className="h-4 w-4" />
               WhatsApp
+            </TabsTrigger>
+            <TabsTrigger value="platforms" className="flex items-center gap-2">
+              <Settings className="h-4 w-4" />
+              Plataformas
             </TabsTrigger>
             <TabsTrigger value="campaigns" className="flex items-center gap-2">
               <Settings className="h-4 w-4" />
@@ -143,6 +147,10 @@ const Comunicacao = () => {
 
           <TabsContent value="whatsapp">
             <WhatsAppManager />
+          </TabsContent>
+
+          <TabsContent value="platforms">
+            <PlatformLogin />
           </TabsContent>
 
           <TabsContent value="campaigns">
