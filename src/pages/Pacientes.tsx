@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import Layout from '@/components/layout/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -435,12 +434,14 @@ const Pacientes = () => {
                               </h3>
                               {getStatusBadge(paciente.status, paciente.proximaConsulta)}
                             </div>
-                            <div className="mt-1 text-sm text-gray-500">
-                              Arquivado em: {paciente.dataArquivamento}
-                            </div>
-                            {paciente.motivoArquivamento && (
+                            {(paciente as any).dataArquivamento && (
+                              <div className="mt-1 text-sm text-gray-500">
+                                Arquivado em: {(paciente as any).dataArquivamento}
+                              </div>
+                            )}
+                            {(paciente as any).motivoArquivamento && (
                               <div className="mt-1 text-xs text-gray-400">
-                                Motivo: {paciente.motivoArquivamento}
+                                Motivo: {(paciente as any).motivoArquivamento}
                               </div>
                             )}
                           </div>
