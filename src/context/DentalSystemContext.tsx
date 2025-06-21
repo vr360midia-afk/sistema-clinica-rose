@@ -388,9 +388,9 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
         const temAssinaturaDentista = signerType === 'dentista' || anamnese.assinaturaDoutor;
         
         if (temAssinaturaPaciente && temAssinaturaDentista) {
-          updates.statusAssinatura = 'concluida';
+          updates.statusAssinatura = 'completo';
         } else {
-          updates.statusAssinatura = 'parcial';
+          updates.statusAssinatura = 'paciente_assinado';
         }
       }
 
