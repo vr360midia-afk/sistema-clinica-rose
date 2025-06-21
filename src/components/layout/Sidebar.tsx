@@ -1,103 +1,105 @@
 
 import React from 'react';
-import { NavLink } from 'react-router-dom';
-import { 
-  Calendar, 
-  Users, 
-  FileText, 
-  CreditCard, 
-  MessageSquare,
-  BarChart3,
-  Package,
-  Settings,
-  X,
-  Clipboard,
-  TrendingUp,
-  Palette,
-  Stethoscope
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import {
+  Home,
+  Users,
+  Calendar,
+  FileText,
+  Clipboard,
+  Wrench,
+  DollarSign,
+  MessageSquare,
+  Package,
+  BarChart3,
+  Settings,
+  Shield,
+  X,
+  StickyNote
+} from 'lucide-react';
 
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-const menuItems = [
-  { name: 'Dashboard', icon: BarChart3, path: '/' },
-  { name: 'Pacientes', icon: Users, path: '/pacientes' },
-  { name: 'Agenda', icon: Calendar, path: '/agenda' },
-  { name: 'Anamnese', icon: Clipboard, path: '/anamnese' },
-  { name: 'Prontuários', icon: FileText, path: '/prontuarios' },
-  { name: 'Procedimentos', icon: Stethoscope, path: '/procedimentos' },
-  { name: 'Financeiro', icon: CreditCard, path: '/financeiro' },
-  { name: 'Comunicação', icon: MessageSquare, path: '/comunicacao' },
-  { name: 'Estoque', icon: Package, path: '/estoque' },
-  { name: 'Relatórios', icon: TrendingUp, path: '/relatorios' },
-  { name: 'Configurações', icon: Settings, path: '/configuracoes' },
-  { name: 'Personalização', icon: Palette, path: '/admin' },
+const navigation = [
+  { name: 'Dashboard', href: '/', icon: Home },
+  { name: 'Notas', href: '/notas', icon: StickyNote },
+  { name: 'Pacientes', href: '/pacientes', icon: Users },
+  { name: 'Agenda', href: '/agenda', icon: Calendar },
+  { name: 'Anamnese', href: '/anamnese', icon: FileText },
+  { name: 'Prontuários', href: '/prontuarios', icon: Clipboard },
+  { name: 'Procedimentos', href: '/procedimentos', icon: Wrench },
+  { name: 'Financeiro', href: '/financeiro', icon: DollarSign },
+  { name: 'Comunicação', href: '/comunicacao', icon: MessageSquare },
+  { name: 'Estoque', href: '/estoque', icon: Package },
+  { name: 'Relatórios', href: '/relatorios', icon: BarChart3 },
+  { name: 'Configurações', href: '/configuracoes', icon: Settings },
+  { name: 'Admin', href: '/admin', icon: Shield },
 ];
 
 const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
+  const location = useLocation();
+
   return (
     <>
       {/* Mobile overlay */}
       {isOpen && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+        <div
+          className="fixed inset-0 z-40 bg-black bg-opacity-50 lg:hidden"
           onClick={onClose}
         />
       )}
-      
+
       {/* Sidebar */}
-      <aside
+      <div
         className={cn(
-          "fixed left-0 top-0 z-50 h-full w-64 bg-gray-900 text-white transform transition-transform duration-200 ease-in-out lg:translate-x-0 lg:static lg:z-auto",
-          isOpen ? "translate-x-0" : "-translate-x-full"
+          'fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0',
+          isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         )}
       >
-        <div className="flex items-center justify-between p-6 border-b border-gray-700">
+        <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200 lg:hidden">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-green-500 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-sm">D</span>
             </div>
-            <h2 className="text-lg font-bold">Dental IA</h2>
+            <h1 className="text-xl font-bold text-gray-900">Dental IA</h1>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
+          <button
             onClick={onClose}
-            className="lg:hidden text-gray-400 hover:text-white"
+            className="p-2 rounded-md text-gray-500 hover:bg-gray-100"
           >
             <X className="h-5 w-5" />
-          </Button>
+          </button>
         </div>
 
-        <nav className="p-4">
-          <ul className="space-y-2">
-            {menuItems.map((item) => (
-              <li key={item.name}>
-                <NavLink
-                  to={item.path}
-                  className={({ isActive }) =>
-                    cn(
-                      "flex items-center gap-3 px-3 py-2 rounded-lg transition-colors",
+        <nav className="mt-6 px-3">
+          <ul className="space-y-1">
+            {navigation.map((item) => {
+              const isActive = location.pathname === item.href;
+              return (
+                <li key={item.name}>
+                  <Link
+                    to={item.href}
+                    onClick={onClose}
+                    className={cn(
+                      'flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors',
                       isActive
-                        ? "bg-blue-600 text-white"
-                        : "text-gray-300 hover:bg-gray-800 hover:text-white"
-                    )
-                  }
-                  onClick={() => window.innerWidth < 1024 && onClose()}
-                >
-                  <item.icon className="h-5 w-5" />
-                  <span>{item.name}</span>
-                </NavLink>
-              </li>
-            ))}
+                        ? 'bg-blue-50 text-blue-700'
+                        : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
+                    )}
+                  >
+                    <item.icon className="h-5 w-5" />
+                    {item.name}
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         </nav>
-      </aside>
+      </div>
     </>
   );
 };
