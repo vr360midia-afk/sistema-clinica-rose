@@ -54,8 +54,8 @@ export const useSignatures = () => {
     return allSignatures.filter(sig => sig.documentId === documentId);
   }, [getStoredSignatures]);
 
-  // Gerar PDF com assinaturas (simulado)
-  const generateSignedPDF = useCallback((documentContent: string, signatures: StoredSignature[]) => {
+  // Gerar PDF com assinaturas - aceita tanto StoredSignature quanto SignatureData
+  const generateSignedPDF = useCallback((documentContent: string, signatures: (StoredSignature | SignatureData)[]) => {
     // Esta é uma implementação simulada
     // Em um projeto real, você usaria uma biblioteca como jsPDF
     const pdfContent = `
