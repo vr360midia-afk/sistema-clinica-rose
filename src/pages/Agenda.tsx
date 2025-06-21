@@ -60,15 +60,15 @@ const Agenda = () => {
 
   return (
     <Layout>
-      <div className="space-y-4 sm:space-y-6 p-2 sm:p-0">
-        {/* Header responsivo */}
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Agenda</h1>
-            <p className="text-sm sm:text-base text-gray-600">Gerencie seus agendamentos e consultas</p>
+      <div className="space-y-6 max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="flex flex-col lg:flex-row lg:justify-between lg:items-start gap-4">
+          <div className="space-y-2">
+            <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Agenda</h1>
+            <p className="text-gray-600">Gerencie seus agendamentos e consultas</p>
           </div>
           <Button 
-            className="flex items-center gap-2 w-full sm:w-auto"
+            className="flex items-center gap-2 lg:shrink-0"
             onClick={handleNewAppointment}
           >
             <Plus className="h-4 w-4" />
@@ -76,13 +76,12 @@ const Agenda = () => {
           </Button>
         </div>
 
-        {/* View selector responsivo */}
-        <div className="flex gap-2 overflow-x-auto pb-2">
+        {/* View selector */}
+        <div className="flex gap-2 border-b border-gray-200 pb-4">
           <Button 
             variant={view === 'day' ? 'default' : 'outline'}
             onClick={() => setView('day')}
             size="sm"
-            className="whitespace-nowrap"
           >
             Dia
           </Button>
@@ -90,7 +89,6 @@ const Agenda = () => {
             variant={view === 'week' ? 'default' : 'outline'}
             onClick={() => setView('week')}
             size="sm"
-            className="whitespace-nowrap"
           >
             Semana
           </Button>
@@ -98,24 +96,23 @@ const Agenda = () => {
             variant={view === 'month' ? 'default' : 'outline'}
             onClick={() => setView('month')}
             size="sm"
-            className="whitespace-nowrap"
           >
             Mês
           </Button>
         </div>
 
-        {/* Layout principal responsivo */}
-        <div className="flex flex-col lg:grid lg:grid-cols-3 gap-4 sm:gap-6">
-          {/* Calendar - primeira em mobile, lado esquerdo em desktop */}
-          <div className="lg:col-span-1 order-1 lg:order-1">
-            <Card className="h-fit">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                  <CalendarDays className="h-4 w-4 sm:h-5 sm:w-5" />
+        {/* Main content grid */}
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+          {/* Calendar */}
+          <div className="xl:col-span-4">
+            <Card className="sticky top-6">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <CalendarDays className="h-5 w-5" />
                   Calendário
                 </CardTitle>
               </CardHeader>
-              <CardContent className="p-3 sm:p-6">
+              <CardContent>
                 <Calendar
                   mode="single"
                   selected={selectedDate}
@@ -127,16 +124,16 @@ const Agenda = () => {
             </Card>
           </div>
 
-          {/* Daily Schedule - segunda em mobile, lado direito em desktop */}
-          <div className="lg:col-span-2 order-2 lg:order-2">
-            <Card className="h-fit">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex flex-col sm:flex-row sm:items-center gap-2 text-base sm:text-lg">
+          {/* Daily Schedule */}
+          <div className="xl:col-span-8">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex flex-col sm:flex-row sm:items-center gap-2">
                   <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 sm:h-5 sm:w-5" />
+                    <Clock className="h-5 w-5" />
                     <span>Agenda do Dia</span>
                   </div>
-                  <div className="text-xs sm:text-sm font-normal text-gray-500">
+                  <div className="text-sm font-normal text-gray-500">
                     {selectedDate && format(selectedDate, 'dd/MM/yyyy', { locale: ptBR })}
                     <span className="ml-2">
                       ({appointmentsForSelectedDate.length} consulta{appointmentsForSelectedDate.length !== 1 ? 's' : ''})
@@ -144,27 +141,29 @@ const Agenda = () => {
                   </div>
                 </CardTitle>
               </CardHeader>
-              <CardContent className="p-3 sm:p-6">
-                <div className="space-y-3 sm:space-y-4 max-h-96 sm:max-h-[500px] overflow-y-auto">
+              <CardContent>
+                <div className="space-y-4 max-h-[600px] overflow-y-auto">
                   {appointmentsForSelectedDate.length > 0 ? (
                     appointmentsForSelectedDate.map((appointment) => (
-                      <div key={appointment.id} className="w-full">
-                        <AppointmentCard
-                          appointment={appointment}
-                          onClick={handleAppointmentClick}
-                        />
-                      </div>
+                      <AppointmentCard
+                        key={appointment.id}
+                        appointment={appointment}
+                        onClick={handleAppointmentClick}
+                      />
                     ))
                   ) : (
-                    <div className="text-center text-gray-500 py-8">
-                      <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <p className="text-sm sm:text-base">Nenhuma consulta agendada para este dia</p>
+                    <div className="text-center text-gray-500 py-12">
+                      <Clock className="h-16 w-16 mx-auto mb-4 opacity-30" />
+                      <p className="text-lg mb-2">Nenhuma consulta agendada para este dia</p>
+                      <p className="text-sm text-gray-400 mb-6">
+                        {selectedDate && format(selectedDate, 'dd/MM/yyyy', { locale: ptBR })}
+                      </p>
                       <Button 
                         variant="outline" 
-                        className="mt-4" 
                         onClick={handleNewAppointment}
+                        className="gap-2"
                       >
-                        <Plus className="h-4 w-4 mr-2" />
+                        <Plus className="h-4 w-4" />
                         Agendar primeira consulta
                       </Button>
                     </div>
