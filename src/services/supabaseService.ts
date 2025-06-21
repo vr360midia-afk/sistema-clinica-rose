@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { Paciente, Consulta, Transacao, Prontuario, Anamnese, DocumentoPaciente } from '@/types/shared';
 import { toast } from 'sonner';
@@ -61,8 +60,7 @@ class SupabaseService {
       assinaturaDoutor: data.assinatura_doutor,
       linkAssinatura: data.link_assinatura,
       tokenAssinatura: data.token_assinatura,
-      statusAssinatura: data.status_assinatura,
-      dataExpiracaoLink: data.data_expiracao_link ? new Date(data.data_expiracao_link) : undefined
+      statusAssinatura: data.status_assinatura
     };
   };
 

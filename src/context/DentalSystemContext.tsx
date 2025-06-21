@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { supabaseService } from '@/services/supabaseService';
@@ -16,10 +15,12 @@ interface DentalSystemContextType {
   loading: boolean;
 
   // Ações
-  addPaciente: (paciente: Omit<Paciente, 'id' | 'criadoEm' | 'atualizadoEm'>) => Promise<void>;
+  addPaciente: (paciente: Omit<Paciente, 'id' | 'criadoEm' | 'atualizadoEm'>) => Promise<Paciente>;
   updatePaciente: (id: string, updates: Partial<Paciente>) => Promise<void>;
   deletePaciente: (id: string) => Promise<void>;
   arquivarPaciente: (id: string, motivo: string) => Promise<void>;
+  archivePaciente: (id: string, motivo: string) => Promise<void>;
+  reactivatePaciente: (id: string) => Promise<void>;
 
   addConsulta: (consulta: Omit<Consulta, 'id' | 'criadoEm' | 'atualizadoEm'>) => Promise<void>;
   updateConsulta: (id: string, updates: Partial<Consulta>) => Promise<void>;
@@ -33,9 +34,11 @@ interface DentalSystemContextType {
   updateProntuario: (id: string, updates: Partial<Prontuario>) => Promise<void>;
   deleteProntuario: (id: string) => Promise<void>;
 
-  addAnamnese: (anamnese: Omit<Anamnese, 'id' | 'criadoEm' | 'atualizadoEm'>) => Promise<void>;
+  addAnamnese: (anamnese: Omit<Anamnese, 'id' | 'criadoEm' | 'atualizadoEm'>) => Promise<Anamnese>;
   updateAnamnese: (id: string, updates: Partial<Anamnese>) => Promise<void>;
   deleteAnamnese: (id: string) => Promise<void>;
+  generateSignatureLink: (anamneseId: string) => string;
+  signAnamnese: (id: string, signatureData: any, signerType: 'paciente' | 'dentista') => Promise<void>;
 
   addDocumento: (documento: Omit<DocumentoPaciente, 'id' | 'criadoEm' | 'atualizadoEm'>) => Promise<void>;
   updateDocumento: (id: string, updates: Partial<DocumentoPaciente>) => Promise<void>;
@@ -44,6 +47,9 @@ interface DentalSystemContextType {
   // Utilidades
   getPacienteById: (id: string) => Paciente | undefined;
   clearAllData: () => Promise<void>;
+  clearPacientes: () => Promise<void>;
+  clearTransacoes: () => Promise<void>;
+  clearAnamneses: () => Promise<void>;
   migrateFromLocalStorage: () => Promise<void>;
 }
 
@@ -111,11 +117,12 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
   };
 
   // Funções para Pacientes
-  const addPaciente = async (pacienteData: Omit<Paciente, 'id' | 'criadoEm' | 'atualizadoEm'>) => {
+  const addPaciente = async (pacienteData: Omit<Paciente, 'id' | 'criadoEm' | 'atualizadoEm'>): Promise<Paciente> => {
     try {
       const novoPaciente = await supabaseService.savePaciente(pacienteData);
       setPacientes(prev => [novoPaciente, ...prev]);
       toast.success('Paciente adicionado com sucesso!');
+      return novoPaciente;
     } catch (error) {
       console.error('Erro ao adicionar paciente:', error);
       toast.error('Erro ao adicionar paciente');
@@ -167,6 +174,24 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
       await updatePaciente(id, updates);
     } catch (error) {
       console.error('Erro ao arquivar paciente:', error);
+      throw error;
+    }
+  };
+
+  const archivePaciente = async (id: string, motivo: string) => {
+    await arquivarPaciente(id, motivo);
+  };
+
+  const reactivatePaciente = async (id: string) => {
+    try {
+      const updates = {
+        status: 'Ativo' as const,
+        dataArquivamento: undefined,
+        motivoArquivamento: undefined
+      };
+      await updatePaciente(id, updates);
+    } catch (error) {
+      console.error('Erro ao reativar paciente:', error);
       throw error;
     }
   };
@@ -289,11 +314,12 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
   };
 
   // Funções para Anamneses
-  const addAnamnese = async (anamneseData: Omit<Anamnese, 'id' | 'criadoEm' | 'atualizadoEm'>) => {
+  const addAnamnese = async (anamneseData: Omit<Anamnese, 'id' | 'criadoEm' | 'atualizadoEm'>): Promise<Anamnese> => {
     try {
       const novaAnamnese = await supabaseService.saveAnamnese(anamneseData);
       setAnamneses(prev => [novaAnamnese, ...prev]);
       toast.success('Anamnese adicionada com sucesso!');
+      return novaAnamnese;
     } catch (error) {
       console.error('Erro ao adicionar anamnese:', error);
       toast.error('Erro ao adicionar anamnese');
@@ -323,6 +349,56 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
     } catch (error) {
       console.error('Erro ao remover anamnese:', error);
       toast.error('Erro ao remover anamnese');
+      throw error;
+    }
+  };
+
+  const generateSignatureLink = (anamneseId: string): string => {
+    const anamnese = anamneses.find(a => a.id === anamneseId);
+    if (!anamnese) return '';
+    
+    const token = Math.random().toString(36).substring(2, 15);
+    const expiracaoLink = new Date();
+    expiracaoLink.setDate(expiracaoLink.getDate() + 7); // 7 dias para expirar
+    
+    // Atualizar anamnese com token
+    updateAnamnese(anamneseId, {
+      tokenAssinatura: token,
+      dataExpiracaoLink: expiracaoLink,
+      linkAssinatura: `${window.location.origin}/assinar-anamnese/${anamneseId}?token=${token}`
+    });
+    
+    return `${window.location.origin}/assinar-anamnese/${anamneseId}?token=${token}`;
+  };
+
+  const signAnamnese = async (id: string, signatureData: any, signerType: 'paciente' | 'dentista') => {
+    try {
+      const updates: Partial<Anamnese> = {};
+      
+      if (signerType === 'paciente') {
+        updates.assinaturaPaciente = signatureData;
+      } else {
+        updates.assinaturaDoutor = signatureData;
+      }
+
+      // Verificar se ambas as assinaturas estão presentes
+      const anamnese = anamneses.find(a => a.id === id);
+      if (anamnese) {
+        const temAssinaturaPaciente = signerType === 'paciente' || anamnese.assinaturaPaciente;
+        const temAssinaturaDentista = signerType === 'dentista' || anamnese.assinaturaDoutor;
+        
+        if (temAssinaturaPaciente && temAssinaturaDentista) {
+          updates.statusAssinatura = 'concluida';
+        } else {
+          updates.statusAssinatura = 'parcial';
+        }
+      }
+
+      await updateAnamnese(id, updates);
+      toast.success(`Assinatura do ${signerType} registrada com sucesso!`);
+    } catch (error) {
+      console.error('Erro ao registrar assinatura:', error);
+      toast.error('Erro ao registrar assinatura');
       throw error;
     }
   };
@@ -388,6 +464,47 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   };
 
+  const clearPacientes = async () => {
+    try {
+      await supabaseService.clearPacientes();
+      setPacientes([]);
+      setConsultas([]);
+      setTransacoes([]);
+      setProntuarios([]);
+      setAnamneses([]);
+      setDocumentos([]);
+      toast.success('Todos os pacientes foram removidos!');
+    } catch (error) {
+      console.error('Erro ao limpar pacientes:', error);
+      toast.error('Erro ao limpar pacientes');
+      throw error;
+    }
+  };
+
+  const clearTransacoes = async () => {
+    try {
+      await supabaseService.clearTransacoes();
+      setTransacoes([]);
+      toast.success('Todas as transações foram removidas!');
+    } catch (error) {
+      console.error('Erro ao limpar transações:', error);
+      toast.error('Erro ao limpar transações');
+      throw error;
+    }
+  };
+
+  const clearAnamneses = async () => {
+    try {
+      await supabaseService.clearAnamneses();
+      setAnamneses([]);
+      toast.success('Todas as anamneses foram removidas!');
+    } catch (error) {
+      console.error('Erro ao limpar anamneses:', error);
+      toast.error('Erro ao limpar anamneses');
+      throw error;
+    }
+  };
+
   const migrateFromLocalStorage = async () => {
     try {
       await supabaseService.migrateFromLocalStorage();
@@ -416,6 +533,8 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
     updatePaciente,
     deletePaciente,
     arquivarPaciente,
+    archivePaciente,
+    reactivatePaciente,
 
     addConsulta,
     updateConsulta,
@@ -432,6 +551,8 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
     addAnamnese,
     updateAnamnese,
     deleteAnamnese,
+    generateSignatureLink,
+    signAnamnese,
 
     addDocumento,
     updateDocumento,
@@ -440,6 +561,9 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
     // Utilidades
     getPacienteById,
     clearAllData,
+    clearPacientes,
+    clearTransacoes,
+    clearAnamneses,
     migrateFromLocalStorage
   };
 
