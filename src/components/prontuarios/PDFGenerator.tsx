@@ -1,17 +1,28 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { FileText, Download } from 'lucide-react';
+import { FileText, Download, FileSignature } from 'lucide-react';
 import { toast } from 'sonner';
+import SignatureProntuario from './SignatureProntuario';
 
 interface PDFGeneratorProps {
   patientData: any;
   teethStatus: any;
   images: any[];
   clinicLogo?: string;
+  prontuarioId?: string;
+  patientName?: string;
 }
 
-const PDFGenerator = ({ patientData, teethStatus, images, clinicLogo }: PDFGeneratorProps) => {
+const PDFGenerator = ({ 
+  patientData, 
+  teethStatus, 
+  images, 
+  clinicLogo,
+  prontuarioId = `prontuario-${Date.now()}`,
+  patientName = 'Paciente'
+}: PDFGeneratorProps) => {
+  const [showSignatures, setShowSignatures] = useState(false);
   
   const generatePDF = () => {
     // Simulação da geração de PDF
@@ -46,6 +57,7 @@ const PDFGenerator = ({ patientData, teethStatus, images, clinicLogo }: PDFGener
             .tooth { border: 1px solid #333; text-align: center; padding: 5px; font-size: 10px; }
             .images { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 20px 0; }
             .image-placeholder { border: 1px solid #ccc; height: 100px; display: flex; align-items: center; justify-content: center; }
+            .signature-section { margin-top: 40px; padding-top: 20px; border-top: 2px solid #333; }
           </style>
         </head>
         <body>
@@ -91,6 +103,17 @@ const PDFGenerator = ({ patientData, teethStatus, images, clinicLogo }: PDFGener
               `).join('') || '<p>Nenhuma imagem anexada</p>'}
             </div>
           </div>
+          
+          <div class="signature-section">
+            <h3>ASSINATURAS DIGITAIS</h3>
+            <p><strong>IMPORTANTE:</strong> Este documento deve ser assinado digitalmente por ambas as partes para ter validade legal.</p>
+            <div style="margin-top: 30px;">
+              <p>______________________ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ______________________</p>
+              <p style="text-align: center; margin-top: 10px;">
+                <small>Assinatura do Paciente &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Assinatura do Dentista</small>
+              </p>
+            </div>
+          </div>
         </body>
       </html>
     `;
@@ -108,15 +131,40 @@ const PDFGenerator = ({ patientData, teethStatus, images, clinicLogo }: PDFGener
   };
 
   return (
-    <div className="flex gap-2">
-      <Button onClick={generateSimplePDF} className="flex items-center gap-2">
-        <FileText className="h-4 w-4" />
-        Gerar PDF Simples
-      </Button>
-      <Button onClick={generatePDF} variant="outline" className="flex items-center gap-2">
-        <Download className="h-4 w-4" />
-        PDF Completo
-      </Button>
+    <div className="space-y-4">
+      <div className="flex gap-2">
+        <Button onClick={generateSimplePDF} className="flex items-center gap-2">
+          <FileText className="h-4 w-4" />
+          Gerar PDF Simples
+        </Button>
+        <Button onClick={generatePDF} variant="outline" className="flex items-center gap-2">
+          <Download className="h-4 w-4" />
+          PDF Completo
+        </Button>
+        <Button 
+          onClick={() => setShowSignatures(!showSignatures)} 
+          variant="outline"
+          className="flex items-center gap-2"
+        >
+          <FileSignature className="h-4 w-4" />
+          {showSignatures ? 'Ocultar' : 'Mostrar'} Assinaturas
+        </Button>
+      </div>
+
+      {showSignatures && (
+        <SignatureProntuario
+          patientData={patientData}
+          teethStatus={teethStatus}
+          images={images}
+          prontuarioId={prontuarioId}
+          patientName={patientName}
+          onSignaturesComplete={() => {
+            toast.success('Prontuário assinado com sucesso!', {
+              description: 'Agora você pode gerar o PDF com as assinaturas'
+            });
+          }}
+        />
+      )}
     </div>
   );
 };

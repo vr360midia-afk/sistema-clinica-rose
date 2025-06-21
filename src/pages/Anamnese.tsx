@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import Layout from '@/components/layout/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,12 +7,21 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Clipboard, Save, Plus, Eye, ArrowLeft } from 'lucide-react';
+import { Clipboard, Save, Plus, Eye, ArrowLeft, FileSignature } from 'lucide-react';
 import PatientSelector from '@/components/anamnese/PatientSelector';
+import SignatureModal from '@/components/signature/SignatureModal';
+import { SignatureData } from '@/components/signature/DigitalSignature';
+import { useSignatures } from '@/hooks/useSignatures';
 
 const Anamnese = () => {
   const { toast } = useToast();
+  const { saveSignature, generateSignedPDF } = useSignatures();
   const [showForm, setShowForm] = useState(false);
+  const [showSignatureModal, setShowSignatureModal] = useState(false);
+  const [currentSigner, setCurrentSigner] = useState<'paciente' | 'dentista'>('paciente');
+  const [patientSignature, setPatientSignature] = useState<SignatureData | null>(null);
+  const [dentistSignature, setDentistSignature] = useState<SignatureData | null>(null);
+  
   const [formData, setFormData] = useState({
     patientId: '',
     medicamento: '',
@@ -57,44 +65,77 @@ const Anamnese = () => {
       return;
     }
 
-    console.log('Salvando anamnese:', formData);
-    toast({
-      title: "Anamnese salva com sucesso!",
-      description: "Os dados foram salvos no sistema.",
-    });
-    setShowForm(false);
-    setFormData({
-      patientId: '',
-      medicamento: '',
-      medicamentoDescricao: '',
-      alergia: '',
-      alergiaDescricao: '',
-      pressao: '',
-      problemasCoracao: '',
-      problemasCoracaoDescricao: '',
-      faltaAr: '',
-      diabetes: '',
-      sangramento: '',
-      cicatrizacao: '',
-      cirurgia: '',
-      cirurgiaDescricao: '',
-      gestante: '',
-      gestanteSemanas: '',
-      problemasSaude: '',
-      reacaoAnestesia: '',
-      reacaoAnestesiaDescricao: '',
-      ultimoTratamento: '',
-      dorDentes: '',
-      gengivaSangra: '',
-      gostoRuim: '',
-      escovacoes: '',
-      fioDental: '',
-      doresMaxilar: '',
-      rangeDentes: '',
-      feridaLabios: '',
-      fuma: '',
-      fumaQuantidade: ''
-    });
+    // Iniciar processo de assinatura com o paciente
+    setCurrentSigner('paciente');
+    setShowSignatureModal(true);
+  };
+
+  const handleSignatureComplete = (signatureData: SignatureData) => {
+    if (currentSigner === 'paciente') {
+      setPatientSignature(signatureData);
+      saveSignature(signatureData, `anamnese-${Date.now()}`, formData.patientId);
+      
+      // Após assinatura do paciente, solicitar assinatura do dentista
+      setCurrentSigner('dentista');
+      setShowSignatureModal(true);
+    } else {
+      setDentistSignature(signatureData);
+      saveSignature(signatureData, `anamnese-${Date.now()}`, formData.patientId);
+      
+      // Finalizar processo
+      toast({
+        title: "Anamnese salva com sucesso!",
+        description: "Documento assinado digitalmente por ambas as partes.",
+      });
+      
+      // Gerar PDF com assinaturas
+      const documentContent = `ANAMNESE ODONTOLÓGICA\n\nPaciente: [Nome do Paciente]\nData: ${new Date().toLocaleDateString()}\n\n[Conteúdo da anamnese...]`;
+      generateSignedPDF(documentContent, [patientSignature!, signatureData]);
+      
+      // Reset form
+      setShowForm(false);
+      setPatientSignature(null);
+      setDentistSignature(null);
+      setFormData({
+        patientId: '',
+        medicamento: '',
+        medicamentoDescricao: '',
+        alergia: '',
+        alergiaDescricao: '',
+        pressao: '',
+        problemasCoracao: '',
+        problemasCoracaoDescricao: '',
+        faltaAr: '',
+        diabetes: '',
+        sangramento: '',
+        cicatrizacao: '',
+        cirurgia: '',
+        cirurgiaDescricao: '',
+        gestante: '',
+        gestanteSemanas: '',
+        problemasSaude: '',
+        reacaoAnestesia: '',
+        reacaoAnestesiaDescricao: '',
+        ultimoTratamento: '',
+        dorDentes: '',
+        gengivaSangra: '',
+        gostoRuim: '',
+        escovacoes: '',
+        fioDental: '',
+        doresMaxilar: '',
+        rangeDentes: '',
+        feridaLabios: '',
+        fuma: '',
+        fumaQuantidade: ''
+      });
+    }
+  };
+
+  const getCurrentSignerName = () => {
+    if (currentSigner === 'paciente') {
+      return 'Paciente Selecionado'; // Em um caso real, você pegaria o nome do paciente
+    }
+    return 'Dr. Dentista'; // Em um caso real, você pegaria o nome do dentista logado
   };
 
   const anamneses = [
@@ -120,11 +161,28 @@ const Anamnese = () => {
                 Cancelar
               </Button>
               <Button onClick={handleSave} className="bg-blue-600 hover:bg-blue-700">
-                <Save className="h-4 w-4 mr-2" />
-                Salvar
+                <FileSignature className="h-4 w-4 mr-2" />
+                Finalizar e Assinar
               </Button>
             </div>
           </div>
+
+          {/* Status das assinaturas */}
+          {(patientSignature || dentistSignature) && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h3 className="text-sm font-medium text-blue-800 mb-2">Status das Assinaturas:</h3>
+              <div className="space-y-1 text-sm">
+                <div className="flex items-center gap-2">
+                  <div className={`w-3 h-3 rounded-full ${patientSignature ? 'bg-green-500' : 'bg-gray-300'}`} />
+                  <span>Paciente: {patientSignature ? 'Assinado' : 'Pendente'}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className={`w-3 h-3 rounded-full ${dentistSignature ? 'bg-green-500' : 'bg-gray-300'}`} />
+                  <span>Dentista: {dentistSignature ? 'Assinado' : 'Pendente'}</span>
+                </div>
+              </div>
+            </div>
+          )}
 
           <Card>
             <CardHeader>
@@ -648,6 +706,17 @@ const Anamnese = () => {
               </div>
             </CardContent>
           </Card>
+
+          {/* Modal de Assinatura */}
+          <SignatureModal
+            isOpen={showSignatureModal}
+            onClose={() => setShowSignatureModal(false)}
+            title={`Assinatura ${currentSigner === 'paciente' ? 'do Paciente' : 'do Dentista'}`}
+            signerName={getCurrentSignerName()}
+            signerRole={currentSigner}
+            documentType="anamnese"
+            onSignatureComplete={handleSignatureComplete}
+          />
         </div>
       </Layout>
     );
