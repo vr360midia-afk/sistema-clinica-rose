@@ -1,11 +1,13 @@
 
-import { Paciente, Consulta, Transacao, Prontuario } from '@/types/shared';
+import { Paciente, Consulta, Transacao, Prontuario, Anamnese, DocumentoPaciente } from '@/types/shared';
 
 const STORAGE_KEYS = {
   PACIENTES: 'dental-system-pacientes',
   CONSULTAS: 'dental-system-consultas',
   TRANSACOES: 'dental-system-transacoes',
   PRONTUARIOS: 'dental-system-prontuarios',
+  ANAMNESES: 'dental-system-anamneses',
+  DOCUMENTOS: 'dental-system-documentos',
   SYSTEM_CONFIG: 'dental-system-config'
 } as const;
 
@@ -23,6 +25,7 @@ class LocalStorageService {
   private setItem<T>(key: string, data: T[]): void {
     try {
       localStorage.setItem(key, JSON.stringify(data, this.dateReplacer));
+      console.log(`Dados salvos no localStorage para ${key}:`, data.length, 'itens');
     } catch (error) {
       console.error(`Erro ao salvar ${key} no localStorage:`, error);
     }
@@ -46,6 +49,27 @@ class LocalStorageService {
     return Date.now().toString(36) + Math.random().toString(36).substr(2);
   }
 
+  // Métodos de limpeza
+  clearPacientes(): void {
+    localStorage.removeItem(STORAGE_KEYS.PACIENTES);
+    console.log('Dados de pacientes limpos');
+  }
+
+  clearTransacoes(): void {
+    localStorage.removeItem(STORAGE_KEYS.TRANSACOES);
+    console.log('Dados financeiros limpos');
+  }
+
+  clearAllPatientRelatedData(): void {
+    localStorage.removeItem(STORAGE_KEYS.PACIENTES);
+    localStorage.removeItem(STORAGE_KEYS.CONSULTAS);
+    localStorage.removeItem(STORAGE_KEYS.TRANSACOES);
+    localStorage.removeItem(STORAGE_KEYS.PRONTUARIOS);
+    localStorage.removeItem(STORAGE_KEYS.ANAMNESES);
+    localStorage.removeItem(STORAGE_KEYS.DOCUMENTOS);
+    console.log('Todos os dados de pacientes e relacionados foram limpos');
+  }
+
   // Pacientes
   getPacientes(): Paciente[] {
     return this.getItem<Paciente>(STORAGE_KEYS.PACIENTES);
@@ -58,11 +82,13 @@ class LocalStorageService {
       ...paciente,
       id: this.generateId(),
       criadoEm: now,
-      atualizadoEm: now
+      atualizadoEm: now,
+      idade: Number(paciente.idade) || 0
     };
     
     pacientes.push(newPaciente);
     this.setItem(STORAGE_KEYS.PACIENTES, pacientes);
+    console.log('Novo paciente salvo:', newPaciente);
     return newPaciente;
   }
 
@@ -79,6 +105,7 @@ class LocalStorageService {
     };
     
     this.setItem(STORAGE_KEYS.PACIENTES, pacientes);
+    console.log('Paciente atualizado:', pacientes[index]);
     return pacientes[index];
   }
 
@@ -89,6 +116,7 @@ class LocalStorageService {
     if (filteredPacientes.length === pacientes.length) return false;
     
     this.setItem(STORAGE_KEYS.PACIENTES, filteredPacientes);
+    console.log('Paciente removido:', id);
     return true;
   }
 
@@ -155,6 +183,7 @@ class LocalStorageService {
     
     transacoes.push(newTransacao);
     this.setItem(STORAGE_KEYS.TRANSACOES, transacoes);
+    console.log('Nova transação salva:', newTransacao);
     return newTransacao;
   }
 
@@ -230,11 +259,104 @@ class LocalStorageService {
     return true;
   }
 
+  // Anamneses
+  getAnamneses(): Anamnese[] {
+    return this.getItem<Anamnese>(STORAGE_KEYS.ANAMNESES);
+  }
+
+  saveAnamnese(anamnese: Omit<Anamnese, 'id' | 'criadoEm' | 'atualizadoEm'>): Anamnese {
+    const anamneses = this.getAnamneses();
+    const now = new Date();
+    const newAnamnese: Anamnese = {
+      ...anamnese,
+      id: this.generateId(),
+      criadoEm: now,
+      atualizadoEm: now
+    };
+    
+    anamneses.push(newAnamnese);
+    this.setItem(STORAGE_KEYS.ANAMNESES, anamneses);
+    return newAnamnese;
+  }
+
+  updateAnamnese(id: string, updates: Partial<Anamnese>): Anamnese | null {
+    const anamneses = this.getAnamneses();
+    const index = anamneses.findIndex(a => a.id === id);
+    
+    if (index === -1) return null;
+    
+    anamneses[index] = {
+      ...anamneses[index],
+      ...updates,
+      atualizadoEm: new Date()
+    };
+    
+    this.setItem(STORAGE_KEYS.ANAMNESES, anamneses);
+    return anamneses[index];
+  }
+
+  deleteAnamnese(id: string): boolean {
+    const anamneses = this.getAnamneses();
+    const filteredAnamneses = anamneses.filter(a => a.id !== id);
+    
+    if (filteredAnamneses.length === anamneses.length) return false;
+    
+    this.setItem(STORAGE_KEYS.ANAMNESES, filteredAnamneses);
+    return true;
+  }
+
+  // Documentos
+  getDocumentos(): DocumentoPaciente[] {
+    return this.getItem<DocumentoPaciente>(STORAGE_KEYS.DOCUMENTOS);
+  }
+
+  saveDocumento(documento: Omit<DocumentoPaciente, 'id' | 'criadoEm' | 'atualizadoEm'>): DocumentoPaciente {
+    const documentos = this.getDocumentos();
+    const now = new Date();
+    const newDocumento: DocumentoPaciente = {
+      ...documento,
+      id: this.generateId(),
+      criadoEm: now,
+      atualizadoEm: now
+    };
+    
+    documentos.push(newDocumento);
+    this.setItem(STORAGE_KEYS.DOCUMENTOS, documentos);
+    return newDocumento;
+  }
+
+  updateDocumento(id: string, updates: Partial<DocumentoPaciente>): DocumentoPaciente | null {
+    const documentos = this.getDocumentos();
+    const index = documentos.findIndex(d => d.id === id);
+    
+    if (index === -1) return null;
+    
+    documentos[index] = {
+      ...documentos[index],
+      ...updates,
+      atualizadoEm: new Date()
+    };
+    
+    this.setItem(STORAGE_KEYS.DOCUMENTOS, documentos);
+    return documentos[index];
+  }
+
+  deleteDocumento(id: string): boolean {
+    const documentos = this.getDocumentos();
+    const filteredDocumentos = documentos.filter(d => d.id !== id);
+    
+    if (filteredDocumentos.length === documentos.length) return false;
+    
+    this.setItem(STORAGE_KEYS.DOCUMENTOS, filteredDocumentos);
+    return true;
+  }
+
   // Métodos utilitários
   clearAllData(): void {
     Object.values(STORAGE_KEYS).forEach(key => {
       localStorage.removeItem(key);
     });
+    console.log('Todos os dados foram limpos');
   }
 
   exportData() {
@@ -243,6 +365,8 @@ class LocalStorageService {
       consultas: this.getConsultas(),
       transacoes: this.getTransacoes(),
       prontuarios: this.getProntuarios(),
+      anamneses: this.getAnamneses(),
+      documentos: this.getDocumentos(),
       exportedAt: new Date()
     };
   }
@@ -253,6 +377,8 @@ class LocalStorageService {
       if (data.consultas) this.setItem(STORAGE_KEYS.CONSULTAS, data.consultas);
       if (data.transacoes) this.setItem(STORAGE_KEYS.TRANSACOES, data.transacoes);
       if (data.prontuarios) this.setItem(STORAGE_KEYS.PRONTUARIOS, data.prontuarios);
+      if (data.anamneses) this.setItem(STORAGE_KEYS.ANAMNESES, data.anamneses);
+      if (data.documentos) this.setItem(STORAGE_KEYS.DOCUMENTOS, data.documentos);
       return true;
     } catch (error) {
       console.error('Erro ao importar dados:', error);
@@ -262,3 +388,10 @@ class LocalStorageService {
 }
 
 export const localStorageService = new LocalStorageService();
+
+// Limpar todos os dados existentes na inicialização (apenas uma vez)
+if (!localStorage.getItem('dental-system-initialized')) {
+  console.log('Inicializando sistema - limpando dados antigos...');
+  localStorageService.clearAllData();
+  localStorage.setItem('dental-system-initialized', 'true');
+}
