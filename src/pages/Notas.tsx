@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -61,15 +60,19 @@ const Notas = () => {
 
       if (error) throw error;
       
-      // Garantir que todos os campos obrigatórios existam
-      const notasWithDefaults = (data || []).map(nota => ({
-        ...nota,
+      // Garantir que todos os campos obrigatórios existam e tipar corretamente
+      const notasWithDefaults = (data || []).map((nota: any) => ({
+        id: nota.id,
+        titulo: nota.titulo,
+        conteudo: nota.conteudo || '',
         prazo: nota.prazo || undefined,
         lembrete_data: nota.lembrete_data || undefined,
         lembrete_ativo: nota.lembrete_ativo || false,
-        prioridade: nota.prioridade || 'media' as 'baixa' | 'media' | 'alta',
+        prioridade: (nota.prioridade || 'media') as 'baixa' | 'media' | 'alta',
         categoria: nota.categoria || 'geral',
-        concluida: nota.concluida || false
+        concluida: nota.concluida || false,
+        created_at: nota.created_at,
+        updated_at: nota.updated_at
       }));
       
       setNotas(notasWithDefaults);
