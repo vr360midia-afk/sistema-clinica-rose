@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -77,6 +78,7 @@ const Notas = () => {
       
       setNotas(notasWithDefaults);
     } catch (error) {
+      console.error('Erro ao buscar notas:', error);
       toast({
         title: "Erro",
         description: "Não foi possível carregar as notas",
@@ -88,7 +90,14 @@ const Notas = () => {
   };
 
   const createNota = async () => {
-    if (!newNota.titulo.trim()) return;
+    if (!newNota.titulo.trim()) {
+      toast({
+        title: "Erro",
+        description: "O título é obrigatório",
+        variant: "destructive"
+      });
+      return;
+    }
 
     try {
       const notaData: any = {
@@ -109,11 +118,20 @@ const Notas = () => {
         notaData.lembrete_data = new Date(newNota.lembrete_data).toISOString();
       }
 
-      const { error } = await supabase
-        .from('notas')
-        .insert(notaData);
+      console.log('Dados para criar nota:', notaData);
 
-      if (error) throw error;
+      const { data, error } = await supabase
+        .from('notas')
+        .insert(notaData)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Erro do Supabase:', error);
+        throw error;
+      }
+
+      console.log('Nota criada:', data);
 
       toast({
         title: "Sucesso",
@@ -133,6 +151,7 @@ const Notas = () => {
       setShowNew(false);
       fetchNotas();
     } catch (error) {
+      console.error('Erro ao criar nota:', error);
       toast({
         title: "Erro",
         description: "Não foi possível criar a nota",
@@ -146,16 +165,20 @@ const Notas = () => {
       const updateData: any = {
         titulo,
         conteudo,
-        updated_at: new Date().toISOString(),
         ...dados
       };
+
+      console.log('Dados para atualizar nota:', updateData);
 
       const { error } = await supabase
         .from('notas')
         .update(updateData)
         .eq('id', id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Erro do Supabase:', error);
+        throw error;
+      }
 
       toast({
         title: "Sucesso",
@@ -165,6 +188,7 @@ const Notas = () => {
       setEditingId(null);
       fetchNotas();
     } catch (error) {
+      console.error('Erro ao atualizar nota:', error);
       toast({
         title: "Erro",
         description: "Não foi possível atualizar a nota",

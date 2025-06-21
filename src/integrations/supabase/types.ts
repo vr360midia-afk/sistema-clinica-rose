@@ -203,25 +203,43 @@ export type Database = {
       }
       notas: {
         Row: {
+          categoria: string | null
+          concluida: boolean | null
           conteudo: string | null
           created_at: string
           id: string
+          lembrete_ativo: boolean | null
+          lembrete_data: string | null
+          prazo: string | null
+          prioridade: string | null
           titulo: string
           updated_at: string
           user_id: string
         }
         Insert: {
+          categoria?: string | null
+          concluida?: boolean | null
           conteudo?: string | null
           created_at?: string
           id?: string
+          lembrete_ativo?: boolean | null
+          lembrete_data?: string | null
+          prazo?: string | null
+          prioridade?: string | null
           titulo: string
           updated_at?: string
           user_id: string
         }
         Update: {
+          categoria?: string | null
+          concluida?: boolean | null
           conteudo?: string | null
           created_at?: string
           id?: string
+          lembrete_ativo?: boolean | null
+          lembrete_data?: string | null
+          prazo?: string | null
+          prioridade?: string | null
           titulo?: string
           updated_at?: string
           user_id?: string
