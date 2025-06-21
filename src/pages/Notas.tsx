@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -40,7 +41,7 @@ const Notas = () => {
     prazo: '',
     lembrete_data: '',
     lembrete_ativo: false,
-    prioridade: 'media' as const,
+    prioridade: 'media' as 'baixa' | 'media' | 'alta',
     categoria: 'geral',
     concluida: false
   });
@@ -59,7 +60,19 @@ const Notas = () => {
         .order('updated_at', { ascending: false });
 
       if (error) throw error;
-      setNotas(data || []);
+      
+      // Garantir que todos os campos obrigatórios existam
+      const notasWithDefaults = (data || []).map(nota => ({
+        ...nota,
+        prazo: nota.prazo || undefined,
+        lembrete_data: nota.lembrete_data || undefined,
+        lembrete_ativo: nota.lembrete_ativo || false,
+        prioridade: nota.prioridade || 'media' as 'baixa' | 'media' | 'alta',
+        categoria: nota.categoria || 'geral',
+        concluida: nota.concluida || false
+      }));
+      
+      setNotas(notasWithDefaults);
     } catch (error) {
       toast({
         title: "Erro",
@@ -250,7 +263,10 @@ const Notas = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <Label htmlFor="new-prioridade">Prioridade</Label>
-                  <Select value={newNota.prioridade} onValueChange={(value: 'baixa' | 'media' | 'alta') => setNewNota({ ...newNota, prioridade: value })}>
+                  <Select 
+                    value={newNota.prioridade} 
+                    onValueChange={(value: 'baixa' | 'media' | 'alta') => setNewNota({ ...newNota, prioridade: value })}
+                  >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -353,7 +369,7 @@ const NotaCard: React.FC<NotaCardProps> = ({
   const [titulo, setTitulo] = useState(nota.titulo);
   const [conteudo, setConteudo] = useState(nota.conteudo);
   const [categoria, setCategoria] = useState(nota.categoria || 'geral');
-  const [prioridade, setPrioridade] = useState(nota.prioridade || 'media');
+  const [prioridade, setPrioridade] = useState<'baixa' | 'media' | 'alta'>(nota.prioridade || 'media');
   const [prazo, setPrazo] = useState(nota.prazo || '');
   const [lembreteData, setLembreteData] = useState(nota.lembrete_data || '');
   const [lembreteAtivo, setLembreteAtivo] = useState(nota.lembrete_ativo || false);
@@ -469,7 +485,10 @@ const NotaCard: React.FC<NotaCardProps> = ({
               </div>
               <div>
                 <Label>Prioridade</Label>
-                <Select value={prioridade} onValueChange={setPrioridade}>
+                <Select 
+                  value={prioridade} 
+                  onValueChange={(value: 'baixa' | 'media' | 'alta') => setPrioridade(value)}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
