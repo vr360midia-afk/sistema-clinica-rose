@@ -1,158 +1,121 @@
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useAuth } from './AuthContext';
 import { supabaseService } from '@/services/supabaseService';
-import { useAuth } from '@/context/AuthContext';
-import { Paciente, Consulta, Transacao, Prontuario, Anamnese, DocumentoPaciente } from '@/types/shared';
 import { toast } from 'sonner';
-
-// Interface para Produto
-interface Produto {
-  id: string;
-  nome: string;
-  categoria: string;
-  quantidade: number;
-  minimo: number;
-  preco: number;
-}
+import { Paciente, Consulta, Transacao, Prontuario, Anamnese, DocumentoPaciente } from '@/types/shared';
 
 interface DentalSystemContextType {
-  // Data
+  // Estado
   pacientes: Paciente[];
   consultas: Consulta[];
   transacoes: Transacao[];
   prontuarios: Prontuario[];
   anamneses: Anamnese[];
   documentos: DocumentoPaciente[];
-  produtos: Produto[];
   loading: boolean;
-  
-  // Patient methods
-  addPaciente: (paciente: Omit<Paciente, 'id' | 'criadoEm' | 'atualizadoEm'>) => Promise<Paciente>;
+
+  // Ações
+  addPaciente: (paciente: Omit<Paciente, 'id' | 'criadoEm' | 'atualizadoEm'>) => Promise<void>;
   updatePaciente: (id: string, updates: Partial<Paciente>) => Promise<void>;
   deletePaciente: (id: string) => Promise<void>;
-  archivePaciente: (id: string, motivo?: string) => Promise<void>;
-  reactivatePaciente: (id: string) => Promise<void>;
-  
-  // Consultation methods
-  addConsulta: (consulta: Omit<Consulta, 'id' | 'criadoEm' | 'atualizadoEm'>) => Promise<Consulta>;
+  arquivarPaciente: (id: string, motivo: string) => Promise<void>;
+
+  addConsulta: (consulta: Omit<Consulta, 'id' | 'criadoEm' | 'atualizadoEm'>) => Promise<void>;
   updateConsulta: (id: string, updates: Partial<Consulta>) => Promise<void>;
   deleteConsulta: (id: string) => Promise<void>;
-  
-  // Transaction methods
-  addTransacao: (transacao: Omit<Transacao, 'id' | 'criadoEm' | 'atualizadoEm'>) => Promise<Transacao>;
+
+  addTransacao: (transacao: Omit<Transacao, 'id' | 'criadoEm' | 'atualizadoEm'>) => Promise<void>;
   updateTransacao: (id: string, updates: Partial<Transacao>) => Promise<void>;
   deleteTransacao: (id: string) => Promise<void>;
-  
-  // Medical record methods
-  addProntuario: (prontuario: Omit<Prontuario, 'id' | 'criadoEm' | 'atualizadoEm'>) => Promise<Prontuario>;
+
+  addProntuario: (prontuario: Omit<Prontuario, 'id' | 'criadoEm' | 'atualizadoEm'>) => Promise<void>;
   updateProntuario: (id: string, updates: Partial<Prontuario>) => Promise<void>;
   deleteProntuario: (id: string) => Promise<void>;
-  
-  // Anamnesis methods
-  addAnamnese: (anamnese: Omit<Anamnese, 'id' | 'criadoEm' | 'atualizadoEm'>) => Promise<Anamnese>;
+
+  addAnamnese: (anamnese: Omit<Anamnese, 'id' | 'criadoEm' | 'atualizadoEm'>) => Promise<void>;
   updateAnamnese: (id: string, updates: Partial<Anamnese>) => Promise<void>;
   deleteAnamnese: (id: string) => Promise<void>;
-  clearAnamneses: () => Promise<void>;
-  generateSignatureLink: (anamneseId: string) => string;
-  signAnamnese: (anamneseId: string, signatureData: any, signerType: 'paciente' | 'dentista') => Promise<void>;
-  
-  // Document methods
-  addDocumento: (documento: Omit<DocumentoPaciente, 'id' | 'criadoEm' | 'atualizadoEm'>) => Promise<DocumentoPaciente>;
+
+  addDocumento: (documento: Omit<DocumentoPaciente, 'id' | 'criadoEm' | 'atualizadoEm'>) => Promise<void>;
   updateDocumento: (id: string, updates: Partial<DocumentoPaciente>) => Promise<void>;
   deleteDocumento: (id: string) => Promise<void>;
-  
-  // Product methods
-  addProduto: (produto: Omit<Produto, 'id'>) => Promise<void>;
-  updateProduto: (id: string, updates: Partial<Produto>) => Promise<void>;
-  deleteProduto: (id: string) => Promise<void>;
-  
-  // Utility methods
-  refreshData: () => Promise<void>;
+
+  // Utilidades
+  getPacienteById: (id: string) => Paciente | undefined;
   clearAllData: () => Promise<void>;
-  clearPacientes: () => Promise<void>;
-  clearTransacoes: () => Promise<void>;
   migrateFromLocalStorage: () => Promise<void>;
 }
 
 const DentalSystemContext = createContext<DentalSystemContextType | undefined>(undefined);
 
 export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, loading: authLoading } = useAuth();
+  const { user } = useAuth();
+  
+  // Estados
   const [pacientes, setPacientes] = useState<Paciente[]>([]);
   const [consultas, setConsultas] = useState<Consulta[]>([]);
   const [transacoes, setTransacoes] = useState<Transacao[]>([]);
   const [prontuarios, setProntuarios] = useState<Prontuario[]>([]);
   const [anamneses, setAnamneses] = useState<Anamnese[]>([]);
-  const [documentos,amentosumentos] = useState<DocumentoPaciente[]>([]);
-  const [produtos, setProdutos] = useState<Produto[]>([]);
+  const [documentos, setDocumentos] = useState<DocumentoPaciente[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const loadData = async () => {
-    if (!user) {
-      // Se não há usuário, limpar dados
+  // Carregar dados quando usuário estiver autenticado
+  useEffect(() => {
+    if (user) {
+      loadAllData();
+    } else {
+      // Limpar dados quando usuário não estiver autenticado
       setPacientes([]);
       setConsultas([]);
       setTransacoes([]);
       setProntuarios([]);
       setAnamneses([]);
       setDocumentos([]);
-      setProdutos([]);
       setLoading(false);
-      return;
     }
+  }, [user]);
 
+  const loadAllData = async () => {
     try {
       setLoading(true);
-      console.log('Carregando dados do Supabase para usuário:', user.id);
-      
-      const [pacientesData, consultasData, transacoesData, prontuariosData, anamnesesData, documentosData, produtosData] = await Promise.all([
+      const [
+        pacientesData,
+        consultasData,
+        transacoesData,
+        prontuariosData,
+        anamnesesData,
+        documentosData
+      ] = await Promise.all([
         supabaseService.getPacientes(),
         supabaseService.getConsultas(),
         supabaseService.getTransacoes(),
         supabaseService.getProntuarios(),
         supabaseService.getAnamneses(),
-        supabaseService.getDocumentos(),
-        supabaseService.getProdutos()
+        supabaseService.getDocumentos()
       ]);
-      
+
       setPacientes(pacientesData);
       setConsultas(consultasData);
       setTransacoes(transacoesData);
       setProntuarios(prontuariosData);
       setAnamneses(anamnesesData);
       setDocumentos(documentosData);
-      setProdutos(produtosData);
-
-      console.log('Dados carregados do Supabase:', {
-        pacientes: pacientesData.length,
-        consultas: consultasData.length,
-        transacoes: transacoesData.length,
-        prontuarios: prontuariosData.length,
-        anamneses: anamnesesData.length,
-        documentos: documentosData.length,
-        produtos: produtosData.length
-      });
     } catch (error) {
-      console.error('Erro ao carregar dados do Supabase:', error);
-      toast.error('Erro ao carregar dados do sistema');
+      console.error('Erro ao carregar dados:', error);
+      toast.error('Erro ao carregar dados do Supabase');
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    if (!authLoading) {
-      loadData();
-    }
-  }, [user, authLoading]);
-
-  // Patient methods
+  // Funções para Pacientes
   const addPaciente = async (pacienteData: Omit<Paciente, 'id' | 'criadoEm' | 'atualizadoEm'>) => {
     try {
-      const newPaciente = await supabaseService.savePaciente(pacienteData);
-      setPacientes(prev => [newPaciente, ...prev]);
-      toast.success(`Paciente ${newPaciente.nome} adicionado com sucesso`);
-      return newPaciente;
+      const novoPaciente = await supabaseService.savePaciente(pacienteData);
+      setPacientes(prev => [novoPaciente, ...prev]);
+      toast.success('Paciente adicionado com sucesso!');
     } catch (error) {
       console.error('Erro ao adicionar paciente:', error);
       toast.error('Erro ao adicionar paciente');
@@ -162,10 +125,10 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const updatePaciente = async (id: string, updates: Partial<Paciente>) => {
     try {
-      const updatedPaciente = await supabaseService.updatePaciente(id, updates);
-      if (updatedPaciente) {
-        setPacientes(prev => prev.map(p => p.id === id ? updatedPaciente : p));
-        toast.success(`Paciente ${updatedPaciente.nome} atualizado com sucesso`);
+      const pacienteAtualizado = await supabaseService.updatePaciente(id, updates);
+      if (pacienteAtualizado) {
+        setPacientes(prev => prev.map(p => p.id === id ? pacienteAtualizado : p));
+        toast.success('Paciente atualizado com sucesso!');
       }
     } catch (error) {
       console.error('Erro ao atualizar paciente:', error);
@@ -176,56 +139,44 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const deletePaciente = async (id: string) => {
     try {
-      const paciente = pacientes.find(p => p.id === id);
       await supabaseService.deletePaciente(id);
       setPacientes(prev => prev.filter(p => p.id !== id));
-      toast.success(`Paciente ${paciente?.nome} excluído com sucesso`);
+      
+      // Remover dados relacionados
+      setConsultas(prev => prev.filter(c => c.pacienteId !== id));
+      setTransacoes(prev => prev.filter(t => t.pacienteId !== id));
+      setProntuarios(prev => prev.filter(p => p.pacienteId !== id));
+      setAnamneses(prev => prev.filter(a => a.pacienteId !== id));
+      setDocumentos(prev => prev.filter(d => d.pacienteId !== id));
+      
+      toast.success('Paciente removido com sucesso!');
     } catch (error) {
-      console.error('Erro ao excluir paciente:', error);
-      toast.error('Erro ao excluir paciente');
+      console.error('Erro ao remover paciente:', error);
+      toast.error('Erro ao remover paciente');
       throw error;
     }
   };
 
-  const archivePaciente = async (id: string, motivo?: string) => {
+  const arquivarPaciente = async (id: string, motivo: string) => {
     try {
-      const paciente = pacientes.find(p => p.id === id);
-      await updatePaciente(id, { 
-        status: 'Arquivado',
+      const updates = {
+        status: 'Arquivado' as const,
         dataArquivamento: new Date(),
         motivoArquivamento: motivo
-      });
-      toast.success(`Paciente ${paciente?.nome} arquivado com sucesso`);
+      };
+      await updatePaciente(id, updates);
     } catch (error) {
       console.error('Erro ao arquivar paciente:', error);
-      toast.error('Erro ao arquivar paciente');
       throw error;
     }
   };
 
-  const reactivatePaciente = async (id: string) => {
-    try {
-      const paciente = pacientes.find(p => p.id === id);
-      await updatePaciente(id, { 
-        status: 'Ativo',
-        dataArquivamento: undefined,
-        motivoArquivamento: undefined
-      });
-      toast.success(`Paciente ${paciente?.nome} reativado com sucesso`);
-    } catch (error) {
-      console.error('Erro ao reativar paciente:', error);
-      toast.error('Erro ao reativar paciente');
-      throw error;
-    }
-  };
-
-  // Consultation methods
+  // Funções para Consultas
   const addConsulta = async (consultaData: Omit<Consulta, 'id' | 'criadoEm' | 'atualizadoEm'>) => {
     try {
-      const newConsulta = await supabaseService.saveConsulta(consultaData);
-      setConsultas(prev => [newConsulta, ...prev]);
-      toast.success('Consulta agendada com sucesso');
-      return newConsulta;
+      const novaConsulta = await supabaseService.saveConsulta(consultaData);
+      setConsultas(prev => [novaConsulta, ...prev]);
+      toast.success('Consulta agendada com sucesso!');
     } catch (error) {
       console.error('Erro ao adicionar consulta:', error);
       toast.error('Erro ao agendar consulta');
@@ -235,10 +186,10 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const updateConsulta = async (id: string, updates: Partial<Consulta>) => {
     try {
-      const updatedConsulta = await supabaseService.updateConsulta(id, updates);
-      if (updatedConsulta) {
-        setConsultas(prev => prev.map(c => c.id === id ? updatedConsulta : c));
-        toast.success('Consulta atualizada com sucesso');
+      const consultaAtualizada = await supabaseService.updateConsulta(id, updates);
+      if (consultaAtualizada) {
+        setConsultas(prev => prev.map(c => c.id === id ? consultaAtualizada : c));
+        toast.success('Consulta atualizada com sucesso!');
       }
     } catch (error) {
       console.error('Erro ao atualizar consulta:', error);
@@ -251,34 +202,33 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
     try {
       await supabaseService.deleteConsulta(id);
       setConsultas(prev => prev.filter(c => c.id !== id));
-      toast.success('Consulta cancelada com sucesso');
+      toast.success('Consulta removida com sucesso!');
     } catch (error) {
-      console.error('Erro ao cancelar consulta:', error);
-      toast.error('Erro ao cancelar consulta');
+      console.error('Erro ao remover consulta:', error);
+      toast.error('Erro ao remover consulta');
       throw error;
     }
   };
 
-  // Transaction methods
+  // Funções para Transações
   const addTransacao = async (transacaoData: Omit<Transacao, 'id' | 'criadoEm' | 'atualizadoEm'>) => {
     try {
-      const newTransacao = await supabaseService.saveTransacao(transacaoData);
-      setTransacoes(prev => [newTransacao, ...prev]);
-      toast.success('Transação registrada com sucesso');
-      return newTransacao;
+      const novaTransacao = await supabaseService.saveTransacao(transacaoData);
+      setTransacoes(prev => [novaTransacao, ...prev]);
+      toast.success('Transação adicionada com sucesso!');
     } catch (error) {
       console.error('Erro ao adicionar transação:', error);
-      toast.error('Erro ao registrar transação');
+      toast.error('Erro ao adicionar transação');
       throw error;
     }
   };
 
   const updateTransacao = async (id: string, updates: Partial<Transacao>) => {
     try {
-      const updatedTransacao = await supabaseService.updateTransacao(id, updates);
-      if (updatedTransacao) {
-        setTransacoes(prev => prev.map(t => t.id === id ? updatedTransacao : t));
-        toast.success('Transação atualizada com sucesso');
+      const transacaoAtualizada = await supabaseService.updateTransacao(id, updates);
+      if (transacaoAtualizada) {
+        setTransacoes(prev => prev.map(t => t.id === id ? transacaoAtualizada : t));
+        toast.success('Transação atualizada com sucesso!');
       }
     } catch (error) {
       console.error('Erro ao atualizar transação:', error);
@@ -291,34 +241,33 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
     try {
       await supabaseService.deleteTransacao(id);
       setTransacoes(prev => prev.filter(t => t.id !== id));
-      toast.success('Transação excluída com sucesso');
+      toast.success('Transação removida com sucesso!');
     } catch (error) {
-      console.error('Erro ao excluir transação:', error);
-      toast.error('Erro ao excluir transação');
+      console.error('Erro ao remover transação:', error);
+      toast.error('Erro ao remover transação');
       throw error;
     }
   };
 
-  // Medical record methods
+  // Funções para Prontuários
   const addProntuario = async (prontuarioData: Omit<Prontuario, 'id' | 'criadoEm' | 'atualizadoEm'>) => {
     try {
-      const newProntuario = await supabaseService.saveProntuario(prontuarioData);
-      setProntuarios(prev => [newProntuario, ...prev]);
-      toast.success('Prontuário salvo com sucesso');
-      return newProntuario;
+      const novoProntuario = await supabaseService.saveProntuario(prontuarioData);
+      setProntuarios(prev => [novoProntuario, ...prev]);
+      toast.success('Prontuário adicionado com sucesso!');
     } catch (error) {
       console.error('Erro ao adicionar prontuário:', error);
-      toast.error('Erro ao salvar prontuário');
+      toast.error('Erro ao adicionar prontuário');
       throw error;
     }
   };
 
   const updateProntuario = async (id: string, updates: Partial<Prontuario>) => {
     try {
-      const updatedProntuario = await supabaseService.updateProntuario(id, updates);
-      if (updatedProntuario) {
-        setProntuarios(prev => prev.map(p => p.id === id ? updatedProntuario : p));
-        toast.success('Prontuário atualizado com sucesso');
+      const prontuarioAtualizado = await supabaseService.updateProntuario(id, updates);
+      if (prontuarioAtualizado) {
+        setProntuarios(prev => prev.map(p => p.id === id ? prontuarioAtualizado : p));
+        toast.success('Prontuário atualizado com sucesso!');
       }
     } catch (error) {
       console.error('Erro ao atualizar prontuário:', error);
@@ -331,37 +280,33 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
     try {
       await supabaseService.deleteProntuario(id);
       setProntuarios(prev => prev.filter(p => p.id !== id));
-      toast.success('Prontuário excluído com sucesso');
+      toast.success('Prontuário removido com sucesso!');
     } catch (error) {
-      console.error('Erro ao excluir prontuário:', error);
-      toast.error('Erro ao excluir prontuário');
+      console.error('Erro ao remover prontuário:', error);
+      toast.error('Erro ao remover prontuário');
       throw error;
     }
   };
 
-  // Anamnesis methods
+  // Funções para Anamneses
   const addAnamnese = async (anamneseData: Omit<Anamnese, 'id' | 'criadoEm' | 'atualizadoEm'>) => {
     try {
-      const newAnamnese = await supabaseService.saveAnamnese({
-        ...anamneseData,
-        statusAssinatura: 'pendente'
-      });
-      setAnamneses(prev => [newAnamnese, ...prev]);
-      toast.success('Anamnese salva com sucesso');
-      return newAnamnese;
+      const novaAnamnese = await supabaseService.saveAnamnese(anamneseData);
+      setAnamneses(prev => [novaAnamnese, ...prev]);
+      toast.success('Anamnese adicionada com sucesso!');
     } catch (error) {
       console.error('Erro ao adicionar anamnese:', error);
-      toast.error('Erro ao salvar anamnese');
+      toast.error('Erro ao adicionar anamnese');
       throw error;
     }
   };
 
   const updateAnamnese = async (id: string, updates: Partial<Anamnese>) => {
     try {
-      const updatedAnamnese = await supabaseService.updateAnamnese(id, updates);
-      if (updatedAnamnese) {
-        setAnamneses(prev => prev.map(a => a.id === id ? updatedAnamnese : a));
-        toast.success('Anamnese atualizada com sucesso');
+      const anamneseAtualizada = await supabaseService.updateAnamnese(id, updates);
+      if (anamneseAtualizada) {
+        setAnamneses(prev => prev.map(a => a.id === id ? anamneseAtualizada : a));
+        toast.success('Anamnese atualizada com sucesso!');
       }
     } catch (error) {
       console.error('Erro ao atualizar anamnese:', error);
@@ -374,86 +319,33 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
     try {
       await supabaseService.deleteAnamnese(id);
       setAnamneses(prev => prev.filter(a => a.id !== id));
-      toast.success('Anamnese excluída com sucesso');
+      toast.success('Anamnese removida com sucesso!');
     } catch (error) {
-      console.error('Erro ao excluir anamnese:', error);
-      toast.error('Erro ao excluir anamnese');
+      console.error('Erro ao remover anamnese:', error);
+      toast.error('Erro ao remover anamnese');
       throw error;
     }
   };
 
-  const clearAnamneses = async () => {
-    try {
-      await supabaseService.clearAnamneses();
-      setAnamneses([]);
-      toast.success('Todas as anamneses foram zeradas');
-    } catch (error) {
-      console.error('Erro ao limpar anamneses:', error);
-      toast.error('Erro ao limpar anamneses');
-      throw error;
-    }
-  };
-
-  const generateSignatureLink = (anamneseId: string): string => {
-    const token = Date.now().toString(36) + Math.random().toString(36).substr(2);
-    const link = `${window.location.origin}/assinar-anamnese/${anamneseId}?token=${token}`;
-    
-    // Atualizar a anamnese com o token e data de expiração
-    const expirationDate = new Date();
-    expirationDate.setDate(expirationDate.getDate() + 7); // 7 dias para expirar
-    
-    updateAnamnese(anamneseId, {
-      tokenAssinatura: token,
-      linkAssinatura: link,
-      dataExpiracaoLink: expirationDate
-    });
-    
-    return link;
-  };
-
-  const signAnamnese = async (anamneseId: string, signatureData: any, signerType: 'paciente' | 'dentista') => {
-    try {
-      const anamnese = anamneses.find(a => a.id === anamneseId);
-      if (!anamnese) throw new Error('Anamnese não encontrada');
-
-      const updates: Partial<Anamnese> = {};
-      
-      if (signerType === 'paciente') {
-        updates.assinaturaPaciente = signatureData;
-        updates.statusAssinatura = 'paciente_assinado';
-      } else {
-        updates.assinaturaDoutor = signatureData;
-        updates.statusAssinatura = anamnese.assinaturaPaciente ? 'completo' : 'pendente';
-      }
-
-      await updateAnamnese(anamneseId, updates);
-      toast.success(`Assinatura do ${signerType} registrada com sucesso`);
-    } catch (error) {
-      toast.error('Erro ao registrar assinatura');
-      throw error;
-    }
-  };
-
-  // Document methods
+  // Funções para Documentos
   const addDocumento = async (documentoData: Omit<DocumentoPaciente, 'id' | 'criadoEm' | 'atualizadoEm'>) => {
     try {
-      const newDocumento = await supabaseService.saveDocumento(documentoData);
-      setDocumentos(prev => [newDocumento, ...prev]);
-      toast.success('Documento salvo com sucesso');
-      return newDocumento;
+      const novoDocumento = await supabaseService.saveDocumento(documentoData);
+      setDocumentos(prev => [novoDocumento, ...prev]);
+      toast.success('Documento adicionado com sucesso!');
     } catch (error) {
       console.error('Erro ao adicionar documento:', error);
-      toast.error('Erro ao salvar documento');
+      toast.error('Erro ao adicionar documento');
       throw error;
     }
   };
 
   const updateDocumento = async (id: string, updates: Partial<DocumentoPaciente>) => {
     try {
-      const updatedDocumento = await supabaseService.updateDocumento(id, updates);
-      if (updatedDocumento) {
-        setDocumentos(prev => prev.map(d => d.id === id ? updatedDocumento : d));
-        toast.success('Documento atualizado com sucesso');
+      const documentoAtualizado = await supabaseService.updateDocumento(id, updates);
+      if (documentoAtualizado) {
+        setDocumentos(prev => prev.map(d => d.id === id ? documentoAtualizado : d));
+        toast.success('Documento atualizado com sucesso!');
       }
     } catch (error) {
       console.error('Erro ao atualizar documento:', error);
@@ -466,56 +358,17 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
     try {
       await supabaseService.deleteDocumento(id);
       setDocumentos(prev => prev.filter(d => d.id !== id));
-      toast.success('Documento excluído com sucesso');
+      toast.success('Documento removido com sucesso!');
     } catch (error) {
-      console.error('Erro ao excluir documento:', error);
-      toast.error('Erro ao excluir documento');
+      console.error('Erro ao remover documento:', error);
+      toast.error('Erro ao remover documento');
       throw error;
     }
   };
 
-  // Product methods  
-  const addProduto = async (produtoData: Omit<Produto, 'id'>) => {
-    try {
-      const newProduto = await supabaseService.saveProduto(produtoData);
-      setProdutos(prev => [newProduto, ...prev]);
-      toast.success('Produto adicionado com sucesso');
-    } catch (error) {
-      console.error('Erro ao adicionar produto:', error);
-      toast.error('Erro ao adicionar produto');
-      throw error;
-    }
-  };
-
-  const updateProduto = async (id: string, updates: Partial<Produto>) => {
-    try {
-      const updatedProduto = await supabaseService.updateProduto(id, updates);
-      if (updatedProduto) {
-        setProdutos(prev => prev.map(p => p.id === id ? updatedProduto : p));
-        toast.success('Produto atualizado com sucesso');
-      }
-    } catch (error) {
-      console.error('Erro ao atualizar produto:', error);
-      toast.error('Erro ao atualizar produto');
-      throw error;
-    }
-  };
-
-  const deleteProduto = async (id: string) => {
-    try {
-      await supabaseService.deleteProduto(id);
-      setProdutos(prev => prev.filter(p => p.id !== id));
-      toast.success('Produto excluído com sucesso');
-    } catch (error) {
-      console.error('Erro ao excluir produto:', error);
-      toast.error('Erro ao excluir produto');
-      throw error;
-    }
-  };
-
-  // Utility methods
-  const refreshData = async () => {
-    await loadData();
+  // Utilidades
+  const getPacienteById = (id: string): Paciente | undefined => {
+    return pacientes.find(p => p.id === id);
   };
 
   const clearAllData = async () => {
@@ -527,8 +380,7 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
       setProntuarios([]);
       setAnamneses([]);
       setDocumentos([]);
-      setProdutos([]);
-      toast.success('Todos os dados foram limpos');
+      toast.success('Todos os dados foram removidos!');
     } catch (error) {
       console.error('Erro ao limpar dados:', error);
       toast.error('Erro ao limpar dados');
@@ -536,87 +388,58 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   };
 
-  const clearPacientes = async () => {
-    try {
-      await supabaseService.clearPacientes();
-      setPacientes([]);
-      setConsultas([]);
-      setTransacoes([]);
-      setProntuarios([]);
-      setAnamneses([]);
-      setDocumentos([]);
-      toast.success('Dados de pacientes limpos');
-    } catch (error) {
-      console.error('Erro ao limpar pacientes:', error);
-      toast.error('Erro ao limpar pacientes');
-      throw error;
-    }
-  };
-
-  const clearTransacoes = async () => {
-    try {
-      await supabaseService.clearTransacoes();
-      setTransacoes([]);
-      toast.success('Dados financeiros limpos');
-    } catch (error) {
-      console.error('Erro ao limpar transações:', error);
-      toast.error('Erro ao limpar transações');
-      throw error;
-    }
-  };
-
   const migrateFromLocalStorage = async () => {
     try {
       await supabaseService.migrateFromLocalStorage();
-      await refreshData(); // Recarregar dados após migração
+      // Recarregar dados após migração
+      await loadAllData();
+      toast.success('Migração concluída com sucesso!');
     } catch (error) {
       console.error('Erro na migração:', error);
+      toast.error('Erro durante a migração');
       throw error;
     }
   };
 
   const value: DentalSystemContextType = {
-    // Data
+    // Estado
     pacientes,
     consultas,
     transacoes,
     prontuarios,
     anamneses,
     documentos,
-    produtos,
-    loading: loading || authLoading,
-    
-    // Methods
+    loading,
+
+    // Ações
     addPaciente,
     updatePaciente,
     deletePaciente,
-    archivePaciente,
-    reactivatePaciente,
+    arquivarPaciente,
+
     addConsulta,
     updateConsulta,
     deleteConsulta,
+
     addTransacao,
     updateTransacao,
     deleteTransacao,
+
     addProntuario,
     updateProntuario,
     deleteProntuario,
+
     addAnamnese,
     updateAnamnese,
     deleteAnamnese,
-    clearAnamneses,
-    generateSignatureLink,
-    signAnamnese,
+
     addDocumento,
     updateDocumento,
     deleteDocumento,
-    addProduto,
-    updateProduto,
-    deleteProduto,
-    refreshData,
+
+    // Utilidades
+    getPacienteById,
     clearAllData,
-    clearPacientes,
-    clearTransacoes,
     migrateFromLocalStorage
   };
 

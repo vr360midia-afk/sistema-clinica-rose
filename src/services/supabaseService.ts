@@ -12,8 +12,8 @@ interface Produto {
   minimo: number;
   preco: number;
   user_id?: string;
-  criado_em?: Date;
-  atualizado_em?: Date;
+  criado_em?: string;
+  atualizado_em?: string;
 }
 
 class SupabaseService {
@@ -74,15 +74,15 @@ class SupabaseService {
     return {
       ...data,
       user_id: userId,
-      criado_em: data.criadoEm,
-      atualizado_em: data.atualizadoEm,
+      criado_em: data.criadoEm?.toISOString(),
+      atualizado_em: data.atualizadoEm?.toISOString(),
       origem_lead: data.origemLead,
       historico_medico: data.historicoMedico,
       estado_civil: data.estadoCivil,
-      data_arquivamento: data.dataArquivamento,
+      data_arquivamento: data.dataArquivamento?.toISOString(),
       motivo_arquivamento: data.motivoArquivamento,
-      ultima_consulta: data.ultimaConsulta,
-      proxima_consulta: data.proximaConsulta,
+      ultima_consulta: data.ultimaConsulta?.toISOString(),
+      proxima_consulta: data.proximaConsulta?.toISOString(),
       paciente_id: data.pacienteId,
       consulta_id: data.consultaId,
       metodo_pagamento: data.metodoPagamento,
@@ -103,7 +103,9 @@ class SupabaseService {
       link_assinatura: data.linkAssinatura,
       token_assinatura: data.tokenAssinatura,
       status_assinatura: data.statusAssinatura,
-      data_expiracao_link: data.dataExpiracaoLink
+      data_expiracao_link: data.dataExpiracaoLink?.toISOString(),
+      data: data.data?.toISOString(),
+      vencimento: data.vencimento?.toISOString()
     };
   };
 
@@ -478,7 +480,7 @@ class SupabaseService {
     return data?.map(this.transformSupabaseToLocal) || [];
   }
 
-  async saveProduto(produto: Omit<Produto, 'id'>): Promise<Produto> {
+  async saveProduto(produto: Omit<Produto, 'id' | 'criado_em' | 'atualizado_em'>): Promise<Produto> {
     const userId = await this.getCurrentUserId();
     const produtoData = {
       ...produto,
@@ -495,7 +497,7 @@ class SupabaseService {
     return this.transformSupabaseToLocal(data);
   }
 
-  async updateProduto(id: string, updates: Partial<Produto>): Promise<Produto | null> {
+  async updateProduto(id: string, updates: Partial<Omit<Produto, 'id' | 'criado_em' | 'atualizado_em'>>): Promise<Produto | null> {
     const userId = await this.getCurrentUserId();
     
     const { data, error } = await supabase
