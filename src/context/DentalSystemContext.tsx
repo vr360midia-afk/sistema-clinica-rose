@@ -414,7 +414,7 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
         updates.statusAssinatura = 'paciente_assinado';
       } else {
         updates.assinaturaDoutor = signatureData;
-        updates.statusAssintura = anamnese.assinaturaPaciente ? 'completo' : 'pendente';
+        updates.statusAssinatura = anamnese.assinaturaPaciente ? 'completo' : 'pendente';
       }
 
       await updateAnamnese(anamneseId, updates);
