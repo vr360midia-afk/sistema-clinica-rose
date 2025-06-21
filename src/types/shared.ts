@@ -20,6 +20,12 @@ export interface Paciente extends BaseEntity {
   alergias?: string;
   medicamentos?: string;
   observacoes?: string;
+  // Campos adicionais
+  endereco?: string;
+  cpf?: string;
+  rg?: string;
+  profissao?: string;
+  estadoCivil?: string;
   // Campos de arquivamento
   dataArquivamento?: Date;
   motivoArquivamento?: string;
@@ -81,3 +87,31 @@ export interface Prontuario extends BaseEntity {
   observacoes?: string;
   anexos?: string[];
 }
+
+export interface Anamnese extends BaseEntity {
+  pacienteId: string;
+  data: Date;
+  queixaPrincipal: string;
+  historiaAtual: string;
+  historiaFamiliar?: string;
+  historiaMedica?: string;
+  alergias?: string;
+  medicamentos?: string;
+  habitosViciosPositivos?: string;
+  habitosViciosNegativos?: string;
+  exameExtraBucal?: string;
+  exameIntraBucal?: string;
+  observacoes?: string;
+  anexos?: string[];
+}
+
+export interface DocumentoPaciente extends BaseEntity {
+  pacienteId: string;
+  tipo: TipoDocumento;
+  nome: string;
+  arquivo: string;
+  tamanho?: number;
+  descricao?: string;
+}
+
+export type TipoDocumento = 'foto' | 'raio-x' | 'exame' | 'receita' | 'atestado' | 'outro';
