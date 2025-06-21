@@ -103,7 +103,27 @@ export interface Anamnese extends BaseEntity {
   exameIntraBucal?: string;
   observacoes?: string;
   anexos?: string[];
+  // Campos de assinatura digital
+  assinaturaPaciente?: SignatureData;
+  assinaturaDoutor?: SignatureData;
+  linkAssinatura?: string;
+  tokenAssinatura?: string;
+  statusAssinatura: StatusAssinatura;
+  dataExpiracaoLink?: Date;
 }
+
+export interface SignatureData {
+  signature: string;
+  signerName: string;
+  signerRole: 'paciente' | 'dentista';
+  timestamp: Date;
+  signerInfo?: {
+    email?: string;
+    cpf?: string;
+  };
+}
+
+export type StatusAssinatura = 'pendente' | 'paciente_assinado' | 'completo' | 'expirado';
 
 export interface DocumentoPaciente extends BaseEntity {
   pacienteId: string;

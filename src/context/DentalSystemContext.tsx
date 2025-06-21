@@ -50,6 +50,9 @@ interface DentalSystemContextType {
   addAnamnese: (anamnese: Omit<Anamnese, 'id' | 'criadoEm' | 'atualizadoEm'>) => Promise<Anamnese>;
   updateAnamnese: (id: string, updates: Partial<Anamnese>) => Promise<void>;
   deleteAnamnese: (id: string) => Promise<void>;
+  clearAnamneses: () => Promise<void>;
+  generateSignatureLink: (anamneseId: string) => string;
+  signAnamnese: (anamneseId: string, signatureData: any, signerType: 'paciente' | 'dentista') => Promise<void>;
   
   // Document methods
   addDocumento: (documento: Omit<DocumentoPaciente, 'id' | 'criadoEm' | 'atualizadoEm'>) => Promise<DocumentoPaciente>;
@@ -328,7 +331,10 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
   // Anamnesis methods
   const addAnamnese = async (anamneseData: Omit<Anamnese, 'id' | 'criadoEm' | 'atualizadoEm'>) => {
     try {
-      const newAnamnese = localStorageService.saveAnamnese(anamneseData);
+      const newAnamnese = localStorageService.saveAnamnese({
+        ...anamneseData,
+        statusAssinatura: 'pendente'
+      });
       setAnamneses(prev => [...prev, newAnamnese]);
       toast.success('Anamnese salva com sucesso');
       return newAnamnese;
@@ -363,6 +369,58 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
     } catch (error) {
       console.error('Erro ao excluir anamnese:', error);
       toast.error('Erro ao excluir anamnese');
+      throw error;
+    }
+  };
+
+  const clearAnamneses = async () => {
+    try {
+      localStorageService.clearAnamneses();
+      setAnamneses([]);
+      toast.success('Todas as anamneses foram zeradas');
+    } catch (error) {
+      console.error('Erro ao limpar anamneses:', error);
+      toast.error('Erro ao limpar anamneses');
+      throw error;
+    }
+  };
+
+  const generateSignatureLink = (anamneseId: string): string => {
+    const token = Date.now().toString(36) + Math.random().toString(36).substr(2);
+    const link = `${window.location.origin}/assinar-anamnese/${anamneseId}?token=${token}`;
+    
+    // Atualizar a anamnese com o token e data de expiração
+    const expirationDate = new Date();
+    expirationDate.setDate(expirationDate.getDate() + 7); // 7 dias para expirar
+    
+    updateAnamnese(anamneseId, {
+      tokenAssinatura: token,
+      linkAssinatura: link,
+      dataExpiracaoLink: expirationDate
+    });
+    
+    return link;
+  };
+
+  const signAnamnese = async (anamneseId: string, signatureData: any, signerType: 'paciente' | 'dentista') => {
+    try {
+      const anamnese = anamneses.find(a => a.id === anamneseId);
+      if (!anamnese) throw new Error('Anamnese não encontrada');
+
+      const updates: Partial<Anamnese> = {};
+      
+      if (signerType === 'paciente') {
+        updates.assinaturaPaciente = signatureData;
+        updates.statusAssinatura = 'paciente_assinado';
+      } else {
+        updates.assinaturaDoutor = signatureData;
+        updates.statusAssintura = anamnese.assinaturaPaciente ? 'completo' : 'pendente';
+      }
+
+      await updateAnamnese(anamneseId, updates);
+      toast.success(`Assinatura do ${signerType} registrada com sucesso`);
+    } catch (error) {
+      toast.error('Erro ao registrar assinatura');
       throw error;
     }
   };
@@ -510,6 +568,9 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
     addAnamnese,
     updateAnamnese,
     deleteAnamnese,
+    clearAnamneses,
+    generateSignatureLink,
+    signAnamnese,
     addDocumento,
     updateDocumento,
     deleteDocumento,

@@ -1,4 +1,3 @@
-
 import { Paciente, Consulta, Transacao, Prontuario, Anamnese, DocumentoPaciente } from '@/types/shared';
 
 const STORAGE_KEYS = {
@@ -58,6 +57,11 @@ class LocalStorageService {
   clearTransacoes(): void {
     localStorage.removeItem(STORAGE_KEYS.TRANSACOES);
     console.log('Dados financeiros limpos');
+  }
+
+  clearAnamneses(): void {
+    localStorage.removeItem(STORAGE_KEYS.ANAMNESES);
+    console.log('Dados de anamneses limpos');
   }
 
   clearAllPatientRelatedData(): void {
@@ -271,7 +275,8 @@ class LocalStorageService {
       ...anamnese,
       id: this.generateId(),
       criadoEm: now,
-      atualizadoEm: now
+      atualizadoEm: now,
+      statusAssinatura: anamnese.statusAssinatura || 'pendente'
     };
     
     anamneses.push(newAnamnese);

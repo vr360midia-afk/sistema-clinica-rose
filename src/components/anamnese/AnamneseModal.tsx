@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -7,6 +6,9 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import PatientSelector from './PatientSelector';
+import DigitalSignature, { SignatureData } from '@/components/signature/DigitalSignature';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { FileSignature, Share, Eye } from 'lucide-react';
 
 interface AnamneseModalProps {
   isOpen: boolean;
@@ -16,8 +18,12 @@ interface AnamneseModalProps {
 }
 
 const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: AnamneseModalProps) => {
-  const { addAnamnese, pacientes } = useDentalSystem();
+  const { addAnamnese, pacientes, generateSignatureLink, signAnamnese } = useDentalSystem();
   const [selectedPatient, setSelectedPatient] = useState(preSelectedPatient || '');
+  const [step, setStep] = useState<'form' | 'signature-patient' | 'signature-dentist' | 'link'>('form');
+  const [anamneseId, setAnamneseId] = useState<string>('');
+  const [signatureLink, setSignatureLink] = useState<string>('');
+  
   const [queixaPrincipal, setQueixaPrincipal] = useState('');
   const [historiaAtual, setHistoriaAtual] = useState('');
   const [historiaFamiliar, setHistoriaFamiliar] = useState('');
@@ -30,7 +36,7 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
   const [exameIntraBucal, setExameIntraBucal] = useState('');
   const [observacoes, setObservacoes] = useState('');
 
-  const handleSave = async () => {
+  const handleSaveForm = async () => {
     if (!selectedPatient) {
       toast.error('Selecione um paciente');
       return;
@@ -57,31 +63,196 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
         habitosViciosNegativos: habitosViciosNegativos.trim(),
         exameExtraBucal: exameExtraBucal.trim(),
         exameIntraBucal: exameIntraBucal.trim(),
-        observacoes: observacoes.trim()
+        observacoes: observacoes.trim(),
+        statusAssinatura: 'pendente' as const
       };
 
-      await addAnamnese(anamneseData);
-      onSave(anamneseData);
+      const savedAnamnese = await addAnamnese(anamneseData);
+      setAnamneseId(savedAnamnese.id);
+      setStep('link');
       
-      // Reset form
-      setSelectedPatient(preSelectedPatient || '');
-      setQueixaPrincipal('');
-      setHistoriaAtual('');
-      setHistoriaFamiliar('');
-      setHistoriaMedica('');
-      setAlergias('');
-      setMedicamentos('');
-      setHabitosViciosPositivos('');
-      setHabitosViciosNegativos('');
-      setExameExtraBucal('');
-      setExameIntraBucal('');
-      setObservacoes('');
-      
-      onClose();
+      toast.success('Anamnese salva! Escolha como coletar as assinaturas.');
     } catch (error) {
       console.error('Erro ao salvar anamnese:', error);
     }
   };
+
+  const handleGenerateLink = () => {
+    const link = generateSignatureLink(anamneseId);
+    setSignatureLink(link);
+    toast.success('Link gerado! Envie para o paciente assinar.');
+  };
+
+  const handleDirectSignature = () => {
+    setStep('signature-patient');
+  };
+
+  const handlePatientSignature = async (signatureData: SignatureData) => {
+    try {
+      await signAnamnese(anamneseId, signatureData, 'paciente');
+      setStep('signature-dentist');
+    } catch (error) {
+      console.error('Erro ao salvar assinatura do paciente:', error);
+    }
+  };
+
+  const handleDentistSignature = async (signatureData: SignatureData) => {
+    try {
+      await signAnamnese(anamneseId, signatureData, 'dentista');
+      toast.success('Anamnese finalizada com ambas as assinaturas!');
+      onSave({ id: anamneseId });
+      resetForm();
+      onClose();
+    } catch (error) {
+      console.error('Erro ao salvar assinatura do dentista:', error);
+    }
+  };
+
+  const resetForm = () => {
+    setSelectedPatient(preSelectedPatient || '');
+    setQueixaPrincipal('');
+    setHistoriaAtual('');
+    setHistoriaFamiliar('');
+    setHistoriaMedica('');
+    setAlergias('');
+    setMedicamentos('');
+    setHabitosViciosPositivos('');
+    setHabitosViciosNegativos('');
+    setExameExtraBucal('');
+    setExameIntraBucal('');
+    setObservacoes('');
+    setStep('form');
+    setAnamneseId('');
+    setSignatureLink('');
+  };
+
+  const copyToClipboard = async () => {
+    try {
+      await navigator.clipboard.writeText(signatureLink);
+      toast.success('Link copiado para a área de transferência!');
+    } catch (error) {
+      toast.error('Erro ao copiar link');
+    }
+  };
+
+  const getCurrentPatientName = () => {
+    const patient = pacientes.find(p => p.id === selectedPatient);
+    return patient ? patient.nome : 'Paciente';
+  };
+
+  if (step === 'signature-patient') {
+    return (
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Assinatura do Paciente</DialogTitle>
+          </DialogHeader>
+          <DigitalSignature
+            title="Assinatura do Paciente"
+            signerName={getCurrentPatientName()}
+            signerRole="paciente"
+            documentType="anamnese"
+            onSignatureComplete={handlePatientSignature}
+            onCancel={() => setStep('link')}
+          />
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  if (step === 'signature-dentist') {
+    return (
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Assinatura do Dentista</DialogTitle>
+          </DialogHeader>
+          <DigitalSignature
+            title="Assinatura do Dentista"
+            signerName="Dr. Dentista"
+            signerRole="dentista"
+            documentType="anamnese"
+            onSignatureComplete={handleDentistSignature}
+            onCancel={() => setStep('signature-patient')}
+          />
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  if (step === 'link') {
+    return (
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Opções de Assinatura</DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Share className="h-5 w-5 text-blue-600" />
+                  Enviar Link para Assinatura
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-gray-600">
+                  Gere um link único para que o paciente possa assinar remotamente pelo celular ou computador.
+                </p>
+                
+                {!signatureLink ? (
+                  <Button onClick={handleGenerateLink} className="w-full">
+                    <Share className="h-4 w-4 mr-2" />
+                    Gerar Link de Assinatura
+                  </Button>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="p-3 bg-gray-50 rounded border">
+                      <p className="text-xs text-gray-500 mb-1">Link gerado:</p>
+                      <p className="text-sm font-mono break-all">{signatureLink}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button onClick={copyToClipboard} variant="outline" className="flex-1">
+                        Copiar Link
+                      </Button>
+                      <Button onClick={() => window.open(`mailto:?subject=Assinatura de Anamnese&body=Por favor, acesse este link para assinar sua anamnese: ${signatureLink}`, '_blank')} variant="outline" className="flex-1">
+                        Enviar por Email
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileSignature className="h-5 w-5 text-green-600" />
+                  Assinatura Presencial
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-gray-600 mb-4">
+                  Colete a assinatura diretamente no consultório usando tablet, celular ou mouse.
+                </p>
+                <Button onClick={handleDirectSignature} className="w-full" variant="outline">
+                  <FileSignature className="h-4 w-4 mr-2" />
+                  Iniciar Assinatura Presencial
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-4 border-t">
+            <Button variant="outline" onClick={() => { resetForm(); onClose(); }}>
+              Fechar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -216,8 +387,9 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
           <Button variant="outline" onClick={onClose}>
             Cancelar
           </Button>
-          <Button onClick={handleSave}>
-            Salvar Anamnese
+          <Button onClick={handleSaveForm}>
+            <FileSignature className="h-4 w-4 mr-2" />
+            Salvar e Configurar Assinaturas
           </Button>
         </div>
       </DialogContent>
