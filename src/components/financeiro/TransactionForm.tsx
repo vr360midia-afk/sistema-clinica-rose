@@ -3,314 +3,228 @@ import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
-import { CreditCard, Receipt, QrCode, Percent } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { CalendarIcon } from 'lucide-react';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { useDentalSystem } from '@/context/DentalSystemContext';
+import { TipoTransacao, StatusTransacao, MetodoPagamento } from '@/types/shared';
 import { toast } from 'sonner';
 
 interface TransactionFormProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (transactionData: any) => void;
+  onSave: (transaction: any) => void;
 }
 
-const proceduresList = [
-  { name: 'Limpeza', price: 150 },
-  { name: 'Restauração', price: 200 },
-  { name: 'Canal', price: 800 },
-  { name: 'Extração', price: 100 },
-  { name: 'Implante', price: 2500 },
-  { name: 'Aparelho Ortodôntico', price: 3500 },
-  { name: 'Clareamento', price: 600 }
-];
-
 const TransactionForm = ({ isOpen, onClose, onSave }: TransactionFormProps) => {
+  const { pacientes, addTransacao } = useDentalSystem();
+  
   const [formData, setFormData] = useState({
-    patientName: '',
-    paymentMethod: '',
-    cardBrand: '',
-    installments: 1,
-    procedures: [{ name: '', originalPrice: 0, finalPrice: 0, discount: 0 }],
-    totalAmount: 0,
-    observations: ''
+    pacienteId: '',
+    valor: '',
+    tipo: 'receita' as TipoTransacao,
+    status: 'pendente' as StatusTransacao,
+    metodoPagamento: 'dinheiro' as MetodoPagamento,
+    data: new Date(),
+    vencimento: null as Date | null,
+    descricao: '',
+    observacoes: ''
   });
 
-  const handleAddProcedure = () => {
-    setFormData(prev => ({
-      ...prev,
-      procedures: [...prev.procedures, { name: '', originalPrice: 0, finalPrice: 0, discount: 0 }]
-    }));
-  };
-
-  const handleProcedureChange = (index: number, field: string, value: any) => {
-    const newProcedures = [...formData.procedures];
-    newProcedures[index] = { ...newProcedures[index], [field]: value };
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     
-    if (field === 'name') {
-      const selectedProcedure = proceduresList.find(p => p.name === value);
-      if (selectedProcedure) {
-        newProcedures[index].originalPrice = selectedProcedure.price;
-        newProcedures[index].finalPrice = selectedProcedure.price;
-        newProcedures[index].discount = 0;
-      }
-    }
-    
-    if (field === 'discount') {
-      const discountAmount = (newProcedures[index].originalPrice * value) / 100;
-      newProcedures[index].finalPrice = newProcedures[index].originalPrice - discountAmount;
-    }
-    
-    setFormData(prev => {
-      const total = newProcedures.reduce((sum, proc) => sum + proc.finalPrice, 0);
-      return {
-        ...prev,
-        procedures: newProcedures,
-        totalAmount: total
-      };
-    });
-  };
-
-  const handleSave = () => {
-    if (!formData.patientName || !formData.paymentMethod || formData.procedures.length === 0) {
+    if (!formData.pacienteId || !formData.valor || !formData.descricao) {
       toast.error('Preencha todos os campos obrigatórios');
       return;
     }
 
-    const transactionData = {
-      ...formData,
-      id: Date.now(),
-      date: new Date().toLocaleDateString('pt-BR'),
-      status: 'Pendente'
-    };
+    try {
+      const transactionData = {
+        ...formData,
+        valor: parseFloat(formData.valor)
+      };
 
-    onSave(transactionData);
-    toast.success('Transação cadastrada com sucesso!');
-    onClose();
-    
-    // Reset form
-    setFormData({
-      patientName: '',
-      paymentMethod: '',
-      cardBrand: '',
-      installments: 1,
-      procedures: [{ name: '', originalPrice: 0, finalPrice: 0, discount: 0 }],
-      totalAmount: 0,
-      observations: ''
-    });
+      await addTransacao(transactionData);
+      onSave(transactionData);
+      
+      // Reset form
+      setFormData({
+        pacienteId: '',
+        valor: '',
+        tipo: 'receita',
+        status: 'pendente',
+        metodoPagamento: 'dinheiro',
+        data: new Date(),
+        vencimento: null,
+        descricao: '',
+        observacoes: ''
+      });
+    } catch (error) {
+      console.error('Erro ao salvar transação:', error);
+    }
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Nova Transação</DialogTitle>
         </DialogHeader>
-
-        <div className="space-y-6">
-          {/* Dados do Paciente */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Dados do Paciente</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="patientName">Nome do Paciente *</Label>
-                  <Input
-                    id="patientName"
-                    value={formData.patientName}
-                    onChange={(e) => setFormData(prev => ({ ...prev, patientName: e.target.value }))}
-                    placeholder="Digite o nome do paciente"
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Procedimentos */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center justify-between">
-                Procedimentos
-                <Button type="button" onClick={handleAddProcedure} size="sm">
-                  Adicionar Procedimento
-                </Button>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {formData.procedures.map((procedure, index) => (
-                  <div key={index} className="grid grid-cols-1 md:grid-cols-5 gap-4 p-4 border rounded-lg">
-                    <div>
-                      <Label>Procedimento</Label>
-                      <Select 
-                        value={procedure.name} 
-                        onValueChange={(value) => handleProcedureChange(index, 'name', value)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {proceduresList.map((proc) => (
-                            <SelectItem key={proc.name} value={proc.name}>
-                              {proc.name} - R$ {proc.price}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    <div>
-                      <Label>Preço Original</Label>
-                      <Input
-                        type="number"
-                        value={procedure.originalPrice}
-                        readOnly
-                        className="bg-gray-50"
-                      />
-                    </div>
-                    
-                    <div>
-                      <Label>Desconto (%)</Label>
-                      <div className="relative">
-                        <Input
-                          type="number"
-                          value={procedure.discount}
-                          onChange={(e) => handleProcedureChange(index, 'discount', Number(e.target.value))}
-                          min="0"
-                          max="100"
-                        />
-                        <Percent className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <Label>Preço Final</Label>
-                      <Input
-                        type="number"
-                        value={procedure.finalPrice}
-                        readOnly
-                        className="bg-gray-50 font-semibold"
-                      />
-                    </div>
-                    
-                    <div className="flex items-end">
-                      <Button 
-                        type="button"
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => {
-                          const newProcedures = formData.procedures.filter((_, i) => i !== index);
-                          const total = newProcedures.reduce((sum, proc) => sum + proc.finalPrice, 0);
-                          setFormData(prev => ({ ...prev, procedures: newProcedures, totalAmount: total }));
-                        }}
-                        disabled={formData.procedures.length === 1}
-                      >
-                        Remover
-                      </Button>
-                    </div>
-                  </div>
+        
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <Label htmlFor="paciente">Paciente *</Label>
+            <Select value={formData.pacienteId} onValueChange={(value) => setFormData(prev => ({ ...prev, pacienteId: value }))}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione o paciente" />
+              </SelectTrigger>
+              <SelectContent>
+                {pacientes.map((paciente) => (
+                  <SelectItem key={paciente.id} value={paciente.id}>
+                    {paciente.nome}
+                  </SelectItem>
                 ))}
-                
-                <div className="text-right">
-                  <p className="text-xl font-bold">
-                    Total: R$ {formData.totalAmount.toFixed(2)}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </SelectContent>
+            </Select>
+          </div>
 
-          {/* Forma de Pagamento */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Forma de Pagamento</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label>Método de Pagamento *</Label>
-                <Select 
-                  value={formData.paymentMethod} 
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, paymentMethod: value }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="cartao">Cartão de Crédito</SelectItem>
-                    <SelectItem value="boleto">Boleto</SelectItem>
-                    <SelectItem value="pix">PIX</SelectItem>
-                    <SelectItem value="dinheiro">Dinheiro</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="tipo">Tipo *</Label>
+              <Select value={formData.tipo} onValueChange={(value: TipoTransacao) => setFormData(prev => ({ ...prev, tipo: value }))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="receita">Receita</SelectItem>
+                  <SelectItem value="despesa">Despesa</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-              {formData.paymentMethod === 'cartao' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label>Bandeira do Cartão</Label>
-                    <Select 
-                      value={formData.cardBrand} 
-                      onValueChange={(value) => setFormData(prev => ({ ...prev, cardBrand: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="visa">Visa</SelectItem>
-                        <SelectItem value="mastercard">Mastercard</SelectItem>
-                        <SelectItem value="american">American Express</SelectItem>
-                        <SelectItem value="elo">Elo</SelectItem>
-                        <SelectItem value="outros">Outros</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div>
-                    <Label>Parcelas</Label>
-                    <Select 
-                      value={formData.installments.toString()} 
-                      onValueChange={(value) => setFormData(prev => ({ ...prev, installments: Number(value) }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {[...Array(12)].map((_, i) => (
-                          <SelectItem key={i + 1} value={(i + 1).toString()}>
-                            {i + 1}x {formData.installments === (i + 1) && `de R$ ${(formData.totalAmount / (i + 1)).toFixed(2)}`}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              )}
+            <div>
+              <Label htmlFor="valor">Valor *</Label>
+              <Input
+                id="valor"
+                type="number"
+                step="0.01"
+                placeholder="0.00"
+                value={formData.valor}
+                onChange={(e) => setFormData(prev => ({ ...prev, valor: e.target.value }))}
+              />
+            </div>
+          </div>
 
-              <div>
-                <Label>Observações</Label>
-                <Textarea
-                  value={formData.observations}
-                  onChange={(e) => setFormData(prev => ({ ...prev, observations: e.target.value }))}
-                  placeholder="Observações adicionais..."
-                  rows={3}
-                />
-              </div>
-            </CardContent>
-          </Card>
+          <div>
+            <Label htmlFor="descricao">Descrição *</Label>
+            <Input
+              id="descricao"
+              placeholder="Ex: Consulta de rotina, Limpeza dental..."
+              value={formData.descricao}
+              onChange={(e) => setFormData(prev => ({ ...prev, descricao: e.target.value }))}
+            />
+          </div>
 
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={onClose}>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="status">Status</Label>
+              <Select value={formData.status} onValueChange={(value: StatusTransacao) => setFormData(prev => ({ ...prev, status: value }))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pago">Pago</SelectItem>
+                  <SelectItem value="pendente">Pendente</SelectItem>
+                  <SelectItem value="vencido">Vencido</SelectItem>
+                  <SelectItem value="cancelado">Cancelado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="metodo">Método de Pagamento</Label>
+              <Select value={formData.metodoPagamento} onValueChange={(value: MetodoPagamento) => setFormData(prev => ({ ...prev, metodoPagamento: value }))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="dinheiro">Dinheiro</SelectItem>
+                  <SelectItem value="cartao">Cartão</SelectItem>
+                  <SelectItem value="pix">PIX</SelectItem>
+                  <SelectItem value="boleto">Boleto</SelectItem>
+                  <SelectItem value="transferencia">Transferência</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>Data da Transação</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-start text-left font-normal">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {format(formData.data, 'dd/MM/yyyy', { locale: ptBR })}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar
+                    mode="single"
+                    selected={formData.data}
+                    onSelect={(date) => setFormData(prev => ({ ...prev, data: date || new Date() }))}
+                    locale={ptBR}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            <div>
+              <Label>Vencimento (opcional)</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-start text-left font-normal">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {formData.vencimento ? format(formData.vencimento, 'dd/MM/yyyy', { locale: ptBR }) : 'Selecionar'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar
+                    mode="single"
+                    selected={formData.vencimento || undefined}
+                    onSelect={(date) => setFormData(prev => ({ ...prev, vencimento: date || null }))}
+                    locale={ptBR}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+          </div>
+
+          <div>
+            <Label htmlFor="observacoes">Observações</Label>
+            <Textarea
+              id="observacoes"
+              placeholder="Observações adicionais..."
+              value={formData.observacoes}
+              onChange={(e) => setFormData(prev => ({ ...prev, observacoes: e.target.value }))}
+            />
+          </div>
+
+          <div className="flex gap-2 pt-4">
+            <Button type="button" variant="outline" onClick={onClose} className="flex-1">
               Cancelar
             </Button>
-            <Button onClick={handleSave}>
-              Salvar Transação
+            <Button type="submit" className="flex-1">
+              Salvar
             </Button>
           </div>
-        </div>
+        </form>
       </DialogContent>
     </Dialog>
   );
