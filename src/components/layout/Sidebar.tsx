@@ -60,22 +60,22 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
           isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         )}
       >
-        <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200 lg:hidden">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-green-500 rounded-lg flex items-center justify-center">
+        <div className="flex items-center justify-between h-16 px-4 sm:px-6 border-b border-gray-200 lg:hidden">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-green-500 rounded-lg flex items-center justify-center flex-shrink-0">
               <span className="text-white font-bold text-sm">D</span>
             </div>
-            <h1 className="text-xl font-bold text-gray-900">Dental IA</h1>
+            <h1 className="text-xl font-bold text-gray-900 truncate">Dental IA</h1>
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-md text-gray-500 hover:bg-gray-100"
+            className="p-2 rounded-md text-gray-500 hover:bg-gray-100 flex-shrink-0"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        <nav className="mt-6 px-3">
+        <nav className="mt-4 sm:mt-6 px-3 pb-4 h-full overflow-y-auto">
           <ul className="space-y-1">
             {navigation.map((item) => {
               const isActive = location.pathname === item.href;
@@ -85,14 +85,14 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
                     to={item.href}
                     onClick={onClose}
                     className={cn(
-                      'flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors',
+                      'flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors w-full',
                       isActive
-                        ? 'bg-blue-50 text-blue-700'
+                        ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700'
                         : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
                     )}
                   >
-                    <item.icon className="h-5 w-5" />
-                    {item.name}
+                    <item.icon className="h-5 w-5 flex-shrink-0" />
+                    <span className="truncate">{item.name}</span>
                   </Link>
                 </li>
               );

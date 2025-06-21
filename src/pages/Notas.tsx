@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -242,31 +241,37 @@ const Notas = () => {
 
   return (
     <Layout>
-      <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold">Minhas Notas</h1>
-          <Button onClick={() => setShowNew(true)} className="flex items-center gap-2">
+      <div className="space-y-4 sm:space-y-6 w-full max-w-none">
+        {/* Header - Responsivo */}
+        <div className="flex flex-col space-y-4 sm:flex-row sm:justify-between sm:items-center sm:space-y-0">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold">Minhas Notas</h1>
+            <p className="text-sm text-gray-600 mt-1">Organize suas tarefas e lembretes</p>
+          </div>
+          <Button onClick={() => setShowNew(true)} className="flex items-center gap-2 w-full sm:w-auto justify-center">
             <Plus className="h-4 w-4" />
             Nova Nota
           </Button>
         </div>
 
+        {/* Formulário Nova Nota - Responsivo */}
         {showNew && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Nova Nota</CardTitle>
+          <Card className="w-full">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg sm:text-xl">Nova Nota</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
                   <Label htmlFor="new-titulo">Título</Label>
                   <Input
                     id="new-titulo"
                     value={newNota.titulo}
                     onChange={(e) => setNewNota({ ...newNota, titulo: e.target.value })}
+                    placeholder="Digite o título da nota"
                   />
                 </div>
-                <div>
+                <div className="space-y-2">
                   <Label htmlFor="new-categoria">Categoria</Label>
                   <Input
                     id="new-categoria"
@@ -277,18 +282,19 @@ const Notas = () => {
                 </div>
               </div>
 
-              <div>
+              <div className="space-y-2">
                 <Label htmlFor="new-conteudo">Conteúdo</Label>
                 <Textarea
                   id="new-conteudo"
                   value={newNota.conteudo}
                   onChange={(e) => setNewNota({ ...newNota, conteudo: e.target.value })}
                   rows={4}
+                  placeholder="Digite o conteúdo da sua nota..."
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="space-y-2">
                   <Label htmlFor="new-prioridade">Prioridade</Label>
                   <Select 
                     value={newNota.prioridade} 
@@ -297,7 +303,7 @@ const Notas = () => {
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="z-50 bg-white border shadow-lg">
                       <SelectItem value="baixa">Baixa</SelectItem>
                       <SelectItem value="media">Média</SelectItem>
                       <SelectItem value="alta">Alta</SelectItem>
@@ -305,7 +311,7 @@ const Notas = () => {
                   </Select>
                 </div>
 
-                <div>
+                <div className="space-y-2">
                   <Label htmlFor="new-prazo">Data de Prazo</Label>
                   <Input
                     id="new-prazo"
@@ -315,7 +321,7 @@ const Notas = () => {
                   />
                 </div>
 
-                <div>
+                <div className="space-y-2">
                   <Label htmlFor="new-lembrete">Lembrete</Label>
                   <Input
                     id="new-lembrete"
@@ -335,12 +341,12 @@ const Notas = () => {
                 <Label htmlFor="new-lembrete-ativo">Ativar lembrete</Label>
               </div>
 
-              <div className="flex gap-2">
-                <Button onClick={createNota}>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Button onClick={createNota} className="w-full sm:w-auto">
                   <Save className="h-4 w-4 mr-2" />
                   Salvar
                 </Button>
-                <Button variant="outline" onClick={() => setShowNew(false)}>
+                <Button variant="outline" onClick={() => setShowNew(false)} className="w-full sm:w-auto">
                   <X className="h-4 w-4 mr-2" />
                   Cancelar
                 </Button>
@@ -349,7 +355,8 @@ const Notas = () => {
           </Card>
         )}
 
-        <div className="grid gap-4">
+        {/* Lista de Notas - Responsivo */}
+        <div className="grid gap-4 w-full">
           {notas.map((nota) => (
             <NotaCard
               key={nota.id}
@@ -364,9 +371,18 @@ const Notas = () => {
           ))}
         </div>
 
+        {/* Estado Vazio */}
         {notas.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-gray-500">Nenhuma nota encontrada. Crie sua primeira nota!</p>
+          <div className="text-center py-12 px-4">
+            <div className="max-w-md mx-auto">
+              <StickyNote className="h-16 w-16 mx-auto mb-4 opacity-30" />
+              <p className="text-lg text-gray-500 mb-2">Nenhuma nota encontrada</p>
+              <p className="text-sm text-gray-400 mb-6">Crie sua primeira nota para começar a organizar suas tarefas!</p>
+              <Button onClick={() => setShowNew(true)} className="gap-2">
+                <Plus className="h-4 w-4" />
+                Criar primeira nota
+              </Button>
+            </div>
           </div>
         )}
       </div>
@@ -423,20 +439,23 @@ const NotaCard: React.FC<NotaCardProps> = ({
   };
 
   return (
-    <Card className={`${nota.concluida ? 'opacity-75' : ''} ${nota.prazo && new Date(nota.prazo) < new Date() && !nota.concluida ? 'border-red-200' : ''}`}>
-      <CardHeader>
-        <div className="flex justify-between items-start">
-          <div className="flex-1">
+    <Card className={`w-full ${nota.concluida ? 'opacity-75' : ''} ${nota.prazo && new Date(nota.prazo) < new Date() && !nota.concluida ? 'border-red-200' : ''}`}>
+      <CardHeader className="pb-3">
+        <div className="flex flex-col space-y-3 sm:flex-row sm:justify-between sm:items-start sm:space-y-0">
+          <div className="flex-1 min-w-0">
             {isEditing ? (
               <Input
                 value={titulo}
                 onChange={(e) => setTitulo(e.target.value)}
                 className="text-lg font-semibold mb-2"
+                placeholder="Título da nota"
               />
             ) : (
-              <div className="flex items-center gap-2 mb-2">
-                <CardTitle className={nota.concluida ? 'line-through text-gray-500' : ''}>{nota.titulo}</CardTitle>
-                {nota.concluida && <CheckCircle className="h-4 w-4 text-green-600" />}
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                <CardTitle className={`${nota.concluida ? 'line-through text-gray-500' : ''} text-lg break-words`}>
+                  {nota.titulo}
+                </CardTitle>
+                {nota.concluida && <CheckCircle className="h-4 w-4 text-green-600 flex-shrink-0" />}
               </div>
             )}
             
@@ -448,7 +467,7 @@ const NotaCard: React.FC<NotaCardProps> = ({
               {nota.prazo && (
                 <Badge variant="outline" className="flex items-center gap-1">
                   <Calendar className="h-3 w-3" />
-                  {new Date(nota.prazo).toLocaleDateString('pt-BR')}
+                  <span className="text-xs">{new Date(nota.prazo).toLocaleDateString('pt-BR')}</span>
                   {new Date(nota.prazo) < new Date() && !nota.concluida && (
                     <AlertCircle className="h-3 w-3 text-red-600" />
                   )}
@@ -457,13 +476,13 @@ const NotaCard: React.FC<NotaCardProps> = ({
               {nota.lembrete_ativo && nota.lembrete_data && (
                 <Badge variant="outline" className="flex items-center gap-1">
                   <Bell className="h-3 w-3" />
-                  {new Date(nota.lembrete_data).toLocaleDateString('pt-BR')}
+                  <span className="text-xs">{new Date(nota.lembrete_data).toLocaleDateString('pt-BR')}</span>
                 </Badge>
               )}
             </div>
           </div>
           
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-shrink-0">
             <Button 
               size="sm" 
               variant={nota.concluida ? "default" : "outline"}
@@ -493,24 +512,26 @@ const NotaCard: React.FC<NotaCardProps> = ({
           </div>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="pt-0">
         {isEditing ? (
           <div className="space-y-4">
             <Textarea
               value={conteudo}
               onChange={(e) => setConteudo(e.target.value)}
               rows={4}
+              placeholder="Conteúdo da nota..."
             />
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
                 <Label>Categoria</Label>
                 <Input
                   value={categoria}
                   onChange={(e) => setCategoria(e.target.value)}
+                  placeholder="Categoria"
                 />
               </div>
-              <div>
+              <div className="space-y-2">
                 <Label>Prioridade</Label>
                 <Select 
                   value={prioridade} 
@@ -519,7 +540,7 @@ const NotaCard: React.FC<NotaCardProps> = ({
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="z-50 bg-white border shadow-lg">
                     <SelectItem value="baixa">Baixa</SelectItem>
                     <SelectItem value="media">Média</SelectItem>
                     <SelectItem value="alta">Alta</SelectItem>
@@ -528,8 +549,8 @@ const NotaCard: React.FC<NotaCardProps> = ({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
                 <Label>Data de Prazo</Label>
                 <Input
                   type="date"
@@ -537,7 +558,7 @@ const NotaCard: React.FC<NotaCardProps> = ({
                   onChange={(e) => setPrazo(e.target.value)}
                 />
               </div>
-              <div>
+              <div className="space-y-2">
                 <Label>Lembrete</Label>
                 <Input
                   type="datetime-local"
@@ -556,19 +577,21 @@ const NotaCard: React.FC<NotaCardProps> = ({
             </div>
           </div>
         ) : (
-          <p className={`whitespace-pre-wrap ${nota.concluida ? 'line-through text-gray-500' : ''}`}>
-            {nota.conteudo}
-          </p>
+          <div className="space-y-3">
+            <p className={`whitespace-pre-wrap break-words ${nota.concluida ? 'line-through text-gray-500' : ''}`}>
+              {nota.conteudo}
+            </p>
+            
+            <div className="text-xs sm:text-sm text-gray-500 pt-2 border-t">
+              <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
+                <span>Criada: {new Date(nota.created_at).toLocaleString('pt-BR')}</span>
+                {nota.updated_at !== nota.created_at && (
+                  <span>Atualizada: {new Date(nota.updated_at).toLocaleString('pt-BR')}</span>
+                )}
+              </div>
+            </div>
+          </div>
         )}
-        
-        <div className="mt-4 text-sm text-gray-500">
-          Criada em: {new Date(nota.created_at).toLocaleString('pt-BR')}
-          {nota.updated_at !== nota.created_at && (
-            <span className="ml-4">
-              Atualizada em: {new Date(nota.updated_at).toLocaleString('pt-BR')}
-            </span>
-          )}
-        </div>
       </CardContent>
     </Card>
   );

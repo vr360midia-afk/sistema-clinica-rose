@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -37,19 +38,12 @@
     --radius: 0.5rem;
 
     --sidebar-background: 0 0% 98%;
-
     --sidebar-foreground: 240 5.3% 26.1%;
-
     --sidebar-primary: 240 5.9% 10%;
-
     --sidebar-primary-foreground: 0 0% 98%;
-
     --sidebar-accent: 240 4.8% 95.9%;
-
     --sidebar-accent-foreground: 240 5.9% 10%;
-
     --sidebar-border: 220 13% 91%;
-
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
@@ -99,5 +93,88 @@
 
   body {
     @apply bg-background text-foreground;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  /* Melhoria geral de responsividade */
+  html {
+    @apply text-sm sm:text-base;
+  }
+
+  /* Garantir que elementos não transbordem */
+  * {
+    box-sizing: border-box;
+  }
+
+  /* Melhorar espaçamento em dispositivos móveis */
+  @media (max-width: 640px) {
+    .container {
+      @apply px-4;
+    }
+  }
+
+  /* Garantir que dropdowns tenham z-index alto e background */
+  [role="menu"], [role="listbox"] {
+    @apply z-50 bg-white border shadow-lg;
+  }
+
+  /* Melhorar legibilidade de texto */
+  p, span, div {
+    @apply leading-relaxed;
+  }
+
+  /* Garantir que botões sejam acessíveis no mobile */
+  button {
+    @apply min-h-[44px] sm:min-h-[40px];
+  }
+
+  /* Melhorar espaçamento de cards */
+  .card {
+    @apply p-4 sm:p-6;
+  }
+
+  /* Garantir que inputs sejam responsivos */
+  input, textarea, select {
+    @apply w-full min-h-[44px] sm:min-h-[40px];
+  }
+}
+
+/* Componentes específicos para melhor responsividade */
+@layer components {
+  .responsive-grid {
+    @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6;
+  }
+
+  .responsive-flex {
+    @apply flex flex-col sm:flex-row gap-4 sm:gap-6;
+  }
+
+  .mobile-padding {
+    @apply px-4 sm:px-6 lg:px-8;
+  }
+
+  .mobile-text {
+    @apply text-sm sm:text-base lg:text-lg;
+  }
+
+  /* Calendário responsivo */
+  .calendar-container {
+    @apply w-full max-w-none;
+  }
+
+  .calendar-container .rdp {
+    @apply w-full;
+  }
+
+  .calendar-container .rdp-table {
+    @apply w-full table-fixed;
+  }
+
+  .calendar-container .rdp-cell {
+    @apply p-0 text-center;
+  }
+
+  .calendar-container .rdp-day {
+    @apply w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-md hover:bg-accent transition-colors;
   }
 }
