@@ -3,15 +3,16 @@ import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { User, Clock, Calendar } from 'lucide-react';
+import { StatusConsulta } from '@/types/shared';
 
 interface AppointmentCardProps {
   appointment: {
-    id: number;
+    id: string; // Changed from number to string to match database UUID
     patient: string;
     time: string;
     duration: string;
     procedure: string;
-    status: string;
+    status: StatusConsulta; // Using the proper type from shared types
     dentist: string;
     patientData?: {
       phone: string;
@@ -25,12 +26,25 @@ interface AppointmentCardProps {
 }
 
 const AppointmentCard = ({ appointment, onClick }: AppointmentCardProps) => {
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: StatusConsulta) => {
     switch (status) {
       case 'confirmado': return 'bg-green-100 text-green-800';
-      case 'pendente': return 'bg-yellow-100 text-yellow-800';
+      case 'agendado': return 'bg-blue-100 text-blue-800';
+      case 'realizado': return 'bg-gray-100 text-gray-800';
       case 'cancelado': return 'bg-red-100 text-red-800';
+      case 'faltou': return 'bg-yellow-100 text-yellow-800';
       default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getStatusLabel = (status: StatusConsulta) => {
+    switch (status) {
+      case 'confirmado': return 'Confirmado';
+      case 'agendado': return 'Agendado';
+      case 'realizado': return 'Realizado';
+      case 'cancelado': return 'Cancelado';
+      case 'faltou': return 'Faltou';
+      default: return status;
     }
   };
 
@@ -56,7 +70,7 @@ const AppointmentCard = ({ appointment, onClick }: AppointmentCardProps) => {
             </div>
           </div>
           <Badge className={getStatusColor(appointment.status)}>
-            {appointment.status}
+            {getStatusLabel(appointment.status)}
           </Badge>
         </div>
       </CardContent>
