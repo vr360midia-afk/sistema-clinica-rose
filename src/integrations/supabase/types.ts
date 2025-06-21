@@ -9,6 +9,198 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      anamneses: {
+        Row: {
+          alergias: string | null
+          anexos: Json | null
+          assinatura_doutor: Json | null
+          assinatura_paciente: Json | null
+          atualizado_em: string
+          criado_em: string
+          data: string
+          data_expiracao_link: string | null
+          exame_extra_bucal: string | null
+          exame_intra_bucal: string | null
+          habitos_vicios_negativos: string | null
+          habitos_vicios_positivos: string | null
+          historia_atual: string
+          historia_familiar: string | null
+          historia_medica: string | null
+          id: string
+          link_assinatura: string | null
+          medicamentos: string | null
+          observacoes: string | null
+          paciente_id: string
+          queixa_principal: string
+          status_assinatura: string
+          token_assinatura: string | null
+          user_id: string
+        }
+        Insert: {
+          alergias?: string | null
+          anexos?: Json | null
+          assinatura_doutor?: Json | null
+          assinatura_paciente?: Json | null
+          atualizado_em?: string
+          criado_em?: string
+          data: string
+          data_expiracao_link?: string | null
+          exame_extra_bucal?: string | null
+          exame_intra_bucal?: string | null
+          habitos_vicios_negativos?: string | null
+          habitos_vicios_positivos?: string | null
+          historia_atual: string
+          historia_familiar?: string | null
+          historia_medica?: string | null
+          id?: string
+          link_assinatura?: string | null
+          medicamentos?: string | null
+          observacoes?: string | null
+          paciente_id: string
+          queixa_principal: string
+          status_assinatura?: string
+          token_assinatura?: string | null
+          user_id: string
+        }
+        Update: {
+          alergias?: string | null
+          anexos?: Json | null
+          assinatura_doutor?: Json | null
+          assinatura_paciente?: Json | null
+          atualizado_em?: string
+          criado_em?: string
+          data?: string
+          data_expiracao_link?: string | null
+          exame_extra_bucal?: string | null
+          exame_intra_bucal?: string | null
+          habitos_vicios_negativos?: string | null
+          habitos_vicios_positivos?: string | null
+          historia_atual?: string
+          historia_familiar?: string | null
+          historia_medica?: string | null
+          id?: string
+          link_assinatura?: string | null
+          medicamentos?: string | null
+          observacoes?: string | null
+          paciente_id?: string
+          queixa_principal?: string
+          status_assinatura?: string
+          token_assinatura?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anamneses_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      consultas: {
+        Row: {
+          atualizado_em: string
+          criado_em: string
+          data: string
+          dentista: string
+          duracao: number
+          hora: string
+          id: string
+          observacoes: string | null
+          paciente_id: string
+          procedimento: string
+          status: string
+          user_id: string
+          valor: number | null
+        }
+        Insert: {
+          atualizado_em?: string
+          criado_em?: string
+          data: string
+          dentista: string
+          duracao: number
+          hora: string
+          id?: string
+          observacoes?: string | null
+          paciente_id: string
+          procedimento: string
+          status?: string
+          user_id: string
+          valor?: number | null
+        }
+        Update: {
+          atualizado_em?: string
+          criado_em?: string
+          data?: string
+          dentista?: string
+          duracao?: number
+          hora?: string
+          id?: string
+          observacoes?: string | null
+          paciente_id?: string
+          procedimento?: string
+          status?: string
+          user_id?: string
+          valor?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consultas_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      documentos_paciente: {
+        Row: {
+          arquivo: string
+          atualizado_em: string
+          criado_em: string
+          descricao: string | null
+          id: string
+          nome: string
+          paciente_id: string
+          tamanho: number | null
+          tipo: string
+          user_id: string
+        }
+        Insert: {
+          arquivo: string
+          atualizado_em?: string
+          criado_em?: string
+          descricao?: string | null
+          id?: string
+          nome: string
+          paciente_id: string
+          tamanho?: number | null
+          tipo: string
+          user_id: string
+        }
+        Update: {
+          arquivo?: string
+          atualizado_em?: string
+          criado_em?: string
+          descricao?: string | null
+          id?: string
+          nome?: string
+          paciente_id?: string
+          tamanho?: number | null
+          tipo?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "documentos_paciente_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notas: {
         Row: {
           conteudo: string | null
@@ -44,6 +236,126 @@ export type Database = {
           },
         ]
       }
+      pacientes: {
+        Row: {
+          alergias: string | null
+          atualizado_em: string
+          convenio: string
+          cpf: string | null
+          criado_em: string
+          data_arquivamento: string | null
+          email: string
+          endereco: string | null
+          estado_civil: string | null
+          foto: string | null
+          historico_medico: string | null
+          id: string
+          idade: number
+          medicamentos: string | null
+          motivo_arquivamento: string | null
+          nome: string
+          observacoes: string | null
+          origem_lead: string
+          profissao: string | null
+          proxima_consulta: string | null
+          rg: string | null
+          status: string
+          telefone: string
+          ultima_consulta: string | null
+          user_id: string
+        }
+        Insert: {
+          alergias?: string | null
+          atualizado_em?: string
+          convenio: string
+          cpf?: string | null
+          criado_em?: string
+          data_arquivamento?: string | null
+          email: string
+          endereco?: string | null
+          estado_civil?: string | null
+          foto?: string | null
+          historico_medico?: string | null
+          id?: string
+          idade?: number
+          medicamentos?: string | null
+          motivo_arquivamento?: string | null
+          nome: string
+          observacoes?: string | null
+          origem_lead: string
+          profissao?: string | null
+          proxima_consulta?: string | null
+          rg?: string | null
+          status?: string
+          telefone: string
+          ultima_consulta?: string | null
+          user_id: string
+        }
+        Update: {
+          alergias?: string | null
+          atualizado_em?: string
+          convenio?: string
+          cpf?: string | null
+          criado_em?: string
+          data_arquivamento?: string | null
+          email?: string
+          endereco?: string | null
+          estado_civil?: string | null
+          foto?: string | null
+          historico_medico?: string | null
+          id?: string
+          idade?: number
+          medicamentos?: string | null
+          motivo_arquivamento?: string | null
+          nome?: string
+          observacoes?: string | null
+          origem_lead?: string
+          profissao?: string | null
+          proxima_consulta?: string | null
+          rg?: string | null
+          status?: string
+          telefone?: string
+          ultima_consulta?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      produtos: {
+        Row: {
+          atualizado_em: string
+          categoria: string
+          criado_em: string
+          id: string
+          minimo: number
+          nome: string
+          preco: number
+          quantidade: number
+          user_id: string
+        }
+        Insert: {
+          atualizado_em?: string
+          categoria: string
+          criado_em?: string
+          id?: string
+          minimo?: number
+          nome: string
+          preco?: number
+          quantidade?: number
+          user_id: string
+        }
+        Update: {
+          atualizado_em?: string
+          categoria?: string
+          criado_em?: string
+          id?: string
+          minimo?: number
+          nome?: string
+          preco?: number
+          quantidade?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -67,6 +379,141 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      prontuarios: {
+        Row: {
+          anexos: Json | null
+          atualizado_em: string
+          consulta_id: string | null
+          criado_em: string
+          data: string
+          diagnostico: string | null
+          exame_clinico: string
+          historia_doenca: string
+          id: string
+          observacoes: string | null
+          paciente_id: string
+          plano_tratamento: string | null
+          procedimentos_realizados: Json | null
+          queixa_principal: string
+          user_id: string
+        }
+        Insert: {
+          anexos?: Json | null
+          atualizado_em?: string
+          consulta_id?: string | null
+          criado_em?: string
+          data: string
+          diagnostico?: string | null
+          exame_clinico: string
+          historia_doenca: string
+          id?: string
+          observacoes?: string | null
+          paciente_id: string
+          plano_tratamento?: string | null
+          procedimentos_realizados?: Json | null
+          queixa_principal: string
+          user_id: string
+        }
+        Update: {
+          anexos?: Json | null
+          atualizado_em?: string
+          consulta_id?: string | null
+          criado_em?: string
+          data?: string
+          diagnostico?: string | null
+          exame_clinico?: string
+          historia_doenca?: string
+          id?: string
+          observacoes?: string | null
+          paciente_id?: string
+          plano_tratamento?: string | null
+          procedimentos_realizados?: Json | null
+          queixa_principal?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prontuarios_consulta_id_fkey"
+            columns: ["consulta_id"]
+            isOneToOne: false
+            referencedRelation: "consultas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prontuarios_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      transacoes: {
+        Row: {
+          atualizado_em: string
+          consulta_id: string | null
+          criado_em: string
+          data: string
+          descricao: string
+          id: string
+          metodo_pagamento: string
+          observacoes: string | null
+          paciente_id: string
+          status: string
+          tipo: string
+          user_id: string
+          valor: number
+          vencimento: string | null
+        }
+        Insert: {
+          atualizado_em?: string
+          consulta_id?: string | null
+          criado_em?: string
+          data: string
+          descricao: string
+          id?: string
+          metodo_pagamento: string
+          observacoes?: string | null
+          paciente_id: string
+          status?: string
+          tipo: string
+          user_id: string
+          valor: number
+          vencimento?: string | null
+        }
+        Update: {
+          atualizado_em?: string
+          consulta_id?: string | null
+          criado_em?: string
+          data?: string
+          descricao?: string
+          id?: string
+          metodo_pagamento?: string
+          observacoes?: string | null
+          paciente_id?: string
+          status?: string
+          tipo?: string
+          user_id?: string
+          valor?: number
+          vencimento?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transacoes_consulta_id_fkey"
+            columns: ["consulta_id"]
+            isOneToOne: false
+            referencedRelation: "consultas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transacoes_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

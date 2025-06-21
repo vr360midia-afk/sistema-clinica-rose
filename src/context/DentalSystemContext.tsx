@@ -1,11 +1,13 @@
+
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { localStorageService } from '@/services/localStorage';
+import { supabaseService } from '@/services/supabaseService';
+import { useAuth } from '@/context/AuthContext';
 import { Paciente, Consulta, Transacao, Prontuario, Anamnese, DocumentoPaciente } from '@/types/shared';
 import { toast } from 'sonner';
 
-// Adicionar interface para Produto
+// Interface para Produto
 interface Produto {
-  id: number;
+  id: string;
   nome: string;
   categoria: string;
   quantidade: number;
@@ -60,39 +62,57 @@ interface DentalSystemContextType {
   deleteDocumento: (id: string) => Promise<void>;
   
   // Product methods
-  addProduto: (produto: Omit<Produto, 'id'>) => void;
-  updateProduto: (id: number, updates: Partial<Produto>) => void;
-  deleteProduto: (id: number) => void;
+  addProduto: (produto: Omit<Produto, 'id'>) => Promise<void>;
+  updateProduto: (id: string, updates: Partial<Produto>) => Promise<void>;
+  deleteProduto: (id: string) => Promise<void>;
   
   // Utility methods
   refreshData: () => Promise<void>;
   clearAllData: () => Promise<void>;
   clearPacientes: () => Promise<void>;
   clearTransacoes: () => Promise<void>;
+  migrateFromLocalStorage: () => Promise<void>;
 }
 
 const DentalSystemContext = createContext<DentalSystemContextType | undefined>(undefined);
 
 export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user, loading: authLoading } = useAuth();
   const [pacientes, setPacientes] = useState<Paciente[]>([]);
   const [consultas, setConsultas] = useState<Consulta[]>([]);
   const [transacoes, setTransacoes] = useState<Transacao[]>([]);
   const [prontuarios, setProntuarios] = useState<Prontuario[]>([]);
   const [anamneses, setAnamneses] = useState<Anamnese[]>([]);
-  const [documentos, setDocumentos] = useState<DocumentoPaciente[]>([]);
+  const [documentos,amentosumentos] = useState<DocumentoPaciente[]>([]);
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadData = async () => {
+    if (!user) {
+      // Se não há usuário, limpar dados
+      setPacientes([]);
+      setConsultas([]);
+      setTransacoes([]);
+      setProntuarios([]);
+      setAnamneses([]);
+      setDocumentos([]);
+      setProdutos([]);
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
-      const [pacientesData, consultasData, transacoesData, prontuariosData, anamnesesData, documentosData] = await Promise.all([
-        Promise.resolve(localStorageService.getPacientes()),
-        Promise.resolve(localStorageService.getConsultas()),
-        Promise.resolve(localStorageService.getTransacoes()),
-        Promise.resolve(localStorageService.getProntuarios()),
-        Promise.resolve(localStorageService.getAnamneses()),
-        Promise.resolve(localStorageService.getDocumentos())
+      console.log('Carregando dados do Supabase para usuário:', user.id);
+      
+      const [pacientesData, consultasData, transacoesData, prontuariosData, anamnesesData, documentosData, produtosData] = await Promise.all([
+        supabaseService.getPacientes(),
+        supabaseService.getConsultas(),
+        supabaseService.getTransacoes(),
+        supabaseService.getProntuarios(),
+        supabaseService.getAnamneses(),
+        supabaseService.getDocumentos(),
+        supabaseService.getProdutos()
       ]);
       
       setPacientes(pacientesData);
@@ -101,12 +121,9 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
       setProntuarios(prontuariosData);
       setAnamneses(anamnesesData);
       setDocumentos(documentosData);
-
-      // Carregar produtos do localStorage
-      const produtosData = JSON.parse(localStorage.getItem('dental-produtos') || '[]');
       setProdutos(produtosData);
 
-      console.log('Dados carregados:', {
+      console.log('Dados carregados do Supabase:', {
         pacientes: pacientesData.length,
         consultas: consultasData.length,
         transacoes: transacoesData.length,
@@ -116,7 +133,7 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
         produtos: produtosData.length
       });
     } catch (error) {
-      console.error('Erro ao carregar dados:', error);
+      console.error('Erro ao carregar dados do Supabase:', error);
       toast.error('Erro ao carregar dados do sistema');
     } finally {
       setLoading(false);
@@ -124,14 +141,16 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
   };
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (!authLoading) {
+      loadData();
+    }
+  }, [user, authLoading]);
 
   // Patient methods
   const addPaciente = async (pacienteData: Omit<Paciente, 'id' | 'criadoEm' | 'atualizadoEm'>) => {
     try {
-      const newPaciente = localStorageService.savePaciente(pacienteData);
-      setPacientes(prev => [...prev, newPaciente]);
+      const newPaciente = await supabaseService.savePaciente(pacienteData);
+      setPacientes(prev => [newPaciente, ...prev]);
       toast.success(`Paciente ${newPaciente.nome} adicionado com sucesso`);
       return newPaciente;
     } catch (error) {
@@ -143,7 +162,7 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const updatePaciente = async (id: string, updates: Partial<Paciente>) => {
     try {
-      const updatedPaciente = localStorageService.updatePaciente(id, updates);
+      const updatedPaciente = await supabaseService.updatePaciente(id, updates);
       if (updatedPaciente) {
         setPacientes(prev => prev.map(p => p.id === id ? updatedPaciente : p));
         toast.success(`Paciente ${updatedPaciente.nome} atualizado com sucesso`);
@@ -158,11 +177,9 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const deletePaciente = async (id: string) => {
     try {
       const paciente = pacientes.find(p => p.id === id);
-      const success = localStorageService.deletePaciente(id);
-      if (success) {
-        setPacientes(prev => prev.filter(p => p.id !== id));
-        toast.success(`Paciente ${paciente?.nome} excluído com sucesso`);
-      }
+      await supabaseService.deletePaciente(id);
+      setPacientes(prev => prev.filter(p => p.id !== id));
+      toast.success(`Paciente ${paciente?.nome} excluído com sucesso`);
     } catch (error) {
       console.error('Erro ao excluir paciente:', error);
       toast.error('Erro ao excluir paciente');
@@ -205,8 +222,8 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
   // Consultation methods
   const addConsulta = async (consultaData: Omit<Consulta, 'id' | 'criadoEm' | 'atualizadoEm'>) => {
     try {
-      const newConsulta = localStorageService.saveConsulta(consultaData);
-      setConsultas(prev => [...prev, newConsulta]);
+      const newConsulta = await supabaseService.saveConsulta(consultaData);
+      setConsultas(prev => [newConsulta, ...prev]);
       toast.success('Consulta agendada com sucesso');
       return newConsulta;
     } catch (error) {
@@ -218,7 +235,7 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const updateConsulta = async (id: string, updates: Partial<Consulta>) => {
     try {
-      const updatedConsulta = localStorageService.updateConsulta(id, updates);
+      const updatedConsulta = await supabaseService.updateConsulta(id, updates);
       if (updatedConsulta) {
         setConsultas(prev => prev.map(c => c.id === id ? updatedConsulta : c));
         toast.success('Consulta atualizada com sucesso');
@@ -232,11 +249,9 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const deleteConsulta = async (id: string) => {
     try {
-      const success = localStorageService.deleteConsulta(id);
-      if (success) {
-        setConsultas(prev => prev.filter(c => c.id !== id));
-        toast.success('Consulta cancelada com sucesso');
-      }
+      await supabaseService.deleteConsulta(id);
+      setConsultas(prev => prev.filter(c => c.id !== id));
+      toast.success('Consulta cancelada com sucesso');
     } catch (error) {
       console.error('Erro ao cancelar consulta:', error);
       toast.error('Erro ao cancelar consulta');
@@ -247,8 +262,8 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
   // Transaction methods
   const addTransacao = async (transacaoData: Omit<Transacao, 'id' | 'criadoEm' | 'atualizadoEm'>) => {
     try {
-      const newTransacao = localStorageService.saveTransacao(transacaoData);
-      setTransacoes(prev => [...prev, newTransacao]);
+      const newTransacao = await supabaseService.saveTransacao(transacaoData);
+      setTransacoes(prev => [newTransacao, ...prev]);
       toast.success('Transação registrada com sucesso');
       return newTransacao;
     } catch (error) {
@@ -260,7 +275,7 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const updateTransacao = async (id: string, updates: Partial<Transacao>) => {
     try {
-      const updatedTransacao = localStorageService.updateTransacao(id, updates);
+      const updatedTransacao = await supabaseService.updateTransacao(id, updates);
       if (updatedTransacao) {
         setTransacoes(prev => prev.map(t => t.id === id ? updatedTransacao : t));
         toast.success('Transação atualizada com sucesso');
@@ -274,11 +289,9 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const deleteTransacao = async (id: string) => {
     try {
-      const success = localStorageService.deleteTransacao(id);
-      if (success) {
-        setTransacoes(prev => prev.filter(t => t.id !== id));
-        toast.success('Transação excluída com sucesso');
-      }
+      await supabaseService.deleteTransacao(id);
+      setTransacoes(prev => prev.filter(t => t.id !== id));
+      toast.success('Transação excluída com sucesso');
     } catch (error) {
       console.error('Erro ao excluir transação:', error);
       toast.error('Erro ao excluir transação');
@@ -289,8 +302,8 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
   // Medical record methods
   const addProntuario = async (prontuarioData: Omit<Prontuario, 'id' | 'criadoEm' | 'atualizadoEm'>) => {
     try {
-      const newProntuario = localStorageService.saveProntuario(prontuarioData);
-      setProntuarios(prev => [...prev, newProntuario]);
+      const newProntuario = await supabaseService.saveProntuario(prontuarioData);
+      setProntuarios(prev => [newProntuario, ...prev]);
       toast.success('Prontuário salvo com sucesso');
       return newProntuario;
     } catch (error) {
@@ -302,7 +315,7 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const updateProntuario = async (id: string, updates: Partial<Prontuario>) => {
     try {
-      const updatedProntuario = localStorageService.updateProntuario(id, updates);
+      const updatedProntuario = await supabaseService.updateProntuario(id, updates);
       if (updatedProntuario) {
         setProntuarios(prev => prev.map(p => p.id === id ? updatedProntuario : p));
         toast.success('Prontuário atualizado com sucesso');
@@ -316,11 +329,9 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const deleteProntuario = async (id: string) => {
     try {
-      const success = localStorageService.deleteProntuario(id);
-      if (success) {
-        setProntuarios(prev => prev.filter(p => p.id !== id));
-        toast.success('Prontuário excluído com sucesso');
-      }
+      await supabaseService.deleteProntuario(id);
+      setProntuarios(prev => prev.filter(p => p.id !== id));
+      toast.success('Prontuário excluído com sucesso');
     } catch (error) {
       console.error('Erro ao excluir prontuário:', error);
       toast.error('Erro ao excluir prontuário');
@@ -331,11 +342,11 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
   // Anamnesis methods
   const addAnamnese = async (anamneseData: Omit<Anamnese, 'id' | 'criadoEm' | 'atualizadoEm'>) => {
     try {
-      const newAnamnese = localStorageService.saveAnamnese({
+      const newAnamnese = await supabaseService.saveAnamnese({
         ...anamneseData,
         statusAssinatura: 'pendente'
       });
-      setAnamneses(prev => [...prev, newAnamnese]);
+      setAnamneses(prev => [newAnamnese, ...prev]);
       toast.success('Anamnese salva com sucesso');
       return newAnamnese;
     } catch (error) {
@@ -347,7 +358,7 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const updateAnamnese = async (id: string, updates: Partial<Anamnese>) => {
     try {
-      const updatedAnamnese = localStorageService.updateAnamnese(id, updates);
+      const updatedAnamnese = await supabaseService.updateAnamnese(id, updates);
       if (updatedAnamnese) {
         setAnamneses(prev => prev.map(a => a.id === id ? updatedAnamnese : a));
         toast.success('Anamnese atualizada com sucesso');
@@ -361,11 +372,9 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const deleteAnamnese = async (id: string) => {
     try {
-      const success = localStorageService.deleteAnamnese(id);
-      if (success) {
-        setAnamneses(prev => prev.filter(a => a.id !== id));
-        toast.success('Anamnese excluída com sucesso');
-      }
+      await supabaseService.deleteAnamnese(id);
+      setAnamneses(prev => prev.filter(a => a.id !== id));
+      toast.success('Anamnese excluída com sucesso');
     } catch (error) {
       console.error('Erro ao excluir anamnese:', error);
       toast.error('Erro ao excluir anamnese');
@@ -375,7 +384,7 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const clearAnamneses = async () => {
     try {
-      localStorageService.clearAnamneses();
+      await supabaseService.clearAnamneses();
       setAnamneses([]);
       toast.success('Todas as anamneses foram zeradas');
     } catch (error) {
@@ -428,8 +437,8 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
   // Document methods
   const addDocumento = async (documentoData: Omit<DocumentoPaciente, 'id' | 'criadoEm' | 'atualizadoEm'>) => {
     try {
-      const newDocumento = localStorageService.saveDocumento(documentoData);
-      setDocumentos(prev => [...prev, newDocumento]);
+      const newDocumento = await supabaseService.saveDocumento(documentoData);
+      setDocumentos(prev => [newDocumento, ...prev]);
       toast.success('Documento salvo com sucesso');
       return newDocumento;
     } catch (error) {
@@ -441,7 +450,7 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const updateDocumento = async (id: string, updates: Partial<DocumentoPaciente>) => {
     try {
-      const updatedDocumento = localStorageService.updateDocumento(id, updates);
+      const updatedDocumento = await supabaseService.updateDocumento(id, updates);
       if (updatedDocumento) {
         setDocumentos(prev => prev.map(d => d.id === id ? updatedDocumento : d));
         toast.success('Documento atualizado com sucesso');
@@ -455,11 +464,9 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const deleteDocumento = async (id: string) => {
     try {
-      const success = localStorageService.deleteDocumento(id);
-      if (success) {
-        setDocumentos(prev => prev.filter(d => d.id !== id));
-        toast.success('Documento excluído com sucesso');
-      }
+      await supabaseService.deleteDocumento(id);
+      setDocumentos(prev => prev.filter(d => d.id !== id));
+      toast.success('Documento excluído com sucesso');
     } catch (error) {
       console.error('Erro ao excluir documento:', error);
       toast.error('Erro ao excluir documento');
@@ -467,30 +474,43 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   };
 
-  // Product methods
-  const addProduto = (produtoData: Omit<Produto, 'id'>) => {
-    const newProduto = {
-      ...produtoData,
-      id: Date.now()
-    };
-    const updatedProdutos = [...produtos, newProduto];
-    setProdutos(updatedProdutos);
-    localStorage.setItem('dental-produtos', JSON.stringify(updatedProdutos));
-    toast.success('Produto adicionado com sucesso');
+  // Product methods  
+  const addProduto = async (produtoData: Omit<Produto, 'id'>) => {
+    try {
+      const newProduto = await supabaseService.saveProduto(produtoData);
+      setProdutos(prev => [newProduto, ...prev]);
+      toast.success('Produto adicionado com sucesso');
+    } catch (error) {
+      console.error('Erro ao adicionar produto:', error);
+      toast.error('Erro ao adicionar produto');
+      throw error;
+    }
   };
 
-  const updateProduto = (id: number, updates: Partial<Produto>) => {
-    const updatedProdutos = produtos.map(p => p.id === id ? { ...p, ...updates } : p);
-    setProdutos(updatedProdutos);
-    localStorage.setItem('dental-produtos', JSON.stringify(updatedProdutos));
-    toast.success('Produto atualizado com sucesso');
+  const updateProduto = async (id: string, updates: Partial<Produto>) => {
+    try {
+      const updatedProduto = await supabaseService.updateProduto(id, updates);
+      if (updatedProduto) {
+        setProdutos(prev => prev.map(p => p.id === id ? updatedProduto : p));
+        toast.success('Produto atualizado com sucesso');
+      }
+    } catch (error) {
+      console.error('Erro ao atualizar produto:', error);
+      toast.error('Erro ao atualizar produto');
+      throw error;
+    }
   };
 
-  const deleteProduto = (id: number) => {
-    const updatedProdutos = produtos.filter(p => p.id !== id);
-    setProdutos(updatedProdutos);
-    localStorage.setItem('dental-produtos', JSON.stringify(updatedProdutos));
-    toast.success('Produto excluído com sucesso');
+  const deleteProduto = async (id: string) => {
+    try {
+      await supabaseService.deleteProduto(id);
+      setProdutos(prev => prev.filter(p => p.id !== id));
+      toast.success('Produto excluído com sucesso');
+    } catch (error) {
+      console.error('Erro ao excluir produto:', error);
+      toast.error('Erro ao excluir produto');
+      throw error;
+    }
   };
 
   // Utility methods
@@ -500,13 +520,14 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const clearAllData = async () => {
     try {
-      localStorageService.clearAllData();
+      await supabaseService.clearAllData();
       setPacientes([]);
       setConsultas([]);
       setTransacoes([]);
       setProntuarios([]);
       setAnamneses([]);
       setDocumentos([]);
+      setProdutos([]);
       toast.success('Todos os dados foram limpos');
     } catch (error) {
       console.error('Erro ao limpar dados:', error);
@@ -517,8 +538,13 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const clearPacientes = async () => {
     try {
-      localStorageService.clearPacientes();
+      await supabaseService.clearPacientes();
       setPacientes([]);
+      setConsultas([]);
+      setTransacoes([]);
+      setProntuarios([]);
+      setAnamneses([]);
+      setDocumentos([]);
       toast.success('Dados de pacientes limpos');
     } catch (error) {
       console.error('Erro ao limpar pacientes:', error);
@@ -529,12 +555,22 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const clearTransacoes = async () => {
     try {
-      localStorageService.clearTransacoes();
+      await supabaseService.clearTransacoes();
       setTransacoes([]);
       toast.success('Dados financeiros limpos');
     } catch (error) {
       console.error('Erro ao limpar transações:', error);
       toast.error('Erro ao limpar transações');
+      throw error;
+    }
+  };
+
+  const migrateFromLocalStorage = async () => {
+    try {
+      await supabaseService.migrateFromLocalStorage();
+      await refreshData(); // Recarregar dados após migração
+    } catch (error) {
+      console.error('Erro na migração:', error);
       throw error;
     }
   };
@@ -548,7 +584,7 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
     anamneses,
     documentos,
     produtos,
-    loading,
+    loading: loading || authLoading,
     
     // Methods
     addPaciente,
@@ -580,7 +616,8 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
     refreshData,
     clearAllData,
     clearPacientes,
-    clearTransacoes
+    clearTransacoes,
+    migrateFromLocalStorage
   };
 
   return (

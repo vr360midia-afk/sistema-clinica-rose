@@ -4,11 +4,28 @@ import Layout from '@/components/layout/Layout';
 import StatsCard from '@/components/dashboard/StatsCard';
 import AppointmentsList from '@/components/dashboard/AppointmentsList';
 import RecentActivity from '@/components/dashboard/RecentActivity';
+import MigrationStatus from '@/components/migration/MigrationStatus';
 import { Users, Calendar, CreditCard, TrendingUp } from 'lucide-react';
 import { useDentalSystem } from '@/context/DentalSystemContext';
+import { useAuth } from '@/context/AuthContext';
 
 const Dashboard = () => {
+  const { user } = useAuth();
   const { pacientes, consultas, transacoes } = useDentalSystem();
+
+  // Só mostrar dados se o usuário estiver autenticado
+  if (!user) {
+    return (
+      <Layout>
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">Dashboard</h1>
+            <p className="text-gray-600">Faça login para acessar seus dados</p>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
 
   // Calcular estatísticas reais
   const pacientesAtivos = pacientes.filter(p => p.status === 'Ativo').length;
@@ -45,9 +62,12 @@ const Dashboard = () => {
     <Layout>
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Dashboard</h1>
-          <p className="text-gray-600">Visão geral da sua clínica odontológica</p>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Dashboar  Odontológica</h1>
+          <p className="text-gray-600">Bem-vindo de volta! Dados sincronizados com Supabase.</p>
         </div>
+
+        {/* Migration Status */}
+        <MigrationStatus />
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
