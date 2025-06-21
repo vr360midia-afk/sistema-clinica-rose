@@ -8,15 +8,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ArrowLeft, Save } from 'lucide-react';
 import { toast } from 'sonner';
+import { useDentalSystem } from '@/context/DentalSystemContext';
 import PatientPhotoCapture from './PatientPhotoCapture';
 
 interface PatientFormProps {
   onClose: () => void;
-  onSave: (patientData: any) => void;
   patient?: any;
 }
 
-const PatientForm = ({ onClose, onSave, patient }: PatientFormProps) => {
+const PatientForm = ({ onClose, patient }: PatientFormProps) => {
+  const { addPaciente, updatePaciente } = useDentalSystem();
+  const [loading, setLoading] = useState(false);
+  
   const [formData, setFormData] = useState({
     nome: patient?.nome || '',
     email: patient?.email || '',
@@ -37,6 +40,8 @@ const PatientForm = ({ onClose, onSave, patient }: PatientFormProps) => {
     observacoes: patient?.observacoes || ''
   });
 
+  console.log('PatientForm mounted:', { patient, formData });
+
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({
       ...prev,
@@ -44,22 +49,42 @@ const PatientForm = ({ onClose, onSave, patient }: PatientFormProps) => {
     }));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    console.log('Attempting to save patient:', formData);
+    
     if (!formData.nome || !formData.email || !formData.telefone) {
       toast.error('Preencha os campos obrigatórios: Nome, Email e Telefone');
       return;
     }
 
-    const patientData = {
-      ...formData,
-      id: patient?.id || Date.now(),
-      status: patient?.status || 'Ativo',
-      dataCadastro: patient?.dataCadastro || new Date().toLocaleDateString('pt-BR')
-    };
+    setLoading(true);
 
-    onSave(patientData);
-    toast.success(patient ? 'Paciente atualizado com sucesso!' : 'Paciente cadastrado com sucesso!');
-    onClose();
+    try {
+      const patientData = {
+        ...formData,
+        status: patient?.status || 'Ativo',
+      };
+
+      console.log('Patient data to save:', patientData);
+
+      if (patient) {
+        console.log('Updating existing patient with ID:', patient.id);
+        await updatePaciente(patient.id, patientData);
+        toast.success(`Paciente ${formData.nome} atualizado com sucesso!`);
+      } else {
+        console.log('Creating new patient');
+        const newPatient = await addPaciente(patientData);
+        console.log('New patient created:', newPatient);
+        toast.success(`Paciente ${formData.nome} cadastrado com sucesso!`);
+      }
+      
+      onClose();
+    } catch (error) {
+      console.error('Error saving patient:', error);
+      toast.error('Erro ao salvar paciente. Tente novamente.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -300,12 +325,12 @@ const PatientForm = ({ onClose, onSave, patient }: PatientFormProps) => {
       </div>
 
       <div className="flex justify-end gap-2 pt-4">
-        <Button variant="outline" onClick={onClose}>
+        <Button variant="outline" onClick={onClose} disabled={loading}>
           Cancelar
         </Button>
-        <Button onClick={handleSave} className="bg-blue-600 hover:bg-blue-700">
+        <Button onClick={handleSave} className="bg-blue-600 hover:bg-blue-700" disabled={loading}>
           <Save className="h-4 w-4 mr-2" />
-          {patient ? 'Atualizar' : 'Salvar'} Paciente
+          {loading ? 'Salvando...' : (patient ? 'Atualizar' : 'Salvar')} Paciente
         </Button>
       </div>
     </div>

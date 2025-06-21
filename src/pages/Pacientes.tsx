@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import Layout from '@/components/layout/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,7 +12,6 @@ import PatientArchiveModal from '@/components/pacientes/PatientArchiveModal';
 import PatientDeleteModal from '@/components/pacientes/PatientDeleteModal';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import EmptyState from '@/components/common/EmptyState';
-import ConfirmDialog from '@/components/common/ConfirmDialog';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import { Users, Search, Plus, UserCheck, Calendar, Archive, MoreVertical, Edit2, Trash2, RotateCcw } from 'lucide-react';
 
@@ -21,7 +19,6 @@ const Pacientes = () => {
   const { 
     pacientes, 
     loading, 
-    updatePaciente, 
     deletePaciente, 
     archivePaciente, 
     reactivatePaciente 
@@ -37,6 +34,8 @@ const Pacientes = () => {
   const [archiveModal, setArchiveModal] = useState({ isOpen: false, patient: null });
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, patient: null });
 
+  console.log('Pacientes component loaded, pacientes:', pacientes);
+
   const pacientesAtivos = pacientes.filter(p => p.status === 'Ativo' || p.status === 'Inativo');
   const pacientesArquivados = pacientes.filter(p => p.status === 'Arquivado');
 
@@ -49,9 +48,16 @@ const Pacientes = () => {
   );
 
   const handleEditPatient = (patient: any) => {
+    console.log('Editing patient:', patient);
     setEditingPatient(patient);
     setShowForm(true);
     setSelectedPatient(null);
+  };
+
+  const handleCloseForm = () => {
+    console.log('Closing form');
+    setShowForm(false);
+    setEditingPatient(null);
   };
 
   const handleArchivePatient = (patient: any) => {
@@ -121,14 +127,7 @@ const Pacientes = () => {
       <Layout>
         <PatientForm
           patient={editingPatient}
-          onClose={() => {
-            setShowForm(false);
-            setEditingPatient(null);
-          }}
-          onSave={() => {
-            setShowForm(false);
-            setEditingPatient(null);
-          }}
+          onClose={handleCloseForm}
         />
       </Layout>
     );
@@ -299,10 +298,10 @@ const Pacientes = () => {
                               </div>
                               <div className="mt-2 flex items-center text-xs text-gray-400">
                                 {paciente.ultimaConsulta && (
-                                  <span>Última consulta: {paciente.ultimaConsulta.toLocaleDateString('pt-BR')}</span>
+                                  <span>Última consulta: {new Date(paciente.ultimaConsulta).toLocaleDateString('pt-BR')}</span>
                                 )}
                                 {paciente.proximaConsulta && (
-                                  <span className="ml-4">Próxima consulta: {paciente.proximaConsulta.toLocaleDateString('pt-BR')}</span>
+                                  <span className="ml-4">Próxima consulta: {new Date(paciente.proximaConsulta).toLocaleDateString('pt-BR')}</span>
                                 )}
                               </div>
                             </div>
@@ -382,7 +381,7 @@ const Pacientes = () => {
                               </div>
                               {paciente.dataArquivamento && (
                                 <div className="mt-1 text-sm text-gray-500">
-                                  Arquivado em: {paciente.dataArquivamento.toLocaleDateString('pt-BR')}
+                                  Arquivado em: {new Date(paciente.dataArquivamento).toLocaleDateString('pt-BR')}
                                 </div>
                               )}
                               {paciente.motivoArquivamento && (
