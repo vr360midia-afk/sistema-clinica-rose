@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -47,7 +46,15 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate }: ConsultaModalProps) =>
     try {
       setIsLoading(true);
       const consultaData = {
-        ...data,
+        pacienteId: data.pacienteId,
+        data: data.data,
+        hora: data.hora,
+        duracao: data.duracao,
+        procedimento: data.procedimento,
+        status: data.status,
+        dentista: data.dentista,
+        observacoes: data.observacoes || '',
+        valor: data.valor,
         userId: user.id
       };
       await addConsulta(consultaData);

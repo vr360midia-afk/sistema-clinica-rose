@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -47,7 +46,30 @@ const QuickPatientModal = ({ isOpen, onClose, onPatientCreated }: QuickPatientMo
   const onSubmit = async (data: QuickPatientFormData) => {
     try {
       setIsLoading(true);
-      const novoPaciente = await addPaciente(data);
+      const pacienteData = {
+        nome: data.nome,
+        email: data.email,
+        telefone: data.telefone,
+        idade: data.idade,
+        convenio: data.convenio,
+        origemLead: data.origemLead as any,
+        status: 'Ativo' as const,
+        foto: undefined,
+        ultimaConsulta: undefined,
+        proximaConsulta: undefined,
+        historicoMedico: undefined,
+        alergias: undefined,
+        medicamentos: undefined,
+        observacoes: undefined,
+        endereco: undefined,
+        cpf: undefined,
+        rg: undefined,
+        profissao: undefined,
+        estadoCivil: undefined,
+        dataArquivamento: undefined,
+        motivoArquivamento: undefined
+      };
+      const novoPaciente = await addPaciente(pacienteData);
       onPatientCreated(novoPaciente.id);
       onClose();
       form.reset();
