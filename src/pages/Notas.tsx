@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -8,13 +7,22 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Edit, Trash2, Save, X } from 'lucide-react';
+import { Plus, Edit, Trash2, Save, X, Calendar, Bell, AlertCircle, CheckCircle } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
 import Layout from '@/components/layout/Layout';
 
 interface Nota {
   id: string;
   titulo: string;
   conteudo: string;
+  prazo?: string;
+  lembrete_data?: string;
+  lembrete_ativo: boolean;
+  prioridade: 'baixa' | 'media' | 'alta';
+  categoria: string;
+  concluida: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -26,7 +34,16 @@ const Notas = () => {
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showNew, setShowNew] = useState(false);
-  const [newNota, setNewNota] = useState({ titulo: '', conteudo: '' });
+  const [newNota, setNewNota] = useState({
+    titulo: '',
+    conteudo: '',
+    prazo: '',
+    lembrete_data: '',
+    lembrete_ativo: false,
+    prioridade: 'media' as const,
+    categoria: 'geral',
+    concluida: false
+  });
 
   useEffect(() => {
     if (user) {
@@ -58,13 +75,27 @@ const Notas = () => {
     if (!newNota.titulo.trim()) return;
 
     try {
+      const notaData: any = {
+        titulo: newNota.titulo,
+        conteudo: newNota.conteudo,
+        categoria: newNota.categoria,
+        prioridade: newNota.prioridade,
+        concluida: newNota.concluida,
+        lembrete_ativo: newNota.lembrete_ativo,
+        user_id: user?.id
+      };
+
+      if (newNota.prazo) {
+        notaData.prazo = newNota.prazo;
+      }
+
+      if (newNota.lembrete_data) {
+        notaData.lembrete_data = new Date(newNota.lembrete_data).toISOString();
+      }
+
       const { error } = await supabase
         .from('notas')
-        .insert({
-          titulo: newNota.titulo,
-          conteudo: newNota.conteudo,
-          user_id: user?.id
-        });
+        .insert(notaData);
 
       if (error) throw error;
 
@@ -73,7 +104,16 @@ const Notas = () => {
         description: "Nota criada com sucesso"
       });
 
-      setNewNota({ titulo: '', conteudo: '' });
+      setNewNota({
+        titulo: '',
+        conteudo: '',
+        prazo: '',
+        lembrete_data: '',
+        lembrete_ativo: false,
+        prioridade: 'media',
+        categoria: 'geral',
+        concluida: false
+      });
       setShowNew(false);
       fetchNotas();
     } catch (error) {
@@ -85,11 +125,18 @@ const Notas = () => {
     }
   };
 
-  const updateNota = async (id: string, titulo: string, conteudo: string) => {
+  const updateNota = async (id: string, titulo: string, conteudo: string, dados?: Partial<Nota>) => {
     try {
+      const updateData: any = {
+        titulo,
+        conteudo,
+        updated_at: new Date().toISOString(),
+        ...dados
+      };
+
       const { error } = await supabase
         .from('notas')
-        .update({ titulo, conteudo, updated_at: new Date().toISOString() })
+        .update(updateData)
         .eq('id', id);
 
       if (error) throw error;
@@ -134,6 +181,15 @@ const Notas = () => {
     }
   };
 
+  const getPrioridadeColor = (prioridade: string) => {
+    switch (prioridade) {
+      case 'alta': return 'text-red-600 bg-red-50';
+      case 'media': return 'text-yellow-600 bg-yellow-50';
+      case 'baixa': return 'text-green-600 bg-green-50';
+      default: return 'text-gray-600 bg-gray-50';
+    }
+  };
+
   if (loading) {
     return (
       <Layout>
@@ -161,14 +217,26 @@ const Notas = () => {
               <CardTitle>Nova Nota</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="new-titulo">Título</Label>
-                <Input
-                  id="new-titulo"
-                  value={newNota.titulo}
-                  onChange={(e) => setNewNota({ ...newNota, titulo: e.target.value })}
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="new-titulo">Título</Label>
+                  <Input
+                    id="new-titulo"
+                    value={newNota.titulo}
+                    onChange={(e) => setNewNota({ ...newNota, titulo: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="new-categoria">Categoria</Label>
+                  <Input
+                    id="new-categoria"
+                    value={newNota.categoria}
+                    onChange={(e) => setNewNota({ ...newNota, categoria: e.target.value })}
+                    placeholder="Ex: trabalho, pessoal, estudos"
+                  />
+                </div>
               </div>
+
               <div>
                 <Label htmlFor="new-conteudo">Conteúdo</Label>
                 <Textarea
@@ -178,6 +246,52 @@ const Notas = () => {
                   rows={4}
                 />
               </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <Label htmlFor="new-prioridade">Prioridade</Label>
+                  <Select value={newNota.prioridade} onValueChange={(value: 'baixa' | 'media' | 'alta') => setNewNota({ ...newNota, prioridade: value })}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="baixa">Baixa</SelectItem>
+                      <SelectItem value="media">Média</SelectItem>
+                      <SelectItem value="alta">Alta</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="new-prazo">Data de Prazo</Label>
+                  <Input
+                    id="new-prazo"
+                    type="date"
+                    value={newNota.prazo}
+                    onChange={(e) => setNewNota({ ...newNota, prazo: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="new-lembrete">Lembrete</Label>
+                  <Input
+                    id="new-lembrete"
+                    type="datetime-local"
+                    value={newNota.lembrete_data}
+                    onChange={(e) => setNewNota({ ...newNota, lembrete_data: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="new-lembrete-ativo"
+                  checked={newNota.lembrete_ativo}
+                  onCheckedChange={(checked) => setNewNota({ ...newNota, lembrete_ativo: !!checked })}
+                />
+                <Label htmlFor="new-lembrete-ativo">Ativar lembrete</Label>
+              </div>
+
               <div className="flex gap-2">
                 <Button onClick={createNota}>
                   <Save className="h-4 w-4 mr-2" />
@@ -199,9 +313,10 @@ const Notas = () => {
               nota={nota}
               isEditing={editingId === nota.id}
               onEdit={() => setEditingId(nota.id)}
-              onSave={(titulo, conteudo) => updateNota(nota.id, titulo, conteudo)}
+              onSave={(titulo, conteudo, dados) => updateNota(nota.id, titulo, conteudo, dados)}
               onCancel={() => setEditingId(null)}
               onDelete={() => deleteNota(nota.id)}
+              getPrioridadeColor={getPrioridadeColor}
             />
           ))}
         </div>
@@ -220,9 +335,10 @@ interface NotaCardProps {
   nota: Nota;
   isEditing: boolean;
   onEdit: () => void;
-  onSave: (titulo: string, conteudo: string) => void;
+  onSave: (titulo: string, conteudo: string, dados?: Partial<Nota>) => void;
   onCancel: () => void;
   onDelete: () => void;
+  getPrioridadeColor: (prioridade: string) => string;
 }
 
 const NotaCard: React.FC<NotaCardProps> = ({
@@ -231,29 +347,87 @@ const NotaCard: React.FC<NotaCardProps> = ({
   onEdit,
   onSave,
   onCancel,
-  onDelete
+  onDelete,
+  getPrioridadeColor
 }) => {
   const [titulo, setTitulo] = useState(nota.titulo);
   const [conteudo, setConteudo] = useState(nota.conteudo);
+  const [categoria, setCategoria] = useState(nota.categoria || 'geral');
+  const [prioridade, setPrioridade] = useState(nota.prioridade || 'media');
+  const [prazo, setPrazo] = useState(nota.prazo || '');
+  const [lembreteData, setLembreteData] = useState(nota.lembrete_data || '');
+  const [lembreteAtivo, setLembreteAtivo] = useState(nota.lembrete_ativo || false);
+  const [concluida, setConcluida] = useState(nota.concluida || false);
 
   const handleSave = () => {
-    onSave(titulo, conteudo);
+    const dados: Partial<Nota> = {
+      categoria,
+      prioridade,
+      concluida,
+      lembrete_ativo: lembreteAtivo
+    };
+
+    if (prazo) dados.prazo = prazo;
+    if (lembreteData) dados.lembrete_data = new Date(lembreteData).toISOString();
+
+    onSave(titulo, conteudo, dados);
+  };
+
+  const handleToggleConcluida = () => {
+    const novoStatus = !concluida;
+    setConcluida(novoStatus);
+    onSave(titulo, conteudo, { concluida: novoStatus });
   };
 
   return (
-    <Card>
+    <Card className={`${nota.concluida ? 'opacity-75' : ''} ${nota.prazo && new Date(nota.prazo) < new Date() && !nota.concluida ? 'border-red-200' : ''}`}>
       <CardHeader>
         <div className="flex justify-between items-start">
-          {isEditing ? (
-            <Input
-              value={titulo}
-              onChange={(e) => setTitulo(e.target.value)}
-              className="text-lg font-semibold"
-            />
-          ) : (
-            <CardTitle>{nota.titulo}</CardTitle>
-          )}
+          <div className="flex-1">
+            {isEditing ? (
+              <Input
+                value={titulo}
+                onChange={(e) => setTitulo(e.target.value)}
+                className="text-lg font-semibold mb-2"
+              />
+            ) : (
+              <div className="flex items-center gap-2 mb-2">
+                <CardTitle className={nota.concluida ? 'line-through text-gray-500' : ''}>{nota.titulo}</CardTitle>
+                {nota.concluida && <CheckCircle className="h-4 w-4 text-green-600" />}
+              </div>
+            )}
+            
+            <div className="flex flex-wrap gap-2 mb-2">
+              <Badge className={getPrioridadeColor(nota.prioridade)}>
+                {nota.prioridade}
+              </Badge>
+              <Badge variant="secondary">{nota.categoria}</Badge>
+              {nota.prazo && (
+                <Badge variant="outline" className="flex items-center gap-1">
+                  <Calendar className="h-3 w-3" />
+                  {new Date(nota.prazo).toLocaleDateString('pt-BR')}
+                  {new Date(nota.prazo) < new Date() && !nota.concluida && (
+                    <AlertCircle className="h-3 w-3 text-red-600" />
+                  )}
+                </Badge>
+              )}
+              {nota.lembrete_ativo && nota.lembrete_data && (
+                <Badge variant="outline" className="flex items-center gap-1">
+                  <Bell className="h-3 w-3" />
+                  {new Date(nota.lembrete_data).toLocaleDateString('pt-BR')}
+                </Badge>
+              )}
+            </div>
+          </div>
+          
           <div className="flex gap-2">
+            <Button 
+              size="sm" 
+              variant={nota.concluida ? "default" : "outline"}
+              onClick={handleToggleConcluida}
+            >
+              <CheckCircle className="h-4 w-4" />
+            </Button>
             {isEditing ? (
               <>
                 <Button size="sm" onClick={handleSave}>
@@ -278,14 +452,69 @@ const NotaCard: React.FC<NotaCardProps> = ({
       </CardHeader>
       <CardContent>
         {isEditing ? (
-          <Textarea
-            value={conteudo}
-            onChange={(e) => setConteudo(e.target.value)}
-            rows={4}
-          />
+          <div className="space-y-4">
+            <Textarea
+              value={conteudo}
+              onChange={(e) => setConteudo(e.target.value)}
+              rows={4}
+            />
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label>Categoria</Label>
+                <Input
+                  value={categoria}
+                  onChange={(e) => setCategoria(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label>Prioridade</Label>
+                <Select value={prioridade} onValueChange={setPrioridade}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="baixa">Baixa</SelectItem>
+                    <SelectItem value="media">Média</SelectItem>
+                    <SelectItem value="alta">Alta</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label>Data de Prazo</Label>
+                <Input
+                  type="date"
+                  value={prazo}
+                  onChange={(e) => setPrazo(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label>Lembrete</Label>
+                <Input
+                  type="datetime-local"
+                  value={lembreteData}
+                  onChange={(e) => setLembreteData(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                checked={lembreteAtivo}
+                onCheckedChange={(checked) => setLembreteAtivo(!!checked)}
+              />
+              <Label>Ativar lembrete</Label>
+            </div>
+          </div>
         ) : (
-          <p className="whitespace-pre-wrap">{nota.conteudo}</p>
+          <p className={`whitespace-pre-wrap ${nota.concluida ? 'line-through text-gray-500' : ''}`}>
+            {nota.conteudo}
+          </p>
         )}
+        
         <div className="mt-4 text-sm text-gray-500">
           Criada em: {new Date(nota.created_at).toLocaleString('pt-BR')}
           {nota.updated_at !== nota.created_at && (
