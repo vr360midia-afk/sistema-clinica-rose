@@ -6,52 +6,36 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { FileText, Search, Plus, User, Calendar, Camera, FileDown } from 'lucide-react';
+import { FileText, Search, Plus, User, Calendar, Camera } from 'lucide-react';
+import { useDentalSystem } from '@/context/DentalSystemContext';
 import Odontogram from '@/components/prontuarios/Odontogram';
 import ProntuarioModal from '@/components/prontuarios/ProntuarioModal';
 import ImageUploadSection from '@/components/prontuarios/ImageUploadSection';
 import PDFGenerator from '@/components/prontuarios/PDFGenerator';
 
-const mockProntuarios = [
-  {
-    id: 1,
-    patient: 'Maria Silva',
-    lastVisit: '15/01/2024',
-    procedures: ['Limpeza', 'Restauração'],
-    status: 'Em tratamento'
-  },
-  {
-    id: 2,
-    patient: 'Carlos Santos',
-    lastVisit: '10/01/2024',
-    procedures: ['Consulta'],
-    status: 'Finalizado'
-  }
-];
-
 const Prontuarios = () => {
-  const [selectedPatient, setSelectedPatient] = useState<number | null>(null);
+  const { prontuarios, pacientes } = useDentalSystem();
+  const [selectedProntuario, setSelectedProntuario] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'odontograma' | 'ficha' | 'anexos'>('odontograma');
-  const [prontuarios, setProntuarios] = useState(mockProntuarios);
-  const [currentProntuarioData, setCurrentProntuarioData] = useState<any>(null);
 
   const handleNewProntuario = (data: any) => {
-    const newProntuario = {
-      id: Date.now(),
-      patient: data.patientName,
-      lastVisit: data.date,
-      procedures: ['Consulta Inicial'],
-      status: 'Em tratamento'
-    };
-    
-    setProntuarios(prev => [...prev, newProntuario]);
-    setCurrentProntuarioData(data);
-    setSelectedPatient(newProntuario.id);
+    // Modal já salva através do contexto
+    setSelectedProntuario(data.pacienteId);
   };
 
-  const selectedProntuario = prontuarios.find(p => p.id === selectedPatient);
+  // Filtrar prontuários baseado na busca
+  const filteredProntuarios = prontuarios.filter(prontuario => {
+    const paciente = pacientes.find(p => p.id === prontuario.pacienteId);
+    if (!paciente) return false;
+    
+    return paciente.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+           prontuario.queixaPrincipal.toLowerCase().includes(searchTerm.toLowerCase());
+  });
+
+  const selectedProntuarioData = prontuarios.find(p => p.pacienteId === selectedProntuario);
+  const selectedPatient = selectedProntuario ? pacientes.find(p => p.id === selectedProntuario) : null;
 
   return (
     <Layout>
@@ -73,7 +57,7 @@ const Prontuarios = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <FileText className="h-5 w-5" />
-                Prontuários
+                Prontuários ({filteredProntuarios.length})
               </CardTitle>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
@@ -87,48 +71,60 @@ const Prontuarios = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {prontuarios
-                  .filter(p => p.patient.toLowerCase().includes(searchTerm.toLowerCase()))
-                  .map((prontuario) => (
+                {filteredProntuarios.map((prontuario) => {
+                  const paciente = pacientes.find(p => p.id === prontuario.pacienteId);
+                  if (!paciente) return null;
+                  
+                  return (
                     <div 
                       key={prontuario.id}
                       className={`p-3 border rounded-lg cursor-pointer hover:bg-gray-50 ${
-                        selectedPatient === prontuario.id ? 'border-blue-500 bg-blue-50' : ''
+                        selectedProntuario === prontuario.pacienteId ? 'border-blue-500 bg-blue-50' : ''
                       }`}
-                      onClick={() => setSelectedPatient(prontuario.id)}
+                      onClick={() => setSelectedProntuario(prontuario.pacienteId)}
                     >
                       <div className="flex items-center gap-2 mb-2">
                         <User className="h-4 w-4 text-gray-500" />
-                        <span className="font-medium">{prontuario.patient}</span>
+                        <span className="font-medium">{paciente.nome}</span>
                       </div>
                       <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
                         <Calendar className="h-3 w-3" />
-                        Última visita: {prontuario.lastVisit}
+                        Criado em: {new Date(prontuario.data).toLocaleDateString('pt-BR')}
                       </div>
-                      <div className="flex flex-wrap gap-1 mb-2">
-                        {prontuario.procedures.map((proc, index) => (
-                          <Badge key={index} variant="secondary" className="text-xs">
-                            {proc}
-                          </Badge>
-                        ))}
+                      <div className="text-sm text-gray-600 mb-2">
+                        <strong>Queixa:</strong> {prontuario.queixaPrincipal}
                       </div>
-                      <Badge 
-                        className={prontuario.status === 'Em tratamento' 
-                          ? 'bg-yellow-100 text-yellow-800' 
-                          : 'bg-green-100 text-green-800'
-                        }
-                      >
-                        {prontuario.status}
-                      </Badge>
+                      {prontuario.procedimentosRealizados.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mb-2">
+                          {prontuario.procedimentosRealizados.slice(0, 2).map((proc, index) => (
+                            <Badge key={index} variant="secondary" className="text-xs">
+                              {proc}
+                            </Badge>
+                          ))}
+                          {prontuario.procedimentosRealizados.length > 2 && (
+                            <Badge variant="outline" className="text-xs">
+                              +{prontuario.procedimentosRealizados.length - 2}
+                            </Badge>
+                          )}
+                        </div>
+                      )}
                     </div>
-                  ))}
+                  );
+                })}
+                
+                {filteredProntuarios.length === 0 && (
+                  <div className="text-center text-gray-500 py-8">
+                    <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>Nenhum prontuário encontrado</p>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
 
           {/* Detalhes do Prontuário */}
           <div className="lg:col-span-2">
-            {selectedPatient ? (
+            {selectedProntuario && selectedPatient ? (
               <div className="space-y-6">
                 {/* Tabs de Navegação */}
                 <Card>
@@ -174,9 +170,9 @@ const Prontuarios = () => {
                   <Card>
                     <CardHeader>
                       <div className="flex justify-between items-center">
-                        <CardTitle>Odontograma - {selectedProntuario?.patient}</CardTitle>
+                        <CardTitle>Odontograma - {selectedPatient.nome}</CardTitle>
                         <PDFGenerator 
-                          patientData={currentProntuarioData}
+                          patientData={selectedProntuarioData}
                           teethStatus={{}}
                           images={[]}
                         />
@@ -188,44 +184,55 @@ const Prontuarios = () => {
                   </Card>
                 )}
 
-                {activeTab === 'ficha' && (
+                {activeTab === 'ficha' && selectedProntuarioData && (
                   <Card>
                     <CardHeader>
-                      <CardTitle>Ficha Clínica - {selectedProntuario?.patient}</CardTitle>
+                      <CardTitle>Ficha Clínica - {selectedPatient.nome}</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       <div>
                         <label className="block text-sm font-medium mb-2">Queixa Principal</label>
                         <Textarea 
                           placeholder="Descreva a queixa principal do paciente..." 
-                          defaultValue={currentProntuarioData?.queixaPrincipal || ''}
+                          defaultValue={selectedProntuarioData.queixaPrincipal}
+                          readOnly
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-2">História da Doença</label>
+                        <Textarea 
+                          placeholder="História da doença..." 
+                          defaultValue={selectedProntuarioData.historiaDoenca}
+                          readOnly
                         />
                       </div>
                       <div>
                         <label className="block text-sm font-medium mb-2">Exame Clínico</label>
                         <Textarea 
                           placeholder="Descreva os achados do exame clínico..." 
-                          defaultValue={currentProntuarioData?.exameClinico || ''}
+                          defaultValue={selectedProntuarioData.exameClinico}
+                          readOnly
                         />
                       </div>
                       <div>
                         <label className="block text-sm font-medium mb-2">Diagnóstico</label>
                         <Textarea 
                           placeholder="Diagnóstico clínico..." 
-                          defaultValue={currentProntuarioData?.diagnostico || ''}
+                          defaultValue={selectedProntuarioData.diagnostico}
+                          readOnly
                         />
                       </div>
                       <div>
                         <label className="block text-sm font-medium mb-2">Plano de Tratamento</label>
                         <Textarea 
                           placeholder="Descreva o plano de tratamento..." 
-                          defaultValue={currentProntuarioData?.planoTratamento || ''}
+                          defaultValue={selectedProntuarioData.planoTratamento}
+                          readOnly
                         />
                       </div>
                       <div className="flex gap-2">
-                        <Button className="flex-1">Salvar Alterações</Button>
                         <PDFGenerator 
-                          patientData={currentProntuarioData}
+                          patientData={selectedProntuarioData}
                           teethStatus={{}}
                           images={[]}
                         />
@@ -238,16 +245,16 @@ const Prontuarios = () => {
                   <Card>
                     <CardHeader>
                       <div className="flex justify-between items-center">
-                        <CardTitle>Anexos - {selectedProntuario?.patient}</CardTitle>
+                        <CardTitle>Anexos - {selectedPatient.nome}</CardTitle>
                         <PDFGenerator 
-                          patientData={currentProntuarioData}
+                          patientData={selectedProntuarioData}
                           teethStatus={{}}
                           images={[]}
                         />
                       </div>
                     </CardHeader>
                     <CardContent>
-                      <ImageUploadSection patientName={selectedProntuario?.patient} />
+                      <ImageUploadSection patientName={selectedPatient.nome} />
                     </CardContent>
                   </Card>
                 )}
@@ -257,7 +264,7 @@ const Prontuarios = () => {
                 <CardContent className="flex items-center justify-center h-64">
                   <div className="text-center text-gray-500">
                     <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>Selecione um paciente para visualizar o prontuário</p>
+                    <p>Selecione um prontuário para visualizar os detalhes</p>
                   </div>
                 </CardContent>
               </Card>

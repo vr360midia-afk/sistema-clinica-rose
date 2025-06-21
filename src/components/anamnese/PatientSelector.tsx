@@ -2,21 +2,19 @@
 import React from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { useDentalSystem } from '@/context/DentalSystemContext';
 
 interface PatientSelectorProps {
   value: string;
   onChange: (value: string) => void;
 }
 
-const mockPatients = [
-  { id: '1', name: 'Maria Silva', age: 35 },
-  { id: '2', name: 'João Santos', age: 42 },
-  { id: '3', name: 'Ana Costa', age: 28 },
-  { id: '4', name: 'Carlos Oliveira', age: 55 },
-  { id: '5', name: 'Fernanda Lima', age: 31 }
-];
-
 const PatientSelector = ({ value, onChange }: PatientSelectorProps) => {
+  const { pacientes } = useDentalSystem();
+  
+  // Filtrar apenas pacientes ativos
+  const activePacientes = pacientes.filter(p => p.status === 'Ativo');
+
   return (
     <div className="space-y-2">
       <Label htmlFor="patient-select" className="text-base font-semibold">
@@ -27,9 +25,9 @@ const PatientSelector = ({ value, onChange }: PatientSelectorProps) => {
           <SelectValue placeholder="Selecione um paciente..." />
         </SelectTrigger>
         <SelectContent>
-          {mockPatients.map((patient) => (
+          {activePacientes.map((patient) => (
             <SelectItem key={patient.id} value={patient.id}>
-              {patient.name} - {patient.age} anos
+              {patient.nome} - {patient.idade} anos
             </SelectItem>
           ))}
         </SelectContent>

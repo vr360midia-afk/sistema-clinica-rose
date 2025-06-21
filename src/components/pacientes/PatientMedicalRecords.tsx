@@ -1,11 +1,12 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { FileText, Plus, Calendar, User } from 'lucide-react';
+import { FileText, Plus, Calendar } from 'lucide-react';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import EmptyState from '@/components/common/EmptyState';
+import ProntuarioModal from '@/components/prontuarios/ProntuarioModal';
 
 interface PatientMedicalRecordsProps {
   patient: any;
@@ -13,25 +14,39 @@ interface PatientMedicalRecordsProps {
 
 const PatientMedicalRecords = ({ patient }: PatientMedicalRecordsProps) => {
   const { prontuarios } = useDentalSystem();
+  const [isModalOpen, setIsModalOpen] = useState(false);
   
   const patientProntuarios = prontuarios.filter(p => p.pacienteId === patient.id);
 
   const handleNewProntuario = () => {
-    // TODO: Integrar com modal de criação de prontuário
-    console.log('Criar novo prontuário para:', patient.nome);
+    setIsModalOpen(true);
+  };
+
+  const handleSaveProntuario = (data: any) => {
+    // O modal já salva através do contexto
+    console.log('Prontuário salvo para:', patient.nome);
+    setIsModalOpen(false);
   };
 
   if (patientProntuarios.length === 0) {
     return (
-      <EmptyState
-        icon={FileText}
-        title="Nenhum prontuário encontrado"
-        description="Este paciente ainda não possui prontuários médicos cadastrados"
-        action={{
-          label: 'Criar Prontuário',
-          onClick: handleNewProntuario
-        }}
-      />
+      <>
+        <EmptyState
+          icon={FileText}
+          title="Nenhum prontuário encontrado"
+          description="Este paciente ainda não possui prontuários médicos cadastrados"
+          action={{
+            label: 'Criar Prontuário',
+            onClick: handleNewProntuario
+          }}
+        />
+        <ProntuarioModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          onSave={handleSaveProntuario}
+          preSelectedPatient={patient.id}
+        />
+      </>
     );
   }
 
@@ -122,6 +137,13 @@ const PatientMedicalRecords = ({ patient }: PatientMedicalRecordsProps) => {
           </Card>
         ))}
       </div>
+
+      <ProntuarioModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSave={handleSaveProntuario}
+        preSelectedPatient={patient.id}
+      />
     </div>
   );
 };

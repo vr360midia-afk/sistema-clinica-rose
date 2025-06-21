@@ -2,27 +2,20 @@
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
+import { useDentalSystem } from '@/context/DentalSystemContext';
+import PatientSelector from '@/components/anamnese/PatientSelector';
 import ProcedimentoSelector from './ProcedimentoSelector';
 
 interface ProntuarioModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (data: any) => void;
+  preSelectedPatient?: string;
 }
-
-const mockPatients = [
-  { id: '1', name: 'Maria Silva', age: 35 },
-  { id: '2', name: 'João Santos', age: 42 },
-  { id: '3', name: 'Ana Costa', age: 28 },
-  { id: '4', name: 'Carlos Oliveira', age: 55 },
-  { id: '5', name: 'Fernanda Lima', age: 31 }
-];
 
 const mockProcedimentos = [
   { id: '1', nome: 'Limpeza Dental', preco: 150.00 },
@@ -32,12 +25,15 @@ const mockProcedimentos = [
   { id: '5', nome: 'Clareamento', preco: 600.00 }
 ];
 
-const ProntuarioModal = ({ isOpen, onClose, onSave }: ProntuarioModalProps) => {
-  const [selectedPatient, setSelectedPatient] = useState('');
+const ProntuarioModal = ({ isOpen, onClose, onSave, preSelectedPatient }: ProntuarioModalProps) => {
+  const { addProntuario, pacientes } = useDentalSystem();
+  const [selectedPatient, setSelectedPatient] = useState(preSelectedPatient || '');
   const [queixaPrincipal, setQueixaPrincipal] = useState('');
+  const [historiaDoenca, setHistoriaDoenca] = useState('');
   const [exameClinico, setExameClinico] = useState('');
   const [diagnostico, setDiagnostico] = useState('');
   const [planoTratamento, setPlanoTratamento] = useState('');
+  const [observacoes, setObservacoes] = useState('');
   const [selectedProcedimentos, setSelectedProcedimentos] = useState<string[]>([]);
 
   const calcularValorTotal = () => {
@@ -47,43 +43,54 @@ const ProntuarioModal = ({ isOpen, onClose, onSave }: ProntuarioModalProps) => {
     }, 0);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!selectedPatient) {
       toast.error('Selecione um paciente');
       return;
     }
 
-    const patient = mockPatients.find(p => p.id === selectedPatient);
-    const valorTotal = calcularValorTotal();
-    const procedimentosRealizados = selectedProcedimentos.map(id => {
-      const proc = mockProcedimentos.find(p => p.id === id);
-      return proc ? { id, nome: proc.nome, preco: proc.preco } : null;
-    }).filter(Boolean);
+    if (!queixaPrincipal.trim()) {
+      toast.error('Informe a queixa principal');
+      return;
+    }
 
-    const data = {
-      patientId: selectedPatient,
-      patientName: patient?.name,
-      queixaPrincipal,
-      exameClinico,
-      diagnostico,
-      planoTratamento,
-      procedimentos: procedimentosRealizados,
-      valorTotal,
-      date: new Date().toLocaleDateString('pt-BR')
-    };
+    try {
+      const patient = pacientes.find(p => p.id === selectedPatient);
+      const valorTotal = calcularValorTotal();
+      const procedimentosRealizados = selectedProcedimentos.map(id => {
+        const proc = mockProcedimentos.find(p => p.id === id);
+        return proc?.nome || '';
+      }).filter(Boolean);
 
-    onSave(data);
-    toast.success(`Prontuário criado com sucesso! Valor total: R$ ${valorTotal.toFixed(2)}`);
-    
-    // Reset form
-    setSelectedPatient('');
-    setQueixaPrincipal('');
-    setExameClinico('');
-    setDiagnostico('');
-    setPlanoTratamento('');
-    setSelectedProcedimentos([]);
-    
-    onClose();
+      const prontuarioData = {
+        pacienteId: selectedPatient,
+        data: new Date(),
+        queixaPrincipal: queixaPrincipal.trim(),
+        historiaDoenca: historiaDoenca.trim(),
+        exameClinico: exameClinico.trim(),
+        diagnostico: diagnostico.trim(),
+        planoTratamento: planoTratamento.trim(),
+        procedimentosRealizados,
+        observacoes: observacoes.trim()
+      };
+
+      await addProntuario(prontuarioData);
+      onSave({ ...prontuarioData, valorTotal });
+      
+      // Reset form
+      setSelectedPatient(preSelectedPatient || '');
+      setQueixaPrincipal('');
+      setHistoriaDoenca('');
+      setExameClinico('');
+      setDiagnostico('');
+      setPlanoTratamento('');
+      setObservacoes('');
+      setSelectedProcedimentos([]);
+      
+      onClose();
+    } catch (error) {
+      console.error('Erro ao salvar prontuário:', error);
+    }
   };
 
   return (
@@ -100,29 +107,27 @@ const ProntuarioModal = ({ isOpen, onClose, onSave }: ProntuarioModalProps) => {
           </TabsList>
           
           <TabsContent value="dados" className="space-y-4">
-            <div>
-              <Label htmlFor="patient">Selecionar Paciente *</Label>
-              <Select value={selectedPatient} onValueChange={setSelectedPatient}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione um paciente..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {mockPatients.map((patient) => (
-                    <SelectItem key={patient.id} value={patient.id}>
-                      {patient.name} - {patient.age} anos
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {!preSelectedPatient && (
+              <PatientSelector value={selectedPatient} onChange={setSelectedPatient} />
+            )}
 
             <div>
-              <Label htmlFor="queixa">Queixa Principal</Label>
+              <Label htmlFor="queixa">Queixa Principal *</Label>
               <Textarea
                 id="queixa"
                 placeholder="Descreva a queixa principal do paciente..."
                 value={queixaPrincipal}
                 onChange={(e) => setQueixaPrincipal(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="historia">História da Doença</Label>
+              <Textarea
+                id="historia"
+                placeholder="Descreva a história da doença atual..."
+                value={historiaDoenca}
+                onChange={(e) => setHistoriaDoenca(e.target.value)}
               />
             </div>
 
@@ -153,6 +158,16 @@ const ProntuarioModal = ({ isOpen, onClose, onSave }: ProntuarioModalProps) => {
                 placeholder="Descreva o plano de tratamento..."
                 value={planoTratamento}
                 onChange={(e) => setPlanoTratamento(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="observacoes">Observações</Label>
+              <Textarea
+                id="observacoes"
+                placeholder="Observações adicionais..."
+                value={observacoes}
+                onChange={(e) => setObservacoes(e.target.value)}
               />
             </div>
           </TabsContent>

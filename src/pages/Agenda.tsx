@@ -7,65 +7,45 @@ import { Button } from '@/components/ui/button';
 import { CalendarDays, Clock, Plus } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useDentalSystem } from '@/context/DentalSystemContext';
 import AppointmentCard from '@/components/agenda/AppointmentCard';
 import PatientSummaryModal from '@/components/agenda/PatientSummaryModal';
 
-const mockAppointments = [
-  {
-    id: 1,
-    patient: 'Maria Silva',
-    time: '09:00',
-    duration: '1h',
-    procedure: 'Limpeza',
-    status: 'confirmado',
-    dentist: 'Dr. João',
-    patientData: {
-      phone: '(11) 99999-9999',
-      age: 32,
-      insurance: 'Unimed',
-      lastVisit: '15/12/2023',
-      allergies: 'Alergia a penicilina'
-    }
-  },
-  {
-    id: 2,
-    patient: 'Carlos Santos',
-    time: '10:30',
-    duration: '30min',
-    procedure: 'Consulta',
-    status: 'pendente',
-    dentist: 'Dr. Ana',
-    patientData: {
-      phone: '(11) 88888-8888',
-      age: 45,
-      insurance: 'Particular',
-      lastVisit: '20/11/2023',
-      allergies: ''
-    }
-  },
-  {
-    id: 3,
-    patient: 'Ana Costa',
-    time: '14:00',
-    duration: '2h',
-    procedure: 'Canal',
-    status: 'confirmado',
-    dentist: 'Dr. João',
-    patientData: {
-      phone: '(11) 77777-7777',
-      age: 28,
-      insurance: 'Bradesco Dental',
-      lastVisit: '10/01/2024',
-      allergies: 'Alergia a latex'
-    }
-  }
-];
-
 const Agenda = () => {
+  const { consultas, pacientes } = useDentalSystem();
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [view, setView] = useState<'day' | 'week' | 'month'>('day');
   const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Filtrar consultas do dia selecionado
+  const selectedDateConsultas = selectedDate 
+    ? consultas.filter(consulta => {
+        const consultaDate = new Date(consulta.data);
+        return consultaDate.toDateString() === selectedDate.toDateString();
+      })
+    : [];
+
+  // Transformar consultas para o formato esperado pelo AppointmentCard
+  const appointmentsForSelectedDate = selectedDateConsultas.map(consulta => {
+    const paciente = pacientes.find(p => p.id === consulta.pacienteId);
+    return {
+      id: consulta.id,
+      patient: paciente?.nome || 'Paciente não encontrado',
+      time: consulta.hora,
+      duration: `${consulta.duracao}min`,
+      procedure: consulta.procedimento,
+      status: consulta.status,
+      dentist: consulta.dentista,
+      patientData: {
+        phone: paciente?.telefone || '',
+        age: paciente?.idade || 0,
+        insurance: paciente?.convenio || '',
+        lastVisit: paciente?.ultimaConsulta ? new Date(paciente.ultimaConsulta).toLocaleDateString('pt-BR') : '',
+        allergies: paciente?.alergias || ''
+      }
+    };
+  });
 
   const handleAppointmentClick = (appointment: any) => {
     setSelectedAppointment(appointment);
@@ -137,17 +117,27 @@ const Agenda = () => {
                 <CardTitle className="flex items-center gap-2">
                   <Clock className="h-5 w-5" />
                   Agenda do Dia - {selectedDate && format(selectedDate, 'dd/MM/yyyy', { locale: ptBR })}
+                  <span className="ml-2 text-sm font-normal text-gray-500">
+                    ({appointmentsForSelectedDate.length} consulta{appointmentsForSelectedDate.length !== 1 ? 's' : ''})
+                  </span>
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {mockAppointments.map((appointment) => (
-                    <AppointmentCard
-                      key={appointment.id}
-                      appointment={appointment}
-                      onClick={handleAppointmentClick}
-                    />
-                  ))}
+                  {appointmentsForSelectedDate.length > 0 ? (
+                    appointmentsForSelectedDate.map((appointment) => (
+                      <AppointmentCard
+                        key={appointment.id}
+                        appointment={appointment}
+                        onClick={handleAppointmentClick}
+                      />
+                    ))
+                  ) : (
+                    <div className="text-center text-gray-500 py-8">
+                      <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p>Nenhuma consulta agendada para este dia</p>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

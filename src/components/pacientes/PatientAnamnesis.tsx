@@ -1,34 +1,51 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Plus, Calendar, ClipboardList } from 'lucide-react';
+import { useDentalSystem } from '@/context/DentalSystemContext';
 import EmptyState from '@/components/common/EmptyState';
+import AnamneseModal from '@/components/anamnese/AnamneseModal';
 
 interface PatientAnamnesisProps {
   patient: any;
 }
 
 const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
-  // TODO: Integrar com context quando anamneses forem implementadas
-  const patientAnamnesis: any[] = [];
+  const { anamneses } = useDentalSystem();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  const patientAnamnesis = anamneses.filter(a => a.pacienteId === patient.id);
 
   const handleNewAnamnesis = () => {
-    // TODO: Integrar com modal de criação de anamnese
-    console.log('Criar nova anamnese para:', patient.nome);
+    setIsModalOpen(true);
+  };
+
+  const handleSaveAnamnesis = (data: any) => {
+    // O modal já salva através do contexto
+    console.log('Anamnese salva para:', patient.nome);
+    setIsModalOpen(false);
   };
 
   if (patientAnamnesis.length === 0) {
     return (
-      <EmptyState
-        icon={ClipboardList}
-        title="Nenhuma anamnese encontrada"
-        description="Este paciente ainda não possui anamneses cadastradas"
-        action={{
-          label: 'Nova Anamnese',
-          onClick: handleNewAnamnesis
-        }}
-      />
+      <>
+        <EmptyState
+          icon={ClipboardList}
+          title="Nenhuma anamnese encontrada"
+          description="Este paciente ainda não possui anamneses cadastradas"
+          action={{
+            label: 'Nova Anamnese',
+            onClick: handleNewAnamnesis
+          }}
+        />
+        <AnamneseModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          onSave={handleSaveAnamnesis}
+          preSelectedPatient={patient.id}
+        />
+      </>
     );
   }
 
@@ -77,10 +94,38 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
                   <p className="text-sm text-gray-600 mt-1">{anamnese.historiaMedica}</p>
                 </div>
               )}
+
+              {anamnese.alergias && (
+                <div>
+                  <span className="text-sm font-medium">Alergias:</span>
+                  <p className="text-sm text-gray-600 mt-1">{anamnese.alergias}</p>
+                </div>
+              )}
+
+              {anamnese.medicamentos && (
+                <div>
+                  <span className="text-sm font-medium">Medicamentos:</span>
+                  <p className="text-sm text-gray-600 mt-1">{anamnese.medicamentos}</p>
+                </div>
+              )}
+
+              {anamnese.observacoes && (
+                <div>
+                  <span className="text-sm font-medium">Observações:</span>
+                  <p className="text-sm text-gray-600 mt-1">{anamnese.observacoes}</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         ))}
       </div>
+
+      <AnamneseModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSave={handleSaveAnamnesis}
+        preSelectedPatient={patient.id}
+      />
     </div>
   );
 };
