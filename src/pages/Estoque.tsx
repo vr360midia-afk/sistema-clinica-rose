@@ -9,16 +9,11 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { Package, Plus, AlertTriangle, Minus, Edit2 } from 'lucide-react';
+import { useDentalSystem } from '@/context/DentalSystemContext';
 
 const Estoque = () => {
   const { toast } = useToast();
-  const [produtos, setProdutos] = useState([
-    { id: 1, nome: 'Luvas Descartáveis', categoria: 'EPI', quantidade: 50, minimo: 20, preco: 15.90 },
-    { id: 2, nome: 'Máscara Cirúrgica', categoria: 'EPI', quantidade: 8, minimo: 15, preco: 25.50 },
-    { id: 3, nome: 'Anestésico Lidocaína', categoria: 'Medicamento', quantidade: 12, minimo: 5, preco: 8.75 },
-    { id: 4, nome: 'Amalgama', categoria: 'Material', quantidade: 3, minimo: 10, preco: 45.00 },
-    { id: 5, nome: 'Resina Composta', categoria: 'Material', quantidade: 25, minimo: 8, preco: 35.20 },
-  ]);
+  const { produtos, addProduto, updateProduto } = useDentalSystem();
 
   const [novoProduto, setNovoProduto] = useState({
     nome: '',
@@ -38,24 +33,12 @@ const Estoque = () => {
       return;
     }
 
-    const produto = {
-      id: produtos.length + 1,
-      ...novoProduto
-    };
-
-    setProdutos([...produtos, produto]);
+    addProduto(novoProduto);
     setNovoProduto({ nome: '', categoria: '', quantidade: 0, minimo: 0, preco: 0 });
-    
-    toast({
-      title: "Produto adicionado!",
-      description: "O produto foi adicionado ao estoque com sucesso.",
-    });
   };
 
   const ajustarQuantidade = (id: number, novaQuantidade: number) => {
-    setProdutos(produtos.map(produto => 
-      produto.id === id ? { ...produto, quantidade: Math.max(0, novaQuantidade) } : produto
-    ));
+    updateProduto(id, { quantidade: Math.max(0, novaQuantidade) });
   };
 
   const getStatusBadge = (quantidade: number, minimo: number) => {
@@ -174,45 +157,52 @@ const Estoque = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {produtos.map((produto) => (
-                <div key={produto.id} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3">
-                      <h3 className="font-medium">{produto.nome}</h3>
-                      {getStatusBadge(produto.quantidade, produto.minimo)}
-                    </div>
-                    <p className="text-sm text-gray-500 mt-1">
-                      Categoria: {produto.categoria} | Preço: R$ {produto.preco.toFixed(2)}
-                    </p>
-                  </div>
-                  
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => ajustarQuantidade(produto.id, produto.quantidade - 1)}
-                      >
-                        <Minus className="h-4 w-4" />
-                      </Button>
-                      <span className="font-medium min-w-[3rem] text-center">
-                        {produto.quantidade}
-                      </span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => ajustarQuantidade(produto.id, produto.quantidade + 1)}
-                      >
-                        <Plus className="h-4 w-4" />
-                      </Button>
+              {produtos.length === 0 ? (
+                <div className="text-center py-8">
+                  <Package className="h-12 w-12 mx-auto text-gray-300 mb-4" />
+                  <p className="text-gray-500">Nenhum produto cadastrado</p>
+                </div>
+              ) : (
+                produtos.map((produto) => (
+                  <div key={produto.id} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3">
+                        <h3 className="font-medium">{produto.nome}</h3>
+                        {getStatusBadge(produto.quantidade, produto.minimo)}
+                      </div>
+                      <p className="text-sm text-gray-500 mt-1">
+                        Categoria: {produto.categoria} | Preço: R$ {produto.preco.toFixed(2)}
+                      </p>
                     </div>
                     
-                    <Button variant="ghost" size="sm">
-                      <Edit2 className="h-4 w-4" />
-                    </Button>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => ajustarQuantidade(produto.id, produto.quantidade - 1)}
+                        >
+                          <Minus className="h-4 w-4" />
+                        </Button>
+                        <span className="font-medium min-w-[3rem] text-center">
+                          {produto.quantidade}
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => ajustarQuantidade(produto.id, produto.quantidade + 1)}
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      
+                      <Button variant="ghost" size="sm">
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </CardContent>
         </Card>

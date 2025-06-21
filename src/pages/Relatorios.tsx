@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import Layout from '@/components/layout/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,42 +7,130 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import { TrendingUp, Download, Calendar, DollarSign, Users, FileText } from 'lucide-react';
+import { useDentalSystem } from '@/context/DentalSystemContext';
 
 const Relatorios = () => {
+  const { pacientes, consultas, transacoes, prontuarios } = useDentalSystem();
   const [periodo, setPeriodo] = useState('mes');
 
-  const dadosFinanceiros = [
-    { mes: 'Jan', receita: 15000, despesas: 5000 },
-    { mes: 'Fev', receita: 18000, despesas: 6000 },
-    { mes: 'Mar', receita: 22000, despesas: 7000 },
-    { mes: 'Abr', receita: 19000, despesas: 5500 },
-    { mes: 'Mai', receita: 25000, despesas: 8000 },
-    { mes: 'Jun', receita: 28000, despesas: 9000 },
-  ];
+  // Calcular dados financeiros baseados nos dados reais
+  const dadosFinanceiros = useMemo(() => {
+    const hoje = new Date();
+    const meses = [];
+    
+    for (let i = 5; i >= 0; i--) {
+      const mes = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+      const mesNome = mes.toLocaleDateString('pt-BR', { month: 'short' });
+      
+      const receitaMes = transacoes
+        .filter(t => {
+          const tData = new Date(t.data);
+          return tData.getMonth() === mes.getMonth() && 
+                 tData.getFullYear() === mes.getFullYear() &&
+                 t.tipo === 'receita' && t.status === 'pago';
+        })
+        .reduce((sum, t) => sum + t.valor, 0);
 
-  const procedimentosMaisRealizados = [
-    { name: 'Limpeza', value: 35, color: '#3B82F6' },
-    { name: 'Restauração', value: 25, color: '#10B981' },
-    { name: 'Extração', value: 20, color: '#F59E0B' },
-    { name: 'Canal', value: 15, color: '#EF4444' },
-    { name: 'Outros', value: 5, color: '#8B5CF6' },
-  ];
+      const despesasMes = transacoes
+        .filter(t => {
+          const tData = new Date(t.data);
+          return tData.getMonth() === mes.getMonth() && 
+                 tData.getFullYear() === mes.getFullYear() &&
+                 t.tipo === 'despesa' && t.status === 'pago';
+        })
+        .reduce((sum, t) => sum + t.valor, 0);
 
-  const agendamentosPorDia = [
-    { dia: 'Seg', agendamentos: 8 },
-    { dia: 'Ter', agendamentos: 12 },
-    { dia: 'Qua', agendamentos: 10 },
-    { dia: 'Qui', agendamentos: 15 },
-    { dia: 'Sex', agendamentos: 14 },
-    { dia: 'Sab', agendamentos: 6 },
-  ];
+      meses.push({
+        mes: mesNome,
+        receita: receitaMes,
+        despesas: despesasMes
+      });
+    }
+    
+    return meses;
+  }, [transacoes]);
 
-  const estatisticas = [
-    { titulo: 'Receita Total', valor: 'R$ 127.000', variacao: '+12%', icon: DollarSign, cor: 'text-green-600' },
-    { titulo: 'Pacientes Ativos', valor: '248', variacao: '+8%', icon: Users, cor: 'text-blue-600' },
-    { titulo: 'Consultas Realizadas', valor: '1.234', variacao: '+15%', icon: Calendar, cor: 'text-purple-600' },
-    { titulo: 'Prontuários', valor: '189', variacao: '+5%', icon: FileText, cor: 'text-orange-600' },
-  ];
+  // Calcular procedimentos mais realizados
+  const procedimentosMaisRealizados = useMemo(() => {
+    const procedimentos: { [key: string]: number } = {};
+    
+    consultas
+      .filter(c => c.status === 'realizado')
+      .forEach(c => {
+        procedimentos[c.procedimento] = (procedimentos[c.procedimento] || 0) + 1;
+      });
+
+    const procedimentosArray = Object.entries(procedimentos)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5);
+
+    const cores = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
+    
+    return procedimentosArray.map((proc, index) => ({
+      ...proc,
+      color: cores[index] || '#6B7280'
+    }));
+  }, [consultas]);
+
+  // Calcular agendamentos por dia da semana
+  const agendamentosPorDia = useMemo(() => {
+    const dias = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab', 'Dom'];
+    const agendamentos = Array(7).fill(0);
+
+    consultas.forEach(c => {
+      const data = new Date(c.data);
+      const diaSemana = data.getDay();
+      agendamentos[diaSemana === 0 ? 6 : diaSemana - 1]++;
+    });
+
+    return dias.map((dia, index) => ({
+      dia,
+      agendamentos: agendamentos[index]
+    }));
+  }, [consultas]);
+
+  // Calcular estatísticas gerais
+  const estatisticas = useMemo(() => {
+    const receitaTotal = transacoes
+      .filter(t => t.tipo === 'receita' && t.status === 'pago')
+      .reduce((sum, t) => sum + t.valor, 0);
+
+    const pacientesAtivos = pacientes.filter(p => p.status === 'Ativo').length;
+    const consultasRealizadas = consultas.filter(c => c.status === 'realizado').length;
+    const totalProntuarios = prontuarios.length;
+
+    return [
+      { 
+        titulo: 'Receita Total', 
+        valor: `R$ ${receitaTotal.toFixed(2)}`, 
+        variacao: '+0%', 
+        icon: DollarSign, 
+        cor: 'text-green-600' 
+      },
+      { 
+        titulo: 'Pacientes Ativos', 
+        valor: pacientesAtivos.toString(), 
+        variacao: '+0%', 
+        icon: Users, 
+        cor: 'text-blue-600' 
+      },
+      { 
+        titulo: 'Consultas Realizadas', 
+        valor: consultasRealizadas.toString(), 
+        variacao: '+0%', 
+        icon: Calendar, 
+        cor: 'text-purple-600' 
+      },
+      { 
+        titulo: 'Prontuários', 
+        valor: totalProntuarios.toString(), 
+        variacao: '+0%', 
+        icon: FileText, 
+        cor: 'text-orange-600' 
+      },
+    ];
+  }, [transacoes, pacientes, consultas, prontuarios]);
 
   const gerarRelatorio = (tipo: string) => {
     console.log(`Gerando relatório: ${tipo}`);
@@ -88,7 +176,7 @@ const Relatorios = () => {
                   </div>
                   <div className="flex flex-col items-end">
                     <stat.icon className={`h-6 w-6 ${stat.cor}`} />
-                    <Badge className="mt-1 bg-green-100 text-green-800 border-green-200">
+                    <Badge className="mt-1 bg-gray-100 text-gray-800 border-gray-200">
                       {stat.variacao}
                     </Badge>
                   </div>
@@ -125,23 +213,29 @@ const Relatorios = () => {
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={procedimentosMaisRealizados}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {procedimentosMaisRealizados.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
+                {procedimentosMaisRealizados.length > 0 ? (
+                  <PieChart>
+                    <Pie
+                      data={procedimentosMaisRealizados}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {procedimentosMaisRealizados.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                ) : (
+                  <div className="flex items-center justify-center h-full text-gray-500">
+                    Nenhum procedimento realizado
+                  </div>
+                )}
               </ResponsiveContainer>
             </CardContent>
           </Card>

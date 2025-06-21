@@ -1,8 +1,17 @@
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { localStorageService } from '@/services/localStorage';
 import { Paciente, Consulta, Transacao, Prontuario, Anamnese, DocumentoPaciente } from '@/types/shared';
 import { toast } from 'sonner';
+
+// Adicionar interface para Produto
+interface Produto {
+  id: number;
+  nome: string;
+  categoria: string;
+  quantidade: number;
+  minimo: number;
+  preco: number;
+}
 
 interface DentalSystemContextType {
   // Data
@@ -12,6 +21,7 @@ interface DentalSystemContextType {
   prontuarios: Prontuario[];
   anamneses: Anamnese[];
   documentos: DocumentoPaciente[];
+  produtos: Produto[];
   loading: boolean;
   
   // Patient methods
@@ -46,6 +56,11 @@ interface DentalSystemContextType {
   updateDocumento: (id: string, updates: Partial<DocumentoPaciente>) => Promise<void>;
   deleteDocumento: (id: string) => Promise<void>;
   
+  // Product methods
+  addProduto: (produto: Omit<Produto, 'id'>) => void;
+  updateProduto: (id: number, updates: Partial<Produto>) => void;
+  deleteProduto: (id: number) => void;
+  
   // Utility methods
   refreshData: () => Promise<void>;
   clearAllData: () => Promise<void>;
@@ -62,6 +77,7 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [prontuarios, setProntuarios] = useState<Prontuario[]>([]);
   const [anamneses, setAnamneses] = useState<Anamnese[]>([]);
   const [documentos, setDocumentos] = useState<DocumentoPaciente[]>([]);
+  const [produtos, setProdutos] = useState<Produto[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadData = async () => {
@@ -83,13 +99,18 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
       setAnamneses(anamnesesData);
       setDocumentos(documentosData);
 
+      // Carregar produtos do localStorage
+      const produtosData = JSON.parse(localStorage.getItem('dental-produtos') || '[]');
+      setProdutos(produtosData);
+
       console.log('Dados carregados:', {
         pacientes: pacientesData.length,
         consultas: consultasData.length,
         transacoes: transacoesData.length,
         prontuarios: prontuariosData.length,
         anamneses: anamnesesData.length,
-        documentos: documentosData.length
+        documentos: documentosData.length,
+        produtos: produtosData.length
       });
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
@@ -388,6 +409,32 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   };
 
+  // Product methods
+  const addProduto = (produtoData: Omit<Produto, 'id'>) => {
+    const newProduto = {
+      ...produtoData,
+      id: Date.now()
+    };
+    const updatedProdutos = [...produtos, newProduto];
+    setProdutos(updatedProdutos);
+    localStorage.setItem('dental-produtos', JSON.stringify(updatedProdutos));
+    toast.success('Produto adicionado com sucesso');
+  };
+
+  const updateProduto = (id: number, updates: Partial<Produto>) => {
+    const updatedProdutos = produtos.map(p => p.id === id ? { ...p, ...updates } : p);
+    setProdutos(updatedProdutos);
+    localStorage.setItem('dental-produtos', JSON.stringify(updatedProdutos));
+    toast.success('Produto atualizado com sucesso');
+  };
+
+  const deleteProduto = (id: number) => {
+    const updatedProdutos = produtos.filter(p => p.id !== id);
+    setProdutos(updatedProdutos);
+    localStorage.setItem('dental-produtos', JSON.stringify(updatedProdutos));
+    toast.success('Produto excluído com sucesso');
+  };
+
   // Utility methods
   const refreshData = async () => {
     await loadData();
@@ -442,6 +489,7 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
     prontuarios,
     anamneses,
     documentos,
+    produtos,
     loading,
     
     // Methods
@@ -465,6 +513,9 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
     addDocumento,
     updateDocumento,
     deleteDocumento,
+    addProduto,
+    updateProduto,
+    deleteProduto,
     refreshData,
     clearAllData,
     clearPacientes,

@@ -6,37 +6,24 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DollarSign, TrendingUp, TrendingDown, Plus, CreditCard, Receipt } from 'lucide-react';
 import TransactionForm from '@/components/financeiro/TransactionForm';
+import { useDentalSystem } from '@/context/DentalSystemContext';
 
 const Financeiro = () => {
+  const { transacoes, pacientes } = useDentalSystem();
   const [showTransactionForm, setShowTransactionForm] = useState(false);
-  const [transactions, setTransactions] = useState([
-    {
-      id: 1,
-      patientName: 'Maria Silva',
-      date: '15/01/2024',
-      amount: 350,
-      status: 'Pago',
-      paymentMethod: 'cartao',
-      procedures: ['Limpeza', 'Restauração']
-    },
-    {
-      id: 2,
-      patientName: 'João Santos',
-      date: '10/01/2024',
-      amount: 150,
-      status: 'Pendente',
-      paymentMethod: 'boleto',
-      procedures: ['Consulta']
-    }
-  ]);
 
   const handleSaveTransaction = (transactionData: any) => {
-    setTransactions(prev => [...prev, transactionData]);
+    // O TransactionForm já salva através do contexto
     setShowTransactionForm(false);
   };
 
-  const totalReceived = transactions.filter(t => t.status === 'Pago').reduce((sum, t) => sum + t.amount, 0);
-  const totalPending = transactions.filter(t => t.status === 'Pendente').reduce((sum, t) => sum + t.amount, 0);
+  const totalReceived = transacoes.filter(t => t.status === 'pago' && t.tipo === 'receita').reduce((sum, t) => sum + t.valor, 0);
+  const totalPending = transacoes.filter(t => t.status === 'pendente' && t.tipo === 'receita').reduce((sum, t) => sum + t.valor, 0);
+
+  const getPacienteName = (pacienteId: string) => {
+    const paciente = pacientes.find(p => p.id === pacienteId);
+    return paciente?.nome || 'Paciente não encontrado';
+  };
 
   return (
     <Layout>
@@ -98,37 +85,46 @@ const Financeiro = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {transactions.map((transaction) => (
-                <div key={transaction.id} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex items-center gap-4">
-                    <div className="p-2 rounded-full bg-blue-100">
-                      {transaction.paymentMethod === 'cartao' ? (
-                        <CreditCard className="h-5 w-5 text-blue-600" />
-                      ) : (
-                        <Receipt className="h-5 w-5 text-blue-600" />
-                      )}
-                    </div>
-                    <div>
-                      <div className="font-medium">{transaction.patientName}</div>
-                      <div className="text-sm text-gray-600">
-                        {transaction.procedures.join(', ')}
-                      </div>
-                      <div className="text-sm text-gray-500">{transaction.date}</div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-semibold">R$ {transaction.amount.toFixed(2)}</div>
-                    <Badge 
-                      className={transaction.status === 'Pago' 
-                        ? 'bg-green-100 text-green-800' 
-                        : 'bg-yellow-100 text-yellow-800'
-                      }
-                    >
-                      {transaction.status}
-                    </Badge>
-                  </div>
+              {transacoes.length === 0 ? (
+                <div className="text-center py-8">
+                  <CreditCard className="h-12 w-12 mx-auto text-gray-300 mb-4" />
+                  <p className="text-gray-500">Nenhuma transação registrada</p>
                 </div>
-              ))}
+              ) : (
+                transacoes
+                  .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())
+                  .map((transacao) => (
+                    <div key={transacao.id} className="flex items-center justify-between p-4 border rounded-lg">
+                      <div className="flex items-center gap-4">
+                        <div className="p-2 rounded-full bg-blue-100">
+                          {transacao.metodoPagamento === 'cartao' ? (
+                            <CreditCard className="h-5 w-5 text-blue-600" />
+                          ) : (
+                            <Receipt className="h-5 w-5 text-blue-600" />
+                          )}
+                        </div>
+                        <div>
+                          <div className="font-medium">{getPacienteName(transacao.pacienteId)}</div>
+                          <div className="text-sm text-gray-600">
+                            {transacao.descricao}
+                          </div>
+                          <div className="text-sm text-gray-500">{new Date(transacao.data).toLocaleDateString('pt-BR')}</div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-semibold">R$ {transacao.valor.toFixed(2)}</div>
+                        <Badge 
+                          className={transacao.status === 'pago' 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-yellow-100 text-yellow-800'
+                          }
+                        >
+                          {transacao.status === 'pago' ? 'Pago' : 'Pendente'}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))
+              )}
             </div>
           </CardContent>
         </Card>
