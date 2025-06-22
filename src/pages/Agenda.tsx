@@ -112,7 +112,7 @@ const Agenda = () => {
 
   return (
     <Layout>
-      <div className="space-y-4 sm:space-y-6 w-full max-w-none">
+      <div className="space-y-3 sm:space-y-4 w-full max-w-none">
         {/* Header - Responsivo */}
         <div className="flex flex-col space-y-4 lg:flex-row lg:justify-between lg:items-start lg:space-y-0">
           <div className="space-y-1 sm:space-y-2">
@@ -156,7 +156,7 @@ const Agenda = () => {
         </div>
 
         {/* Main content - Grid responsivo otimizado para visualização semanal */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-4">
           {view === 'day' && (
             <div className="lg:col-span-4 order-2 lg:order-1">
               <Card className="w-full">
