@@ -112,10 +112,10 @@ const Agenda = () => {
 
   return (
     <Layout>
-      <div className="space-y-3 sm:space-y-4 w-full max-w-none">
+      <div className="space-y-2 sm:space-y-3 w-full max-w-none">
         {/* Header - Responsivo */}
-        <div className="flex flex-col space-y-4 lg:flex-row lg:justify-between lg:items-start lg:space-y-0">
-          <div className="space-y-1 sm:space-y-2">
+        <div className="flex flex-col space-y-3 lg:flex-row lg:justify-between lg:items-start lg:space-y-0">
+          <div className="space-y-1">
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">Agenda</h1>
             <p className="text-sm sm:text-base text-gray-600">Gerencie seus agendamentos e consultas</p>
           </div>
@@ -128,7 +128,7 @@ const Agenda = () => {
           </Button>
         </div>
 
-        <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-4">
+        <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-3">
           <Button 
             variant={view === 'week' ? 'default' : 'outline'}
             onClick={() => setView('week')}
@@ -156,17 +156,17 @@ const Agenda = () => {
         </div>
 
         {/* Main content - Grid responsivo otimizado para visualização semanal */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 lg:gap-3">
           {view === 'day' && (
             <div className="lg:col-span-4 order-2 lg:order-1">
               <Card className="w-full">
-                <CardHeader className="pb-3">
+                <CardHeader className="pb-2">
                   <CardTitle className="flex items-center gap-2 text-lg">
                     <CalendarDays className="h-5 w-5" />
                     Calendário
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="p-3 sm:p-6">
+                <CardContent className="p-2 sm:p-4">
                   <div className="w-full overflow-hidden">
                     <Calendar
                       mode="single"

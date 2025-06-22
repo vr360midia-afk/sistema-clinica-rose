@@ -64,9 +64,9 @@ const WeekView = ({ selectedDate, onDateChange, consultas, onAppointmentClick, o
 
   return (
     <Card className="w-full">
-      <CardHeader className="pb-3">
+      <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
+          <CardTitle className="flex items-center gap-2 text-lg">
             <Clock className="h-5 w-5" />
             Visualização Semanal
           </CardTitle>
@@ -83,14 +83,14 @@ const WeekView = ({ selectedDate, onDateChange, consultas, onAppointmentClick, o
           </div>
         </div>
       </CardHeader>
-      <CardContent className="p-3">
-        <div className="grid grid-cols-8 gap-1 text-xs">
+      <CardContent className="p-1">
+        <div className="grid grid-cols-8 gap-px text-xs border rounded-lg overflow-hidden">
           {/* Header */}
-          <div className="p-2 font-semibold">Horário</div>
+          <div className="p-2 font-semibold bg-gray-50 border-r">Horário</div>
           {weekDays.map(day => (
             <div 
               key={day.toISOString()} 
-              className={`p-2 text-center font-semibold cursor-pointer hover:bg-gray-100 rounded ${
+              className={`p-2 text-center font-semibold cursor-pointer hover:bg-gray-100 bg-gray-50 border-r ${
                 isToday(day) ? 'bg-blue-50 text-blue-700' : ''
               }`}
               onClick={() => onDateClick(day)}
@@ -103,13 +103,13 @@ const WeekView = ({ selectedDate, onDateChange, consultas, onAppointmentClick, o
           {/* Time slots */}
           {timeSlots.map(time => (
             <React.Fragment key={time}>
-              <div className="p-2 text-right text-gray-600 border-r">{time}</div>
+              <div className="p-2 text-right text-gray-600 bg-gray-50 border-r border-b text-xs font-medium">{time}</div>
               {weekDays.map(day => {
                 const dayConsultas = getConsultasForDayAndTime(day, time);
                 return (
                   <div 
                     key={`${day.toISOString()}-${time}`} 
-                    className="p-1 border-r border-b min-h-[60px] cursor-pointer hover:bg-gray-50"
+                    className="p-1 border-r border-b min-h-[50px] cursor-pointer hover:bg-gray-50 bg-white"
                     onClick={() => onDateClick(day, time)}
                   >
                     {dayConsultas.map(consulta => (
@@ -125,8 +125,8 @@ const WeekView = ({ selectedDate, onDateChange, consultas, onAppointmentClick, o
                           });
                         }}
                       >
-                        <div className="font-semibold truncate">{consulta.patient || 'Paciente'}</div>
-                        <div className="truncate">{consulta.procedimento}</div>
+                        <div className="font-semibold truncate text-[10px]">{consulta.patient || 'Paciente'}</div>
+                        <div className="truncate text-[10px]">{consulta.procedimento}</div>
                       </div>
                     ))}
                   </div>
