@@ -1,4 +1,3 @@
-
 import { useState, useMemo } from 'react';
 import { format, isSameDay } from 'date-fns';
 import { useDentalSystem } from '@/context/DentalSystemContext';
@@ -7,7 +6,7 @@ type ViewType = 'day' | 'week' | 'month';
 
 export const useAgendaViews = (selectedDate: Date) => {
   const { consultas, pacientes, updateConsulta, deleteConsulta } = useDentalSystem();
-  const [view, setView] = useState<ViewType>('day');
+  const [view, setView] = useState<ViewType>('week'); // Mudança aqui: padrão é 'week'
 
   // Transformar consultas para o formato esperado pelos componentes
   const transformedConsultas = useMemo(() => {

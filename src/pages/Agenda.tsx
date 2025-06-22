@@ -78,14 +78,13 @@ const Agenda = () => {
     if (!selectedDate) return null;
 
     switch (view) {
-      case 'week':
+      case 'day':
         return (
-          <WeekView
+          <DayView
             selectedDate={selectedDate}
-            onDateChange={handleDateChange}
-            consultas={transformedConsultas}
+            appointments={appointmentsForSelectedDate}
             onAppointmentClick={handleAppointmentClick}
-            onDateClick={handleDateClick}
+            onNewAppointment={handleNewAppointment}
           />
         );
       case 'month':
@@ -98,13 +97,14 @@ const Agenda = () => {
             onDateClick={handleDateClick}
           />
         );
-      default:
+      default: // 'week' é agora o padrão
         return (
-          <DayView
+          <WeekView
             selectedDate={selectedDate}
-            appointments={appointmentsForSelectedDate}
+            onDateChange={handleDateChange}
+            consultas={transformedConsultas}
             onAppointmentClick={handleAppointmentClick}
-            onNewAppointment={handleNewAppointment}
+            onDateClick={handleDateClick}
           />
         );
     }
@@ -130,20 +130,20 @@ const Agenda = () => {
 
         <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-4">
           <Button 
-            variant={view === 'day' ? 'default' : 'outline'}
-            onClick={() => setView('day')}
-            size="sm"
-            className="flex-1 sm:flex-none"
-          >
-            Dia
-          </Button>
-          <Button 
             variant={view === 'week' ? 'default' : 'outline'}
             onClick={() => setView('week')}
             size="sm"
             className="flex-1 sm:flex-none"
           >
             Semana
+          </Button>
+          <Button 
+            variant={view === 'day' ? 'default' : 'outline'}
+            onClick={() => setView('day')}
+            size="sm"
+            className="flex-1 sm:flex-none"
+          >
+            Dia
           </Button>
           <Button 
             variant={view === 'month' ? 'default' : 'outline'}
@@ -155,7 +155,7 @@ const Agenda = () => {
           </Button>
         </div>
 
-        {/* Main content - Grid responsivo */}
+        {/* Main content - Grid responsivo otimizado para visualização semanal */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6">
           {view === 'day' && (
             <div className="lg:col-span-4 order-2 lg:order-1">
