@@ -131,16 +131,25 @@ const PatientPhotoCapture = ({ currentPhoto, onPhotoChange }: PatientPhotoCaptur
       if (context) {
         context.drawImage(video, 0, 0);
         const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-        const processedImage = await processImage(dataUrl);
         
-        setPreviewUrl(processedImage);
-        onPhotoChange(processedImage);
-        stopCamera();
-        toast.success('Foto capturada com sucesso!');
+        try {
+          const processedImage = await processImage(dataUrl);
+          setPreviewUrl(processedImage);
+          onPhotoChange(processedImage);
+          stopCamera();
+          toast.success('Foto capturada com sucesso!');
+        } catch (processError) {
+          console.error('Erro ao processar imagem:', processError);
+          // Fallback: usar imagem sem processamento
+          setPreviewUrl(dataUrl);
+          onPhotoChange(dataUrl);
+          stopCamera();
+          toast.success('Foto capturada!');
+        }
       }
     } catch (error) {
       console.error('Erro ao capturar foto:', error);
-      toast.error('Erro ao processar foto');
+      toast.error('Erro ao capturar foto');
     } finally {
       setIsProcessing(false);
     }
@@ -171,7 +180,21 @@ const PatientPhotoCapture = ({ currentPhoto, onPhotoChange }: PatientPhotoCaptur
       toast.success('Foto carregada com sucesso!');
     } catch (error) {
       console.error('Erro ao processar arquivo:', error);
-      toast.error('Erro ao processar arquivo');
+      // Fallback: tentar usar arquivo original
+      try {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const result = e.target?.result as string;
+          if (result) {
+            setPreviewUrl(result);
+            onPhotoChange(result);
+            toast.success('Foto carregada!');
+          }
+        };
+        reader.readAsDataURL(file);
+      } catch (fallbackError) {
+        toast.error('Erro ao processar arquivo');
+      }
     } finally {
       setIsProcessing(false);
       // Limpar input para permitir selecionar o mesmo arquivo novamente
@@ -235,7 +258,7 @@ const PatientPhotoCapture = ({ currentPhoto, onPhotoChange }: PatientPhotoCaptur
             ) : (
               <Camera className="h-4 w-4 mr-2" />
             )}
-            {isProcessing ? 'Processando...' : 'Capturar'}
+            {isProcessing ? '...' : 'Capturar'}
           </Button>
           <Button type="button" variant="outline" onClick={stopCamera} disabled={isProcessing}>
             <X className="h-4 w-4 mr-2" />
@@ -261,7 +284,7 @@ const PatientPhotoCapture = ({ currentPhoto, onPhotoChange }: PatientPhotoCaptur
             ) : (
               <Upload className="h-4 w-4 mr-2" />
             )}
-            {isProcessing ? 'Processando...' : (previewUrl ? 'Alterar' : 'Upload')}
+            {isProcessing ? '...' : (previewUrl ? 'Alterar' : 'Upload')}
           </Button>
           <input
             ref={fileInputRef}

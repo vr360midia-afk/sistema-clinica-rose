@@ -1,3 +1,4 @@
+
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -78,8 +79,8 @@ export const useQuickPatientForm = (onPatientCreated: (patientId: string) => voi
         historicoMedico: data.historicoMedico?.trim() || '',
         alergias: data.alergias?.trim() || '',
         medicamentos: data.medicamentos?.trim() || '',
-        // Corrigir tipo - converter string para Date se preenchida
-        ultimaConsulta: data.ultimaConsulta?.trim() ? new Date(data.ultimaConsulta.trim()) : new Date(),
+        // Manter ultimaConsulta como string
+        ultimaConsulta: data.ultimaConsulta?.trim() || '',
         observacoes: data.observacoes?.trim() || ''
       };
       

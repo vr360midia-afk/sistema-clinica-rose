@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -48,11 +49,40 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
     }));
   };
 
+  const validateFormData = () => {
+    const errors = [];
+    
+    if (!formData.nome.trim()) {
+      errors.push('Nome é obrigatório');
+    }
+    
+    if (!formData.email.trim()) {
+      errors.push('Email é obrigatório');
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      errors.push('Email deve ter um formato válido');
+    }
+    
+    if (!formData.telefone.trim()) {
+      errors.push('Telefone é obrigatório');
+    }
+    
+    if (!formData.convenio) {
+      errors.push('Convênio é obrigatório');
+    }
+    
+    if (!formData.origemLead) {
+      errors.push('Origem do lead é obrigatória');
+    }
+    
+    return errors;
+  };
+
   const handleSave = async () => {
     console.log('Attempting to save patient:', formData);
     
-    if (!formData.nome || !formData.email || !formData.telefone) {
-      toast.error('Preencha os campos obrigatórios: Nome, Email e Telefone');
+    const validationErrors = validateFormData();
+    if (validationErrors.length > 0) {
+      toast.error(`Corrija os seguintes campos: ${validationErrors.join(', ')}`);
       return;
     }
 
@@ -62,8 +92,10 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
       const patientData = {
         ...formData,
         status: patient?.status || 'Ativo',
-        // Corrigir problema com ultimaConsulta - manter como string
+        // Garantir que ultimaConsulta seja uma string
         ultimaConsulta: formData.ultimaConsulta.trim(),
+        // Converter idade para número se fornecida
+        idade: formData.idade ? parseInt(formData.idade.toString()) : 0,
       };
 
       console.log('Patient data to save:', patientData);
@@ -82,14 +114,15 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
       onClose();
     } catch (error) {
       console.error('Error saving patient:', error);
-      toast.error('Erro ao salvar paciente. Tente novamente.');
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      toast.error(`Erro ao salvar paciente: ${errorMessage}`);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="sm" onClick={onClose}>
           <ArrowLeft className="h-4 w-4" />
@@ -99,15 +132,15 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
         </h1>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Dados Pessoais */}
-        <div className="lg:col-span-2 space-y-8">
+        <div className="lg:col-span-2 space-y-6">
           <Card className="shadow-sm">
             <CardHeader className="pb-4">
               <CardTitle className="text-lg font-semibold">Dados Pessoais</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="nome" className="font-medium">Nome Completo *</Label>
                   <Input
@@ -115,7 +148,7 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
                     value={formData.nome}
                     onChange={(e) => handleInputChange('nome', e.target.value)}
                     placeholder="Nome completo do paciente"
-                    className="h-11 mt-2"
+                    className="h-10 mt-1"
                   />
                 </div>
                 <div>
@@ -126,12 +159,12 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
                     value={formData.idade}
                     onChange={(e) => handleInputChange('idade', e.target.value)}
                     placeholder="Idade"
-                    className="h-11 mt-2"
+                    className="h-10 mt-1"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="email" className="font-medium">Email *</Label>
                   <Input
@@ -140,7 +173,7 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
                     value={formData.email}
                     onChange={(e) => handleInputChange('email', e.target.value)}
                     placeholder="email@exemplo.com"
-                    className="h-11 mt-2"
+                    className="h-10 mt-1"
                   />
                 </div>
                 <div>
@@ -150,12 +183,12 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
                     value={formData.telefone}
                     onChange={(e) => handleInputChange('telefone', e.target.value)}
                     placeholder="(11) 99999-9999"
-                    className="h-11 mt-2"
+                    className="h-10 mt-1"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="cpf" className="font-medium">CPF</Label>
                   <Input
@@ -163,7 +196,7 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
                     value={formData.cpf}
                     onChange={(e) => handleInputChange('cpf', e.target.value)}
                     placeholder="000.000.000-00"
-                    className="h-11 mt-2"
+                    className="h-10 mt-1"
                   />
                 </div>
                 <div>
@@ -173,7 +206,7 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
                     value={formData.rg}
                     onChange={(e) => handleInputChange('rg', e.target.value)}
                     placeholder="00.000.000-0"
-                    className="h-11 mt-2"
+                    className="h-10 mt-1"
                   />
                 </div>
               </div>
@@ -185,11 +218,11 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
                   value={formData.endereco}
                   onChange={(e) => handleInputChange('endereco', e.target.value)}
                   placeholder="Endereço completo"
-                  className="h-11 mt-2"
+                  className="h-10 mt-1"
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="profissao" className="font-medium">Profissão</Label>
                   <Input
@@ -197,13 +230,13 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
                     value={formData.profissao}
                     onChange={(e) => handleInputChange('profissao', e.target.value)}
                     placeholder="Profissão"
-                    className="h-11 mt-2"
+                    className="h-10 mt-1"
                   />
                 </div>
                 <div>
                   <Label htmlFor="estadoCivil" className="font-medium">Estado Civil</Label>
                   <Select value={formData.estadoCivil} onValueChange={(value) => handleInputChange('estadoCivil', value)}>
-                    <SelectTrigger className="h-11 mt-2">
+                    <SelectTrigger className="h-10 mt-1">
                       <SelectValue placeholder="Selecione..." />
                     </SelectTrigger>
                     <SelectContent>
@@ -216,11 +249,11 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="convenio" className="font-medium">Convênio</Label>
+                  <Label htmlFor="convenio" className="font-medium">Convênio *</Label>
                   <Select value={formData.convenio} onValueChange={(value) => handleInputChange('convenio', value)}>
-                    <SelectTrigger className="h-11 mt-2">
+                    <SelectTrigger className="h-10 mt-1">
                       <SelectValue placeholder="Selecione o convênio..." />
                     </SelectTrigger>
                     <SelectContent>
@@ -233,9 +266,9 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
                   </Select>
                 </div>
                 <div>
-                  <Label htmlFor="origemLead" className="font-medium">Origem do Lead</Label>
+                  <Label htmlFor="origemLead" className="font-medium">Origem do Lead *</Label>
                   <Select value={formData.origemLead} onValueChange={(value) => handleInputChange('origemLead', value)}>
-                    <SelectTrigger className="h-11 mt-2">
+                    <SelectTrigger className="h-10 mt-1">
                       <SelectValue placeholder="Como conheceu a clínica?" />
                     </SelectTrigger>
                     <SelectContent>
@@ -259,7 +292,7 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
             <CardHeader className="pb-4">
               <CardTitle className="text-lg font-semibold">Histórico Médico</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="space-y-4">
               <div>
                 <Label htmlFor="ultimaConsulta" className="font-medium">Quando foi a última consulta odontológica?</Label>
                 <Input
@@ -267,7 +300,7 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
                   value={formData.ultimaConsulta}
                   onChange={(e) => handleInputChange('ultimaConsulta', e.target.value)}
                   placeholder="Ex: 6 meses atrás, 1 ano, nunca fui, etc."
-                  className="h-11 mt-2"
+                  className="h-10 mt-1"
                 />
               </div>
 
@@ -278,12 +311,12 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
                   value={formData.historicoMedico}
                   onChange={(e) => handleInputChange('historicoMedico', e.target.value)}
                   placeholder="Descreva o histórico médico do paciente..."
-                  rows={4}
-                  className="mt-2 resize-none"
+                  rows={3}
+                  className="mt-1 resize-none"
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="alergias" className="font-medium">Alergias</Label>
                   <Textarea
@@ -291,8 +324,8 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
                     value={formData.alergias}
                     onChange={(e) => handleInputChange('alergias', e.target.value)}
                     placeholder="Liste as alergias conhecidas..."
-                    rows={3}
-                    className="mt-2 resize-none"
+                    rows={2}
+                    className="mt-1 resize-none"
                   />
                 </div>
                 <div>
@@ -302,8 +335,8 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
                     value={formData.medicamentos}
                     onChange={(e) => handleInputChange('medicamentos', e.target.value)}
                     placeholder="Liste os medicamentos que o paciente está tomando..."
-                    rows={3}
-                    className="mt-2 resize-none"
+                    rows={2}
+                    className="mt-1 resize-none"
                   />
                 </div>
               </div>
@@ -315,8 +348,8 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
                   value={formData.observacoes}
                   onChange={(e) => handleInputChange('observacoes', e.target.value)}
                   placeholder="Observações adicionais..."
-                  rows={4}
-                  className="mt-2 resize-none"
+                  rows={3}
+                  className="mt-1 resize-none"
                 />
               </div>
             </CardContent>
@@ -339,7 +372,7 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
         </div>
       </div>
 
-      <div className="flex justify-end gap-4 pt-8 border-t bg-gray-50 -mx-8 px-8 py-6">
+      <div className="flex justify-end gap-4 pt-6 border-t bg-gray-50 -mx-6 px-6 py-4">
         <Button variant="outline" onClick={onClose} disabled={loading} className="min-w-[120px]">
           Cancelar
         </Button>
