@@ -10,14 +10,13 @@ const quickPatientSchema = z.object({
   email: z.string().email('Email inválido'),
   telefone: z.string().min(1, 'Telefone é obrigatório'),
   idade: z.number().min(0, 'Idade deve ser positiva').optional(),
-  convenio: z.string().min(1, 'Convênio é obrigatório'),
-  origemLead: z.string().min(1, 'Origem do lead é obrigatória'),
-  // Campos opcionais adicionais
   endereco: z.string().optional(),
   cpf: z.string().optional(),
   rg: z.string().optional(),
   profissao: z.string().optional(),
   estadoCivil: z.string().optional(),
+  convenio: z.string().min(1, 'Convênio é obrigatório'),
+  origemLead: z.string().min(1, 'Origem do lead é obrigatória'),
   foto: z.string().optional(),
   historicoMedico: z.string().optional(),
   alergias: z.string().optional(),
@@ -39,13 +38,13 @@ export const useQuickPatientForm = (onPatientCreated: (patientId: string) => voi
       email: '',
       telefone: '',
       idade: 0,
-      convenio: '',
-      origemLead: '',
       endereco: '',
       cpf: '',
       rg: '',
       profissao: '',
       estadoCivil: '',
+      convenio: '',
+      origemLead: '',
       foto: '',
       historicoMedico: '',
       alergias: '',
@@ -59,6 +58,11 @@ export const useQuickPatientForm = (onPatientCreated: (patientId: string) => voi
     try {
       setIsLoading(true);
       console.log('Dados do formulário:', data);
+      
+      // Converter ultimaConsulta de string para Date se não estiver vazia
+      const ultimaConsultaDate = data.ultimaConsulta && data.ultimaConsulta.trim() !== '' 
+        ? new Date(data.ultimaConsulta) 
+        : undefined;
       
       const pacienteData = {
         nome: data.nome,
@@ -77,7 +81,7 @@ export const useQuickPatientForm = (onPatientCreated: (patientId: string) => voi
         historicoMedico: data.historicoMedico,
         alergias: data.alergias,
         medicamentos: data.medicamentos,
-        ultimaConsulta: data.ultimaConsulta,
+        ultimaConsulta: ultimaConsultaDate,
         observacoes: data.observacoes
       };
       
