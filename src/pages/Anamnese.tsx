@@ -12,10 +12,12 @@ import PatientSelector from '@/components/anamnese/PatientSelector';
 import SignatureModal from '@/components/signature/SignatureModal';
 import { SignatureData } from '@/components/signature/DigitalSignature';
 import { useSignatures } from '@/hooks/useSignatures';
+import { useDentalSystem } from '@/context/DentalSystemContext';
 
 const Anamnese = () => {
   const { toast } = useToast();
   const { saveSignature, generateSignedPDF } = useSignatures();
+  const { anamneses } = useDentalSystem();
   const [showForm, setShowForm] = useState(false);
   const [showSignatureModal, setShowSignatureModal] = useState(false);
   const [currentSigner, setCurrentSigner] = useState<'paciente' | 'dentista'>('paciente');
@@ -137,12 +139,6 @@ const Anamnese = () => {
     }
     return 'Dr. Dentista'; // Em um caso real, você pegaria o nome do dentista logado
   };
-
-  const anamneses = [
-    { id: 1, paciente: 'Maria Silva', data: '2024-01-15' },
-    { id: 2, paciente: 'João Santos', data: '2024-01-14' },
-    { id: 3, paciente: 'Ana Costa', data: '2024-01-13' },
-  ];
 
   if (showForm) {
     return (
@@ -741,20 +737,30 @@ const Anamnese = () => {
             <CardTitle>Anamneses Cadastradas</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {anamneses.map((anamnese) => (
-                <div key={anamnese.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
-                  <div>
-                    <h3 className="font-medium">{anamnese.paciente}</h3>
-                    <p className="text-sm text-gray-500">Data: {anamnese.data}</p>
-                  </div>
-                  <Button variant="outline" size="sm">
-                    <Eye className="h-4 w-4 mr-2" />
-                    Visualizar
-                  </Button>
+            {anamneses.length === 0 ? (
+              <div className="text-center py-8">
+                <div className="text-gray-400 mb-4">
+                  <Clipboard className="h-12 w-12 mx-auto" />
                 </div>
-              ))}
-            </div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhuma anamnese encontrada</h3>
+                <p className="text-gray-500">Crie sua primeira anamnese para começar.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {anamneses.map((anamnese) => (
+                  <div key={anamnese.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
+                    <div>
+                      <h3 className="font-medium">{anamnese.queixaPrincipal}</h3>
+                      <p className="text-sm text-gray-500">Data: {new Date(anamnese.data).toLocaleDateString('pt-BR')}</p>
+                    </div>
+                    <Button variant="outline" size="sm">
+                      <Eye className="h-4 w-4 mr-2" />
+                      Visualizar
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

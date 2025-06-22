@@ -1,17 +1,13 @@
+
 import React, { useState } from 'react';
 import Layout from '@/components/layout/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Instagram, 
   MessageCircle, 
-  Send, 
-  Image, 
-  Calendar,
   Users,
   Bell,
   Settings,
@@ -20,25 +16,6 @@ import {
 import InstagramPostCreator from '@/components/comunicacao/InstagramPostCreator';
 import WhatsAppManager from '@/components/comunicacao/WhatsAppManager';
 import PlatformLogin from '@/components/comunicacao/PlatformLogin';
-
-const mockCampaigns = [
-  {
-    id: 1,
-    title: 'Campanha Clareamento Dental',
-    platform: 'Instagram',
-    status: 'active',
-    reach: 1250,
-    engagement: 8.5
-  },
-  {
-    id: 2,
-    title: 'Lembrete Consultas',
-    platform: 'WhatsApp',
-    status: 'scheduled',
-    sent: 45,
-    delivered: 43
-  }
-];
 
 const Comunicacao = () => {
   const [activeTab, setActiveTab] = useState('instagram');
@@ -67,8 +44,8 @@ const Comunicacao = () => {
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Instagram</p>
-                  <p className="text-xl font-bold">1.2k</p>
-                  <p className="text-xs text-gray-500">seguidores</p>
+                  <p className="text-xl font-bold">-</p>
+                  <p className="text-xs text-gray-500">não conectado</p>
                 </div>
               </div>
             </CardContent>
@@ -82,8 +59,8 @@ const Comunicacao = () => {
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">WhatsApp</p>
-                  <p className="text-xl font-bold">98%</p>
-                  <p className="text-xs text-gray-500">entrega</p>
+                  <p className="text-xl font-bold">-</p>
+                  <p className="text-xs text-gray-500">não conectado</p>
                 </div>
               </div>
             </CardContent>
@@ -97,7 +74,7 @@ const Comunicacao = () => {
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Alcance</p>
-                  <p className="text-xl font-bold">3.5k</p>
+                  <p className="text-xl font-bold">0</p>
                   <p className="text-xs text-gray-500">este mês</p>
                 </div>
               </div>
@@ -112,7 +89,7 @@ const Comunicacao = () => {
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Lembretes</p>
-                  <p className="text-xl font-bold">156</p>
+                  <p className="text-xl font-bold">0</p>
                   <p className="text-xs text-gray-500">enviados</p>
                 </div>
               </div>
@@ -156,46 +133,15 @@ const Comunicacao = () => {
           <TabsContent value="campaigns">
             <Card>
               <CardHeader>
-                <CardTitle>Campanhas Ativas</CardTitle>
+                <CardTitle>Campanhas</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {mockCampaigns.map((campaign) => (
-                    <div key={campaign.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center gap-4">
-                        <div className="p-2 rounded-full bg-gray-100">
-                          {campaign.platform === 'Instagram' ? (
-                            <Instagram className="h-5 w-5 text-pink-600" />
-                          ) : (
-                            <MessageCircle className="h-5 w-5 text-green-600" />
-                          )}
-                        </div>
-                        <div>
-                          <div className="font-medium">{campaign.title}</div>
-                          <div className="text-sm text-gray-600">{campaign.platform}</div>
-                          {campaign.reach && (
-                            <div className="text-sm text-gray-500">
-                              Alcance: {campaign.reach} • Engajamento: {campaign.engagement}%
-                            </div>
-                          )}
-                          {campaign.sent && (
-                            <div className="text-sm text-gray-500">
-                              Enviados: {campaign.sent} • Entregues: {campaign.delivered}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      <Badge 
-                        className={
-                          campaign.status === 'active' 
-                            ? 'bg-green-100 text-green-800' 
-                            : 'bg-yellow-100 text-yellow-800'
-                        }
-                      >
-                        {campaign.status === 'active' ? 'Ativo' : 'Agendado'}
-                      </Badge>
-                    </div>
-                  ))}
+                <div className="text-center py-8">
+                  <div className="text-gray-400 mb-4">
+                    <Settings className="h-12 w-12 mx-auto" />
+                  </div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhuma campanha encontrada</h3>
+                  <p className="text-gray-500">Crie sua primeira campanha de marketing para começar.</p>
                 </div>
               </CardContent>
             </Card>
