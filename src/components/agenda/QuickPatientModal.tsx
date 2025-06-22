@@ -18,7 +18,7 @@ const QuickPatientModal = ({ isOpen, onClose, onPatientCreated }: QuickPatientMo
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <User className="h-5 w-5" />
@@ -27,10 +27,10 @@ const QuickPatientModal = ({ isOpen, onClose, onPatientCreated }: QuickPatientMo
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <QuickPatientFormFields form={form} />
 
-            <div className="flex flex-col-reverse sm:flex-row gap-2 pt-4">
+            <div className="flex flex-col-reverse sm:flex-row gap-2 pt-6 border-t">
               <Button type="button" variant="outline" onClick={onClose} className="w-full sm:w-auto">
                 Cancelar
               </Button>

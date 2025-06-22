@@ -9,9 +9,21 @@ const quickPatientSchema = z.object({
   nome: z.string().min(1, 'Nome é obrigatório'),
   email: z.string().email('Email inválido'),
   telefone: z.string().min(1, 'Telefone é obrigatório'),
-  idade: z.number().min(0, 'Idade deve ser positiva'),
+  idade: z.number().min(0, 'Idade deve ser positiva').optional(),
   convenio: z.string().min(1, 'Convênio é obrigatório'),
-  origemLead: z.string().min(1, 'Origem do lead é obrigatória')
+  origemLead: z.string().min(1, 'Origem do lead é obrigatória'),
+  // Campos opcionais adicionais
+  endereco: z.string().optional(),
+  cpf: z.string().optional(),
+  rg: z.string().optional(),
+  profissao: z.string().optional(),
+  estadoCivil: z.string().optional(),
+  foto: z.string().optional(),
+  historicoMedico: z.string().optional(),
+  alergias: z.string().optional(),
+  medicamentos: z.string().optional(),
+  ultimaConsulta: z.string().optional(),
+  observacoes: z.string().optional()
 });
 
 export type QuickPatientFormData = z.infer<typeof quickPatientSchema>;
@@ -28,7 +40,18 @@ export const useQuickPatientForm = (onPatientCreated: (patientId: string) => voi
       telefone: '',
       idade: 0,
       convenio: '',
-      origemLead: ''
+      origemLead: '',
+      endereco: '',
+      cpf: '',
+      rg: '',
+      profissao: '',
+      estadoCivil: '',
+      foto: '',
+      historicoMedico: '',
+      alergias: '',
+      medicamentos: '',
+      ultimaConsulta: '',
+      observacoes: ''
     }
   });
 
@@ -41,10 +64,21 @@ export const useQuickPatientForm = (onPatientCreated: (patientId: string) => voi
         nome: data.nome,
         email: data.email,
         telefone: data.telefone,
-        idade: data.idade,
+        idade: data.idade || 0,
         convenio: data.convenio,
         origemLead: data.origemLead as any,
-        status: 'Ativo' as const
+        status: 'Ativo' as const,
+        endereco: data.endereco,
+        cpf: data.cpf,
+        rg: data.rg,
+        profissao: data.profissao,
+        estadoCivil: data.estadoCivil,
+        foto: data.foto,
+        historicoMedico: data.historicoMedico,
+        alergias: data.alergias,
+        medicamentos: data.medicamentos,
+        ultimaConsulta: data.ultimaConsulta,
+        observacoes: data.observacoes
       };
       
       console.log('Dados para salvar:', pacienteData);
