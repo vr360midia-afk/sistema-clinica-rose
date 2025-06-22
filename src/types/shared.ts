@@ -14,7 +14,7 @@ export interface Paciente extends BaseEntity {
   convenio: string;
   origemLead: OrigemLead;
   status: StatusPaciente;
-  ultimaConsulta?: Date;
+  ultimaConsulta?: string; // Alterado de Date para string
   proximaConsulta?: Date;
   historicoMedico?: string;
   alergias?: string;
