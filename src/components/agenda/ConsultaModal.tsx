@@ -40,6 +40,29 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate }: ConsultaModalProps) =>
     }
   });
 
+  // Atualizar a data do formulário quando selectedDate mudar
+  React.useEffect(() => {
+    if (selectedDate && isOpen) {
+      form.setValue('data', selectedDate);
+    }
+  }, [selectedDate, isOpen, form]);
+
+  // Resetar formulário quando fechar
+  React.useEffect(() => {
+    if (!isOpen) {
+      form.reset({
+        data: selectedDate || new Date(),
+        hora: '09:00',
+        duracao: 60,
+        status: 'agendado',
+        procedimento: '',
+        dentista: '',
+        pacienteId: '',
+        observacoes: ''
+      });
+    }
+  }, [isOpen, selectedDate, form]);
+
   const onSubmit = async (data: ConsultaFormData) => {
     if (!user?.id) return;
     
