@@ -35,6 +35,8 @@ export const useQuickPatientForm = (onPatientCreated: (patientId: string) => voi
   const onSubmit = async (data: QuickPatientFormData) => {
     try {
       setIsLoading(true);
+      console.log('Dados do formulário:', data);
+      
       const pacienteData = {
         nome: data.nome,
         email: data.email,
@@ -42,23 +44,13 @@ export const useQuickPatientForm = (onPatientCreated: (patientId: string) => voi
         idade: data.idade,
         convenio: data.convenio,
         origemLead: data.origemLead as any,
-        status: 'Ativo' as const,
-        foto: undefined,
-        ultimaConsulta: undefined,
-        proximaConsulta: undefined,
-        historicoMedico: undefined,
-        alergias: undefined,
-        medicamentos: undefined,
-        observacoes: undefined,
-        endereco: undefined,
-        cpf: undefined,
-        rg: undefined,
-        profissao: undefined,
-        estadoCivil: undefined,
-        dataArquivamento: undefined,
-        motivoArquivamento: undefined
+        status: 'Ativo' as const
       };
+      
+      console.log('Dados para salvar:', pacienteData);
       const novoPaciente = await addPaciente(pacienteData);
+      console.log('Paciente criado:', novoPaciente);
+      
       onPatientCreated(novoPaciente.id);
       onClose();
       form.reset();

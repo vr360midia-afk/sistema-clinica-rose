@@ -119,7 +119,38 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
   // Funções para Pacientes
   const addPaciente = async (pacienteData: Omit<Paciente, 'id' | 'criadoEm' | 'atualizadoEm'>): Promise<Paciente> => {
     try {
-      const novoPaciente = await supabaseService.savePaciente(pacienteData);
+      console.log('addPaciente chamado com:', pacienteData);
+      
+      // Filtrar apenas os campos que existem na tabela pacientes
+      const cleanPacienteData = {
+        nome: pacienteData.nome,
+        email: pacienteData.email,
+        telefone: pacienteData.telefone,
+        idade: pacienteData.idade || 0,
+        convenio: pacienteData.convenio,
+        origemLead: pacienteData.origemLead,
+        status: pacienteData.status || 'Ativo',
+        // Campos opcionais que podem ser undefined
+        ...(pacienteData.foto && { foto: pacienteData.foto }),
+        ...(pacienteData.ultimaConsulta && { ultimaConsulta: pacienteData.ultimaConsulta }),
+        ...(pacienteData.proximaConsulta && { proximaConsulta: pacienteData.proximaConsulta }),
+        ...(pacienteData.historicoMedico && { historicoMedico: pacienteData.historicoMedico }),
+        ...(pacienteData.alergias && { alergias: pacienteData.alergias }),
+        ...(pacienteData.medicamentos && { medicamentos: pacienteData.medicamentos }),
+        ...(pacienteData.observacoes && { observacoes: pacienteData.observacoes }),
+        ...(pacienteData.endereco && { endereco: pacienteData.endereco }),
+        ...(pacienteData.cpf && { cpf: pacienteData.cpf }),
+        ...(pacienteData.rg && { rg: pacienteData.rg }),
+        ...(pacienteData.profissao && { profissao: pacienteData.profissao }),
+        ...(pacienteData.estadoCivil && { estadoCivil: pacienteData.estadoCivil }),
+        ...(pacienteData.dataArquivamento && { dataArquivamento: pacienteData.dataArquivamento }),
+        ...(pacienteData.motivoArquivamento && { motivoArquivamento: pacienteData.motivoArquivamento })
+      };
+      
+      console.log('Dados limpos para salvar:', cleanPacienteData);
+      const novoPaciente = await supabaseService.savePaciente(cleanPacienteData);
+      console.log('Paciente salvo no Supabase:', novoPaciente);
+      
       setPacientes(prev => [novoPaciente, ...prev]);
       toast.success('Paciente adicionado com sucesso!');
       return novoPaciente;
