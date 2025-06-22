@@ -83,8 +83,8 @@ const WeekView = ({ selectedDate, onDateChange, consultas, onAppointmentClick, o
           </div>
         </div>
       </CardHeader>
-      <CardContent className="p-1">
-        <div className="grid grid-cols-8 gap-px text-xs border rounded-lg overflow-hidden">
+      <CardContent className="p-0">
+        <div className="grid grid-cols-8 text-xs border rounded-lg overflow-hidden">
           {/* Header */}
           <div className="p-2 font-semibold bg-gray-50 border-r">Horário</div>
           {weekDays.map(day => (
@@ -102,14 +102,14 @@ const WeekView = ({ selectedDate, onDateChange, consultas, onAppointmentClick, o
 
           {/* Time slots */}
           {timeSlots.map(time => (
-            <React.Fragment key={time}>
-              <div className="p-2 text-right text-gray-600 bg-gray-50 border-r border-b text-xs font-medium">{time}</div>
+            <div key={time} className="contents">
+              <div className="p-1 text-right text-gray-600 bg-gray-50 border-r border-b text-xs font-medium">{time}</div>
               {weekDays.map(day => {
                 const dayConsultas = getConsultasForDayAndTime(day, time);
                 return (
                   <div 
                     key={`${day.toISOString()}-${time}`} 
-                    className="p-1 border-r border-b min-h-[50px] cursor-pointer hover:bg-gray-50 bg-white"
+                    className="p-1 border-r border-b min-h-[40px] cursor-pointer hover:bg-gray-50 bg-white"
                     onClick={() => onDateClick(day, time)}
                   >
                     {dayConsultas.map(consulta => (
@@ -132,7 +132,7 @@ const WeekView = ({ selectedDate, onDateChange, consultas, onAppointmentClick, o
                   </div>
                 );
               })}
-            </React.Fragment>
+            </div>
           ))}
         </div>
       </CardContent>

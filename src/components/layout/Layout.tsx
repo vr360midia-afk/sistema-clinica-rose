@@ -22,9 +22,9 @@ const Layout = ({ children }: LayoutProps) => {
     <div className="min-h-screen bg-gray-50 flex w-full">
       <Sidebar isOpen={sidebarOpen} onClose={closeSidebar} />
       
-      <div className="flex-1 flex flex-col lg:ml-64 min-w-0 w-full">
+      <div className="flex-1 flex flex-col lg:ml-56 min-w-0 w-full">
         <Header onMenuToggle={toggleSidebar} />
-        <main className="flex-1 p-2 sm:p-3 lg:p-4 overflow-x-hidden w-full">
+        <main className="flex-1 p-1 sm:p-2 lg:p-3 overflow-x-hidden w-full">
           <div className="w-full max-w-none mx-auto">
             {children}
           </div>

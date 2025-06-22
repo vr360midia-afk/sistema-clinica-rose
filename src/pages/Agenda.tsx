@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import Layout from '@/components/layout/Layout';
 import { Calendar } from '@/components/ui/calendar';
@@ -50,7 +49,6 @@ const Agenda = () => {
     setIsConsultaModalOpen(true);
   };
 
-  // Handler para clique em data/horário do calendário - abre nova consulta com data e horário específicos
   const handleDateClick = (date: Date, time?: string) => {
     setSelectedDate(date);
     setConsultaFormDate(date);
@@ -58,12 +56,10 @@ const Agenda = () => {
     setIsConsultaModalOpen(true);
   };
 
-  // Handler para mudança de data nas visualizações
   const handleDateChange = (date: Date) => {
     setSelectedDate(date);
   };
 
-  // Handler para clique no calendário principal - seleciona data e abre formulário
   const handleCalendarSelect = (date: Date | undefined) => {
     if (date) {
       setSelectedDate(date);
@@ -73,7 +69,6 @@ const Agenda = () => {
     }
   };
 
-  // Renderizar a visualização atual
   const renderCurrentView = () => {
     if (!selectedDate) return null;
 
@@ -97,7 +92,7 @@ const Agenda = () => {
             onDateClick={handleDateClick}
           />
         );
-      default: // 'week' é agora o padrão
+      default:
         return (
           <WeekView
             selectedDate={selectedDate}
@@ -112,9 +107,9 @@ const Agenda = () => {
 
   return (
     <Layout>
-      <div className="space-y-2 sm:space-y-3 w-full max-w-none">
-        {/* Header - Responsivo */}
-        <div className="flex flex-col space-y-3 lg:flex-row lg:justify-between lg:items-start lg:space-y-0">
+      <div className="space-y-1 w-full max-w-none">
+        {/* Header */}
+        <div className="flex flex-col space-y-2 lg:flex-row lg:justify-between lg:items-start lg:space-y-0">
           <div className="space-y-1">
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">Agenda</h1>
             <p className="text-sm sm:text-base text-gray-600">Gerencie seus agendamentos e consultas</p>
@@ -128,7 +123,7 @@ const Agenda = () => {
           </Button>
         </div>
 
-        <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-3">
+        <div className="flex flex-wrap gap-1 border-b border-gray-200 pb-2">
           <Button 
             variant={view === 'week' ? 'default' : 'outline'}
             onClick={() => setView('week')}
@@ -155,8 +150,8 @@ const Agenda = () => {
           </Button>
         </div>
 
-        {/* Main content - Grid responsivo otimizado para visualização semanal */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 lg:gap-3">
+        {/* Main content */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-1 lg:gap-2">
           {view === 'day' && (
             <div className="lg:col-span-4 order-2 lg:order-1">
               <Card className="w-full">
