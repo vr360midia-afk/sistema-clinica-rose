@@ -15,74 +15,271 @@ interface QuickPatientFormFieldsProps {
 
 const QuickPatientFormFields = ({ form }: QuickPatientFormFieldsProps) => {
   return (
-    <div className="space-y-6">
-      {/* Dados Pessoais */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Dados Pessoais</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <FormField
-            control={form.control}
-            name="nome"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Nome Completo *</FormLabel>
-                <FormControl>
-                  <Input placeholder="Nome completo do paciente" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      {/* Coluna Principal - Dados Pessoais */}
+      <div className="lg:col-span-2 space-y-8">
+        {/* Dados Pessoais */}
+        <Card className="shadow-sm">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-lg font-semibold text-gray-900">Dados Pessoais</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
             <FormField
               control={form.control}
-              name="email"
+              name="nome"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Email *</FormLabel>
+                  <FormLabel className="font-medium">Nome Completo *</FormLabel>
                   <FormControl>
-                    <Input type="email" placeholder="email@exemplo.com" {...field} />
+                    <Input 
+                      placeholder="Nome completo do paciente" 
+                      className="h-11"
+                      {...field} 
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
 
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="font-medium">Email *</FormLabel>
+                    <FormControl>
+                      <Input 
+                        type="email" 
+                        placeholder="email@exemplo.com" 
+                        className="h-11"
+                        {...field} 
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="telefone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="font-medium">Telefone *</FormLabel>
+                    <FormControl>
+                      <Input 
+                        placeholder="(11) 99999-9999" 
+                        className="h-11"
+                        {...field} 
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <FormField
+                control={form.control}
+                name="idade"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="font-medium">Idade</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        placeholder="25"
+                        className="h-11"
+                        {...field}
+                        value={field.value || ''}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          field.onChange(value === '' ? undefined : Number(value));
+                        }}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="cpf"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="font-medium">CPF</FormLabel>
+                    <FormControl>
+                      <Input 
+                        placeholder="000.000.000-00" 
+                        className="h-11"
+                        {...field} 
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <FormField
+                control={form.control}
+                name="rg"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="font-medium">RG</FormLabel>
+                    <FormControl>
+                      <Input 
+                        placeholder="00.000.000-0" 
+                        className="h-11"
+                        {...field} 
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="profissao"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="font-medium">Profissão</FormLabel>
+                    <FormControl>
+                      <Input 
+                        placeholder="Profissão" 
+                        className="h-11"
+                        {...field} 
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
             <FormField
               control={form.control}
-              name="telefone"
+              name="endereco"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Telefone *</FormLabel>
+                  <FormLabel className="font-medium">Endereço</FormLabel>
                   <FormControl>
-                    <Input placeholder="(11) 99999-9999" {...field} />
+                    <Input 
+                      placeholder="Endereço completo" 
+                      className="h-11"
+                      {...field} 
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-          </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <FormField
+                control={form.control}
+                name="estadoCivil"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="font-medium">Estado Civil</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || ''}>
+                      <FormControl>
+                        <SelectTrigger className="h-11">
+                          <SelectValue placeholder="Selecione..." />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="solteiro">Solteiro(a)</SelectItem>
+                        <SelectItem value="casado">Casado(a)</SelectItem>
+                        <SelectItem value="divorciado">Divorciado(a)</SelectItem>
+                        <SelectItem value="viuvo">Viúvo(a)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="convenio"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="font-medium">Convênio *</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || ''}>
+                      <FormControl>
+                        <SelectTrigger className="h-11">
+                          <SelectValue placeholder="Selecione" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="particular">Particular</SelectItem>
+                        <SelectItem value="unimed">Unimed</SelectItem>
+                        <SelectItem value="bradesco">Bradesco Saúde</SelectItem>
+                        <SelectItem value="amil">Amil</SelectItem>
+                        <SelectItem value="sulamerica">SulAmérica</SelectItem>
+                        <SelectItem value="outros">Outros</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
             <FormField
               control={form.control}
-              name="idade"
+              name="origemLead"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Idade</FormLabel>
+                  <FormLabel className="font-medium">Origem do Lead *</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value || ''}>
+                    <FormControl>
+                      <SelectTrigger className="h-11">
+                        <SelectValue placeholder="Como conheceu?" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="indicacao">Indicação</SelectItem>
+                      <SelectItem value="google">Google</SelectItem>
+                      <SelectItem value="instagram">Instagram</SelectItem>
+                      <SelectItem value="facebook">Facebook</SelectItem>
+                      <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                      <SelectItem value="site">Site</SelectItem>
+                      <SelectItem value="panfleto">Panfleto</SelectItem>
+                      <SelectItem value="outros">Outros</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </CardContent>
+        </Card>
+
+        {/* Histórico Médico */}
+        <Card className="shadow-sm">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-lg font-semibold text-gray-900">Histórico Médico</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <FormField
+              control={form.control}
+              name="ultimaConsulta"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="font-medium">Quando foi a última consulta odontológica?</FormLabel>
                   <FormControl>
-                    <Input
-                      type="number"
-                      placeholder="25"
-                      {...field}
-                      value={field.value || ''}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        field.onChange(value === '' ? undefined : Number(value));
-                      }}
+                    <Input 
+                      placeholder="Ex: 6 meses atrás, 1 ano, nunca fui, etc." 
+                      className="h-11"
+                      {...field} 
                     />
                   </FormControl>
                   <FormMessage />
@@ -92,266 +289,110 @@ const QuickPatientFormFields = ({ form }: QuickPatientFormFieldsProps) => {
 
             <FormField
               control={form.control}
-              name="cpf"
+              name="historicoMedico"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>CPF</FormLabel>
+                  <FormLabel className="font-medium">Histórico Médico</FormLabel>
                   <FormControl>
-                    <Input placeholder="000.000.000-00" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <FormField
-              control={form.control}
-              name="rg"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>RG</FormLabel>
-                  <FormControl>
-                    <Input placeholder="00.000.000-0" {...field} />
+                    <Textarea
+                      placeholder="Descreva o histórico médico do paciente..."
+                      className="resize-none min-h-[100px]"
+                      rows={4}
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="profissao"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Profissão</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Profissão" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-
-          <FormField
-            control={form.control}
-            name="endereco"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Endereço</FormLabel>
-                <FormControl>
-                  <Input placeholder="Endereço completo" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <FormField
-              control={form.control}
-              name="estadoCivil"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Estado Civil</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value || ''}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <FormField
+                control={form.control}
+                name="alergias"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="font-medium">Alergias</FormLabel>
                     <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione..." />
-                      </SelectTrigger>
+                      <Textarea
+                        placeholder="Liste as alergias conhecidas..."
+                        className="resize-none min-h-[80px]"
+                        rows={3}
+                        {...field}
+                      />
                     </FormControl>
-                    <SelectContent>
-                      <SelectItem value="solteiro">Solteiro(a)</SelectItem>
-                      <SelectItem value="casado">Casado(a)</SelectItem>
-                      <SelectItem value="divorciado">Divorciado(a)</SelectItem>
-                      <SelectItem value="viuvo">Viúvo(a)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="medicamentos"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="font-medium">Medicamentos em Uso</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Liste os medicamentos que o paciente está tomando..."
+                        className="resize-none min-h-[80px]"
+                        rows={3}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
             <FormField
               control={form.control}
-              name="convenio"
+              name="observacoes"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Convênio *</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value || ''}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="particular">Particular</SelectItem>
-                      <SelectItem value="unimed">Unimed</SelectItem>
-                      <SelectItem value="bradesco">Bradesco Saúde</SelectItem>
-                      <SelectItem value="amil">Amil</SelectItem>
-                      <SelectItem value="sulamerica">SulAmérica</SelectItem>
-                      <SelectItem value="outros">Outros</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <FormLabel className="font-medium">Observações Gerais</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder="Observações adicionais..."
+                      className="resize-none min-h-[100px]"
+                      rows={4}
+                      {...field}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-          </div>
+          </CardContent>
+        </Card>
+      </div>
 
-          <FormField
-            control={form.control}
-            name="origemLead"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Origem do Lead *</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value || ''}>
+      {/* Coluna Lateral - Foto do Paciente */}
+      <div className="lg:col-span-1">
+        <Card className="shadow-sm sticky top-6">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-lg font-semibold text-gray-900">Foto do Paciente</CardTitle>
+          </CardHeader>
+          <CardContent className="flex justify-center">
+            <FormField
+              control={form.control}
+              name="foto"
+              render={({ field }) => (
+                <FormItem className="w-full">
                   <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Como conheceu?" />
-                    </SelectTrigger>
+                    <PatientPhotoCapture
+                      currentPhoto={field.value}
+                      onPhotoChange={(photo) => field.onChange(photo || '')}
+                    />
                   </FormControl>
-                  <SelectContent>
-                    <SelectItem value="indicacao">Indicação</SelectItem>
-                    <SelectItem value="google">Google</SelectItem>
-                    <SelectItem value="instagram">Instagram</SelectItem>
-                    <SelectItem value="facebook">Facebook</SelectItem>
-                    <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                    <SelectItem value="site">Site</SelectItem>
-                    <SelectItem value="panfleto">Panfleto</SelectItem>
-                    <SelectItem value="outros">Outros</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </CardContent>
-      </Card>
-
-      {/* Histórico Médico */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Histórico Médico</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <FormField
-            control={form.control}
-            name="ultimaConsulta"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Quando foi a última consulta odontológica?</FormLabel>
-                <FormControl>
-                  <Input placeholder="Ex: 6 meses atrás, 1 ano, nunca fui, etc." {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="historicoMedico"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Histórico Médico</FormLabel>
-                <FormControl>
-                  <Textarea
-                    placeholder="Descreva o histórico médico do paciente..."
-                    className="resize-none"
-                    rows={3}
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="alergias"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Alergias</FormLabel>
-                <FormControl>
-                  <Textarea
-                    placeholder="Liste as alergias conhecidas..."
-                    className="resize-none"
-                    rows={2}
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="medicamentos"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Medicamentos em Uso</FormLabel>
-                <FormControl>
-                  <Textarea
-                    placeholder="Liste os medicamentos que o paciente está tomando..."
-                    className="resize-none"
-                    rows={2}
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="observacoes"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Observações Gerais</FormLabel>
-                <FormControl>
-                  <Textarea
-                    placeholder="Observações adicionais..."
-                    className="resize-none"
-                    rows={3}
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </CardContent>
-      </Card>
-
-      {/* Foto do Paciente */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Foto do Paciente</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <FormField
-            control={form.control}
-            name="foto"
-            render={({ field }) => (
-              <FormItem>
-                <FormControl>
-                  <PatientPhotoCapture
-                    currentPhoto={field.value}
-                    onPhotoChange={(photo) => field.onChange(photo || '')}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </CardContent>
-      </Card>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 };
