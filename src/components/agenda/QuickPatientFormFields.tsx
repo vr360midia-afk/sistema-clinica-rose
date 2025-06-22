@@ -78,7 +78,11 @@ const QuickPatientFormFields = ({ form }: QuickPatientFormFieldsProps) => {
                       type="number"
                       placeholder="25"
                       {...field}
-                      onChange={(e) => field.onChange(Number(e.target.value))}
+                      value={field.value || ''}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        field.onChange(value === '' ? undefined : Number(value));
+                      }}
                     />
                   </FormControl>
                   <FormMessage />
@@ -152,7 +156,7 @@ const QuickPatientFormFields = ({ form }: QuickPatientFormFieldsProps) => {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Estado Civil</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value || ''}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Selecione..." />
@@ -176,7 +180,7 @@ const QuickPatientFormFields = ({ form }: QuickPatientFormFieldsProps) => {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Convênio *</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value || ''}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Selecione" />
@@ -203,7 +207,7 @@ const QuickPatientFormFields = ({ form }: QuickPatientFormFieldsProps) => {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Origem do Lead *</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
+                <Select onValueChange={field.onChange} value={field.value || ''}>
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Como conheceu?" />

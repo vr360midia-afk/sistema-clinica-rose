@@ -37,7 +37,7 @@ export const useQuickPatientForm = (onPatientCreated: (patientId: string) => voi
       nome: '',
       email: '',
       telefone: '',
-      idade: 0,
+      idade: undefined,
       endereco: '',
       cpf: '',
       rg: '',
@@ -59,10 +59,46 @@ export const useQuickPatientForm = (onPatientCreated: (patientId: string) => voi
       setIsLoading(true);
       console.log('Dados do formulário:', data);
       
-      // Converter ultimaConsulta de string para Date se não estiver vazia
-      const ultimaConsultaDate = data.ultimaConsulta && data.ultimaConsulta.trim() !== '' 
-        ? new Date(data.ultimaConsulta) 
-        : undefined;
+      // Processar foto - reduzir qualidade se for base64 muito grande
+      let fotoProcessada = data.foto;
+      if (data.foto && data.foto.startsWith('data:image/')) {
+        try {
+          // Criar canvas para redimensionar se necessário
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Redimensionar para máximo 300x300
+            const maxSize = 300;
+            let { width, height } = img;
+            
+            if (width > height) {
+              if (width > maxSize) {
+                height = (height * maxSize) / width;
+                width = maxSize;
+              }
+            } else {
+              if (height > maxSize) {
+                width = (width * maxSize) / height;
+                height = maxSize;
+              }
+            }
+            
+            canvas.width = width;
+            canvas.height = height;
+            
+            if (ctx) {
+              ctx.drawImage(img, 0, 0, width, height);
+              fotoProcessada = canvas.toDataURL('image/jpeg', 0.7);
+            }
+          };
+          img.src = data.foto;
+        } catch (error) {
+          console.warn('Erro ao processar foto:', error);
+          fotoProcessada = ''; // Remove foto se houver erro
+        }
+      }
       
       const pacienteData = {
         nome: data.nome,
@@ -72,17 +108,19 @@ export const useQuickPatientForm = (onPatientCreated: (patientId: string) => voi
         convenio: data.convenio,
         origemLead: data.origemLead as any,
         status: 'Ativo' as const,
-        endereco: data.endereco,
-        cpf: data.cpf,
-        rg: data.rg,
-        profissao: data.profissao,
-        estadoCivil: data.estadoCivil,
-        foto: data.foto,
-        historicoMedico: data.historicoMedico,
-        alergias: data.alergias,
-        medicamentos: data.medicamentos,
-        ultimaConsulta: ultimaConsultaDate,
-        observacoes: data.observacoes
+        endereco: data.endereco || '',
+        cpf: data.cpf || '',
+        rg: data.rg || '',
+        profissao: data.profissao || '',
+        estadoCivil: data.estadoCivil || '',
+        foto: fotoProcessada || '',
+        historicoMedico: data.historicoMedico || '',
+        alergias: data.alergias || '',
+        medicamentos: data.medicamentos || '',
+        ultimaConsulta: data.ultimaConsulta && data.ultimaConsulta.trim() !== '' 
+          ? new Date(data.ultimaConsulta) 
+          : undefined,
+        observacoes: data.observacoes || ''
       };
       
       console.log('Dados para salvar:', pacienteData);
@@ -94,6 +132,10 @@ export const useQuickPatientForm = (onPatientCreated: (patientId: string) => voi
       form.reset();
     } catch (error) {
       console.error('Erro ao criar paciente:', error);
+      // Adicionar toast de erro se disponível
+      if (typeof window !== 'undefined' && 'toast' in window) {
+        (window as any).toast.error('Erro ao salvar paciente. Tente novamente.');
+      }
     } finally {
       setIsLoading(false);
     }
