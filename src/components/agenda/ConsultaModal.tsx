@@ -18,9 +18,10 @@ interface ConsultaModalProps {
   isOpen: boolean;
   onClose: () => void;
   selectedDate?: Date;
+  selectedTime?: string;
 }
 
-const ConsultaModal = ({ isOpen, onClose, selectedDate }: ConsultaModalProps) => {
+const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime }: ConsultaModalProps) => {
   const { pacientes, addConsulta } = useDentalSystem();
   const { user } = useAuth();
   const [isQuickPatientModalOpen, setIsQuickPatientModalOpen] = React.useState(false);
@@ -30,7 +31,7 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate }: ConsultaModalProps) =>
     resolver: zodResolver(consultaSchema),
     defaultValues: {
       data: selectedDate || new Date(),
-      hora: '09:00',
+      hora: selectedTime || '09:00',
       duracao: 60,
       status: 'agendado',
       procedimento: '',
@@ -47,12 +48,19 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate }: ConsultaModalProps) =>
     }
   }, [selectedDate, isOpen, form]);
 
+  // Atualizar o horário do formulário quando selectedTime mudar
+  React.useEffect(() => {
+    if (selectedTime && isOpen) {
+      form.setValue('hora', selectedTime);
+    }
+  }, [selectedTime, isOpen, form]);
+
   // Resetar formulário quando fechar
   React.useEffect(() => {
     if (!isOpen) {
       form.reset({
         data: selectedDate || new Date(),
-        hora: '09:00',
+        hora: selectedTime || '09:00',
         duracao: 60,
         status: 'agendado',
         procedimento: '',
@@ -61,7 +69,7 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate }: ConsultaModalProps) =>
         observacoes: ''
       });
     }
-  }, [isOpen, selectedDate, form]);
+  }, [isOpen, selectedDate, selectedTime, form]);
 
   const onSubmit = async (data: ConsultaFormData) => {
     if (!user?.id) return;

@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import Layout from '@/components/layout/Layout';
 import { Calendar } from '@/components/ui/calendar';
@@ -22,6 +23,7 @@ const Agenda = () => {
   const [isConsultaModalOpen, setIsConsultaModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [consultaFormDate, setConsultaFormDate] = useState<Date | undefined>(undefined);
+  const [consultaFormTime, setConsultaFormTime] = useState<string | undefined>(undefined);
 
   const {
     view,
@@ -44,13 +46,15 @@ const Agenda = () => {
 
   const handleNewAppointment = () => {
     setConsultaFormDate(selectedDate);
+    setConsultaFormTime(undefined);
     setIsConsultaModalOpen(true);
   };
 
-  // Handler para clique em data do calendário - abre nova consulta com data específica
-  const handleDateClick = (date: Date) => {
+  // Handler para clique em data/horário do calendário - abre nova consulta com data e horário específicos
+  const handleDateClick = (date: Date, time?: string) => {
     setSelectedDate(date);
     setConsultaFormDate(date);
+    setConsultaFormTime(time);
     setIsConsultaModalOpen(true);
   };
 
@@ -64,6 +68,7 @@ const Agenda = () => {
     if (date) {
       setSelectedDate(date);
       setConsultaFormDate(date);
+      setConsultaFormTime(undefined);
       setIsConsultaModalOpen(true);
     }
   };
@@ -123,7 +128,6 @@ const Agenda = () => {
           </Button>
         </div>
 
-        {/* View selector - Responsivo */}
         <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-4">
           <Button 
             variant={view === 'day' ? 'default' : 'outline'}
@@ -153,7 +157,6 @@ const Agenda = () => {
 
         {/* Main content - Grid responsivo */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6">
-          {/* Calendar - Responsivo - Só mostra na visualização diária */}
           {view === 'day' && (
             <div className="lg:col-span-4 order-2 lg:order-1">
               <Card className="w-full">
@@ -198,7 +201,6 @@ const Agenda = () => {
             </div>
           )}
 
-          {/* Schedule View - Responsivo */}
           <div className={`${view === 'day' ? 'lg:col-span-8' : 'col-span-12'} order-1 lg:order-2`}>
             {renderCurrentView()}
           </div>
@@ -216,8 +218,10 @@ const Agenda = () => {
           onClose={() => {
             setIsConsultaModalOpen(false);
             setConsultaFormDate(undefined);
+            setConsultaFormTime(undefined);
           }}
           selectedDate={consultaFormDate}
+          selectedTime={consultaFormTime}
         />
 
         <AppointmentDetailsModal

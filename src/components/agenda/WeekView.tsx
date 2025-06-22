@@ -23,7 +23,7 @@ interface WeekViewProps {
     patient?: string;
   }>;
   onAppointmentClick: (appointment: any) => void;
-  onDateClick: (date: Date) => void;
+  onDateClick: (date: Date, time?: string) => void;
 }
 
 const WeekView = ({ selectedDate, onDateChange, consultas, onAppointmentClick, onDateClick }: WeekViewProps) => {
@@ -110,7 +110,7 @@ const WeekView = ({ selectedDate, onDateChange, consultas, onAppointmentClick, o
                   <div 
                     key={`${day.toISOString()}-${time}`} 
                     className="p-1 border-r border-b min-h-[60px] cursor-pointer hover:bg-gray-50"
-                    onClick={() => onDateClick(day)}
+                    onClick={() => onDateClick(day, time)}
                   >
                     {dayConsultas.map(consulta => (
                       <div
