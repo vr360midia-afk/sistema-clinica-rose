@@ -21,6 +21,7 @@ const Agenda = () => {
   const [isPatientModalOpen, setIsPatientModalOpen] = useState(false);
   const [isConsultaModalOpen, setIsConsultaModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [consultaFormDate, setConsultaFormDate] = useState<Date | undefined>(undefined);
 
   const {
     view,
@@ -42,18 +43,29 @@ const Agenda = () => {
   };
 
   const handleNewAppointment = () => {
+    setConsultaFormDate(selectedDate);
     setIsConsultaModalOpen(true);
   };
 
-  // Handler para clique em data do calendário - abre nova consulta
+  // Handler para clique em data do calendário - abre nova consulta com data específica
   const handleDateClick = (date: Date) => {
     setSelectedDate(date);
+    setConsultaFormDate(date);
     setIsConsultaModalOpen(true);
   };
 
   // Handler para mudança de data nas visualizações
   const handleDateChange = (date: Date) => {
     setSelectedDate(date);
+  };
+
+  // Handler para clique no calendário principal - seleciona data e abre formulário
+  const handleCalendarSelect = (date: Date | undefined) => {
+    if (date) {
+      setSelectedDate(date);
+      setConsultaFormDate(date);
+      setIsConsultaModalOpen(true);
+    }
   };
 
   // Renderizar a visualização atual
@@ -156,11 +168,7 @@ const Agenda = () => {
                     <Calendar
                       mode="single"
                       selected={selectedDate}
-                      onSelect={(date) => {
-                        if (date) {
-                          handleDateClick(date);
-                        }
-                      }}
+                      onSelect={handleCalendarSelect}
                       locale={ptBR}
                       className="w-full max-w-none mx-auto"
                       classNames={{
@@ -205,8 +213,11 @@ const Agenda = () => {
 
         <ConsultaModal
           isOpen={isConsultaModalOpen}
-          onClose={() => setIsConsultaModalOpen(false)}
-          selectedDate={selectedDate}
+          onClose={() => {
+            setIsConsultaModalOpen(false);
+            setConsultaFormDate(undefined);
+          }}
+          selectedDate={consultaFormDate}
         />
 
         <AppointmentDetailsModal
