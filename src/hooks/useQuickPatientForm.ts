@@ -61,26 +61,26 @@ export const useQuickPatientForm = (onPatientCreated: (patientId: string) => voi
     try {
       setIsLoading(true);
       
-      // Preparar dados apenas com campos que existem na tabela pacientes
+      // Preparar dados conforme a interface Paciente
       const pacienteData = {
         nome: data.nome.trim(),
         email: data.email.trim().toLowerCase(),
         telefone: data.telefone.trim(),
         idade: data.idade || 0,
         convenio: data.convenio,
-        origem_lead: data.origemLead, // Usando snake_case como na tabela
+        origemLead: data.origemLead as any,
         status: 'Ativo' as const,
         endereco: data.endereco?.trim() || '',
         cpf: data.cpf?.trim() || '',
         rg: data.rg?.trim() || '',
         profissao: data.profissao?.trim() || '',
-        estado_civil: data.estadoCivil || '', // Usando snake_case como na tabela
+        estadoCivil: data.estadoCivil || '',
         foto: data.foto || '',
-        historico_medico: data.historicoMedico?.trim() || '', // Usando snake_case como na tabela
+        historicoMedico: data.historicoMedico?.trim() || '',
         alergias: data.alergias?.trim() || '',
         medicamentos: data.medicamentos?.trim() || '',
+        ultimaConsulta: data.ultimaConsulta?.trim() || '',
         observacoes: data.observacoes?.trim() || ''
-        // Removendo ultima_consulta pois não está sendo usado corretamente
       };
       
       console.log('Dados preparados para salvar:', pacienteData);

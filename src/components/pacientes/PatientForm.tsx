@@ -88,7 +88,7 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
     setLoading(true);
 
     try {
-      // Preparar dados com nomes corretos dos campos do banco
+      // Preparar dados conforme a interface Paciente
       const patientData = {
         nome: formData.nome.trim(),
         email: formData.email.trim().toLowerCase(),
@@ -98,13 +98,14 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
         cpf: formData.cpf?.trim() || '',
         rg: formData.rg?.trim() || '',
         profissao: formData.profissao?.trim() || '',
-        estado_civil: formData.estadoCivil || '', // snake_case para o banco
+        estadoCivil: formData.estadoCivil || '',
         convenio: formData.convenio,
-        origem_lead: formData.origemLead, // snake_case para o banco
+        origemLead: formData.origemLead as any,
         foto: formData.foto || '',
-        historico_medico: formData.historicoMedico?.trim() || '', // snake_case para o banco
+        historicoMedico: formData.historicoMedico?.trim() || '',
         alergias: formData.alergias?.trim() || '',
         medicamentos: formData.medicamentos?.trim() || '',
+        ultimaConsulta: formData.ultimaConsulta?.trim() || '',
         observacoes: formData.observacoes?.trim() || '',
         status: patient?.status || 'Ativo'
       };
