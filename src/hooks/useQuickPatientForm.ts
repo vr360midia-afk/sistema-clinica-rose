@@ -61,30 +61,29 @@ export const useQuickPatientForm = (onPatientCreated: (patientId: string) => voi
     try {
       setIsLoading(true);
       
-      // Sanitizar e preparar dados para envio
+      // Preparar dados apenas com campos que existem na tabela pacientes
       const pacienteData = {
         nome: data.nome.trim(),
         email: data.email.trim().toLowerCase(),
         telefone: data.telefone.trim(),
         idade: data.idade || 0,
         convenio: data.convenio,
-        origemLead: data.origemLead as any,
+        origem_lead: data.origemLead, // Usando snake_case como na tabela
         status: 'Ativo' as const,
         endereco: data.endereco?.trim() || '',
         cpf: data.cpf?.trim() || '',
         rg: data.rg?.trim() || '',
         profissao: data.profissao?.trim() || '',
-        estadoCivil: data.estadoCivil || '',
+        estado_civil: data.estadoCivil || '', // Usando snake_case como na tabela
         foto: data.foto || '',
-        historicoMedico: data.historicoMedico?.trim() || '',
+        historico_medico: data.historicoMedico?.trim() || '', // Usando snake_case como na tabela
         alergias: data.alergias?.trim() || '',
         medicamentos: data.medicamentos?.trim() || '',
-        // Manter ultimaConsulta como string
-        ultimaConsulta: data.ultimaConsulta?.trim() || '',
         observacoes: data.observacoes?.trim() || ''
+        // Removendo ultima_consulta pois não está sendo usado corretamente
       };
       
-      console.log('Dados sanitizados para salvar:', pacienteData);
+      console.log('Dados preparados para salvar:', pacienteData);
       
       const novoPaciente = await addPaciente(pacienteData);
       console.log('Paciente criado com sucesso:', novoPaciente);
@@ -96,7 +95,8 @@ export const useQuickPatientForm = (onPatientCreated: (patientId: string) => voi
       
     } catch (error) {
       console.error('Erro detalhado ao criar paciente:', error);
-      toast.error('Erro ao salvar paciente. Verifique os dados e tente novamente.');
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      toast.error(`Erro ao salvar paciente: ${errorMessage}`);
     } finally {
       setIsLoading(false);
     }

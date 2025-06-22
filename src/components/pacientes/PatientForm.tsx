@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,14 +28,14 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
     cpf: patient?.cpf || '',
     rg: patient?.rg || '',
     profissao: patient?.profissao || '',
-    estadoCivil: patient?.estadoCivil || '',
+    estadoCivil: patient?.estadoCivil || patient?.estado_civil || '',
     convenio: patient?.convenio || '',
-    origemLead: patient?.origemLead || '',
+    origemLead: patient?.origemLead || patient?.origem_lead || '',
     foto: patient?.foto || null,
-    historicoMedico: patient?.historicoMedico || '',
+    historicoMedico: patient?.historicoMedico || patient?.historico_medico || '',
     alergias: patient?.alergias || '',
     medicamentos: patient?.medicamentos || '',
-    ultimaConsulta: patient?.ultimaConsulta || '',
+    ultimaConsulta: patient?.ultimaConsulta || patient?.ultima_consulta || '',
     observacoes: patient?.observacoes || ''
   });
 
@@ -89,13 +88,25 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
     setLoading(true);
 
     try {
+      // Preparar dados com nomes corretos dos campos do banco
       const patientData = {
-        ...formData,
-        status: patient?.status || 'Ativo',
-        // Garantir que ultimaConsulta seja uma string
-        ultimaConsulta: formData.ultimaConsulta.trim(),
-        // Converter idade para número se fornecida
+        nome: formData.nome.trim(),
+        email: formData.email.trim().toLowerCase(),
+        telefone: formData.telefone.trim(),
         idade: formData.idade ? parseInt(formData.idade.toString()) : 0,
+        endereco: formData.endereco?.trim() || '',
+        cpf: formData.cpf?.trim() || '',
+        rg: formData.rg?.trim() || '',
+        profissao: formData.profissao?.trim() || '',
+        estado_civil: formData.estadoCivil || '', // snake_case para o banco
+        convenio: formData.convenio,
+        origem_lead: formData.origemLead, // snake_case para o banco
+        foto: formData.foto || '',
+        historico_medico: formData.historicoMedico?.trim() || '', // snake_case para o banco
+        alergias: formData.alergias?.trim() || '',
+        medicamentos: formData.medicamentos?.trim() || '',
+        observacoes: formData.observacoes?.trim() || '',
+        status: patient?.status || 'Ativo'
       };
 
       console.log('Patient data to save:', patientData);
