@@ -29,7 +29,7 @@ interface Nota {
 }
 
 const Notas = () => {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const [notas, setNotas] = useState<Nota[]>([]);
   const [loading, setLoading] = useState(true);
@@ -47,10 +47,13 @@ const Notas = () => {
   });
 
   useEffect(() => {
+    if (authLoading) return;
     if (user) {
       fetchNotas();
+    } else {
+      setLoading(false);
     }
-  }, [user]);
+  }, [user, authLoading]);
 
   const fetchNotas = async () => {
     try {
