@@ -58,7 +58,8 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime }: Consulta
 
   // Quando um paciente acabou de ser criado e apareceu na lista, seleciona-o
   React.useEffect(() => {
-    if (pendingPatientId && pacientes.some((p) => p.id === pendingPatientId)) {
+    if (!pendingPatientId) return;
+    if (pacientes.some((p) => p.id === pendingPatientId)) {
       form.setValue('pacienteId', pendingPatientId, { shouldValidate: true, shouldDirty: true });
       setPendingPatientId(null);
     }
