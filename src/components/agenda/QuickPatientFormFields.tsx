@@ -211,7 +211,7 @@ const QuickPatientFormFields = ({ form }: QuickPatientFormFieldsProps) => {
                 name="convenio"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="font-medium">Convênio *</FormLabel>
+                    <FormLabel className="font-medium">Convênio</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value || ''}>
                       <FormControl>
                         <SelectTrigger className="h-11">
@@ -238,7 +238,7 @@ const QuickPatientFormFields = ({ form }: QuickPatientFormFieldsProps) => {
               name="origemLead"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="font-medium">Origem do Lead *</FormLabel>
+                  <FormLabel className="font-medium">Origem do Lead</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value || ''}>
                     <FormControl>
                       <SelectTrigger className="h-11">
