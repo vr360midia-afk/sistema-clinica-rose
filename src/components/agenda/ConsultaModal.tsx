@@ -26,6 +26,7 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime }: Consulta
   const { user } = useAuth();
   const [isQuickPatientModalOpen, setIsQuickPatientModalOpen] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(false);
+  const [pendingPatientId, setPendingPatientId] = React.useState<string | null>(null);
 
   const form = useForm<ConsultaFormData>({
     resolver: zodResolver(consultaSchema),
@@ -54,6 +55,14 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime }: Consulta
       form.setValue('hora', selectedTime);
     }
   }, [selectedTime, isOpen, form]);
+
+  // Quando um paciente acabou de ser criado e apareceu na lista, seleciona-o
+  React.useEffect(() => {
+    if (pendingPatientId && pacientes.some((p) => p.id === pendingPatientId)) {
+      form.setValue('pacienteId', pendingPatientId, { shouldValidate: true, shouldDirty: true });
+      setPendingPatientId(null);
+    }
+  }, [pendingPatientId, pacientes, form]);
 
   // Resetar formulário quando fechar
   React.useEffect(() => {
@@ -99,7 +108,9 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime }: Consulta
   };
 
   const handlePatientCreated = (patientId: string) => {
-    form.setValue('pacienteId', patientId);
+    // Seta imediatamente; o useEffect garante a seleção quando a lista atualizar
+    form.setValue('pacienteId', patientId, { shouldValidate: true, shouldDirty: true });
+    setPendingPatientId(patientId);
     setIsQuickPatientModalOpen(false);
   };
 
