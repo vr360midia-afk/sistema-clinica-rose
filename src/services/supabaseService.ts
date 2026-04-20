@@ -66,45 +66,57 @@ class SupabaseService {
 
   // Transformar dados do app para o formato do Supabase
   private transformLocalToSupabase = (data: any): any => {
-    const userId = data.user_id;
-    delete data.user_id;
-    
-    return {
-      ...data,
-      user_id: userId,
-      criado_em: data.criadoEm?.toISOString(),
-      atualizado_em: data.atualizadoEm?.toISOString(),
-      origem_lead: data.origemLead,
-      historico_medico: data.historicoMedico,
-      estado_civil: data.estadoCivil,
-      data_arquivamento: data.dataArquivamento?.toISOString(),
-      motivo_arquivamento: data.motivoArquivamento,
-      ultima_consulta: data.ultimaConsulta?.toISOString(),
-      proxima_consulta: data.proximaConsulta?.toISOString(),
-      paciente_id: data.pacienteId,
-      consulta_id: data.consultaId,
-      metodo_pagamento: data.metodoPagamento,
-      queixa_principal: data.queixaPrincipal,
-      historia_doenca: data.historiaDoenca,
-      exame_clinico: data.exameClinico,
-      plano_tratamento: data.planoTratamento,
-      procedimentos_realizados: data.procedimentosRealizados,
-      historia_atual: data.historiaAtual,
-      historia_familiar: data.historiaFamiliar,
-      historia_medica: data.historiaMedica,
-      habitos_vicios_positivos: data.habitosViciosPositivos,
-      habitos_vicios_negativos: data.habitosViciosNegativos,
-      exame_extra_bucal: data.exameExtraBucal,
-      exame_intra_bucal: data.exameIntraBucal,
-      assinatura_paciente: data.assinaturaPaciente,
-      assinatura_doutor: data.assinaturaDoutor,
-      link_assinatura: data.linkAssinatura,
-      token_assinatura: data.tokenAssinatura,
-      status_assinatura: data.statusAssinatura,
-      data_expiracao_link: data.dataExpiracaoLink?.toISOString(),
-      data: data.data?.toISOString(),
-      vencimento: data.vencimento?.toISOString()
+    // Mapeamento camelCase -> snake_case
+    const camelToSnake: Record<string, string> = {
+      criadoEm: 'criado_em',
+      atualizadoEm: 'atualizado_em',
+      origemLead: 'origem_lead',
+      historicoMedico: 'historico_medico',
+      estadoCivil: 'estado_civil',
+      dataArquivamento: 'data_arquivamento',
+      motivoArquivamento: 'motivo_arquivamento',
+      ultimaConsulta: 'ultima_consulta',
+      proximaConsulta: 'proxima_consulta',
+      pacienteId: 'paciente_id',
+      consultaId: 'consulta_id',
+      metodoPagamento: 'metodo_pagamento',
+      queixaPrincipal: 'queixa_principal',
+      historiaDoenca: 'historia_doenca',
+      exameClinico: 'exame_clinico',
+      planoTratamento: 'plano_tratamento',
+      procedimentosRealizados: 'procedimentos_realizados',
+      historiaAtual: 'historia_atual',
+      historiaFamiliar: 'historia_familiar',
+      historiaMedica: 'historia_medica',
+      habitosViciosPositivos: 'habitos_vicios_positivos',
+      habitosViciosNegativos: 'habitos_vicios_negativos',
+      exameExtraBucal: 'exame_extra_bucal',
+      exameIntraBucal: 'exame_intra_bucal',
+      assinaturaPaciente: 'assinatura_paciente',
+      assinaturaDoutor: 'assinatura_doutor',
+      linkAssinatura: 'link_assinatura',
+      tokenAssinatura: 'token_assinatura',
+      statusAssinatura: 'status_assinatura',
+      dataExpiracaoLink: 'data_expiracao_link',
     };
+
+    // Campos do tipo Date que precisam virar ISO string
+    const dateFields = new Set([
+      'criadoEm', 'atualizadoEm', 'dataArquivamento', 'ultimaConsulta',
+      'proximaConsulta', 'dataExpiracaoLink', 'data', 'vencimento'
+    ]);
+
+    const result: any = {};
+    for (const [key, value] of Object.entries(data)) {
+      if (value === undefined) continue;
+      const newKey = camelToSnake[key] || key;
+      let newValue: any = value;
+      if (dateFields.has(key) && value instanceof Date) {
+        newValue = value.toISOString();
+      }
+      result[newKey] = newValue;
+    }
+    return result;
   };
 
   // PACIENTES
