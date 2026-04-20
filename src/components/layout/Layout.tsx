@@ -14,17 +14,19 @@ const Layout = ({
   const closeSidebar = () => {
     setSidebarOpen(false);
   };
-  return <div className="min-h-screen bg-gray-50 flex w-full">
+  return (
+    <div className="min-h-screen bg-gray-50 flex w-full overflow-x-hidden">
       <Sidebar isOpen={sidebarOpen} onClose={closeSidebar} />
-      
-      <div className="flex-1 flex flex-col lg:ml-56 min-w-0 w-full">
+
+      <div className="flex-1 flex flex-col min-w-0 w-full lg:pl-60">
         <Header onMenuToggle={toggleSidebar} />
-        <main className="flex-1 p-1 sm:p-2 lg:p-3 overflow-x-hidden w-full mx-0 my-0 px-[6px] py-[14px]">
-          <div className="w-full max-w-none mx-auto">
+        <main className="flex-1 overflow-x-hidden w-full px-3 sm:px-4 lg:px-6 py-4">
+          <div className="w-full max-w-7xl mx-auto">
             {children}
           </div>
         </main>
       </div>
-    </div>;
+    </div>
+  );
 };
 export default Layout;
