@@ -29,7 +29,7 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
     rg: patient?.rg || '',
     profissao: patient?.profissao || '',
     estadoCivil: patient?.estadoCivil || patient?.estado_civil || '',
-    convenio: patient?.convenio || '',
+    convenio: patient?.convenio || 'particular',
     origemLead: patient?.origemLead || patient?.origem_lead || '',
     foto: patient?.foto || null,
     historicoMedico: patient?.historicoMedico || patient?.historico_medico || '',
@@ -63,14 +63,6 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
     
     if (!formData.telefone.trim()) {
       errors.push('Telefone é obrigatório');
-    }
-    
-    if (!formData.convenio) {
-      errors.push('Convênio é obrigatório');
-    }
-    
-    if (!formData.origemLead) {
-      errors.push('Origem do lead é obrigatória');
     }
     
     return errors;
@@ -263,7 +255,7 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="convenio" className="font-medium">Convênio *</Label>
+                  <Label htmlFor="convenio" className="font-medium">Convênio</Label>
                   <Select value={formData.convenio} onValueChange={(value) => handleInputChange('convenio', value)}>
                     <SelectTrigger className="h-10 mt-1">
                       <SelectValue placeholder="Selecione o convênio..." />
@@ -278,7 +270,7 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
                   </Select>
                 </div>
                 <div>
-                  <Label htmlFor="origemLead" className="font-medium">Origem do Lead *</Label>
+                  <Label htmlFor="origemLead" className="font-medium">Origem do Lead</Label>
                   <Select value={formData.origemLead} onValueChange={(value) => handleInputChange('origemLead', value)}>
                     <SelectTrigger className="h-10 mt-1">
                       <SelectValue placeholder="Como conheceu a clínica?" />
