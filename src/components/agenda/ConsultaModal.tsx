@@ -108,7 +108,9 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime }: Consulta
   };
 
   const handlePatientCreated = (patientId: string) => {
-    form.setValue('pacienteId', patientId);
+    // Seta imediatamente; o useEffect garante a seleção quando a lista atualizar
+    form.setValue('pacienteId', patientId, { shouldValidate: true, shouldDirty: true });
+    setPendingPatientId(patientId);
     setIsQuickPatientModalOpen(false);
   };
 
