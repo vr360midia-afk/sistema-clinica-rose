@@ -26,6 +26,15 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime }: Consulta
   const { user } = useAuth();
   const [isQuickPatientModalOpen, setIsQuickPatientModalOpen] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(false);
+  const [pendingPatientId, setPendingPatientId] = React.useState<string | null>(null);
+
+  // Quando um paciente acabou de ser criado e já apareceu na lista, seleciona-o
+  React.useEffect(() => {
+    if (pendingPatientId && pacientes.some((p) => p.id === pendingPatientId)) {
+      form.setValue('pacienteId', pendingPatientId, { shouldValidate: true, shouldDirty: true });
+      setPendingPatientId(null);
+    }
+  }, [pendingPatientId, pacientes, form]);
 
   const form = useForm<ConsultaFormData>({
     resolver: zodResolver(consultaSchema),
