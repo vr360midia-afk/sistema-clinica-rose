@@ -33,9 +33,6 @@ const Auth = () => {
       if (isLogin) {
         const { error } = await signIn(email, password);
 
-      if (isLogin) {
-        const { error } = await signIn(email, password);
-
         if (error) {
           toast({
             title: "Erro",
