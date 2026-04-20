@@ -358,7 +358,7 @@ class SupabaseService {
       .from('anamneses')
       .select('*')
       .eq('user_id', userId)
-      .order('data', { ascending: false });
+      .order('criado_em', { ascending: false });
 
     if (error) throw error;
     return data?.map(this.transformSupabaseToLocal) || [];
