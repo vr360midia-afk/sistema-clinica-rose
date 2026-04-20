@@ -62,7 +62,7 @@ const Dashboard = () => {
     <Layout>
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Dashboar  Odontológica</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Dashboard Odontológico</h1>
           <p className="text-gray-600">Bem-vindo de volta! Dados sincronizados com Supabase.</p>
         </div>
 
@@ -70,7 +70,7 @@ const Dashboard = () => {
         <MigrationStatus />
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <StatsCard
             title="Pacientes Ativos"
             value={pacientesAtivos.toString()}
@@ -106,7 +106,7 @@ const Dashboard = () => {
         </div>
 
         {/* Main Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <AppointmentsList />
           <RecentActivity />
         </div>
