@@ -3,7 +3,9 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Toaster } from '@/components/ui/sonner';
 import { DentalSystemProvider } from '@/context/DentalSystemContext';
 import { AuthProvider } from '@/context/AuthContext';
+import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import Index from '@/pages/Index';
+import Auth from '@/pages/Auth';
 import Dashboard from '@/pages/Dashboard';
 import Pacientes from '@/pages/Pacientes';
 import Agenda from '@/pages/Agenda';
@@ -28,21 +30,22 @@ function App() {
         <Router>
           <div className="App">
             <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/pacientes" element={<Pacientes />} />
-              <Route path="/agenda" element={<Agenda />} />
-              <Route path="/financeiro" element={<Financeiro />} />
-              <Route path="/prontuarios" element={<Prontuarios />} />
-              <Route path="/relatorios" element={<Relatorios />} />
-              <Route path="/configuracoes" element={<Configuracoes />} />
-              <Route path="/estoque" element={<Estoque />} />
-              <Route path="/procedimentos" element={<Procedimentos />} />
-              <Route path="/comunicacao" element={<Comunicacao />} />
-              <Route path="/notas" element={<Notas />} />
-              <Route path="/anamnese" element={<Anamnese />} />
-              <Route path="/admin" element={<Admin />} />
+              <Route path="/auth" element={<Auth />} />
               <Route path="/assinar-anamnese/:id" element={<AssinarAnamnese />} />
+              <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+              <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              <Route path="/pacientes" element={<ProtectedRoute><Pacientes /></ProtectedRoute>} />
+              <Route path="/agenda" element={<ProtectedRoute><Agenda /></ProtectedRoute>} />
+              <Route path="/financeiro" element={<ProtectedRoute><Financeiro /></ProtectedRoute>} />
+              <Route path="/prontuarios" element={<ProtectedRoute><Prontuarios /></ProtectedRoute>} />
+              <Route path="/relatorios" element={<ProtectedRoute><Relatorios /></ProtectedRoute>} />
+              <Route path="/configuracoes" element={<ProtectedRoute><Configuracoes /></ProtectedRoute>} />
+              <Route path="/estoque" element={<ProtectedRoute><Estoque /></ProtectedRoute>} />
+              <Route path="/procedimentos" element={<ProtectedRoute><Procedimentos /></ProtectedRoute>} />
+              <Route path="/comunicacao" element={<ProtectedRoute><Comunicacao /></ProtectedRoute>} />
+              <Route path="/notas" element={<ProtectedRoute><Notas /></ProtectedRoute>} />
+              <Route path="/anamnese" element={<ProtectedRoute><Anamnese /></ProtectedRoute>} />
+              <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
             <Toaster />
