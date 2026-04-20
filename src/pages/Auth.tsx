@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,18 +15,41 @@ const Auth = () => {
   const [nome, setNome] = useState('');
   const [loading, setLoading] = useState(false);
   
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      navigate('/', { replace: true });
+    }
+  }, [authLoading, user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      const { error } = isLogin 
-        ? await signIn(email, password)
-        : await signUp(email, password, nome);
+      if (isLogin) {
+        const { error } = await signIn(email, password);
+
+      if (isLogin) {
+        const { error } = await signIn(email, password);
+
+        if (error) {
+          toast({
+            title: "Erro",
+            description: error.message,
+            variant: "destructive"
+          });
+          return;
+        }
+
+        navigate('/');
+        return;
+      }
+
+      const { error, session, user } = await signUp(email, password, nome);
 
       if (error) {
         toast({
@@ -34,15 +57,18 @@ const Auth = () => {
           description: error.message,
           variant: "destructive"
         });
-      } else {
-        if (isLogin) {
-          navigate('/');
-        } else {
-          toast({
-            title: "Sucesso",
-            description: "Conta criada! Verifique seu email para confirmar."
-          });
-        }
+        return;
+      }
+
+      toast({
+        title: "Sucesso",
+        description: session || user
+          ? "Conta criada com sucesso! Você já está logado."
+          : "Conta criada! Verifique seu email para confirmar."
+      });
+
+      if (session || user) {
+        navigate('/');
       }
     } catch (err) {
       toast({
