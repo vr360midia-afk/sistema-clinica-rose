@@ -35,8 +35,10 @@ const Auth = () => {
 
         if (error) {
           toast({
-            title: "Erro",
-            description: error.message,
+            title: "Erro ao entrar",
+            description: error.message === "Invalid login credentials"
+              ? "Email ou senha incorretos."
+              : error.message,
             variant: "destructive"
           });
           return;
@@ -46,11 +48,20 @@ const Auth = () => {
         return;
       }
 
+      if (password.length < 6) {
+        toast({
+          title: "Senha muito curta",
+          description: "A senha precisa ter pelo menos 6 caracteres.",
+          variant: "destructive"
+        });
+        return;
+      }
+
       const { error, session, user } = await signUp(email, password, nome);
 
       if (error) {
         toast({
-          title: "Erro",
+          title: "Erro ao criar conta",
           description: error.message,
           variant: "destructive"
         });
