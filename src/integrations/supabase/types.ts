@@ -117,6 +117,45 @@ export type Database = {
           },
         ]
       }
+      dentistas: {
+        Row: {
+          ativo: boolean
+          atualizado_em: string
+          criado_em: string
+          cro: string | null
+          email: string | null
+          especialidade: string | null
+          id: string
+          nome: string
+          telefone: string | null
+          user_id: string
+        }
+        Insert: {
+          ativo?: boolean
+          atualizado_em?: string
+          criado_em?: string
+          cro?: string | null
+          email?: string | null
+          especialidade?: string | null
+          id?: string
+          nome: string
+          telefone?: string | null
+          user_id: string
+        }
+        Update: {
+          ativo?: boolean
+          atualizado_em?: string
+          criado_em?: string
+          cro?: string | null
+          email?: string | null
+          especialidade?: string | null
+          id?: string
+          nome?: string
+          telefone?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       documentos_paciente: {
         Row: {
           atualizado_em: string
