@@ -8,7 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
-import { Settings, Wifi, Bell, Shield, Database, MessageSquare } from 'lucide-react';
+import { Settings, Wifi, Bell, Shield, Database, MessageSquare, UserCog } from 'lucide-react';
+import DentistasManager from '@/components/configuracoes/DentistasManager';
 
 const Configuracoes = () => {
   const { toast } = useToast();
@@ -66,12 +67,17 @@ const Configuracoes = () => {
         </div>
 
         <Tabs defaultValue="geral" className="space-y-6">
-          <TabsList>
+          <TabsList className="flex flex-wrap h-auto">
             <TabsTrigger value="geral">Geral</TabsTrigger>
+            <TabsTrigger value="dentistas"><UserCog className="h-4 w-4 mr-1" />Dentistas</TabsTrigger>
             <TabsTrigger value="apis">APIs</TabsTrigger>
             <TabsTrigger value="notificacoes">Notificações</TabsTrigger>
             <TabsTrigger value="backup">Backup</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="dentistas">
+            <DentistasManager />
+          </TabsContent>
 
           <TabsContent value="geral">
             <Card>

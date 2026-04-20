@@ -13,6 +13,8 @@ import { CalendarIcon, Clock, User, UserPlus, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth } from '@/context/AuthContext';
 import QuickPatientModal from './QuickPatientModal';
+import { useDentistas } from '@/hooks/useDentistas';
+import { Link } from 'react-router-dom';
 
 interface ConsultaModalProps {
   isOpen: boolean;
@@ -24,6 +26,8 @@ interface ConsultaModalProps {
 const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime }: ConsultaModalProps) => {
   const { pacientes, addConsulta } = useDentalSystem();
   const { user } = useAuth();
+  const { dentistas } = useDentistas();
+  const dentistasAtivos = dentistas.filter((d) => d.ativo);
   const [isQuickPatientModalOpen, setIsQuickPatientModalOpen] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(false);
   const [pendingPatientId, setPendingPatientId] = React.useState<string | null>(null);
@@ -275,9 +279,29 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime }: Consulta
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Dentista</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Nome do dentista" {...field} />
-                    </FormControl>
+                    {dentistasAtivos.length > 0 ? (
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione um dentista" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {dentistasAtivos.map((d) => (
+                            <SelectItem key={d.id} value={d.nome}>
+                              {d.nome}{d.especialidade ? ` — ${d.especialidade}` : ''}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        Nenhum dentista cadastrado.{' '}
+                        <Link to="/configuracoes" className="text-primary underline" onClick={onClose}>
+                          Cadastrar agora
+                        </Link>
+                      </p>
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}
