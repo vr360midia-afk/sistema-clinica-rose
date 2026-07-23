@@ -77,8 +77,13 @@ const Pacientes = () => {
 
   const confirmDelete = async () => {
     const patient = deleteModal.patient;
+    setDeleteModal({ isOpen: false, patient: null });
     if (patient) {
-      await deletePaciente(patient.id);
+      try {
+        await deletePaciente(patient.id);
+      } catch (e) {
+        console.error(e);
+      }
     }
   };
 
