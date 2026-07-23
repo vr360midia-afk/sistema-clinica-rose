@@ -66,8 +66,13 @@ const Pacientes = () => {
 
   const confirmArchive = async (motivo: string) => {
     const patient = archiveModal.patient;
+    setArchiveModal({ isOpen: false, patient: null });
     if (patient) {
-      await archivePaciente(patient.id, motivo);
+      try {
+        await archivePaciente(patient.id, motivo);
+      } catch (e) {
+        console.error(e);
+      }
     }
   };
 
@@ -77,8 +82,13 @@ const Pacientes = () => {
 
   const confirmDelete = async () => {
     const patient = deleteModal.patient;
+    setDeleteModal({ isOpen: false, patient: null });
     if (patient) {
-      await deletePaciente(patient.id);
+      try {
+        await deletePaciente(patient.id);
+      } catch (e) {
+        console.error(e);
+      }
     }
   };
 
