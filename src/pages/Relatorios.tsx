@@ -140,7 +140,7 @@ const Relatorios = () => {
   return (
     <Layout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-3">
             <TrendingUp className="h-6 w-6 text-blue-600" />
             <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Relatórios e Análises</h1>
