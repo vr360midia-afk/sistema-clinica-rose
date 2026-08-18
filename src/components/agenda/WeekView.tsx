@@ -84,7 +84,8 @@ const WeekView = ({ selectedDate, onDateChange, consultas, onAppointmentClick, o
         </div>
       </CardHeader>
       <CardContent className="p-0">
-        <div className="grid grid-cols-8 text-xs border rounded-lg overflow-hidden">
+        <div className="overflow-x-auto">
+        <div className="grid grid-cols-8 text-xs border rounded-lg overflow-hidden min-w-[720px]">
           {/* Header */}
           <div className="p-2 font-semibold bg-gray-50 border-r">Horário</div>
           {weekDays.map(day => (
@@ -134,6 +135,7 @@ const WeekView = ({ selectedDate, onDateChange, consultas, onAppointmentClick, o
               })}
             </div>
           ))}
+        </div>
         </div>
       </CardContent>
     </Card>
