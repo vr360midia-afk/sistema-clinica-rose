@@ -48,7 +48,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
       {/* Mobile overlay */}
       {isOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black bg-opacity-50 lg:hidden"
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-[1px] lg:hidden animate-in fade-in"
           onClick={onClose}
         />
       )}
@@ -75,17 +75,19 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
           </button>
         </div>
 
-        <nav className="mt-2 px-2 pb-4 h-full overflow-y-auto">
+        <nav className="mt-2 px-2 pb-24 h-full overflow-y-auto overscroll-contain safe-bottom">
           <ul className="space-y-1">
             {navigation.map((item) => {
-              const isActive = location.pathname === item.href;
+              const isActive =
+                location.pathname === item.href ||
+                (item.href === '/' && location.pathname === '/dashboard');
               return (
                 <li key={item.name}>
                   <Link
                     to={item.href}
                     onClick={onClose}
                     className={cn(
-                      'flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors w-full',
+                      'flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors w-full active:scale-[0.99]',
                       isActive
                         ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700'
                         : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
