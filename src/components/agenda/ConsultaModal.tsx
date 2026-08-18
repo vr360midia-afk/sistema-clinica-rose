@@ -18,6 +18,9 @@ import { Link } from 'react-router-dom';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
+import { buildConsultaMessage, openWhatsApp } from '@/lib/whatsapp';
+
 
 interface ConsultaModalProps {
   isOpen: boolean;
