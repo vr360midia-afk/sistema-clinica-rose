@@ -291,6 +291,7 @@ export type Database = {
           convenio: string | null
           cpf: string | null
           criado_em: string
+          data_arquivamento: string | null
           email: string | null
           endereco: string | null
           estado_civil: string | null
@@ -299,10 +300,12 @@ export type Database = {
           id: string
           idade: number | null
           medicamentos: string | null
+          motivo_arquivamento: string | null
           nome: string
           observacoes: string | null
           origem_lead: string | null
           profissao: string | null
+          proxima_consulta: string | null
           rg: string | null
           status: string | null
           telefone: string | null
@@ -315,6 +318,7 @@ export type Database = {
           convenio?: string | null
           cpf?: string | null
           criado_em?: string
+          data_arquivamento?: string | null
           email?: string | null
           endereco?: string | null
           estado_civil?: string | null
@@ -323,10 +327,12 @@ export type Database = {
           id?: string
           idade?: number | null
           medicamentos?: string | null
+          motivo_arquivamento?: string | null
           nome: string
           observacoes?: string | null
           origem_lead?: string | null
           profissao?: string | null
+          proxima_consulta?: string | null
           rg?: string | null
           status?: string | null
           telefone?: string | null
@@ -339,6 +345,7 @@ export type Database = {
           convenio?: string | null
           cpf?: string | null
           criado_em?: string
+          data_arquivamento?: string | null
           email?: string | null
           endereco?: string | null
           estado_civil?: string | null
@@ -347,10 +354,12 @@ export type Database = {
           id?: string
           idade?: number | null
           medicamentos?: string | null
+          motivo_arquivamento?: string | null
           nome?: string
           observacoes?: string | null
           origem_lead?: string | null
           profissao?: string | null
+          proxima_consulta?: string | null
           rg?: string | null
           status?: string | null
           telefone?: string | null
