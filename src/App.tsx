@@ -21,7 +21,6 @@ import Anamnese from '@/pages/Anamnese';
 import Admin from '@/pages/Admin';
 import AssinarAnamnese from '@/pages/AssinarAnamnese';
 import NotFound from '@/pages/NotFound';
-import './App.css';
 
 function App() {
   return (
