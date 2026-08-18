@@ -114,13 +114,24 @@ const Agenda = () => {
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">Agenda</h1>
             <p className="text-sm sm:text-base text-gray-600">Gerencie seus agendamentos e consultas</p>
           </div>
-          <Button 
-            className="flex items-center gap-2 w-full sm:w-auto justify-center"
-            onClick={handleNewAppointment}
-          >
-            <Plus className="h-4 w-4" />
-            Nova Consulta
-          </Button>
+          <div className="flex gap-2 w-full sm:w-auto">
+            <Button
+              variant="outline"
+              className="flex items-center gap-2 flex-1 sm:flex-none justify-center"
+              onClick={handleExportAgenda}
+            >
+              <CalendarDays className="h-4 w-4" />
+              Exportar (.ics)
+            </Button>
+            <Button
+              className="flex items-center gap-2 flex-1 sm:flex-none justify-center"
+              onClick={handleNewAppointment}
+            >
+              <Plus className="h-4 w-4" />
+              Nova Consulta
+            </Button>
+          </div>
+
         </div>
 
         <div className="flex flex-wrap gap-1 border-b border-gray-200 pb-2">
