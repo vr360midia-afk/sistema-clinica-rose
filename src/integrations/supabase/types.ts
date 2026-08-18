@@ -157,6 +157,60 @@ export type Database = {
         }
         Relationships: []
       }
+      configuracoes: {
+        Row: {
+          atualizado_em: string
+          backup_automatico: boolean
+          cnpj: string | null
+          criado_em: string
+          email: string | null
+          email_notificacoes: boolean
+          endereco: string | null
+          frequencia_backup: string
+          id: string
+          lembrete_24h: boolean
+          lembrete_2h: boolean
+          nome_clinica: string | null
+          telefone: string | null
+          user_id: string
+          whatsapp_lembretes: boolean
+        }
+        Insert: {
+          atualizado_em?: string
+          backup_automatico?: boolean
+          cnpj?: string | null
+          criado_em?: string
+          email?: string | null
+          email_notificacoes?: boolean
+          endereco?: string | null
+          frequencia_backup?: string
+          id?: string
+          lembrete_24h?: boolean
+          lembrete_2h?: boolean
+          nome_clinica?: string | null
+          telefone?: string | null
+          user_id: string
+          whatsapp_lembretes?: boolean
+        }
+        Update: {
+          atualizado_em?: string
+          backup_automatico?: boolean
+          cnpj?: string | null
+          criado_em?: string
+          email?: string | null
+          email_notificacoes?: boolean
+          endereco?: string | null
+          frequencia_backup?: string
+          id?: string
+          lembrete_24h?: boolean
+          lembrete_2h?: boolean
+          nome_clinica?: string | null
+          telefone?: string | null
+          user_id?: string
+          whatsapp_lembretes?: boolean
+        }
+        Relationships: []
+      }
       consultas: {
         Row: {
           atualizado_em: string
