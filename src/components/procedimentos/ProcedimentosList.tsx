@@ -19,7 +19,9 @@ interface ProcedimentosListProps {
   procedimentos: Procedimento[];
   onEdit: (procedimento: Procedimento) => void;
   onDelete: (id: string) => void;
+  onDuplicate?: (procedimento: Procedimento) => void;
 }
+
 
 const getCategoriaColor = (categoria: string) => {
   const colors: Record<string, string> = {
