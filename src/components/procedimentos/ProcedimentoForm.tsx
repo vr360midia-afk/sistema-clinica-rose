@@ -232,8 +232,9 @@ const ProcedimentoForm = ({ procedimento, onSave, onCancel }: ProcedimentoFormPr
                         type="number"
                         step="0.01"
                         min="0"
-                        value={formData.preco}
-                        onChange={(e) => setFormData(prev => ({ ...prev, preco: parseFloat(e.target.value) || 0 }))}
+                        value={formData.preco === 0 ? '' : formData.preco}
+                        placeholder="0,00"
+                        onChange={(e) => { const v = e.target.value.replace(/^0+(?=\d)/, ''); setFormData(prev => ({ ...prev, preco: v === '' ? 0 : parseFloat(v) || 0 })); }}
                         required
                       />
                     </div>
@@ -244,8 +245,9 @@ const ProcedimentoForm = ({ procedimento, onSave, onCancel }: ProcedimentoFormPr
                         type="number"
                         step="0.01"
                         min="0"
-                        value={formData.precoConvenio}
-                        onChange={(e) => setFormData(prev => ({ ...prev, precoConvenio: parseFloat(e.target.value) || 0 }))}
+                        value={formData.precoConvenio === 0 ? '' : formData.precoConvenio}
+                        placeholder="0,00"
+                        onChange={(e) => { const v = e.target.value.replace(/^0+(?=\d)/, ''); setFormData(prev => ({ ...prev, precoConvenio: v === '' ? 0 : parseFloat(v) || 0 })); }}
                       />
                     </div>
                     <div>
@@ -255,8 +257,9 @@ const ProcedimentoForm = ({ procedimento, onSave, onCancel }: ProcedimentoFormPr
                         type="number"
                         step="0.01"
                         min="0"
-                        value={formData.custoMaterial}
-                        onChange={(e) => setFormData(prev => ({ ...prev, custoMaterial: parseFloat(e.target.value) || 0 }))}
+                        value={formData.custoMaterial === 0 ? '' : formData.custoMaterial}
+                        placeholder="0,00"
+                        onChange={(e) => { const v = e.target.value.replace(/^0+(?=\d)/, ''); setFormData(prev => ({ ...prev, custoMaterial: v === '' ? 0 : parseFloat(v) || 0 })); }}
                       />
                     </div>
                   </div>
@@ -277,8 +280,8 @@ const ProcedimentoForm = ({ procedimento, onSave, onCancel }: ProcedimentoFormPr
                         id="duracaoMinutos"
                         type="number"
                         min="1"
-                        value={formData.duracaoMinutos}
-                        onChange={(e) => setFormData(prev => ({ ...prev, duracaoMinutos: parseInt(e.target.value) || 60 }))}
+                        value={formData.duracaoMinutos === 0 ? '' : formData.duracaoMinutos}
+                        onChange={(e) => { const v = e.target.value.replace(/^0+(?=\d)/, ''); setFormData(prev => ({ ...prev, duracaoMinutos: v === '' ? 0 : parseInt(v) || 0 })); }}
                         required
                       />
                     </div>
