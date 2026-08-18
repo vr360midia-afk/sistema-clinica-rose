@@ -26,8 +26,9 @@ const Pacientes = () => {
   } = useDentalSystem();
   
   const [showForm, setShowForm] = useState(false);
+  const [searchParams] = useSearchParams();
   const [selectedPatient, setSelectedPatient] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || '');
   const [editingPatient, setEditingPatient] = useState(null);
   const [activeTab, setActiveTab] = useState('ativos');
   
@@ -35,18 +36,18 @@ const Pacientes = () => {
   const [archiveModal, setArchiveModal] = useState({ isOpen: false, patient: null });
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, patient: null });
 
-  console.log('Pacientes component loaded, pacientes:', pacientes);
-
   const pacientesAtivos = pacientes.filter(p => p.status === 'Ativo' || p.status === 'Inativo');
   const pacientesArquivados = pacientes.filter(p => p.status === 'Arquivado');
 
   const currentPacientes = activeTab === 'ativos' ? pacientesAtivos : pacientesArquivados;
-  
+
+  const termo = searchTerm.toLowerCase();
   const filteredPacientes = currentPacientes.filter(paciente =>
-    paciente.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    paciente.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    paciente.telefone.includes(searchTerm)
+    (paciente.nome || '').toLowerCase().includes(termo) ||
+    (paciente.email || '').toLowerCase().includes(termo) ||
+    (paciente.telefone || '').includes(searchTerm)
   );
+
 
   const handleEditPatient = (patient: any) => {
     console.log('Editing patient:', patient);
