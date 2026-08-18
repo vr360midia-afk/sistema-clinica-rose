@@ -108,7 +108,7 @@ const ProntuarioModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Prontu
             )}
 
             <div>
-              <Label htmlFor="queixa">Queixa Principal *</Label>
+              <Label htmlFor="queixa">Queixa Principal</Label>
               <Textarea
                 id="queixa"
                 placeholder="Descreva a queixa principal do paciente..."
