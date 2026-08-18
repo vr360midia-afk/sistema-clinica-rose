@@ -150,7 +150,7 @@ const Anamnese = () => {
                 <ArrowLeft className="h-4 w-4" />
               </Button>
               <Clipboard className="h-6 w-6 text-blue-600" />
-              <h1 className="text-2xl font-bold text-gray-900">Nova Anamnese</h1>
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Nova Anamnese</h1>
             </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => setShowForm(false)}>
@@ -195,7 +195,7 @@ const Anamnese = () => {
               <div className="space-y-6">
                 <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Medicamentos e Alergias</h3>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label className="text-sm font-medium">Está tomando algum medicamento?</Label>
                     <RadioGroup 
@@ -264,7 +264,7 @@ const Anamnese = () => {
               <div className="space-y-6">
                 <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Condições Médicas Gerais</h3>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label className="text-sm font-medium">Sua pressão é:</Label>
                     <RadioGroup 
@@ -516,7 +516,7 @@ const Anamnese = () => {
               <div className="space-y-6">
                 <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Saúde Bucal</h3>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label className="text-sm font-medium">Tem sentido alguma dor nos dentes ou na gengiva?</Label>
                     <RadioGroup 
@@ -724,7 +724,7 @@ const Anamnese = () => {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Clipboard className="h-6 w-6 text-blue-600" />
-            <h1 className="text-2xl font-bold text-gray-900">Anamnese</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Anamnese</h1>
           </div>
           <Button onClick={() => setShowForm(true)} className="bg-blue-600 hover:bg-blue-700">
             <Plus className="h-4 w-4 mr-2" />

@@ -19,7 +19,7 @@ const Dashboard = () => {
       <Layout>
         <div className="space-y-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Dashboard</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Dashboard</h1>
             <p className="text-gray-600">Faça login para acessar seus dados</p>
           </div>
         </div>

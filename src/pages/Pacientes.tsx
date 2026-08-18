@@ -176,7 +176,7 @@ const Pacientes = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600">Total de Pacientes</p>
-                  <p className="text-2xl font-bold">{pacientes.length}</p>
+                  <p className="text-xl sm:text-2xl font-bold">{pacientes.length}</p>
                 </div>
                 <Users className="h-8 w-8 text-blue-600" />
               </div>
@@ -188,7 +188,7 @@ const Pacientes = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600">Pacientes Ativos</p>
-                  <p className="text-2xl font-bold">{pacientes.filter(p => p.status === 'Ativo').length}</p>
+                  <p className="text-xl sm:text-2xl font-bold">{pacientes.filter(p => p.status === 'Ativo').length}</p>
                 </div>
                 <UserCheck className="h-8 w-8 text-green-600" />
               </div>
@@ -200,7 +200,7 @@ const Pacientes = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600">Próximas Consultas</p>
-                  <p className="text-2xl font-bold">{pacientes.filter(p => p.proximaConsulta).length}</p>
+                  <p className="text-xl sm:text-2xl font-bold">{pacientes.filter(p => p.proximaConsulta).length}</p>
                 </div>
                 <Calendar className="h-8 w-8 text-purple-600" />
               </div>
@@ -212,7 +212,7 @@ const Pacientes = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600">Arquivados</p>
-                  <p className="text-2xl font-bold">{pacientes.filter(p => p.status === 'Arquivado').length}</p>
+                  <p className="text-xl sm:text-2xl font-bold">{pacientes.filter(p => p.status === 'Arquivado').length}</p>
                 </div>
                 <Archive className="h-8 w-8 text-gray-600" />
               </div>

@@ -42,7 +42,7 @@ const Prontuarios = () => {
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Prontuários</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Prontuários</h1>
             <p className="text-gray-600">Gerencie prontuários e fichas clínicas</p>
           </div>
           <Button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2">
@@ -51,7 +51,7 @@ const Prontuarios = () => {
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* Lista de Prontuários */}
           <Card>
             <CardHeader>

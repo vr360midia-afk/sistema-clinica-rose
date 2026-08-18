@@ -161,7 +161,7 @@ const Estoque = () => {
     <Layout>
       <div className="space-y-6">
         <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold">Controle de Estoque</h1>
+          <h1 className="text-xl sm:text-2xl font-bold">Controle de Estoque</h1>
           <Button onClick={() => setShowNew(true)} className="flex items-center gap-2">
             <Plus className="h-4 w-4" />
             Novo Produto

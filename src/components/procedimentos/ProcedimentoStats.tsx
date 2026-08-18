@@ -84,7 +84,7 @@ const ProcedimentoStats = ({ procedimentos }: ProcedimentoStatsProps) => {
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalProcedimentos}</div>
+            <div className="text-xl sm:text-2xl font-bold">{totalProcedimentos}</div>
             <p className="text-xs text-muted-foreground">
               {procedimentosAtivos} ativos
             </p>
@@ -97,7 +97,7 @@ const ProcedimentoStats = ({ procedimentos }: ProcedimentoStatsProps) => {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">R$ {precoMedio.toFixed(2)}</div>
+            <div className="text-xl sm:text-2xl font-bold">R$ {precoMedio.toFixed(2)}</div>
             <p className="text-xs text-muted-foreground">
               Por procedimento
             </p>
@@ -110,7 +110,7 @@ const ProcedimentoStats = ({ procedimentos }: ProcedimentoStatsProps) => {
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{Math.round(duracaoMedia)} min</div>
+            <div className="text-xl sm:text-2xl font-bold">{Math.round(duracaoMedia)} min</div>
             <p className="text-xs text-muted-foreground">
               Por procedimento
             </p>
@@ -123,7 +123,7 @@ const ProcedimentoStats = ({ procedimentos }: ProcedimentoStatsProps) => {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-xl sm:text-2xl font-bold">
               R$ {(precoMedio * totalProcedimentos).toFixed(2)}
             </div>
             <p className="text-xs text-muted-foreground">
@@ -134,7 +134,7 @@ const ProcedimentoStats = ({ procedimentos }: ProcedimentoStatsProps) => {
       </div>
 
       {/* Gráficos */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
           <CardHeader>
             <CardTitle>Procedimentos por Categoria</CardTitle>

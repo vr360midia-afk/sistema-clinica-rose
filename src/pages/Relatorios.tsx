@@ -143,7 +143,7 @@ const Relatorios = () => {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <TrendingUp className="h-6 w-6 text-blue-600" />
-            <h1 className="text-2xl font-bold text-gray-900">Relatórios e Análises</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Relatórios e Análises</h1>
           </div>
           <div className="flex gap-2">
             <Select value={periodo} onValueChange={setPeriodo}>
@@ -165,14 +165,14 @@ const Relatorios = () => {
         </div>
 
         {/* Estatísticas Gerais */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           {estatisticas.map((stat, index) => (
             <Card key={index}>
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-600">{stat.titulo}</p>
-                    <p className="text-2xl font-bold">{stat.valor}</p>
+                    <p className="text-xl sm:text-2xl font-bold">{stat.valor}</p>
                   </div>
                   <div className="flex flex-col items-end">
                     <stat.icon className={`h-6 w-6 ${stat.cor}`} />
@@ -186,7 +186,7 @@ const Relatorios = () => {
           ))}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Gráfico Financeiro */}
           <Card>
             <CardHeader>
@@ -241,7 +241,7 @@ const Relatorios = () => {
           </Card>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Gráfico de Agendamentos */}
           <Card>
             <CardHeader>
