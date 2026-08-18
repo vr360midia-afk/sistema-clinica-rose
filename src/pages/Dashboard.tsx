@@ -4,7 +4,6 @@ import Layout from '@/components/layout/Layout';
 import StatsCard from '@/components/dashboard/StatsCard';
 import AppointmentsList from '@/components/dashboard/AppointmentsList';
 import RecentActivity from '@/components/dashboard/RecentActivity';
-import MigrationStatus from '@/components/migration/MigrationStatus';
 import { Users, Calendar, CreditCard, TrendingUp } from 'lucide-react';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import { useAuth } from '@/context/AuthContext';
@@ -63,11 +62,8 @@ const Dashboard = () => {
       <div className="space-y-6">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Dashboard Odontológico</h1>
-          <p className="text-gray-600">Bem-vindo de volta! Dados sincronizados com Supabase.</p>
+          <p className="text-gray-600">Bem-vindo de volta! Seus dados estão sincronizados na nuvem.</p>
         </div>
-
-        {/* Migration Status */}
-        <MigrationStatus />
 
         {/* Stats Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
