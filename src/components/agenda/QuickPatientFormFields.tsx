@@ -15,7 +15,7 @@ interface QuickPatientFormFieldsProps {
 
 const QuickPatientFormFields = ({ form }: QuickPatientFormFieldsProps) => {
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
       {/* Coluna Principal - Dados Pessoais */}
       <div className="lg:col-span-2 space-y-8">
         {/* Dados Pessoais */}
@@ -42,7 +42,7 @@ const QuickPatientFormFields = ({ form }: QuickPatientFormFieldsProps) => {
               )}
             />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="email"
@@ -81,7 +81,7 @@ const QuickPatientFormFields = ({ form }: QuickPatientFormFieldsProps) => {
               />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="idade"
@@ -125,7 +125,7 @@ const QuickPatientFormFields = ({ form }: QuickPatientFormFieldsProps) => {
               />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="rg"
@@ -181,7 +181,7 @@ const QuickPatientFormFields = ({ form }: QuickPatientFormFieldsProps) => {
               )}
             />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="estadoCivil"
@@ -306,7 +306,7 @@ const QuickPatientFormFields = ({ form }: QuickPatientFormFieldsProps) => {
               )}
             />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="alergias"

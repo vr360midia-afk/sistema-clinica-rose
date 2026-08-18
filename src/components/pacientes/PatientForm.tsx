@@ -131,12 +131,12 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
         <Button variant="ghost" size="sm" onClick={onClose}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <h1 className="text-2xl font-bold text-gray-900">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
           {patient ? 'Editar Paciente' : 'Novo Paciente'}
         </h1>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Dados Pessoais */}
         <div className="lg:col-span-2 space-y-6">
           <Card className="shadow-sm">

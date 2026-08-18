@@ -137,7 +137,7 @@ const ProcedimentoForm = ({ procedimento, onSave, onCancel }: ProcedimentoFormPr
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <Tabs defaultValue="basico">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto">
               <TabsTrigger value="basico">Básico</TabsTrigger>
               <TabsTrigger value="financeiro">Financeiro</TabsTrigger>
               <TabsTrigger value="operacional">Operacional</TabsTrigger>

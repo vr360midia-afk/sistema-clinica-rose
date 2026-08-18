@@ -117,14 +117,14 @@ const WhatsAppManager = () => {
   return (
     <div className="space-y-6">
       <Tabs defaultValue="send" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-3 h-auto">
           <TabsTrigger value="send">Enviar Mensagens</TabsTrigger>
           <TabsTrigger value="templates">Templates</TabsTrigger>
           <TabsTrigger value="campaigns">Campanhas</TabsTrigger>
         </TabsList>
 
         <TabsContent value="send">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Composer */}
             <Card>
               <CardHeader>

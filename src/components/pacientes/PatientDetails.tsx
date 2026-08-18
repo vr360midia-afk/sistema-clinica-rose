@@ -23,7 +23,7 @@ const PatientDetails = ({ patient, onClose, onEdit }: PatientDetailsProps) => {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">{patient.nome}</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">{patient.nome}</h1>
             <p className="text-sm text-gray-600">{patient.email} • {patient.telefone}</p>
           </div>
         </div>
@@ -34,7 +34,7 @@ const PatientDetails = ({ patient, onClose, onEdit }: PatientDetailsProps) => {
       </div>
 
       <Tabs defaultValue="personal" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto">
           <TabsTrigger value="personal" className="flex items-center gap-2">
             <User className="h-4 w-4" />
             Dados Pessoais
