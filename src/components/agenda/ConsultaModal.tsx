@@ -106,6 +106,26 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime }: Consulta
         userId: user.id
       };
       await addConsulta(consultaData);
+
+      // Avisar a dentista pelo WhatsApp
+      const dentista = dentistasAtivos.find((d) => d.nome === data.dentista);
+      const paciente = pacientes.find((p) => p.id === data.pacienteId);
+      if (dentista) {
+        const mensagem = buildConsultaMessage({
+          dentistaNome: dentista.nome,
+          pacienteNome: paciente?.nome,
+          data: data.data,
+          hora: data.hora,
+          duracao: data.duracao,
+          procedimento: data.procedimento,
+          observacoes: data.observacoes || undefined,
+        });
+        const aberto = openWhatsApp(dentista.telefone, mensagem);
+        if (!aberto) {
+          toast.warning(`Sem WhatsApp válido para ${dentista.nome}. Cadastre o telefone em Configurações > Dentistas.`);
+        }
+      }
+
       onClose();
       form.reset();
     } catch (error) {
@@ -114,6 +134,7 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime }: Consulta
       setIsLoading(false);
     }
   };
+
 
   const handlePatientCreated = (patientId: string) => {
     // Seta imediatamente; o useEffect garante a seleção quando a lista atualizar
