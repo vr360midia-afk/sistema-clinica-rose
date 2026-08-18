@@ -49,10 +49,6 @@ const ProntuarioModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Prontu
       return;
     }
 
-    if (!queixaPrincipal.trim()) {
-      toast.error('Informe a queixa principal');
-      return;
-    }
 
     try {
       const patient = pacientes.find(p => p.id === selectedPatient);
@@ -112,7 +108,7 @@ const ProntuarioModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Prontu
             )}
 
             <div>
-              <Label htmlFor="queixa">Queixa Principal *</Label>
+              <Label htmlFor="queixa">Queixa Principal</Label>
               <Textarea
                 id="queixa"
                 placeholder="Descreva a queixa principal do paciente..."
