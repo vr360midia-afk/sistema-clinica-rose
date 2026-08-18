@@ -49,10 +49,6 @@ const ProntuarioModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Prontu
       return;
     }
 
-    if (!queixaPrincipal.trim()) {
-      toast.error('Informe a queixa principal');
-      return;
-    }
 
     try {
       const patient = pacientes.find(p => p.id === selectedPatient);
