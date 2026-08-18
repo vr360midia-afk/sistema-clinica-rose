@@ -37,7 +37,7 @@ interface DentalSystemContextType {
   addAnamnese: (anamnese: Omit<Anamnese, 'id' | 'criadoEm' | 'atualizadoEm'>) => Promise<Anamnese>;
   updateAnamnese: (id: string, updates: Partial<Anamnese>) => Promise<void>;
   deleteAnamnese: (id: string) => Promise<void>;
-  generateSignatureLink: (anamneseId: string) => string;
+  generateSignatureLink: (anamneseId: string) => Promise<string>;
   signAnamnese: (id: string, signatureData: any, signerType: 'paciente' | 'dentista') => Promise<void>;
 
   addDocumento: (documento: Omit<DocumentoPaciente, 'id' | 'criadoEm' | 'atualizadoEm'>) => Promise<void>;
@@ -384,7 +384,7 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   };
 
-  const generateSignatureLink = (anamneseId: string): string => {
+  const generateSignatureLink = async (anamneseId: string): Promise<string> => {
     const anamnese = anamneses.find(a => a.id === anamneseId);
     if (!anamnese) return '';
     
@@ -393,7 +393,7 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
     expiracaoLink.setDate(expiracaoLink.getDate() + 7); // 7 dias para expirar
     
     // Atualizar anamnese com token
-    updateAnamnese(anamneseId, {
+    await updateAnamnese(anamneseId, {
       tokenAssinatura: token,
       dataExpiracaoLink: expiracaoLink,
       linkAssinatura: `${window.location.origin}/assinar-anamnese/${anamneseId}?token=${token}`
