@@ -73,6 +73,7 @@ export type Database = {
           documento_tipo: string | null
           id: string
           nome: string
+          paciente_id: string | null
           tipo: string
           user_id: string
         }
@@ -84,6 +85,7 @@ export type Database = {
           documento_tipo?: string | null
           id?: string
           nome: string
+          paciente_id?: string | null
           tipo?: string
           user_id: string
         }
@@ -95,6 +97,7 @@ export type Database = {
           documento_tipo?: string | null
           id?: string
           nome?: string
+          paciente_id?: string | null
           tipo?: string
           user_id?: string
         }
