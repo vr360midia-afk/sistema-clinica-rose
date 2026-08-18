@@ -177,10 +177,7 @@ class SupabaseService {
 
   async savePaciente(paciente: Omit<Paciente, 'id' | 'criadoEm' | 'atualizadoEm'>): Promise<Paciente> {
     const userId = await this.getCurrentUserId();
-    const pacienteData = this.transformLocalToSupabase({
-      ...paciente,
-      user_id: userId
-    });
+    const pacienteData = this.transformLocalToSupabase({ ...paciente, user_id: userId }, 'pacientes');
 
     const { data, error } = await supabase
       .from('pacientes')
@@ -194,7 +191,7 @@ class SupabaseService {
 
   async updatePaciente(id: string, updates: Partial<Paciente>): Promise<Paciente | null> {
     const userId = await this.getCurrentUserId();
-    const updateData = this.transformLocalToSupabase(updates);
+    const updateData = this.transformLocalToSupabase(updates, 'pacientes');
 
     const { data, error } = await supabase
       .from('pacientes')
@@ -235,10 +232,7 @@ class SupabaseService {
 
   async saveConsulta(consulta: Omit<Consulta, 'id' | 'criadoEm' | 'atualizadoEm'>): Promise<Consulta> {
     const userId = await this.getCurrentUserId();
-    const consultaData = this.transformLocalToSupabase({
-      ...consulta,
-      user_id: userId
-    });
+    const consultaData = this.transformLocalToSupabase({ ...consulta, user_id: userId }, 'consultas');
 
     const { data, error } = await supabase
       .from('consultas')
@@ -252,7 +246,7 @@ class SupabaseService {
 
   async updateConsulta(id: string, updates: Partial<Consulta>): Promise<Consulta | null> {
     const userId = await this.getCurrentUserId();
-    const updateData = this.transformLocalToSupabase(updates);
+    const updateData = this.transformLocalToSupabase(updates, 'consultas');
 
     const { data, error } = await supabase
       .from('consultas')
@@ -293,10 +287,7 @@ class SupabaseService {
 
   async saveTransacao(transacao: Omit<Transacao, 'id' | 'criadoEm' | 'atualizadoEm'>): Promise<Transacao> {
     const userId = await this.getCurrentUserId();
-    const transacaoData = this.transformLocalToSupabase({
-      ...transacao,
-      user_id: userId
-    });
+    const transacaoData = this.transformLocalToSupabase({ ...transacao, user_id: userId }, 'transacoes');
 
     const { data, error } = await supabase
       .from('transacoes')
@@ -310,7 +301,7 @@ class SupabaseService {
 
   async updateTransacao(id: string, updates: Partial<Transacao>): Promise<Transacao | null> {
     const userId = await this.getCurrentUserId();
-    const updateData = this.transformLocalToSupabase(updates);
+    const updateData = this.transformLocalToSupabase(updates, 'transacoes');
 
     const { data, error } = await supabase
       .from('transacoes')
@@ -351,10 +342,7 @@ class SupabaseService {
 
   async saveProntuario(prontuario: Omit<Prontuario, 'id' | 'criadoEm' | 'atualizadoEm'>): Promise<Prontuario> {
     const userId = await this.getCurrentUserId();
-    const prontuarioData = this.transformLocalToSupabase({
-      ...prontuario,
-      user_id: userId
-    });
+    const prontuarioData = this.transformLocalToSupabase({ ...prontuario, user_id: userId }, 'prontuarios');
 
     const { data, error } = await supabase
       .from('prontuarios')
@@ -368,7 +356,7 @@ class SupabaseService {
 
   async updateProntuario(id: string, updates: Partial<Prontuario>): Promise<Prontuario | null> {
     const userId = await this.getCurrentUserId();
-    const updateData = this.transformLocalToSupabase(updates);
+    const updateData = this.transformLocalToSupabase(updates, 'prontuarios');
 
     const { data, error } = await supabase
       .from('prontuarios')
@@ -409,10 +397,7 @@ class SupabaseService {
 
   async saveAnamnese(anamnese: Omit<Anamnese, 'id' | 'criadoEm' | 'atualizadoEm'>): Promise<Anamnese> {
     const userId = await this.getCurrentUserId();
-    const anamneseData = this.transformLocalToSupabase({
-      ...anamnese,
-      user_id: userId
-    });
+    const anamneseData = this.transformLocalToSupabase({ ...anamnese, user_id: userId }, 'anamneses');
 
     const { data, error } = await supabase
       .from('anamneses')
@@ -426,7 +411,7 @@ class SupabaseService {
 
   async updateAnamnese(id: string, updates: Partial<Anamnese>): Promise<Anamnese | null> {
     const userId = await this.getCurrentUserId();
-    const updateData = this.transformLocalToSupabase(updates);
+    const updateData = this.transformLocalToSupabase(updates, 'anamneses');
 
     const { data, error } = await supabase
       .from('anamneses')
@@ -477,10 +462,7 @@ class SupabaseService {
 
   async saveDocumento(documento: Omit<DocumentoPaciente, 'id' | 'criadoEm' | 'atualizadoEm'>): Promise<DocumentoPaciente> {
     const userId = await this.getCurrentUserId();
-    const documentoData = this.transformLocalToSupabase({
-      ...documento,
-      user_id: userId
-    });
+    const documentoData = this.transformLocalToSupabase({ ...documento, user_id: userId }, 'documentos_paciente');
 
     const { data, error } = await supabase
       .from('documentos_paciente')
@@ -494,7 +476,7 @@ class SupabaseService {
 
   async updateDocumento(id: string, updates: Partial<DocumentoPaciente>): Promise<DocumentoPaciente | null> {
     const userId = await this.getCurrentUserId();
-    const updateData = this.transformLocalToSupabase(updates);
+    const updateData = this.transformLocalToSupabase(updates, 'documentos_paciente');
 
     const { data, error } = await supabase
       .from('documentos_paciente')
