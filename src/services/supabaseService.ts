@@ -60,7 +60,8 @@ class SupabaseService {
       assinaturaDoutor: data.assinatura_doutor,
       linkAssinatura: data.link_assinatura,
       tokenAssinatura: data.token_assinatura,
-      statusAssinatura: data.status_assinatura
+      statusAssinatura: data.status_assinatura,
+      arquivo: data.url ?? data.arquivo
     };
   };
 
@@ -98,6 +99,7 @@ class SupabaseService {
       tokenAssinatura: 'token_assinatura',
       statusAssinatura: 'status_assinatura',
       dataExpiracaoLink: 'data_expiracao_link',
+      arquivo: 'url',
     };
 
     // Campos do tipo Date que precisam virar ISO string
