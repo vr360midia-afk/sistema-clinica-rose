@@ -110,7 +110,7 @@ const getCategoriaColor = (categoria: string) => {
     ortodontico: 'bg-pink-100 text-pink-800',
     estetico: 'bg-yellow-100 text-yellow-800',
     emergencia: 'bg-red-100 text-red-800',
-    outros: 'bg-gray-100 text-gray-800'
+    outros: 'bg-muted text-foreground'
   };
   return colors[categoria] || colors.outros;
 };
@@ -155,7 +155,7 @@ const ProcedimentoSelector = ({ selectedProcedimentos, onSelectionChange, valorT
                       </Badge>
                     </div>
                     
-                    <p className="text-xs text-gray-600 line-clamp-2">
+                    <p className="text-xs text-muted-foreground line-clamp-2">
                       {procedimento.descricao}
                     </p>
                     
@@ -164,7 +164,7 @@ const ProcedimentoSelector = ({ selectedProcedimentos, onSelectionChange, valorT
                         <DollarSign className="h-3 w-3" />
                         <span className="font-medium">R$ {procedimento.preco.toFixed(2)}</span>
                       </div>
-                      <div className="flex items-center gap-1 text-gray-500">
+                      <div className="flex items-center gap-1 text-muted-foreground">
                         <Clock className="h-3 w-3" />
                         <span>{procedimento.duracaoMinutos} min</span>
                       </div>

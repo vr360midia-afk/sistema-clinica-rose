@@ -193,7 +193,7 @@ const ProcedimentoStats = ({ procedimentos }: ProcedimentoStatsProps) => {
         <CardContent>
           <div className="space-y-4">
             {topProcedimentos.map((proc, index) => (
-              <div key={proc.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+              <div key={proc.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-semibold">
                     {index + 1}
@@ -213,7 +213,7 @@ const ProcedimentoStats = ({ procedimentos }: ProcedimentoStatsProps) => {
                 <div className="text-right">
                   <p className="font-bold text-lg">R$ {proc.preco.toFixed(2)}</p>
                   {proc.precoConvenio && (
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-muted-foreground">
                       Convênio: R$ {proc.precoConvenio.toFixed(2)}
                     </p>
                   )}

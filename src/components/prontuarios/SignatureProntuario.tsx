@@ -115,10 +115,10 @@ Total de imagens anexadas: ${images?.length || 0}
         {/* Status das assinaturas */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="flex items-center gap-3 p-3 border rounded-lg">
-            <div className={`w-4 h-4 rounded-full ${patientSignature ? 'bg-green-500' : 'bg-gray-300'}`} />
+            <div className={`w-4 h-4 rounded-full ${patientSignature ? 'bg-green-500' : 'bg-muted'}`} />
             <div>
               <p className="text-sm font-medium">Paciente</p>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-muted-foreground">
                 {patientSignature 
                   ? `Assinado em ${new Date(patientSignature.timestamp).toLocaleDateString('pt-BR')}`
                   : 'Aguardando assinatura'
@@ -128,10 +128,10 @@ Total de imagens anexadas: ${images?.length || 0}
           </div>
           
           <div className="flex items-center gap-3 p-3 border rounded-lg">
-            <div className={`w-4 h-4 rounded-full ${dentistSignature ? 'bg-green-500' : 'bg-gray-300'}`} />
+            <div className={`w-4 h-4 rounded-full ${dentistSignature ? 'bg-green-500' : 'bg-muted'}`} />
             <div>
               <p className="text-sm font-medium">Dentista</p>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-muted-foreground">
                 {dentistSignature 
                   ? `Assinado em ${new Date(dentistSignature.timestamp).toLocaleDateString('pt-BR')}`
                   : 'Aguardando assinatura'

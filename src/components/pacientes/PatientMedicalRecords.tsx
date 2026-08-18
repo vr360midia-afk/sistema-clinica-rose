@@ -67,7 +67,7 @@ const PatientMedicalRecords = ({ patient }: PatientMedicalRecordsProps) => {
               <div className="flex justify-between items-start">
                 <div>
                   <CardTitle className="text-base">{prontuario.queixaPrincipal}</CardTitle>
-                  <div className="flex items-center gap-2 text-sm text-gray-500 mt-1">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
                     <Calendar className="h-4 w-4" />
                     <span>{new Date(prontuario.data).toLocaleDateString('pt-BR')}</span>
                   </div>
@@ -83,14 +83,14 @@ const PatientMedicalRecords = ({ patient }: PatientMedicalRecordsProps) => {
               {prontuario.historiaDoenca && (
                 <div>
                   <span className="text-sm font-medium">História da Doença:</span>
-                  <p className="text-sm text-gray-600 mt-1">{prontuario.historiaDoenca}</p>
+                  <p className="text-sm text-muted-foreground mt-1">{prontuario.historiaDoenca}</p>
                 </div>
               )}
               
               {prontuario.exameClinico && (
                 <div>
                   <span className="text-sm font-medium">Exame Clínico:</span>
-                  <p className="text-sm text-gray-600 mt-1">{prontuario.exameClinico}</p>
+                  <p className="text-sm text-muted-foreground mt-1">{prontuario.exameClinico}</p>
                 </div>
               )}
 
@@ -110,14 +110,14 @@ const PatientMedicalRecords = ({ patient }: PatientMedicalRecordsProps) => {
               {prontuario.planoTratamento && (
                 <div>
                   <span className="text-sm font-medium">Plano de Tratamento:</span>
-                  <p className="text-sm text-gray-600 mt-1">{prontuario.planoTratamento}</p>
+                  <p className="text-sm text-muted-foreground mt-1">{prontuario.planoTratamento}</p>
                 </div>
               )}
 
               {prontuario.observacoes && (
                 <div>
                   <span className="text-sm font-medium">Observações:</span>
-                  <p className="text-sm text-gray-600 mt-1">{prontuario.observacoes}</p>
+                  <p className="text-sm text-muted-foreground mt-1">{prontuario.observacoes}</p>
                 </div>
               )}
 

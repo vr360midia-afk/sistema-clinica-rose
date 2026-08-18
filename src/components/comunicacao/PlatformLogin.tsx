@@ -92,7 +92,7 @@ const PlatformLogin = () => {
                 className={
                   connections.instagram.connected 
                     ? 'bg-green-100 text-green-800' 
-                    : 'bg-gray-100 text-gray-800'
+                    : 'bg-muted text-foreground'
                 }
               >
                 {connections.instagram.connected ? 'Conectado' : 'Desconectado'}
@@ -114,7 +114,7 @@ const PlatformLogin = () => {
                 
                 <div className="space-y-2">
                   <h4 className="font-medium">Funcionalidades Disponíveis:</h4>
-                  <ul className="text-sm text-gray-600 space-y-1">
+                  <ul className="text-sm text-muted-foreground space-y-1">
                     <li>• Publicação automática de posts</li>
                     <li>• Agendamento de conteúdo</li>
                     <li>• Analytics básicos</li>
@@ -182,7 +182,7 @@ const PlatformLogin = () => {
                 className={
                   connections.whatsapp.connected 
                     ? 'bg-green-100 text-green-800' 
-                    : 'bg-gray-100 text-gray-800'
+                    : 'bg-muted text-foreground'
                 }
               >
                 {connections.whatsapp.connected ? 'Conectado' : 'Desconectado'}
@@ -204,7 +204,7 @@ const PlatformLogin = () => {
                 
                 <div className="space-y-2">
                   <h4 className="font-medium">Funcionalidades Disponíveis:</h4>
-                  <ul className="text-sm text-gray-600 space-y-1">
+                  <ul className="text-sm text-muted-foreground space-y-1">
                     <li>• Envio de mensagens em massa</li>
                     <li>• Templates personalizados</li>
                     <li>• Relatórios de entrega</li>
@@ -279,7 +279,7 @@ const PlatformLogin = () => {
                 className={
                   connections.instagram.connected 
                     ? 'bg-green-100 text-green-800' 
-                    : 'bg-gray-100 text-gray-800'
+                    : 'bg-muted text-foreground'
                 }
               >
                 {connections.instagram.connected ? 'Ativo' : 'Inativo'}
@@ -295,7 +295,7 @@ const PlatformLogin = () => {
                 className={
                   connections.whatsapp.connected 
                     ? 'bg-green-100 text-green-800' 
-                    : 'bg-gray-100 text-gray-800'
+                    : 'bg-muted text-foreground'
                 }
               >
                 {connections.whatsapp.connected ? 'Ativo' : 'Inativo'}

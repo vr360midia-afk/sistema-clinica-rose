@@ -12,7 +12,7 @@ const Layout = ({ children }: LayoutProps) => {
   const closeSidebar = () => setSidebarOpen(false);
 
   return (
-    <div className="min-h-screen bg-gray-50 flex w-full overflow-x-hidden">
+    <div className="min-h-screen bg-muted flex w-full overflow-x-hidden">
       <Sidebar isOpen={sidebarOpen} onClose={closeSidebar} />
 
       <div className="flex-1 flex flex-col min-w-0 w-full lg:pl-60">

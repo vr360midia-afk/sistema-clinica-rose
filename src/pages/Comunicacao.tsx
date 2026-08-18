@@ -25,8 +25,8 @@ const Comunicacao = () => {
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Comunicação</h1>
-            <p className="text-gray-600">Marketing digital e comunicação com pacientes</p>
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground mb-2">Comunicação</h1>
+            <p className="text-muted-foreground">Marketing digital e comunicação com pacientes</p>
           </div>
           <Button className="flex items-center gap-2">
             <Plus className="h-4 w-4" />
@@ -43,9 +43,9 @@ const Comunicacao = () => {
                   <Instagram className="h-5 w-5 text-pink-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Instagram</p>
+                  <p className="text-sm text-muted-foreground">Instagram</p>
                   <p className="text-xl font-bold">-</p>
-                  <p className="text-xs text-gray-500">não conectado</p>
+                  <p className="text-xs text-muted-foreground">não conectado</p>
                 </div>
               </div>
             </CardContent>
@@ -58,9 +58,9 @@ const Comunicacao = () => {
                   <MessageCircle className="h-5 w-5 text-green-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">WhatsApp</p>
+                  <p className="text-sm text-muted-foreground">WhatsApp</p>
                   <p className="text-xl font-bold">-</p>
-                  <p className="text-xs text-gray-500">não conectado</p>
+                  <p className="text-xs text-muted-foreground">não conectado</p>
                 </div>
               </div>
             </CardContent>
@@ -73,9 +73,9 @@ const Comunicacao = () => {
                   <Users className="h-5 w-5 text-blue-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Alcance</p>
+                  <p className="text-sm text-muted-foreground">Alcance</p>
                   <p className="text-xl font-bold">0</p>
-                  <p className="text-xs text-gray-500">este mês</p>
+                  <p className="text-xs text-muted-foreground">este mês</p>
                 </div>
               </div>
             </CardContent>
@@ -88,9 +88,9 @@ const Comunicacao = () => {
                   <Bell className="h-5 w-5 text-purple-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Lembretes</p>
+                  <p className="text-sm text-muted-foreground">Lembretes</p>
                   <p className="text-xl font-bold">0</p>
-                  <p className="text-xs text-gray-500">enviados</p>
+                  <p className="text-xs text-muted-foreground">enviados</p>
                 </div>
               </div>
             </CardContent>
@@ -137,11 +137,11 @@ const Comunicacao = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-center py-8">
-                  <div className="text-gray-400 mb-4">
+                  <div className="text-muted-foreground mb-4">
                     <Settings className="h-12 w-12 mx-auto" />
                   </div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhuma campanha encontrada</h3>
-                  <p className="text-gray-500">Crie sua primeira campanha de marketing para começar.</p>
+                  <h3 className="text-lg font-medium text-foreground mb-2">Nenhuma campanha encontrada</h3>
+                  <p className="text-muted-foreground">Crie sua primeira campanha de marketing para começar.</p>
                 </div>
               </CardContent>
             </Card>

@@ -121,8 +121,8 @@ const RecentActivity = () => {
         <div className="space-y-4">
           {recentActivities.length === 0 ? (
             <div className="text-center py-8">
-              <Activity className="h-12 w-12 mx-auto text-gray-300 mb-4" />
-              <p className="text-gray-500">Nenhuma atividade recente</p>
+              <Activity className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <p className="text-muted-foreground">Nenhuma atividade recente</p>
             </div>
           ) : (
             recentActivities.map((activity) => (
@@ -131,9 +131,9 @@ const RecentActivity = () => {
                   {activity.icon}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900">{activity.title}</p>
-                  <p className="text-sm text-gray-500 truncate">{activity.description}</p>
-                  <p className="text-xs text-gray-400 mt-1">{formatTimeAgo(activity.time)}</p>
+                  <p className="text-sm font-medium text-foreground">{activity.title}</p>
+                  <p className="text-sm text-muted-foreground truncate">{activity.description}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{formatTimeAgo(activity.time)}</p>
                 </div>
               </div>
             ))

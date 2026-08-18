@@ -66,7 +66,7 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
               <div className="flex justify-between items-start">
                 <div>
                   <CardTitle className="text-base">{anamnese.queixaPrincipal}</CardTitle>
-                  <div className="flex items-center gap-2 text-sm text-gray-500 mt-1">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
                     <Calendar className="h-4 w-4" />
                     <span>{new Date(anamnese.data).toLocaleDateString('pt-BR')}</span>
                   </div>
@@ -77,42 +77,42 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
               {anamnese.historiaAtual && (
                 <div>
                   <span className="text-sm font-medium">História Atual:</span>
-                  <p className="text-sm text-gray-600 mt-1">{anamnese.historiaAtual}</p>
+                  <p className="text-sm text-muted-foreground mt-1">{anamnese.historiaAtual}</p>
                 </div>
               )}
               
               {anamnese.historiaFamiliar && (
                 <div>
                   <span className="text-sm font-medium">História Familiar:</span>
-                  <p className="text-sm text-gray-600 mt-1">{anamnese.historiaFamiliar}</p>
+                  <p className="text-sm text-muted-foreground mt-1">{anamnese.historiaFamiliar}</p>
                 </div>
               )}
 
               {anamnese.historiaMedica && (
                 <div>
                   <span className="text-sm font-medium">História Médica:</span>
-                  <p className="text-sm text-gray-600 mt-1">{anamnese.historiaMedica}</p>
+                  <p className="text-sm text-muted-foreground mt-1">{anamnese.historiaMedica}</p>
                 </div>
               )}
 
               {anamnese.alergias && (
                 <div>
                   <span className="text-sm font-medium">Alergias:</span>
-                  <p className="text-sm text-gray-600 mt-1">{anamnese.alergias}</p>
+                  <p className="text-sm text-muted-foreground mt-1">{anamnese.alergias}</p>
                 </div>
               )}
 
               {anamnese.medicamentos && (
                 <div>
                   <span className="text-sm font-medium">Medicamentos:</span>
-                  <p className="text-sm text-gray-600 mt-1">{anamnese.medicamentos}</p>
+                  <p className="text-sm text-muted-foreground mt-1">{anamnese.medicamentos}</p>
                 </div>
               )}
 
               {anamnese.observacoes && (
                 <div>
                   <span className="text-sm font-medium">Observações:</span>
-                  <p className="text-sm text-gray-600 mt-1">{anamnese.observacoes}</p>
+                  <p className="text-sm text-muted-foreground mt-1">{anamnese.observacoes}</p>
                 </div>
               )}
             </CardContent>

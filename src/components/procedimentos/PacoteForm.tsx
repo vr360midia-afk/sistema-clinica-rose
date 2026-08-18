@@ -62,14 +62,14 @@ const PacoteForm = ({ procedimentos, onSave, onCancel }: PacoteFormProps) => {
           <div className="space-y-2">
             <Label>Procedimentos incluídos</Label>
             {procedimentos.length === 0 ? (
-              <p className="text-sm text-gray-500">Cadastre procedimentos antes de criar um pacote.</p>
+              <p className="text-sm text-muted-foreground">Cadastre procedimentos antes de criar um pacote.</p>
             ) : (
               <div className="max-h-48 overflow-y-auto border rounded-md p-2 space-y-2">
                 {procedimentos.map((p) => (
                   <label key={p.id} className="flex items-center gap-2 text-sm cursor-pointer">
                     <Checkbox checked={selecionados.includes(p.id)} onCheckedChange={() => toggle(p.id)} />
                     <span className="flex-1 truncate">{p.nome}</span>
-                    <span className="text-gray-500">R$ {p.preco.toFixed(2)}</span>
+                    <span className="text-muted-foreground">R$ {p.preco.toFixed(2)}</span>
                   </label>
                 ))}
               </div>
@@ -88,7 +88,7 @@ const PacoteForm = ({ procedimentos, onSave, onCancel }: PacoteFormProps) => {
             />
           </div>
 
-          <div className="flex justify-between text-sm bg-gray-50 rounded-md p-3">
+          <div className="flex justify-between text-sm bg-muted rounded-md p-3">
             <span>Valor bruto: R$ {bruto.toFixed(2)}</span>
             <span className="font-semibold text-green-700">Total: R$ {precoFinal.toFixed(2)}</span>
           </div>

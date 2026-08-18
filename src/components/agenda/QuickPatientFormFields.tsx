@@ -21,7 +21,7 @@ const QuickPatientFormFields = ({ form }: QuickPatientFormFieldsProps) => {
         {/* Dados Pessoais */}
         <Card className="shadow-sm">
           <CardHeader className="pb-4">
-            <CardTitle className="text-lg font-semibold text-gray-900">Dados Pessoais</CardTitle>
+            <CardTitle className="text-lg font-semibold text-foreground">Dados Pessoais</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
             <FormField
@@ -266,7 +266,7 @@ const QuickPatientFormFields = ({ form }: QuickPatientFormFieldsProps) => {
         {/* Histórico Médico */}
         <Card className="shadow-sm">
           <CardHeader className="pb-4">
-            <CardTitle className="text-lg font-semibold text-gray-900">Histórico Médico</CardTitle>
+            <CardTitle className="text-lg font-semibold text-foreground">Histórico Médico</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
             <FormField
@@ -372,7 +372,7 @@ const QuickPatientFormFields = ({ form }: QuickPatientFormFieldsProps) => {
       <div className="lg:col-span-1">
         <Card className="shadow-sm sticky top-6">
           <CardHeader className="pb-4">
-            <CardTitle className="text-lg font-semibold text-gray-900">Foto do Paciente</CardTitle>
+            <CardTitle className="text-lg font-semibold text-foreground">Foto do Paciente</CardTitle>
           </CardHeader>
           <CardContent className="flex justify-center">
             <FormField

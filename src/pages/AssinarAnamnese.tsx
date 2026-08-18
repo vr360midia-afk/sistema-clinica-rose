@@ -74,13 +74,13 @@ const AssinarAnamnese = () => {
 
   if (!isValid && !isExpired) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-muted flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardContent className="pt-6">
             <div className="text-center">
               <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">Link Inválido</h2>
-              <p className="text-gray-600">
+              <h2 className="text-xl font-semibold text-foreground mb-2">Link Inválido</h2>
+              <p className="text-muted-foreground">
                 Este link de assinatura não é válido ou não existe.
               </p>
             </div>
@@ -92,13 +92,13 @@ const AssinarAnamnese = () => {
 
   if (isExpired) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-muted flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardContent className="pt-6">
             <div className="text-center">
               <Clock className="h-12 w-12 text-orange-500 mx-auto mb-4" />
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">Link Expirado</h2>
-              <p className="text-gray-600">
+              <h2 className="text-xl font-semibold text-foreground mb-2">Link Expirado</h2>
+              <p className="text-muted-foreground">
                 Este link de assinatura expirou. Entre em contato com o consultório para obter um novo link.
               </p>
             </div>
@@ -110,13 +110,13 @@ const AssinarAnamnese = () => {
 
   if (isCompleted) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-muted flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardContent className="pt-6">
             <div className="text-center">
               <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">Assinatura Concluída</h2>
-              <p className="text-gray-600">
+              <h2 className="text-xl font-semibold text-foreground mb-2">Assinatura Concluída</h2>
+              <p className="text-muted-foreground">
                 Sua assinatura já foi registrada com sucesso. Obrigado!
               </p>
             </div>
@@ -128,7 +128,7 @@ const AssinarAnamnese = () => {
 
   if (showSignature) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-muted flex items-center justify-center p-4">
         <div className="w-full max-w-4xl">
           <DigitalSignature
             title="Assinatura da Anamnese"
@@ -144,7 +144,7 @@ const AssinarAnamnese = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-muted flex items-center justify-center p-4">
       <Card className="w-full max-w-2xl">
         <CardHeader>
           <CardTitle>Assinatura de Anamnese</CardTitle>
@@ -160,7 +160,7 @@ const AssinarAnamnese = () => {
           </div>
 
           <div className="text-center">
-            <p className="text-gray-600 mb-6">
+            <p className="text-muted-foreground mb-6">
               Por favor, clique no botão abaixo para assinar digitalmente sua anamnese.
               A assinatura confirma que as informações prestadas são verdadeiras.
             </p>
@@ -174,7 +174,7 @@ const AssinarAnamnese = () => {
             </Button>
           </div>
 
-          <div className="text-xs text-gray-500 p-3 bg-gray-50 rounded">
+          <div className="text-xs text-muted-foreground p-3 bg-muted rounded">
             <p><strong>Importante:</strong> Esta assinatura tem validade legal e confirma sua concordância com as informações da anamnese.</p>
           </div>
         </CardContent>

@@ -16,7 +16,7 @@ const StatsCard = ({ title, value, change, changeType, icon: Icon, iconBg }: Sta
   const changeColor = {
     positive: 'text-green-600',
     negative: 'text-red-600',
-    neutral: 'text-gray-600'
+    neutral: 'text-muted-foreground'
   };
 
   return (
@@ -24,8 +24,8 @@ const StatsCard = ({ title, value, change, changeType, icon: Icon, iconBg }: Sta
       <CardContent className="p-6">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-gray-600">{title}</p>
-            <p className="text-xl sm:text-2xl font-bold text-gray-900">{value}</p>
+            <p className="text-sm font-medium text-muted-foreground">{title}</p>
+            <p className="text-xl sm:text-2xl font-bold text-foreground">{value}</p>
             <p className={`text-sm ${changeColor[changeType]}`}>{change}</p>
           </div>
           <div className={`p-3 rounded-full ${iconBg}`}>

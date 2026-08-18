@@ -16,7 +16,7 @@ const Odontogram = () => {
   const lowerTeeth = [48, 47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36, 37, 38];
 
   const treatments = [
-    { id: 'healthy', label: 'Saudável', color: 'bg-white' },
+    { id: 'healthy', label: 'Saudável', color: 'bg-card' },
     { id: 'cavity', label: 'Cárie', color: 'bg-red-500' },
     { id: 'restoration', label: 'Restauração', color: 'bg-blue-500' },
     { id: 'crown', label: 'Coroa', color: 'bg-yellow-500' },
@@ -27,7 +27,7 @@ const Odontogram = () => {
     { id: 'wisdom', label: 'Siso', color: 'bg-orange-500' },
     { id: 'whitening', label: 'Clareamento', color: 'bg-cyan-300' },
     { id: 'aesthetic-aligners', label: 'Alinhadores Estéticos', color: 'bg-indigo-400' },
-    { id: 'invisible-aligners', label: 'Alinhadores Invisíveis', color: 'bg-gray-300' }
+    { id: 'invisible-aligners', label: 'Alinhadores Invisíveis', color: 'bg-muted' }
   ];
 
   const handleToothClick = (toothNumber: number) => {
@@ -39,18 +39,18 @@ const Odontogram = () => {
 
   const getToothColor = (toothNumber: number) => {
     const status = teethStatus[toothNumber] || 'healthy';
-    return treatments.find(t => t.id === status)?.color || 'bg-white';
+    return treatments.find(t => t.id === status)?.color || 'bg-card';
   };
 
   const renderTooth = (toothNumber: number) => (
     <div
       key={toothNumber}
-      className={`w-8 h-10 border-2 border-gray-400 rounded-sm cursor-pointer hover:border-blue-500 transition-colors ${getToothColor(toothNumber)}`}
+      className={`w-8 h-10 border-2 border-border rounded-sm cursor-pointer hover:border-blue-500 transition-colors ${getToothColor(toothNumber)}`}
       onClick={() => handleToothClick(toothNumber)}
       title={`Dente ${toothNumber}`}
     >
       <div className="h-full flex items-center justify-center">
-        <span className="text-xs font-semibold text-gray-700">{toothNumber}</span>
+        <span className="text-xs font-semibold text-foreground">{toothNumber}</span>
       </div>
     </div>
   );
@@ -77,7 +77,7 @@ const Odontogram = () => {
       </div>
 
       {/* Odontograma */}
-      <div className="bg-gray-50 p-8 rounded-lg">
+      <div className="bg-muted p-8 rounded-lg">
         <div className="max-w-4xl mx-auto">
           {/* Dentes Superiores */}
           <div className="mb-8">
@@ -88,7 +88,7 @@ const Odontogram = () => {
           </div>
 
           {/* Linha divisória */}
-          <div className="border-t-2 border-gray-300 my-6"></div>
+          <div className="border-t-2 border-border my-6"></div>
 
           {/* Dentes Inferiores */}
           <div>

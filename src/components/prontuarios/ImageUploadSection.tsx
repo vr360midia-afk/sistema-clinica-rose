@@ -127,8 +127,8 @@ const ImageUploadSection = ({ patientName }: ImageUploadSectionProps) => {
                                   className="w-full h-20 object-cover rounded border"
                                 />
                               ) : (
-                                <div className="w-full h-20 bg-gray-100 rounded border flex items-center justify-center">
-                                  <span className="text-xs text-gray-500">Vídeo</span>
+                                <div className="w-full h-20 bg-muted rounded border flex items-center justify-center">
+                                  <span className="text-xs text-muted-foreground">Vídeo</span>
                                 </div>
                               )}
                               <div className="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity rounded flex items-center justify-center gap-1">

@@ -18,8 +18,8 @@ const Dashboard = () => {
       <Layout>
         <div className="space-y-6">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Dashboard</h1>
-            <p className="text-gray-600">Faça login para acessar seus dados</p>
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground mb-2">Dashboard</h1>
+            <p className="text-muted-foreground">Faça login para acessar seus dados</p>
           </div>
         </div>
       </Layout>
@@ -61,8 +61,8 @@ const Dashboard = () => {
     <Layout>
       <div className="space-y-6">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Dashboard Odontológico</h1>
-          <p className="text-gray-600">Bem-vindo de volta! Seus dados estão sincronizados na nuvem.</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground mb-2">Dashboard Odontológico</h1>
+          <p className="text-muted-foreground">Bem-vindo de volta! Seus dados estão sincronizados na nuvem.</p>
         </div>
 
         {/* Stats Cards */}

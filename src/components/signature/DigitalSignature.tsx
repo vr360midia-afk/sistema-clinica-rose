@@ -158,7 +158,7 @@ const DigitalSignature = ({
           <PenTool className="h-5 w-5 text-blue-600" />
           {title}
         </CardTitle>
-        <div className="flex items-center gap-2 text-sm text-gray-600">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <User className="h-4 w-4" />
           <span>Assinante: </span>
           <span className={`font-medium ${getRoleColor()}`}>
@@ -202,10 +202,10 @@ const DigitalSignature = ({
           <Label className="text-sm font-medium">
             Área de Assinatura {required && <span className="text-red-500">*</span>}
           </Label>
-          <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 bg-gray-50">
+          <div className="border-2 border-dashed border-border rounded-lg p-4 bg-muted">
             <canvas
               ref={canvasRef}
-              className="border border-gray-200 rounded bg-white cursor-crosshair w-full"
+              className="border border-border rounded bg-card cursor-crosshair w-full"
               style={{ touchAction: 'none' }}
               onMouseDown={startDrawing}
               onMouseMove={draw}
@@ -215,7 +215,7 @@ const DigitalSignature = ({
               onTouchMove={draw}
               onTouchEnd={stopDrawing}
             />
-            <p className="text-xs text-gray-500 mt-2 text-center">
+            <p className="text-xs text-muted-foreground mt-2 text-center">
               Assine acima usando o mouse ou toque na tela
             </p>
           </div>
@@ -249,7 +249,7 @@ const DigitalSignature = ({
         </div>
 
         {/* Informações sobre o documento */}
-        <div className="text-xs text-gray-500 p-3 bg-gray-50 rounded">
+        <div className="text-xs text-muted-foreground p-3 bg-muted rounded">
           <p><strong>Documento:</strong> {documentType}</p>
           <p><strong>Data/Hora:</strong> {new Date().toLocaleString('pt-BR')}</p>
           <p><strong>Tipo de Assinatura:</strong> Digital</p>

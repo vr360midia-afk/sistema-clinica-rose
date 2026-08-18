@@ -33,7 +33,7 @@ const PatientArchiveModal = ({ isOpen, onClose, onConfirm, patientName }: Patien
         </DialogHeader>
         
         <div className="space-y-4">
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-muted-foreground">
             Tem certeza que deseja arquivar o paciente <strong>{patientName}</strong>?
           </p>
           

@@ -38,7 +38,7 @@ const DayView = ({ selectedDate, appointments, onAppointmentClick, onNewAppointm
             <Clock className="h-5 w-5" />
             Agenda do Dia
           </CardTitle>
-          <div className="text-sm font-normal text-gray-500">
+          <div className="text-sm font-normal text-muted-foreground">
             {format(selectedDate, 'dd/MM/yyyy', { locale: ptBR })}
             <span className="ml-2">
               ({appointments.length} consulta{appointments.length !== 1 ? 's' : ''})
@@ -58,10 +58,10 @@ const DayView = ({ selectedDate, appointments, onAppointmentClick, onNewAppointm
               </div>
             ))
           ) : (
-            <div className="text-center text-gray-500 py-8 sm:py-12 px-4">
+            <div className="text-center text-muted-foreground py-8 sm:py-12 px-4">
               <Clock className="h-12 w-12 sm:h-16 sm:w-16 mx-auto mb-4 opacity-30" />
               <p className="text-base sm:text-lg mb-2">Nenhuma consulta agendada para este dia</p>
-              <p className="text-sm text-gray-400 mb-4 sm:mb-6">
+              <p className="text-sm text-muted-foreground mb-4 sm:mb-6">
                 {format(selectedDate, 'dd/MM/yyyy', { locale: ptBR })}
               </p>
               <Button 

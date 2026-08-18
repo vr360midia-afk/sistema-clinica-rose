@@ -100,7 +100,7 @@ const Pacientes = () => {
 
   const getStatusBadge = (status: string, proximaConsulta: Date | null) => {
     if (status === 'Arquivado') {
-      return <Badge className="bg-gray-100 text-gray-800 border-gray-200">Arquivado</Badge>;
+      return <Badge className="bg-muted text-foreground border-border">Arquivado</Badge>;
     } else if (status === 'Ativo' && proximaConsulta) {
       return <Badge className="bg-green-100 text-green-800 border-green-200">Ativo</Badge>;
     } else if (status === 'Ativo' && !proximaConsulta) {
@@ -163,7 +163,7 @@ const Pacientes = () => {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-3">
             <Users className="h-6 w-6 text-blue-600" />
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Pacientes</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground">Pacientes</h1>
           </div>
           <Button onClick={() => setShowForm(true)} className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto">
             <Plus className="h-4 w-4 mr-2" />
@@ -177,7 +177,7 @@ const Pacientes = () => {
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Total de Pacientes</p>
+                  <p className="text-sm text-muted-foreground">Total de Pacientes</p>
                   <p className="text-xl sm:text-2xl font-bold">{pacientes.length}</p>
                 </div>
                 <Users className="h-8 w-8 text-blue-600" />
@@ -189,7 +189,7 @@ const Pacientes = () => {
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Pacientes Ativos</p>
+                  <p className="text-sm text-muted-foreground">Pacientes Ativos</p>
                   <p className="text-xl sm:text-2xl font-bold">{pacientes.filter(p => p.status === 'Ativo').length}</p>
                 </div>
                 <UserCheck className="h-8 w-8 text-green-600" />
@@ -201,7 +201,7 @@ const Pacientes = () => {
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Próximas Consultas</p>
+                  <p className="text-sm text-muted-foreground">Próximas Consultas</p>
                   <p className="text-xl sm:text-2xl font-bold">{pacientes.filter(p => p.proximaConsulta).length}</p>
                 </div>
                 <Calendar className="h-8 w-8 text-purple-600" />
@@ -213,10 +213,10 @@ const Pacientes = () => {
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Arquivados</p>
+                  <p className="text-sm text-muted-foreground">Arquivados</p>
                   <p className="text-xl sm:text-2xl font-bold">{pacientes.filter(p => p.status === 'Arquivado').length}</p>
                 </div>
-                <Archive className="h-8 w-8 text-gray-600" />
+                <Archive className="h-8 w-8 text-muted-foreground" />
               </div>
             </CardContent>
           </Card>
@@ -239,7 +239,7 @@ const Pacientes = () => {
             <Card className="w-full lg:w-96">
               <CardContent className="p-2 sm:p-3">
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                   <Input
                     placeholder="Buscar paciente..."
                     className="pl-10 border-0"
@@ -272,7 +272,7 @@ const Pacientes = () => {
                     {filteredPacientes.map((paciente) => (
                       <div
                         key={paciente.id}
-                        className="flex items-center space-x-4 p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                        className="flex items-center space-x-4 p-4 border rounded-lg hover:bg-muted transition-colors"
                       >
                         <div 
                           className="flex-1 cursor-pointer"
@@ -283,32 +283,32 @@ const Pacientes = () => {
                               <img
                                 src={paciente.foto || '/placeholder.svg'}
                                 alt={paciente.nome}
-                                className="h-12 w-12 rounded-full object-cover border-2 border-gray-200"
+                                className="h-12 w-12 rounded-full object-cover border-2 border-border"
                               />
                             </div>
                             
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center justify-between">
-                                <h3 className="text-sm font-medium text-gray-900 truncate">
+                                <h3 className="text-sm font-medium text-foreground truncate">
                                   {paciente.nome}
                                 </h3>
                                 {getStatusBadge(paciente.status, paciente.proximaConsulta)}
                               </div>
                               <div className="mt-1 flex flex-col sm:flex-row sm:flex-wrap sm:space-x-6">
-                                <div className="mt-2 flex items-center text-sm text-gray-500">
+                                <div className="mt-2 flex items-center text-sm text-muted-foreground">
                                   <span>{paciente.email}</span>
                                 </div>
-                                <div className="mt-2 flex items-center text-sm text-gray-500">
+                                <div className="mt-2 flex items-center text-sm text-muted-foreground">
                                   <span>{paciente.telefone}</span>
                                 </div>
-                                <div className="mt-2 flex items-center text-sm text-gray-500">
+                                <div className="mt-2 flex items-center text-sm text-muted-foreground">
                                   <span>Convênio: {paciente.convenio}</span>
                                 </div>
-                                <div className="mt-2 flex items-center text-sm text-gray-500">
+                                <div className="mt-2 flex items-center text-sm text-muted-foreground">
                                   <span>Origem: {getOrigemLead(paciente.origemLead)}</span>
                                 </div>
                               </div>
-                              <div className="mt-2 flex items-center text-xs text-gray-400">
+                              <div className="mt-2 flex items-center text-xs text-muted-foreground">
                                 {paciente.ultimaConsulta && (
                                   <span>Última consulta: {new Date(paciente.ultimaConsulta).toLocaleDateString('pt-BR')}</span>
                                 )}
@@ -369,7 +369,7 @@ const Pacientes = () => {
                     {filteredPacientes.map((paciente) => (
                       <div
                         key={paciente.id}
-                        className="flex items-center space-x-4 p-4 border rounded-lg bg-gray-50"
+                        className="flex items-center space-x-4 p-4 border rounded-lg bg-muted"
                       >
                         <div 
                           className="flex-1 cursor-pointer"
@@ -380,24 +380,24 @@ const Pacientes = () => {
                               <img
                                 src={paciente.foto || '/placeholder.svg'}
                                 alt={paciente.nome}
-                                className="h-12 w-12 rounded-full object-cover border-2 border-gray-200 opacity-60"
+                                className="h-12 w-12 rounded-full object-cover border-2 border-border opacity-60"
                               />
                             </div>
                             
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center justify-between">
-                                <h3 className="text-sm font-medium text-gray-700 truncate">
+                                <h3 className="text-sm font-medium text-foreground truncate">
                                   {paciente.nome}
                                 </h3>
                                 {getStatusBadge(paciente.status, paciente.proximaConsulta)}
                               </div>
                               {paciente.dataArquivamento && (
-                                <div className="mt-1 text-sm text-gray-500">
+                                <div className="mt-1 text-sm text-muted-foreground">
                                   Arquivado em: {new Date(paciente.dataArquivamento).toLocaleDateString('pt-BR')}
                                 </div>
                               )}
                               {paciente.motivoArquivamento && (
-                                <div className="mt-1 text-xs text-gray-400">
+                                <div className="mt-1 text-xs text-muted-foreground">
                                   Motivo: {paciente.motivoArquivamento}
                                 </div>
                               )}

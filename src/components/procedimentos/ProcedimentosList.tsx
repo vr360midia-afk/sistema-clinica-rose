@@ -34,7 +34,7 @@ const getCategoriaColor = (categoria: string) => {
     ortodontico: 'bg-pink-100 text-pink-800',
     estetico: 'bg-yellow-100 text-yellow-800',
     emergencia: 'bg-red-100 text-red-800',
-    outros: 'bg-gray-100 text-gray-800'
+    outros: 'bg-muted text-foreground'
   };
   return colors[categoria] || colors.outros;
 };
@@ -53,9 +53,9 @@ const ProcedimentosList = ({ procedimentos, onEdit, onDelete, onDuplicate }: Pro
   if (procedimentos.length === 0) {
     return (
       <div className="text-center py-12">
-        <Stethoscope className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-        <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum procedimento cadastrado</h3>
-        <p className="text-gray-500">Comece criando seu primeiro procedimento</p>
+        <Stethoscope className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+        <h3 className="text-lg font-medium text-foreground mb-2">Nenhum procedimento cadastrado</h3>
+        <p className="text-muted-foreground">Comece criando seu primeiro procedimento</p>
       </div>
     );
   }
@@ -68,10 +68,10 @@ const ProcedimentosList = ({ procedimentos, onEdit, onDelete, onDuplicate }: Pro
             <div className="space-y-4">
               <div className="flex justify-between items-start">
                 <div className="flex-1">
-                  <h3 className="font-semibold text-lg text-gray-900 line-clamp-1">
+                  <h3 className="font-semibold text-lg text-foreground line-clamp-1">
                     {procedimento.nome}
                   </h3>
-                  <p className="text-sm text-gray-600 line-clamp-2 mt-1">
+                  <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
                     {procedimento.descricao}
                   </p>
                 </div>
@@ -105,12 +105,12 @@ const ProcedimentosList = ({ procedimentos, onEdit, onDelete, onDuplicate }: Pro
               </div>
 
               {procedimento.precoConvenio && (
-                <div className="text-sm text-gray-600">
+                <div className="text-sm text-muted-foreground">
                   <span>Convênio: R$ {procedimento.precoConvenio.toFixed(2)}</span>
                 </div>
               )}
 
-              <div className="flex items-center gap-2 text-xs text-gray-500">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 {procedimento.requererAnestesia && (
                   <Badge variant="outline" className="text-xs">
                     Anestesia
@@ -124,13 +124,13 @@ const ProcedimentosList = ({ procedimentos, onEdit, onDelete, onDuplicate }: Pro
               </div>
 
               {procedimento.codigoTUSS && (
-                <div className="text-xs text-gray-500">
+                <div className="text-xs text-muted-foreground">
                   TUSS: {procedimento.codigoTUSS}
                 </div>
               )}
 
               <div className="flex justify-between items-center pt-2 border-t">
-                <div className="text-xs text-gray-500">
+                <div className="text-xs text-muted-foreground">
                   Por: {procedimento.criadoPor}
                 </div>
                 <div className="flex gap-1">

@@ -56,20 +56,20 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
       {/* Sidebar */}
       <div
         className={cn(
-          'fixed inset-y-0 left-0 z-50 w-60 bg-white border-r border-gray-200 transform transition-transform duration-300 ease-in-out lg:translate-x-0',
+          'fixed inset-y-0 left-0 z-50 w-60 bg-card border-r border-border transform transition-transform duration-300 ease-in-out lg:translate-x-0',
           isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         )}
       >
-        <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200 lg:hidden">
+        <div className="flex items-center justify-between h-16 px-4 border-b border-border lg:hidden">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-green-500 rounded-lg flex items-center justify-center flex-shrink-0">
               <span className="text-white font-bold text-sm">D</span>
             </div>
-            <h1 className="text-xl font-bold text-gray-900 truncate">Dental IA</h1>
+            <h1 className="text-xl font-bold text-foreground truncate">Dental IA</h1>
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-md text-gray-500 hover:bg-gray-100 flex-shrink-0"
+            className="p-2 rounded-md text-muted-foreground hover:bg-muted flex-shrink-0"
           >
             <X className="h-5 w-5" />
           </button>
@@ -90,7 +90,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
                       'flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors w-full active:scale-[0.99]',
                       isActive
                         ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700'
-                        : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
+                        : 'text-foreground hover:bg-muted hover:text-foreground'
                     )}
                   >
                     <item.icon className="h-5 w-5 flex-shrink-0" />

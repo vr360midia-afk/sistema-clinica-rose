@@ -59,7 +59,7 @@ const Configuracoes = () => {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-3">
             <Settings className="h-6 w-6 text-blue-600" />
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Configurações</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground">Configurações</h1>
           </div>
           <Button onClick={salvarConfiguracoes} className="bg-blue-600 hover:bg-blue-700">
             Salvar Configurações
@@ -206,7 +206,7 @@ const Configuracoes = () => {
                       </Button>
                     </div>
                   </div>
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-muted-foreground">
                     O ASAAS é usado para gerar boletos, cobranças via PIX e cartão de crédito.
                   </p>
                 </CardContent>
@@ -226,7 +226,7 @@ const Configuracoes = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <Label htmlFor="emailNotificacoes">Notificações por Email</Label>
-                    <p className="text-sm text-gray-500">Receber notificações importantes por email</p>
+                    <p className="text-sm text-muted-foreground">Receber notificações importantes por email</p>
                   </div>
                   <Switch
                     id="emailNotificacoes"
@@ -238,7 +238,7 @@ const Configuracoes = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <Label htmlFor="whatsappLembretes">Lembretes via WhatsApp</Label>
-                    <p className="text-sm text-gray-500">Enviar lembretes de consulta via WhatsApp</p>
+                    <p className="text-sm text-muted-foreground">Enviar lembretes de consulta via WhatsApp</p>
                   </div>
                   <Switch
                     id="whatsappLembretes"
@@ -250,7 +250,7 @@ const Configuracoes = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <Label htmlFor="lembrete24h">Lembrete 24 horas antes</Label>
-                    <p className="text-sm text-gray-500">Enviar lembrete com 24 horas de antecedência</p>
+                    <p className="text-sm text-muted-foreground">Enviar lembrete com 24 horas de antecedência</p>
                   </div>
                   <Switch
                     id="lembrete24h"
@@ -262,7 +262,7 @@ const Configuracoes = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <Label htmlFor="lembrete2h">Lembrete 2 horas antes</Label>
-                    <p className="text-sm text-gray-500">Enviar lembrete com 2 horas de antecedência</p>
+                    <p className="text-sm text-muted-foreground">Enviar lembrete com 2 horas de antecedência</p>
                   </div>
                   <Switch
                     id="lembrete2h"
@@ -286,7 +286,7 @@ const Configuracoes = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <Label htmlFor="backupAutomatico">Backup Automático</Label>
-                    <p className="text-sm text-gray-500">Fazer backup automático dos dados</p>
+                    <p className="text-sm text-muted-foreground">Fazer backup automático dos dados</p>
                   </div>
                   <Switch
                     id="backupAutomatico"

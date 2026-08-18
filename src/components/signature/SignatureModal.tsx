@@ -58,7 +58,7 @@ const SignatureModal = ({
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription className="text-sm text-gray-600">
+          <DialogDescription className="text-sm text-muted-foreground">
             {description || getDocumentTypeDescription()}
           </DialogDescription>
         </DialogHeader>

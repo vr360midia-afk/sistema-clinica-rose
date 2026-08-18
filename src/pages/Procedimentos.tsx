@@ -89,8 +89,8 @@ const Procedimentos = () => {
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">Procedimentos</h1>
-            <p className="text-sm sm:text-base text-gray-600">
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground">Procedimentos</h1>
+            <p className="text-sm sm:text-base text-muted-foreground">
               Gerencie todos os procedimentos e serviços do consultório
             </p>
           </div>
@@ -121,7 +121,7 @@ const Procedimentos = () => {
                     Procedimentos Cadastrados ({filteredProcedimentos.length})
                   </CardTitle>
                   <div className="relative w-full sm:w-64">
-                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       placeholder="Buscar procedimentos..."
                       value={searchTerm}
@@ -134,7 +134,7 @@ const Procedimentos = () => {
               <CardContent>
                 {loading ? (
                   <div className="flex justify-center py-12">
-                    <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                   </div>
                 ) : (
                   <ProcedimentosList
@@ -165,7 +165,7 @@ const Procedimentos = () => {
               </CardHeader>
               <CardContent>
                 {pacotes.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
+                  <div className="text-center py-8 text-muted-foreground">
                     <p>Nenhum pacote cadastrado</p>
                   </div>
                 ) : (
@@ -178,8 +178,8 @@ const Procedimentos = () => {
                           <CardContent className="p-4 space-y-3">
                             <div className="flex justify-between items-start gap-2">
                               <div className="min-w-0">
-                                <h3 className="font-semibold text-gray-900 truncate">{pacote.nome}</h3>
-                                <p className="text-sm text-gray-600 line-clamp-2">{pacote.descricao}</p>
+                                <h3 className="font-semibold text-foreground truncate">{pacote.nome}</h3>
+                                <p className="text-sm text-muted-foreground line-clamp-2">{pacote.descricao}</p>
                               </div>
                               {!pacote.ativo && <Badge variant="secondary">Inativo</Badge>}
                             </div>
@@ -193,11 +193,11 @@ const Procedimentos = () => {
                             <div className="flex justify-between items-center pt-2 border-t">
                               <div className="text-sm">
                                 {bruto > pacote.precoTotal && (
-                                  <span className="line-through text-gray-400 mr-2">R$ {bruto.toFixed(2)}</span>
+                                  <span className="line-through text-muted-foreground mr-2">R$ {bruto.toFixed(2)}</span>
                                 )}
                                 <span className="font-semibold text-green-700">R$ {pacote.precoTotal.toFixed(2)}</span>
                                 {pacote.desconto > 0 && (
-                                  <span className="text-xs text-gray-500 ml-2">-{pacote.desconto}%</span>
+                                  <span className="text-xs text-muted-foreground ml-2">-{pacote.desconto}%</span>
                                 )}
                               </div>
                               <Button
