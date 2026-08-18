@@ -22,22 +22,22 @@ const PatientPersonalInfo = ({ patient }: PatientPersonalInfoProps) => {
                 <img
                   src={patient.foto || '/placeholder.svg'}
                   alt={patient.nome}
-                  className="h-16 w-16 rounded-full object-cover border-2 border-gray-200"
+                  className="h-16 w-16 rounded-full object-cover border-2 border-border"
                 />
               </div>
               <div>
                 <h3 className="text-xl font-semibold">{patient.nome}</h3>
-                <p className="text-gray-600">{patient.idade} anos</p>
+                <p className="text-muted-foreground">{patient.idade} anos</p>
               </div>
             </div>
             
             <div className="grid grid-cols-2 gap-4">
               <div className="flex items-center gap-2">
-                <Mail className="h-4 w-4 text-gray-400" />
+                <Mail className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm">{patient.email}</span>
               </div>
               <div className="flex items-center gap-2">
-                <Phone className="h-4 w-4 text-gray-400" />
+                <Phone className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm">{patient.telefone}</span>
               </div>
             </div>
@@ -84,28 +84,28 @@ const PatientPersonalInfo = ({ patient }: PatientPersonalInfoProps) => {
             {patient.historicoMedico && (
               <div>
                 <span className="text-sm font-medium">Histórico: </span>
-                <p className="text-sm text-gray-600 mt-1">{patient.historicoMedico}</p>
+                <p className="text-sm text-muted-foreground mt-1">{patient.historicoMedico}</p>
               </div>
             )}
             
             {patient.alergias && (
               <div>
                 <span className="text-sm font-medium">Alergias: </span>
-                <p className="text-sm text-gray-600 mt-1">{patient.alergias}</p>
+                <p className="text-sm text-muted-foreground mt-1">{patient.alergias}</p>
               </div>
             )}
             
             {patient.medicamentos && (
               <div>
                 <span className="text-sm font-medium">Medicamentos: </span>
-                <p className="text-sm text-gray-600 mt-1">{patient.medicamentos}</p>
+                <p className="text-sm text-muted-foreground mt-1">{patient.medicamentos}</p>
               </div>
             )}
 
             {patient.observacoes && (
               <div>
                 <span className="text-sm font-medium">Observações: </span>
-                <p className="text-sm text-gray-600 mt-1">{patient.observacoes}</p>
+                <p className="text-sm text-muted-foreground mt-1">{patient.observacoes}</p>
               </div>
             )}
           </CardContent>
@@ -118,7 +118,7 @@ const PatientPersonalInfo = ({ patient }: PatientPersonalInfoProps) => {
             <CardTitle>Status</CardTitle>
           </CardHeader>
           <CardContent>
-            <Badge className={patient.status === 'Ativo' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}>
+            <Badge className={patient.status === 'Ativo' ? 'bg-green-100 text-green-800' : 'bg-muted text-foreground'}>
               {patient.status}
             </Badge>
           </CardContent>
@@ -135,7 +135,7 @@ const PatientPersonalInfo = ({ patient }: PatientPersonalInfoProps) => {
                 <span className="text-sm">{new Date(patient.proximaConsulta).toLocaleDateString('pt-BR')}</span>
               </div>
             ) : (
-              <p className="text-sm text-gray-500">Nenhum agendamento</p>
+              <p className="text-sm text-muted-foreground">Nenhum agendamento</p>
             )}
           </CardContent>
         </Card>
@@ -147,11 +147,11 @@ const PatientPersonalInfo = ({ patient }: PatientPersonalInfoProps) => {
           <CardContent>
             {patient.ultimaConsulta ? (
               <div className="flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-gray-400" />
+                <Calendar className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm">{new Date(patient.ultimaConsulta).toLocaleDateString('pt-BR')}</span>
               </div>
             ) : (
-              <p className="text-sm text-gray-500">Nenhuma consulta anterior</p>
+              <p className="text-sm text-muted-foreground">Nenhuma consulta anterior</p>
             )}
           </CardContent>
         </Card>

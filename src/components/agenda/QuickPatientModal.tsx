@@ -32,7 +32,7 @@ const QuickPatientModal = ({ isOpen, onClose, onPatientCreated }: QuickPatientMo
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
             <QuickPatientFormFields form={form} />
 
-            <div className="flex flex-col-reverse sm:flex-row gap-4 pt-8 border-t bg-gray-50 -mx-6 px-6 py-6 mt-8">
+            <div className="flex flex-col-reverse sm:flex-row gap-4 pt-8 border-t bg-muted -mx-6 px-6 py-6 mt-8">
               <Button 
                 type="button" 
                 variant="outline" 

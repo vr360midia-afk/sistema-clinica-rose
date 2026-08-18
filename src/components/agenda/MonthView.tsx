@@ -44,10 +44,10 @@ const MonthView = ({ selectedDate, onDateChange, consultas, onAppointmentClick, 
     switch (status) {
       case 'confirmado': return 'bg-green-100 text-green-800';
       case 'agendado': return 'bg-blue-100 text-blue-800';
-      case 'realizado': return 'bg-gray-100 text-gray-800';
+      case 'realizado': return 'bg-muted text-foreground';
       case 'cancelado': return 'bg-red-100 text-red-800';
       case 'faltou': return 'bg-yellow-100 text-yellow-800';
-      default: return 'bg-gray-100 text-gray-800';
+      default: return 'bg-muted text-foreground';
     }
   };
 
@@ -83,7 +83,7 @@ const MonthView = ({ selectedDate, onDateChange, consultas, onAppointmentClick, 
       <CardContent className="p-3">
         <div className="grid grid-cols-7 gap-1 mb-2">
           {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(day => (
-            <div key={day} className="p-2 text-center font-semibold text-gray-600 text-sm">
+            <div key={day} className="p-2 text-center font-semibold text-muted-foreground text-sm">
               {day}
             </div>
           ))}
@@ -99,9 +99,9 @@ const MonthView = ({ selectedDate, onDateChange, consultas, onAppointmentClick, 
               <div
                 key={day.toISOString()}
                 className={`
-                  min-h-[120px] p-2 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors
-                  ${!isCurrentMonth ? 'text-gray-300 bg-gray-50' : ''}
-                  ${isDayToday ? 'bg-blue-50 border-blue-200' : 'border-gray-200'}
+                  min-h-[120px] p-2 border rounded-lg cursor-pointer hover:bg-muted transition-colors
+                  ${!isCurrentMonth ? 'text-muted-foreground bg-muted' : ''}
+                  ${isDayToday ? 'bg-blue-50 border-blue-200' : 'border-border'}
                 `}
                 onClick={() => onDateClick(day)}
               >
@@ -129,7 +129,7 @@ const MonthView = ({ selectedDate, onDateChange, consultas, onAppointmentClick, 
                   ))}
                   
                   {dayConsultas.length > 3 && (
-                    <div className="text-xs text-gray-500 text-center">
+                    <div className="text-xs text-muted-foreground text-center">
                       +{dayConsultas.length - 3} mais
                     </div>
                   )}

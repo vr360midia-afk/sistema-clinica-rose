@@ -23,8 +23,8 @@ const PatientDetails = ({ patient, onClose, onEdit }: PatientDetailsProps) => {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">{patient.nome}</h1>
-            <p className="text-sm text-gray-600">{patient.email} • {patient.telefone}</p>
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground">{patient.nome}</h1>
+            <p className="text-sm text-muted-foreground">{patient.email} • {patient.telefone}</p>
           </div>
         </div>
         <Button onClick={onEdit} className="bg-blue-600 hover:bg-blue-700">

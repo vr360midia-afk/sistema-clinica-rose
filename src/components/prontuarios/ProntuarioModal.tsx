@@ -175,7 +175,7 @@ const ProntuarioModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Prontu
           <TabsContent value="procedimentos" className="space-y-4">
             <div>
               <Label className="text-base font-medium">Procedimentos Realizados</Label>
-              <p className="text-sm text-gray-600 mb-4">
+              <p className="text-sm text-muted-foreground mb-4">
                 Selecione os procedimentos que foram realizados nesta consulta:
               </p>
               <ProcedimentoSelector
@@ -188,7 +188,7 @@ const ProntuarioModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Prontu
         </Tabs>
 
         <div className="flex justify-between items-center pt-4 border-t">
-          <div className="text-sm text-gray-600">
+          <div className="text-sm text-muted-foreground">
             {selectedProcedimentos.length > 0 && (
               <span className="font-medium text-green-600">
                 Total: R$ {calcularValorTotal().toFixed(2)}

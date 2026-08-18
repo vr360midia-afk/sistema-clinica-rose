@@ -131,7 +131,7 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
         <Button variant="ghost" size="sm" onClick={onClose}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
+        <h1 className="text-xl sm:text-2xl font-bold text-foreground">
           {patient ? 'Editar Paciente' : 'Novo Paciente'}
         </h1>
       </div>
@@ -376,7 +376,7 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
         </div>
       </div>
 
-      <div className="flex justify-end gap-4 pt-6 border-t bg-gray-50 -mx-6 px-6 py-4">
+      <div className="flex justify-end gap-4 pt-6 border-t bg-muted -mx-6 px-6 py-4">
         <Button variant="outline" onClick={onClose} disabled={loading} className="min-w-[120px]">
           Cancelar
         </Button>

@@ -229,7 +229,7 @@ const Notas = () => {
       case 'alta': return 'text-red-600 bg-red-50';
       case 'media': return 'text-yellow-600 bg-yellow-50';
       case 'baixa': return 'text-green-600 bg-green-50';
-      default: return 'text-gray-600 bg-gray-50';
+      default: return 'text-muted-foreground bg-muted';
     }
   };
 
@@ -250,7 +250,7 @@ const Notas = () => {
         <div className="flex flex-col space-y-4 sm:flex-row sm:justify-between sm:items-center sm:space-y-0">
           <div>
             <h1 className="text-xl sm:text-2xl font-bold">Minhas Notas</h1>
-            <p className="text-sm text-gray-600 mt-1">Organize suas tarefas e lembretes</p>
+            <p className="text-sm text-muted-foreground mt-1">Organize suas tarefas e lembretes</p>
           </div>
           <Button onClick={() => setShowNew(true)} className="flex items-center gap-2 w-full sm:w-auto justify-center">
             <Plus className="h-4 w-4" />
@@ -307,7 +307,7 @@ const Notas = () => {
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="z-50 bg-white border shadow-lg">
+                    <SelectContent className="z-50 bg-card border shadow-lg">
                       <SelectItem value="baixa">Baixa</SelectItem>
                       <SelectItem value="media">Média</SelectItem>
                       <SelectItem value="alta">Alta</SelectItem>
@@ -380,8 +380,8 @@ const Notas = () => {
           <div className="text-center py-12 px-4">
             <div className="max-w-md mx-auto">
               <StickyNote className="h-16 w-16 mx-auto mb-4 opacity-30" />
-              <p className="text-lg text-gray-500 mb-2">Nenhuma nota encontrada</p>
-              <p className="text-sm text-gray-400 mb-6">Crie sua primeira nota para começar a organizar suas tarefas!</p>
+              <p className="text-lg text-muted-foreground mb-2">Nenhuma nota encontrada</p>
+              <p className="text-sm text-muted-foreground mb-6">Crie sua primeira nota para começar a organizar suas tarefas!</p>
               <Button onClick={() => setShowNew(true)} className="gap-2">
                 <Plus className="h-4 w-4" />
                 Criar primeira nota
@@ -456,7 +456,7 @@ const NotaCard: React.FC<NotaCardProps> = ({
               />
             ) : (
               <div className="flex items-center gap-2 mb-2 flex-wrap">
-                <CardTitle className={`${nota.concluida ? 'line-through text-gray-500' : ''} text-lg break-words`}>
+                <CardTitle className={`${nota.concluida ? 'line-through text-muted-foreground' : ''} text-lg break-words`}>
                   {nota.titulo}
                 </CardTitle>
                 {nota.concluida && <CheckCircle className="h-4 w-4 text-green-600 flex-shrink-0" />}
@@ -544,7 +544,7 @@ const NotaCard: React.FC<NotaCardProps> = ({
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="z-50 bg-white border shadow-lg">
+                  <SelectContent className="z-50 bg-card border shadow-lg">
                     <SelectItem value="baixa">Baixa</SelectItem>
                     <SelectItem value="media">Média</SelectItem>
                     <SelectItem value="alta">Alta</SelectItem>
@@ -582,11 +582,11 @@ const NotaCard: React.FC<NotaCardProps> = ({
           </div>
         ) : (
           <div className="space-y-3">
-            <p className={`whitespace-pre-wrap break-words ${nota.concluida ? 'line-through text-gray-500' : ''}`}>
+            <p className={`whitespace-pre-wrap break-words ${nota.concluida ? 'line-through text-muted-foreground' : ''}`}>
               {nota.conteudo}
             </p>
             
-            <div className="text-xs sm:text-sm text-gray-500 pt-2 border-t">
+            <div className="text-xs sm:text-sm text-muted-foreground pt-2 border-t">
               <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
                 <span>Criada: {new Date(nota.created_at).toLocaleString('pt-BR')}</span>
                 {nota.updated_at !== nota.created_at && (

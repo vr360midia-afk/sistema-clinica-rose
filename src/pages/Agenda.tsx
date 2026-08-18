@@ -137,8 +137,8 @@ const Agenda = () => {
         {/* Header */}
         <div className="flex flex-col space-y-2 lg:flex-row lg:justify-between lg:items-start lg:space-y-0">
           <div className="space-y-1">
-            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">Agenda</h1>
-            <p className="text-sm sm:text-base text-gray-600">Gerencie seus agendamentos e consultas</p>
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground">Agenda</h1>
+            <p className="text-sm sm:text-base text-muted-foreground">Gerencie seus agendamentos e consultas</p>
           </div>
           <div className="flex gap-2 w-full sm:w-auto">
             <Button
@@ -160,7 +160,7 @@ const Agenda = () => {
 
         </div>
 
-        <div className="flex flex-wrap gap-1 border-b border-gray-200 pb-2">
+        <div className="flex flex-wrap gap-1 border-b border-border pb-2">
           <Button 
             variant={view === 'week' ? 'default' : 'outline'}
             onClick={() => setView('week')}
@@ -212,7 +212,7 @@ const Agenda = () => {
                         caption: "flex justify-center pt-1 relative items-center mb-4",
                         caption_label: "text-sm font-medium",
                         nav: "space-x-1 flex items-center",
-                        nav_button: "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100 border border-gray-300 rounded-md",
+                        nav_button: "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100 border border-border rounded-md",
                         nav_button_previous: "absolute left-1",
                         nav_button_next: "absolute right-1",
                         table: "w-full border-collapse space-y-1",

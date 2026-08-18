@@ -143,7 +143,7 @@ const Relatorios = () => {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-3">
             <TrendingUp className="h-6 w-6 text-blue-600" />
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Relatórios e Análises</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground">Relatórios e Análises</h1>
           </div>
           <div className="flex gap-2">
             <Select value={periodo} onValueChange={setPeriodo}>
@@ -171,12 +171,12 @@ const Relatorios = () => {
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-600">{stat.titulo}</p>
+                    <p className="text-sm text-muted-foreground">{stat.titulo}</p>
                     <p className="text-xl sm:text-2xl font-bold">{stat.valor}</p>
                   </div>
                   <div className="flex flex-col items-end">
                     <stat.icon className={`h-6 w-6 ${stat.cor}`} />
-                    <Badge className="mt-1 bg-gray-100 text-gray-800 border-gray-200">
+                    <Badge className="mt-1 bg-muted text-foreground border-border">
                       {stat.variacao}
                     </Badge>
                   </div>
@@ -232,7 +232,7 @@ const Relatorios = () => {
                     <Tooltip />
                   </PieChart>
                 ) : (
-                  <div className="flex items-center justify-center h-full text-gray-500">
+                  <div className="flex items-center justify-center h-full text-muted-foreground">
                     Nenhum procedimento realizado
                   </div>
                 )}
@@ -277,7 +277,7 @@ const Relatorios = () => {
                   <div key={index} className="flex justify-between items-center p-3 border rounded-lg">
                     <div>
                       <h4 className="font-medium">{relatorio.nome}</h4>
-                      <p className="text-sm text-gray-500">{relatorio.descricao}</p>
+                      <p className="text-sm text-muted-foreground">{relatorio.descricao}</p>
                     </div>
                     <Button variant="outline" size="sm" onClick={() => gerarRelatorio(relatorio.nome)}>
                       <Download className="h-4 w-4 mr-2" />

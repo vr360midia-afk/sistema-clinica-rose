@@ -109,7 +109,7 @@ const InstagramPostCreator = () => {
             {/* Upload de Imagem */}
             <div>
               <label className="block text-sm font-medium mb-2">Imagem do Post</label>
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-pink-400 transition-colors">
+              <div className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-pink-400 transition-colors">
                 <input
                   type="file"
                   accept="image/*"
@@ -118,8 +118,8 @@ const InstagramPostCreator = () => {
                   id="image-upload"
                 />
                 <label htmlFor="image-upload" className="cursor-pointer">
-                  <Image className="h-12 w-12 mx-auto text-gray-400 mb-2" />
-                  <p className="text-sm text-gray-600">Clique para selecionar uma imagem</p>
+                  <Image className="h-12 w-12 mx-auto text-muted-foreground mb-2" />
+                  <p className="text-sm text-muted-foreground">Clique para selecionar uma imagem</p>
                 </label>
               </div>
               {preview && (
@@ -220,7 +220,7 @@ const InstagramPostCreator = () => {
                         Usar
                       </Button>
                     </div>
-                    <p className="text-sm text-gray-600 truncate">{template.caption.slice(0, 60)}...</p>
+                    <p className="text-sm text-muted-foreground truncate">{template.caption.slice(0, 60)}...</p>
                     <div className="flex gap-1 mt-2">
                       {template.hashtags.split(' ').slice(0, 3).map((tag, index) => (
                         <Badge key={index} variant="secondary" className="text-xs">
@@ -244,7 +244,7 @@ const InstagramPostCreator = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="border rounded-lg overflow-hidden bg-white">
+                <div className="border rounded-lg overflow-hidden bg-card">
                   {preview && (
                     <img src={preview} alt="Post preview" className="w-full h-48 object-cover" />
                   )}

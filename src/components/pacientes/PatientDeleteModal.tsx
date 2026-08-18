@@ -39,7 +39,7 @@ const PatientDeleteModal = ({ isOpen, onClose, onConfirm, patientName, isArchive
             </div>
           </div>
           
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-muted-foreground">
             Paciente: <strong>{patientName}</strong>
           </p>
         </div>

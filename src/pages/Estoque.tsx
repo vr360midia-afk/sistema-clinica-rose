@@ -254,10 +254,10 @@ const Estoque = () => {
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <Package className="h-8 w-8 text-gray-400" />
+                    <Package className="h-8 w-8 text-muted-foreground" />
                     <div>
                       <h3 className="font-semibold">{produto.nome}</h3>
-                      <p className="text-sm text-gray-600">{produto.categoria}</p>
+                      <p className="text-sm text-muted-foreground">{produto.categoria}</p>
                     </div>
                   </div>
                   
@@ -269,7 +269,7 @@ const Estoque = () => {
                           <AlertTriangle className="h-4 w-4 text-yellow-500" />
                         )}
                       </div>
-                      <p className="text-sm text-gray-600">
+                      <p className="text-sm text-muted-foreground">
                         Mín: {produto.minimo} | R$ {produto.preco.toFixed(2)}
                       </p>
                     </div>
@@ -301,8 +301,8 @@ const Estoque = () => {
 
         {produtos.length === 0 && (
           <div className="text-center py-12">
-            <Package className="h-12 w-12 mx-auto text-gray-300 mb-4" />
-            <p className="text-gray-500">Nenhum produto encontrado. Adicione o primeiro produto!</p>
+            <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <p className="text-muted-foreground">Nenhum produto encontrado. Adicione o primeiro produto!</p>
           </div>
         )}
       </div>

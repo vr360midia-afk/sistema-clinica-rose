@@ -164,7 +164,7 @@ const PatientDocuments = ({ patient }: PatientDocumentsProps) => {
 
               <h4 className="font-medium text-sm mb-2 break-words">{documento.nome}</h4>
 
-              <div className="text-xs text-gray-500">
+              <div className="text-xs text-muted-foreground">
                 <p>Adicionado em: {new Date(documento.criadoEm).toLocaleDateString('pt-BR')}</p>
                 {documento.tamanho && <p>Tamanho: {(documento.tamanho / 1024).toFixed(1)} KB</p>}
               </div>

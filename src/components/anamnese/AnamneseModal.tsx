@@ -197,7 +197,7 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-muted-foreground">
                   Gere um link único para que o paciente possa assinar remotamente pelo celular ou computador.
                 </p>
                 
@@ -208,8 +208,8 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
                   </Button>
                 ) : (
                   <div className="space-y-3">
-                    <div className="p-3 bg-gray-50 rounded border">
-                      <p className="text-xs text-gray-500 mb-1">Link gerado:</p>
+                    <div className="p-3 bg-muted rounded border">
+                      <p className="text-xs text-muted-foreground mb-1">Link gerado:</p>
                       <p className="text-sm font-mono break-all">{signatureLink}</p>
                     </div>
                     <div className="flex gap-2">
@@ -233,7 +233,7 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-gray-600 mb-4">
+                <p className="text-sm text-muted-foreground mb-4">
                   Colete a assinatura diretamente no consultório usando tablet, celular ou mouse.
                 </p>
                 <Button onClick={handleDirectSignature} className="w-full" variant="outline">

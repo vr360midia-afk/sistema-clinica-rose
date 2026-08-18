@@ -150,7 +150,7 @@ const Anamnese = () => {
                 <ArrowLeft className="h-4 w-4" />
               </Button>
               <Clipboard className="h-6 w-6 text-blue-600" />
-              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Nova Anamnese</h1>
+              <h1 className="text-xl sm:text-2xl font-bold text-foreground">Nova Anamnese</h1>
             </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => setShowForm(false)}>
@@ -169,11 +169,11 @@ const Anamnese = () => {
               <h3 className="text-sm font-medium text-blue-800 mb-2">Status das Assinaturas:</h3>
               <div className="space-y-1 text-sm">
                 <div className="flex items-center gap-2">
-                  <div className={`w-3 h-3 rounded-full ${patientSignature ? 'bg-green-500' : 'bg-gray-300'}`} />
+                  <div className={`w-3 h-3 rounded-full ${patientSignature ? 'bg-green-500' : 'bg-muted'}`} />
                   <span>Paciente: {patientSignature ? 'Assinado' : 'Pendente'}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className={`w-3 h-3 rounded-full ${dentistSignature ? 'bg-green-500' : 'bg-gray-300'}`} />
+                  <div className={`w-3 h-3 rounded-full ${dentistSignature ? 'bg-green-500' : 'bg-muted'}`} />
                   <span>Dentista: {dentistSignature ? 'Assinado' : 'Pendente'}</span>
                 </div>
               </div>
@@ -193,7 +193,7 @@ const Anamnese = () => {
 
               {/* Seção: Medicamentos e Alergias */}
               <div className="space-y-6">
-                <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Medicamentos e Alergias</h3>
+                <h3 className="text-lg font-semibold text-foreground border-b pb-2">Medicamentos e Alergias</h3>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
@@ -262,7 +262,7 @@ const Anamnese = () => {
 
               {/* Seção: Condições Médicas */}
               <div className="space-y-6">
-                <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Condições Médicas Gerais</h3>
+                <h3 className="text-lg font-semibold text-foreground border-b pb-2">Condições Médicas Gerais</h3>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
@@ -514,7 +514,7 @@ const Anamnese = () => {
 
               {/* Seção: Saúde Bucal */}
               <div className="space-y-6">
-                <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Saúde Bucal</h3>
+                <h3 className="text-lg font-semibold text-foreground border-b pb-2">Saúde Bucal</h3>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
@@ -694,8 +694,8 @@ const Anamnese = () => {
               </div>
 
               {/* Declaração */}
-              <div className="p-4 bg-gray-50 border-l-4 border-blue-500 rounded">
-                <p className="text-sm text-gray-700 italic">
+              <div className="p-4 bg-muted border-l-4 border-blue-500 rounded">
+                <p className="text-sm text-foreground italic">
                   <strong>Declaração:</strong> Declaro para fins de direito que as informações acima prestadas são verdadeiras, 
                   assumindo a responsabilidade por omissões ou informações incorretas.
                 </p>
@@ -724,7 +724,7 @@ const Anamnese = () => {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-3">
             <Clipboard className="h-6 w-6 text-blue-600" />
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Anamnese</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground">Anamnese</h1>
           </div>
           <Button onClick={() => setShowForm(true)} className="bg-blue-600 hover:bg-blue-700">
             <Plus className="h-4 w-4 mr-2" />
@@ -739,19 +739,19 @@ const Anamnese = () => {
           <CardContent>
             {anamneses.length === 0 ? (
               <div className="text-center py-8">
-                <div className="text-gray-400 mb-4">
+                <div className="text-muted-foreground mb-4">
                   <Clipboard className="h-12 w-12 mx-auto" />
                 </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhuma anamnese encontrada</h3>
-                <p className="text-gray-500">Crie sua primeira anamnese para começar.</p>
+                <h3 className="text-lg font-medium text-foreground mb-2">Nenhuma anamnese encontrada</h3>
+                <p className="text-muted-foreground">Crie sua primeira anamnese para começar.</p>
               </div>
             ) : (
               <div className="space-y-4">
                 {anamneses.map((anamnese) => (
-                  <div key={anamnese.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
+                  <div key={anamnese.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted">
                     <div>
                       <h3 className="font-medium">{anamnese.queixaPrincipal}</h3>
-                      <p className="text-sm text-gray-500">Data: {new Date(anamnese.data).toLocaleDateString('pt-BR')}</p>
+                      <p className="text-sm text-muted-foreground">Data: {new Date(anamnese.data).toLocaleDateString('pt-BR')}</p>
                     </div>
                     <Button variant="outline" size="sm">
                       <Eye className="h-4 w-4 mr-2" />

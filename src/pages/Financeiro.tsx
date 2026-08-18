@@ -30,8 +30,8 @@ const Financeiro = () => {
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Financeiro</h1>
-            <p className="text-gray-600">Controle financeiro e faturamento</p>
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground mb-2">Financeiro</h1>
+            <p className="text-muted-foreground">Controle financeiro e faturamento</p>
           </div>
           <Button onClick={() => setShowTransactionForm(true)} className="flex items-center gap-2">
             <Plus className="h-4 w-4" />
@@ -45,7 +45,7 @@ const Financeiro = () => {
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Total Recebido</p>
+                  <p className="text-sm text-muted-foreground">Total Recebido</p>
                   <p className="text-xl sm:text-2xl font-bold text-green-600">R$ {totalReceived.toFixed(2)}</p>
                 </div>
                 <TrendingUp className="h-8 w-8 text-green-600" />
@@ -57,7 +57,7 @@ const Financeiro = () => {
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">A Receber</p>
+                  <p className="text-sm text-muted-foreground">A Receber</p>
                   <p className="text-xl sm:text-2xl font-bold text-yellow-600">R$ {totalPending.toFixed(2)}</p>
                 </div>
                 <TrendingDown className="h-8 w-8 text-yellow-600" />
@@ -69,7 +69,7 @@ const Financeiro = () => {
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Total Geral</p>
+                  <p className="text-sm text-muted-foreground">Total Geral</p>
                   <p className="text-xl sm:text-2xl font-bold">R$ {(totalReceived + totalPending).toFixed(2)}</p>
                 </div>
                 <DollarSign className="h-8 w-8 text-blue-600" />
@@ -87,8 +87,8 @@ const Financeiro = () => {
             <div className="space-y-4">
               {transacoes.length === 0 ? (
                 <div className="text-center py-8">
-                  <CreditCard className="h-12 w-12 mx-auto text-gray-300 mb-4" />
-                  <p className="text-gray-500">Nenhuma transação registrada</p>
+                  <CreditCard className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">Nenhuma transação registrada</p>
                 </div>
               ) : (
                 transacoes
@@ -105,10 +105,10 @@ const Financeiro = () => {
                         </div>
                         <div>
                           <div className="font-medium">{getPacienteName(transacao.pacienteId)}</div>
-                          <div className="text-sm text-gray-600">
+                          <div className="text-sm text-muted-foreground">
                             {transacao.descricao}
                           </div>
-                          <div className="text-sm text-gray-500">{new Date(transacao.data).toLocaleDateString('pt-BR')}</div>
+                          <div className="text-sm text-muted-foreground">{new Date(transacao.data).toLocaleDateString('pt-BR')}</div>
                         </div>
                       </div>
                       <div className="text-right">

@@ -37,7 +37,7 @@ const PatientPhotoUpload = ({ currentPhoto, onPhotoChange }: PatientPhotoUploadP
             <img
               src={previewUrl}
               alt="Foto do paciente"
-              className="w-32 h-32 rounded-full object-cover border-4 border-gray-200"
+              className="w-32 h-32 rounded-full object-cover border-4 border-border"
             />
             <button
               onClick={handleRemovePhoto}
@@ -47,8 +47,8 @@ const PatientPhotoUpload = ({ currentPhoto, onPhotoChange }: PatientPhotoUploadP
             </button>
           </div>
         ) : (
-          <div className="w-32 h-32 rounded-full bg-gray-100 border-4 border-dashed border-gray-300 flex items-center justify-center">
-            <Camera className="h-8 w-8 text-gray-400" />
+          <div className="w-32 h-32 rounded-full bg-muted border-4 border-dashed border-border flex items-center justify-center">
+            <Camera className="h-8 w-8 text-muted-foreground" />
           </div>
         )}
       </div>

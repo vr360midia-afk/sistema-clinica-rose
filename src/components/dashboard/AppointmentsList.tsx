@@ -23,13 +23,13 @@ const AppointmentsList = () => {
       case 'agendado':
         return 'bg-blue-100 text-blue-800';
       case 'realizado':
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-muted text-foreground';
       case 'cancelado':
         return 'bg-red-100 text-red-800';
       case 'faltou':
         return 'bg-yellow-100 text-yellow-800';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-muted text-foreground';
     }
   };
 
@@ -72,12 +72,12 @@ const AppointmentsList = () => {
         <div className="space-y-4">
           {todayConsultas.length === 0 ? (
             <div className="text-center py-8">
-              <Calendar className="h-12 w-12 mx-auto text-gray-300 mb-4" />
-              <p className="text-gray-500">Nenhuma consulta agendada para hoje</p>
+              <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <p className="text-muted-foreground">Nenhuma consulta agendada para hoje</p>
             </div>
           ) : (
             todayConsultas.map((consulta) => (
-              <div key={consulta.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
+              <div key={consulta.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted">
                 <div className="flex items-center space-x-4">
                   <div className="flex-shrink-0">
                     <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
@@ -86,7 +86,7 @@ const AppointmentsList = () => {
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium text-gray-900">
+                      <p className="text-sm font-medium text-foreground">
                         {getPacienteName(consulta.pacienteId)}
                       </p>
                       <Badge className={getStatusColor(consulta.status)}>
@@ -94,16 +94,16 @@ const AppointmentsList = () => {
                       </Badge>
                     </div>
                     <div className="flex items-center gap-4 mt-1">
-                      <div className="flex items-center gap-1 text-sm text-gray-500">
+                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
                         <Clock className="h-4 w-4" />
                         {consulta.hora}
                       </div>
-                      <div className="flex items-center gap-1 text-sm text-gray-500">
+                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
                         <Phone className="h-4 w-4" />
                         {getPacientePhone(consulta.pacienteId)}
                       </div>
                     </div>
-                    <p className="text-sm text-gray-500 mt-1">{consulta.procedimento}</p>
+                    <p className="text-sm text-muted-foreground mt-1">{consulta.procedimento}</p>
                   </div>
                 </div>
                 <div className="flex gap-2">

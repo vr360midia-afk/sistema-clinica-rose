@@ -68,8 +68,8 @@ const Admin = () => {
     <Layout>
       <div className="space-y-6">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Administração</h1>
-          <p className="text-gray-600">Gerenciamento de dados do sistema</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground mb-2">Administração</h1>
+          <p className="text-muted-foreground">Gerenciamento de dados do sistema</p>
         </div>
 
         {/* Status dos dados */}
@@ -81,27 +81,27 @@ const Admin = () => {
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               <div className="text-center p-4 bg-blue-50 rounded-lg">
                 <div className="text-xl sm:text-2xl font-bold text-blue-600">{pacientes.length}</div>
-                <div className="text-sm text-gray-600">Pacientes</div>
+                <div className="text-sm text-muted-foreground">Pacientes</div>
               </div>
               <div className="text-center p-4 bg-green-50 rounded-lg">
                 <div className="text-xl sm:text-2xl font-bold text-green-600">{consultas.length}</div>
-                <div className="text-sm text-gray-600">Consultas</div>
+                <div className="text-sm text-muted-foreground">Consultas</div>
               </div>
               <div className="text-center p-4 bg-purple-50 rounded-lg">
                 <div className="text-xl sm:text-2xl font-bold text-purple-600">{transacoes.length}</div>
-                <div className="text-sm text-gray-600">Transações</div>
+                <div className="text-sm text-muted-foreground">Transações</div>
               </div>
               <div className="text-center p-4 bg-orange-50 rounded-lg">
                 <div className="text-xl sm:text-2xl font-bold text-orange-600">{prontuarios.length}</div>
-                <div className="text-sm text-gray-600">Prontuários</div>
+                <div className="text-sm text-muted-foreground">Prontuários</div>
               </div>
               <div className="text-center p-4 bg-red-50 rounded-lg">
                 <div className="text-xl sm:text-2xl font-bold text-red-600">{anamneses.length}</div>
-                <div className="text-sm text-gray-600">Anamneses</div>
+                <div className="text-sm text-muted-foreground">Anamneses</div>
               </div>
-              <div className="text-center p-4 bg-gray-50 rounded-lg">
-                <div className="text-xl sm:text-2xl font-bold text-gray-600">{documentos.length}</div>
-                <div className="text-sm text-gray-600">Documentos</div>
+              <div className="text-center p-4 bg-muted rounded-lg">
+                <div className="text-xl sm:text-2xl font-bold text-muted-foreground">{documentos.length}</div>
+                <div className="text-sm text-muted-foreground">Documentos</div>
               </div>
             </div>
           </CardContent>

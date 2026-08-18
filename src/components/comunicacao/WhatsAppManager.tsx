@@ -161,9 +161,9 @@ const WhatsAppManager = () => {
                 </div>
 
                 {selectedTemplate && (
-                  <div className="p-3 bg-gray-50 rounded-lg">
+                  <div className="p-3 bg-muted rounded-lg">
                     <p className="text-sm font-medium mb-1">Preview do Template:</p>
-                    <p className="text-sm text-gray-600 whitespace-pre-line">
+                    <p className="text-sm text-muted-foreground whitespace-pre-line">
                       {messageTemplates.find(t => t.id === selectedTemplate)?.message}
                     </p>
                   </div>
@@ -197,14 +197,14 @@ const WhatsAppManager = () => {
                       className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
                         selectedPatients.includes(paciente.id)
                           ? 'bg-green-50 border-green-200'
-                          : 'hover:bg-gray-50'
+                          : 'hover:bg-muted'
                       }`}
                       onClick={() => togglePatientSelection(paciente.id)}
                     >
                       <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
                         selectedPatients.includes(paciente.id)
                           ? 'bg-green-600 border-green-600'
-                          : 'border-gray-300'
+                          : 'border-border'
                       }`}>
                         {selectedPatients.includes(paciente.id) && (
                           <CheckCircle className="h-3 w-3 text-white" />
@@ -212,7 +212,7 @@ const WhatsAppManager = () => {
                       </div>
                       <div className="flex-1">
                         <p className="font-medium text-sm">{paciente.nome}</p>
-                        <p className="text-xs text-gray-500">{paciente.telefone}</p>
+                        <p className="text-xs text-muted-foreground">{paciente.telefone}</p>
                       </div>
                       <Badge variant={paciente.status === 'Ativo' ? 'default' : 'secondary'}>
                         {paciente.status}
@@ -244,7 +244,7 @@ const WhatsAppManager = () => {
                         Usar Template
                       </Button>
                     </div>
-                    <p className="text-sm text-gray-600 whitespace-pre-line">
+                    <p className="text-sm text-muted-foreground whitespace-pre-line">
                       {template.message}
                     </p>
                   </div>
@@ -269,7 +269,7 @@ const WhatsAppManager = () => {
                         className={
                           campaign.status === 'active' 
                             ? 'bg-green-100 text-green-800' 
-                            : 'bg-gray-100 text-gray-800'
+                            : 'bg-muted text-foreground'
                         }
                       >
                         {campaign.status === 'active' ? 'Ativo' : 'Concluído'}
@@ -279,19 +279,19 @@ const WhatsAppManager = () => {
                     <div className="grid grid-cols-4 gap-4 text-center">
                       <div>
                         <div className="text-lg font-semibold text-blue-600">{campaign.sent}</div>
-                        <div className="text-xs text-gray-500">Enviadas</div>
+                        <div className="text-xs text-muted-foreground">Enviadas</div>
                       </div>
                       <div>
                         <div className="text-lg font-semibold text-green-600">{campaign.delivered}</div>
-                        <div className="text-xs text-gray-500">Entregues</div>
+                        <div className="text-xs text-muted-foreground">Entregues</div>
                       </div>
                       <div>
                         <div className="text-lg font-semibold text-purple-600">{campaign.read}</div>
-                        <div className="text-xs text-gray-500">Lidas</div>
+                        <div className="text-xs text-muted-foreground">Lidas</div>
                       </div>
                       <div>
                         <div className="text-lg font-semibold text-orange-600">{campaign.replied}</div>
-                        <div className="text-xs text-gray-500">Respondidas</div>
+                        <div className="text-xs text-muted-foreground">Respondidas</div>
                       </div>
                     </div>
                   </div>

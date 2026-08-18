@@ -219,7 +219,7 @@ const PatientPhotoCapture = ({ currentPhoto, onPhotoChange }: PatientPhotoCaptur
             <video
               ref={videoRef}
               autoPlay
-              className="w-80 h-60 rounded-lg border-2 border-gray-300 object-cover"
+              className="w-80 h-60 rounded-lg border-2 border-border object-cover"
             />
             <canvas ref={canvasRef} className="hidden" />
           </div>
@@ -228,7 +228,7 @@ const PatientPhotoCapture = ({ currentPhoto, onPhotoChange }: PatientPhotoCaptur
             <img
               src={previewUrl}
               alt="Foto do paciente"
-              className="w-40 h-40 rounded-full object-cover border-4 border-gray-200 shadow-sm"
+              className="w-40 h-40 rounded-full object-cover border-4 border-border shadow-sm"
             />
             <button
               type="button"
@@ -239,8 +239,8 @@ const PatientPhotoCapture = ({ currentPhoto, onPhotoChange }: PatientPhotoCaptur
             </button>
           </div>
         ) : (
-          <div className="w-40 h-40 rounded-full bg-gray-50 border-2 border-dashed border-gray-300 flex items-center justify-center">
-            <Camera className="h-12 w-12 text-gray-400" />
+          <div className="w-40 h-40 rounded-full bg-muted border-2 border-dashed border-border flex items-center justify-center">
+            <Camera className="h-12 w-12 text-muted-foreground" />
           </div>
         )}
       </div>

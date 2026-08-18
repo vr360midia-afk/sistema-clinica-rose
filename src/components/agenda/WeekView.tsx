@@ -47,10 +47,10 @@ const WeekView = ({ selectedDate, onDateChange, consultas, onAppointmentClick, o
     switch (status) {
       case 'confirmado': return 'bg-green-500';
       case 'agendado': return 'bg-blue-500';
-      case 'realizado': return 'bg-gray-500';
+      case 'realizado': return 'bg-muted';
       case 'cancelado': return 'bg-red-500';
       case 'faltou': return 'bg-yellow-500';
-      default: return 'bg-gray-400';
+      default: return 'bg-muted';
     }
   };
 
@@ -87,11 +87,11 @@ const WeekView = ({ selectedDate, onDateChange, consultas, onAppointmentClick, o
         <div className="overflow-x-auto">
         <div className="grid grid-cols-8 text-xs border rounded-lg overflow-hidden min-w-[720px]">
           {/* Header */}
-          <div className="p-2 font-semibold bg-gray-50 border-r">Horário</div>
+          <div className="p-2 font-semibold bg-muted border-r">Horário</div>
           {weekDays.map(day => (
             <div 
               key={day.toISOString()} 
-              className={`p-2 text-center font-semibold cursor-pointer hover:bg-gray-100 bg-gray-50 border-r ${
+              className={`p-2 text-center font-semibold cursor-pointer hover:bg-muted bg-muted border-r ${
                 isToday(day) ? 'bg-blue-50 text-blue-700' : ''
               }`}
               onClick={() => onDateClick(day)}
@@ -104,13 +104,13 @@ const WeekView = ({ selectedDate, onDateChange, consultas, onAppointmentClick, o
           {/* Time slots */}
           {timeSlots.map(time => (
             <div key={time} className="contents">
-              <div className="p-1 text-right text-gray-600 bg-gray-50 border-r border-b text-xs font-medium">{time}</div>
+              <div className="p-1 text-right text-muted-foreground bg-muted border-r border-b text-xs font-medium">{time}</div>
               {weekDays.map(day => {
                 const dayConsultas = getConsultasForDayAndTime(day, time);
                 return (
                   <div 
                     key={`${day.toISOString()}-${time}`} 
-                    className="p-1 border-r border-b min-h-[40px] cursor-pointer hover:bg-gray-50 bg-white"
+                    className="p-1 border-r border-b min-h-[40px] cursor-pointer hover:bg-muted bg-card"
                     onClick={() => onDateClick(day, time)}
                   >
                     {dayConsultas.map(consulta => (

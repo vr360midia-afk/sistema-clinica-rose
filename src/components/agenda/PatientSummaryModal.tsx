@@ -38,40 +38,40 @@ const PatientSummaryModal = ({ isOpen, onClose, appointment }: PatientSummaryMod
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-sm font-medium text-gray-600">Horário</label>
+              <label className="text-sm font-medium text-muted-foreground">Horário</label>
               <p className="text-lg font-semibold">{appointment.time}</p>
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-600">Status</label>
+              <label className="text-sm font-medium text-muted-foreground">Status</label>
               <Badge className="mt-1">{appointment.status}</Badge>
             </div>
           </div>
 
           <div>
-            <label className="text-sm font-medium text-gray-600">Procedimento</label>
+            <label className="text-sm font-medium text-muted-foreground">Procedimento</label>
             <p className="font-medium">{appointment.procedure}</p>
           </div>
 
           {appointment.patientData && (
             <>
               <div className="flex items-center gap-2">
-                <Phone className="h-4 w-4 text-gray-500" />
+                <Phone className="h-4 w-4 text-muted-foreground" />
                 <span>{appointment.patientData.phone}</span>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-medium text-gray-600">Idade</label>
+                  <label className="text-sm font-medium text-muted-foreground">Idade</label>
                   <p>{appointment.patientData.age} anos</p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-600">Convênio</label>
+                  <label className="text-sm font-medium text-muted-foreground">Convênio</label>
                   <p>{appointment.patientData.insurance}</p>
                 </div>
               </div>
 
               <div className="flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-gray-500" />
+                <Calendar className="h-4 w-4 text-muted-foreground" />
                 <span>Última consulta: {appointment.patientData.lastVisit}</span>
               </div>
 

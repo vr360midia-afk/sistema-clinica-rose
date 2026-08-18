@@ -42,8 +42,8 @@ const Prontuarios = () => {
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Prontuários</h1>
-            <p className="text-gray-600">Gerencie prontuários e fichas clínicas</p>
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground mb-2">Prontuários</h1>
+            <p className="text-muted-foreground">Gerencie prontuários e fichas clínicas</p>
           </div>
           <Button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2">
             <Plus className="h-4 w-4" />
@@ -60,7 +60,7 @@ const Prontuarios = () => {
                 Prontuários ({filteredProntuarios.length})
               </CardTitle>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                 <Input
                   placeholder="Buscar paciente..."
                   value={searchTerm}
@@ -78,20 +78,20 @@ const Prontuarios = () => {
                   return (
                     <div 
                       key={prontuario.id}
-                      className={`p-3 border rounded-lg cursor-pointer hover:bg-gray-50 ${
+                      className={`p-3 border rounded-lg cursor-pointer hover:bg-muted ${
                         selectedProntuario === prontuario.pacienteId ? 'border-blue-500 bg-blue-50' : ''
                       }`}
                       onClick={() => setSelectedProntuario(prontuario.pacienteId)}
                     >
                       <div className="flex items-center gap-2 mb-2">
-                        <User className="h-4 w-4 text-gray-500" />
+                        <User className="h-4 w-4 text-muted-foreground" />
                         <span className="font-medium">{paciente.nome}</span>
                       </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
                         <Calendar className="h-3 w-3" />
                         Criado em: {new Date(prontuario.data).toLocaleDateString('pt-BR')}
                       </div>
-                      <div className="text-sm text-gray-600 mb-2">
+                      <div className="text-sm text-muted-foreground mb-2">
                         <strong>Queixa:</strong> {prontuario.queixaPrincipal}
                       </div>
                       {prontuario.procedimentosRealizados.length > 0 && (
@@ -113,7 +113,7 @@ const Prontuarios = () => {
                 })}
                 
                 {filteredProntuarios.length === 0 && (
-                  <div className="text-center text-gray-500 py-8">
+                  <div className="text-center text-muted-foreground py-8">
                     <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
                     <p>Nenhum prontuário encontrado</p>
                   </div>
@@ -135,7 +135,7 @@ const Prontuarios = () => {
                         className={`px-4 py-3 text-sm font-medium border-b-2 ${
                           activeTab === 'odontograma'
                             ? 'border-blue-500 text-blue-600'
-                            : 'border-transparent text-gray-500 hover:text-gray-700'
+                            : 'border-transparent text-muted-foreground hover:text-foreground'
                         }`}
                       >
                         Odontograma
@@ -145,7 +145,7 @@ const Prontuarios = () => {
                         className={`px-4 py-3 text-sm font-medium border-b-2 ${
                           activeTab === 'ficha'
                             ? 'border-blue-500 text-blue-600'
-                            : 'border-transparent text-gray-500 hover:text-gray-700'
+                            : 'border-transparent text-muted-foreground hover:text-foreground'
                         }`}
                       >
                         Ficha Clínica
@@ -155,7 +155,7 @@ const Prontuarios = () => {
                         className={`px-4 py-3 text-sm font-medium border-b-2 ${
                           activeTab === 'anexos'
                             ? 'border-blue-500 text-blue-600'
-                            : 'border-transparent text-gray-500 hover:text-gray-700'
+                            : 'border-transparent text-muted-foreground hover:text-foreground'
                         }`}
                       >
                         <Camera className="h-4 w-4 inline mr-1" />
@@ -262,7 +262,7 @@ const Prontuarios = () => {
             ) : (
               <Card>
                 <CardContent className="flex items-center justify-center h-64">
-                  <div className="text-center text-gray-500">
+                  <div className="text-center text-muted-foreground">
                     <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
                     <p>Selecione um prontuário para visualizar os detalhes</p>
                   </div>
