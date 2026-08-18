@@ -14,6 +14,8 @@ import WeekView from '@/components/agenda/WeekView';
 import MonthView from '@/components/agenda/MonthView';
 import AppointmentDetailsModal from '@/components/agenda/AppointmentDetailsModal';
 import { useAgendaViews } from '@/hooks/useAgendaViews';
+import { downloadICS } from '@/utils/calendarExport';
+import { toast } from 'sonner';
 
 const Agenda = () => {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
@@ -69,6 +71,30 @@ const Agenda = () => {
     }
   };
 
+  const handleExportAgenda = () => {
+    if (transformedConsultas.length === 0) {
+      toast.info('Nenhuma consulta para exportar');
+      return;
+    }
+    const eventos = transformedConsultas.map((c: any) => {
+      const [h, m] = (c.hora || '08:00').split(':').map(Number);
+      const inicio = new Date(c.data);
+      inicio.setHours(h || 8, m || 0, 0, 0);
+      return {
+        id: c.id,
+        titulo: `${c.procedimento || 'Consulta'} - ${c.patient}`,
+        descricao: [c.dentista ? `Dentista: ${c.dentista}` : '', c.status ? `Status: ${c.status}` : '']
+          .filter(Boolean)
+          .join('\n'),
+        inicio,
+        duracaoMinutos: Number(c.duracao) || 60,
+      };
+    });
+    downloadICS(eventos);
+    toast.success('Agenda exportada! Importe o arquivo no Google Agenda ou Apple Calendário.');
+  };
+
+
   const renderCurrentView = () => {
     if (!selectedDate) return null;
 
@@ -114,13 +140,24 @@ const Agenda = () => {
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">Agenda</h1>
             <p className="text-sm sm:text-base text-gray-600">Gerencie seus agendamentos e consultas</p>
           </div>
-          <Button 
-            className="flex items-center gap-2 w-full sm:w-auto justify-center"
-            onClick={handleNewAppointment}
-          >
-            <Plus className="h-4 w-4" />
-            Nova Consulta
-          </Button>
+          <div className="flex gap-2 w-full sm:w-auto">
+            <Button
+              variant="outline"
+              className="flex items-center gap-2 flex-1 sm:flex-none justify-center"
+              onClick={handleExportAgenda}
+            >
+              <CalendarDays className="h-4 w-4" />
+              Exportar (.ics)
+            </Button>
+            <Button
+              className="flex items-center gap-2 flex-1 sm:flex-none justify-center"
+              onClick={handleNewAppointment}
+            >
+              <Plus className="h-4 w-4" />
+              Nova Consulta
+            </Button>
+          </div>
+
         </div>
 
         <div className="flex flex-wrap gap-1 border-b border-gray-200 pb-2">

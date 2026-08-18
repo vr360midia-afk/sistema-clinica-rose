@@ -19,7 +19,9 @@ interface ProcedimentosListProps {
   procedimentos: Procedimento[];
   onEdit: (procedimento: Procedimento) => void;
   onDelete: (id: string) => void;
+  onDuplicate?: (procedimento: Procedimento) => void;
 }
+
 
 const getCategoriaColor = (categoria: string) => {
   const colors: Record<string, string> = {
@@ -47,7 +49,7 @@ const getComplexidadeColor = (complexidade: string) => {
   return colors[complexidade] || colors.media;
 };
 
-const ProcedimentosList = ({ procedimentos, onEdit, onDelete }: ProcedimentosListProps) => {
+const ProcedimentosList = ({ procedimentos, onEdit, onDelete, onDuplicate }: ProcedimentosListProps) => {
   if (procedimentos.length === 0) {
     return (
       <div className="text-center py-12">
@@ -140,17 +142,17 @@ const ProcedimentosList = ({ procedimentos, onEdit, onDelete }: ProcedimentosLis
                   >
                     <Edit className="h-4 w-4" />
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      // TODO: Implement duplicate functionality
-                      console.log('Duplicate:', procedimento.id);
-                    }}
-                    className="h-8 w-8 p-0"
-                  >
-                    <Copy className="h-4 w-4" />
-                  </Button>
+                  {onDuplicate && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onDuplicate(procedimento)}
+                      className="h-8 w-8 p-0"
+                      aria-label="Duplicar procedimento"
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="sm"

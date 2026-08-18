@@ -1,6 +1,7 @@
-
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { SignatureData } from '@/components/signature/DigitalSignature';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/context/AuthContext';
 
 interface StoredSignature extends SignatureData {
   id: string;
@@ -8,96 +9,129 @@ interface StoredSignature extends SignatureData {
   patientId?: string;
 }
 
+const rowToSignature = (row: any): StoredSignature => ({
+  id: row.id,
+  signature: row.assinatura_data,
+  signerName: row.nome,
+  signerRole: (row.tipo === 'paciente' ? 'paciente' : 'dentista'),
+  timestamp: new Date(row.criado_em),
+  documentType: row.documento_tipo || '',
+  documentId: row.documento_id || undefined,
+  patientId: row.paciente_id || undefined,
+});
+
 export const useSignatures = () => {
+  const { user } = useAuth();
   const [signatures, setSignatures] = useState<StoredSignature[]>([]);
 
-  // Salvar assinatura no localStorage
-  const saveSignature = useCallback((signatureData: SignatureData, documentId?: string, patientId?: string) => {
-    const newSignature: StoredSignature = {
-      ...signatureData,
-      id: Date.now().toString() + Math.random().toString(36).substr(2),
-      documentId,
-      patientId
-    };
-
-    // Buscar assinaturas existentes
-    const existingSignatures = getStoredSignatures();
-    const updatedSignatures = [...existingSignatures, newSignature];
-    
-    // Salvar no localStorage
-    localStorage.setItem('dental-signatures', JSON.stringify(updatedSignatures));
-    setSignatures(updatedSignatures);
-    
-    return newSignature;
-  }, []);
-
-  // Buscar assinaturas do localStorage
-  const getStoredSignatures = useCallback((): StoredSignature[] => {
-    try {
-      const stored = localStorage.getItem('dental-signatures');
-      return stored ? JSON.parse(stored) : [];
-    } catch (error) {
+  const fetchSignatures = useCallback(async () => {
+    if (!user?.id) {
+      setSignatures([]);
+      return [];
+    }
+    const { data, error } = await supabase
+      .from('assinaturas')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('criado_em', { ascending: false });
+    if (error) {
       console.error('Erro ao carregar assinaturas:', error);
       return [];
     }
-  }, []);
+    const list = (data || []).map(rowToSignature);
+    setSignatures(list);
+    return list;
+  }, [user?.id]);
 
-  // Buscar assinaturas por paciente
-  const getSignaturesByPatient = useCallback((patientId: string): StoredSignature[] => {
-    const allSignatures = getStoredSignatures();
-    return allSignatures.filter(sig => sig.patientId === patientId);
-  }, [getStoredSignatures]);
+  useEffect(() => {
+    fetchSignatures();
+  }, [fetchSignatures]);
 
-  // Buscar assinaturas por documento
-  const getSignaturesByDocument = useCallback((documentId: string): StoredSignature[] => {
-    const allSignatures = getStoredSignatures();
-    return allSignatures.filter(sig => sig.documentId === documentId);
-  }, [getStoredSignatures]);
+  const saveSignature = useCallback(
+    async (signatureData: SignatureData, documentId?: string, patientId?: string) => {
+      if (!user?.id) return null;
+      const { data, error } = await supabase
+        .from('assinaturas')
+        .insert({
+          user_id: user.id,
+          nome: signatureData.signerName,
+          tipo: signatureData.signerRole,
+          assinatura_data: signatureData.signature,
+          documento_id: documentId || null,
+          documento_tipo: signatureData.documentType || null,
+          paciente_id: patientId || null,
+        })
+        .select()
+        .single();
+      if (error) {
+        console.error('Erro ao salvar assinatura:', error);
+        return null;
+      }
+      const saved = rowToSignature(data);
+      setSignatures((prev) => [saved, ...prev]);
+      return saved;
+    },
+    [user?.id]
+  );
 
-  // Gerar PDF com assinaturas - aceita tanto StoredSignature quanto SignatureData
-  const generateSignedPDF = useCallback((documentContent: string, signatures: (StoredSignature | SignatureData)[]) => {
-    // Esta é uma implementação simulada
-    // Em um projeto real, você usaria uma biblioteca como jsPDF
-    const pdfContent = `
+  const getStoredSignatures = useCallback(() => signatures, [signatures]);
+
+  const getSignaturesByPatient = useCallback(
+    (patientId: string) => signatures.filter((s) => s.patientId === patientId),
+    [signatures]
+  );
+
+  const getSignaturesByDocument = useCallback(
+    (documentId: string) => signatures.filter((s) => s.documentId === documentId),
+    [signatures]
+  );
+
+  const generateSignedPDF = useCallback(
+    (documentContent: string, sigs: (StoredSignature | SignatureData)[]) => {
+      const pdfContent = `
       ${documentContent}
-      
+
       =====================================
       ASSINATURAS DIGITAIS
       =====================================
-      
-      ${signatures.map(sig => `
+
+      ${sigs
+        .map(
+          (sig) => `
       Assinante: ${sig.signerName} (${sig.signerRole})
-      Data/Hora: ${sig.timestamp.toLocaleString()}
+      Data/Hora: ${new Date(sig.timestamp).toLocaleString('pt-BR')}
       E-mail: ${sig.signerInfo?.email || 'Não informado'}
       CPF: ${sig.signerInfo?.cpf || 'Não informado'}
-      
+
       [Assinatura Digital Aplicada]
-      
-      `).join('\n')}
-      
+      `
+        )
+        .join('\n')}
+
       =====================================
       Este documento foi assinado digitalmente.
-      Data de geração: ${new Date().toLocaleString()}
+      Data de geração: ${new Date().toLocaleString('pt-BR')}
       =====================================
     `;
 
-    // Simular download do PDF
-    const blob = new Blob([pdfContent], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `documento-assinado-${Date.now()}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }, []);
+      const blob = new Blob([pdfContent], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `documento-assinado-${Date.now()}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    },
+    []
+  );
 
-  // Limpar todas as assinaturas
-  const clearAllSignatures = useCallback(() => {
-    localStorage.removeItem('dental-signatures');
+  const clearAllSignatures = useCallback(async () => {
+    if (!user?.id) return;
+    await supabase.from('assinaturas').delete().eq('user_id', user.id);
     setSignatures([]);
-  }, []);
+  }, [user?.id]);
 
   return {
     signatures,
@@ -106,6 +140,7 @@ export const useSignatures = () => {
     getSignaturesByPatient,
     getSignaturesByDocument,
     generateSignedPDF,
-    clearAllSignatures
+    clearAllSignatures,
+    refetch: fetchSignatures,
   };
 };

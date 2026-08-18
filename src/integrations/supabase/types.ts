@@ -64,6 +64,45 @@ export type Database = {
           },
         ]
       }
+      assinaturas: {
+        Row: {
+          assinatura_data: string
+          atualizado_em: string
+          criado_em: string
+          documento_id: string | null
+          documento_tipo: string | null
+          id: string
+          nome: string
+          paciente_id: string | null
+          tipo: string
+          user_id: string
+        }
+        Insert: {
+          assinatura_data: string
+          atualizado_em?: string
+          criado_em?: string
+          documento_id?: string | null
+          documento_tipo?: string | null
+          id?: string
+          nome: string
+          paciente_id?: string | null
+          tipo?: string
+          user_id: string
+        }
+        Update: {
+          assinatura_data?: string
+          atualizado_em?: string
+          criado_em?: string
+          documento_id?: string | null
+          documento_tipo?: string | null
+          id?: string
+          nome?: string
+          paciente_id?: string | null
+          tipo?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       consultas: {
         Row: {
           atualizado_em: string
@@ -316,6 +355,108 @@ export type Database = {
           status?: string | null
           telefone?: string | null
           ultima_consulta?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      pacotes_procedimentos: {
+        Row: {
+          ativo: boolean
+          atualizado_em: string
+          criado_em: string
+          desconto_percentual: number
+          descricao: string | null
+          id: string
+          nome: string
+          preco: number
+          procedimento_ids: Json
+          user_id: string
+        }
+        Insert: {
+          ativo?: boolean
+          atualizado_em?: string
+          criado_em?: string
+          desconto_percentual?: number
+          descricao?: string | null
+          id?: string
+          nome: string
+          preco?: number
+          procedimento_ids?: Json
+          user_id: string
+        }
+        Update: {
+          ativo?: boolean
+          atualizado_em?: string
+          criado_em?: string
+          desconto_percentual?: number
+          descricao?: string | null
+          id?: string
+          nome?: string
+          preco?: number
+          procedimento_ids?: Json
+          user_id?: string
+        }
+        Relationships: []
+      }
+      procedimentos: {
+        Row: {
+          ativo: boolean
+          atualizado_em: string
+          categoria: string
+          complexidade: string
+          criado_em: string
+          criado_por: string | null
+          descricao: string | null
+          duracao_minutos: number
+          equipamentos_necessarios: Json
+          id: string
+          materiais_necessarios: Json
+          nome: string
+          observacoes: string | null
+          preco: number
+          preco_convenio: number | null
+          requerer_anestesia: boolean
+          requerer_raio_x: boolean
+          user_id: string
+        }
+        Insert: {
+          ativo?: boolean
+          atualizado_em?: string
+          categoria?: string
+          complexidade?: string
+          criado_em?: string
+          criado_por?: string | null
+          descricao?: string | null
+          duracao_minutos?: number
+          equipamentos_necessarios?: Json
+          id?: string
+          materiais_necessarios?: Json
+          nome: string
+          observacoes?: string | null
+          preco?: number
+          preco_convenio?: number | null
+          requerer_anestesia?: boolean
+          requerer_raio_x?: boolean
+          user_id: string
+        }
+        Update: {
+          ativo?: boolean
+          atualizado_em?: string
+          categoria?: string
+          complexidade?: string
+          criado_em?: string
+          criado_por?: string | null
+          descricao?: string | null
+          duracao_minutos?: number
+          equipamentos_necessarios?: Json
+          id?: string
+          materiais_necessarios?: Json
+          nome?: string
+          observacoes?: string | null
+          preco?: number
+          preco_convenio?: number | null
+          requerer_anestesia?: boolean
+          requerer_raio_x?: boolean
           user_id?: string
         }
         Relationships: []
