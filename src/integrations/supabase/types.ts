@@ -16,42 +16,96 @@ export type Database = {
     Tables: {
       anamneses: {
         Row: {
+          alergias: string | null
+          anexos: Json | null
           assinatura: string | null
+          assinatura_doutor: Json | null
+          assinatura_paciente: Json | null
           atualizado_em: string
           criado_em: string
+          data: string | null
           data_assinatura: string | null
+          data_expiracao_link: string | null
+          exame_extra_bucal: string | null
+          exame_intra_bucal: string | null
+          habitos_vicios_negativos: string | null
+          habitos_vicios_positivos: string | null
+          historia_atual: string | null
+          historia_familiar: string | null
+          historia_medica: string | null
           id: string
           link_assinatura: string | null
+          medicamentos: string | null
+          observacoes: string | null
           paciente_id: string | null
           paciente_nome: string | null
+          queixa_principal: string | null
           respostas: Json | null
           status: string | null
+          status_assinatura: string | null
+          token_assinatura: string | null
           user_id: string
         }
         Insert: {
+          alergias?: string | null
+          anexos?: Json | null
           assinatura?: string | null
+          assinatura_doutor?: Json | null
+          assinatura_paciente?: Json | null
           atualizado_em?: string
           criado_em?: string
+          data?: string | null
           data_assinatura?: string | null
+          data_expiracao_link?: string | null
+          exame_extra_bucal?: string | null
+          exame_intra_bucal?: string | null
+          habitos_vicios_negativos?: string | null
+          habitos_vicios_positivos?: string | null
+          historia_atual?: string | null
+          historia_familiar?: string | null
+          historia_medica?: string | null
           id?: string
           link_assinatura?: string | null
+          medicamentos?: string | null
+          observacoes?: string | null
           paciente_id?: string | null
           paciente_nome?: string | null
+          queixa_principal?: string | null
           respostas?: Json | null
           status?: string | null
+          status_assinatura?: string | null
+          token_assinatura?: string | null
           user_id: string
         }
         Update: {
+          alergias?: string | null
+          anexos?: Json | null
           assinatura?: string | null
+          assinatura_doutor?: Json | null
+          assinatura_paciente?: Json | null
           atualizado_em?: string
           criado_em?: string
+          data?: string | null
           data_assinatura?: string | null
+          data_expiracao_link?: string | null
+          exame_extra_bucal?: string | null
+          exame_intra_bucal?: string | null
+          habitos_vicios_negativos?: string | null
+          habitos_vicios_positivos?: string | null
+          historia_atual?: string | null
+          historia_familiar?: string | null
+          historia_medica?: string | null
           id?: string
           link_assinatura?: string | null
+          medicamentos?: string | null
+          observacoes?: string | null
           paciente_id?: string | null
           paciente_nome?: string | null
+          queixa_principal?: string | null
           respostas?: Json | null
           status?: string | null
+          status_assinatura?: string | null
+          token_assinatura?: string | null
           user_id?: string
         }
         Relationships: [
