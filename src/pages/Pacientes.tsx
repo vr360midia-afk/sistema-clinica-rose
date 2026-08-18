@@ -157,20 +157,20 @@ const Pacientes = () => {
 
   return (
     <Layout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
+      <div className="space-y-4 sm:space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-3">
             <Users className="h-6 w-6 text-blue-600" />
-            <h1 className="text-2xl font-bold text-gray-900">Pacientes</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Pacientes</h1>
           </div>
-          <Button onClick={() => setShowForm(true)} className="bg-blue-600 hover:bg-blue-700">
+          <Button onClick={() => setShowForm(true)} className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto">
             <Plus className="h-4 w-4 mr-2" />
             Novo Paciente
           </Button>
         </div>
 
         {/* Estatísticas */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
@@ -222,11 +222,11 @@ const Pacientes = () => {
 
         {/* Abas e Busca */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <div className="flex items-center justify-between">
-            <TabsList>
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+            <TabsList className="w-full lg:w-auto">
               <TabsTrigger value="ativos" className="flex items-center gap-2">
                 <Users className="h-4 w-4" />
-                Pacientes Ativos ({pacientesAtivos.length})
+                Ativos ({pacientesAtivos.length})
               </TabsTrigger>
               <TabsTrigger value="arquivados" className="flex items-center gap-2">
                 <Archive className="h-4 w-4" />
@@ -234,12 +234,12 @@ const Pacientes = () => {
               </TabsTrigger>
             </TabsList>
 
-            <Card className="w-96">
-              <CardContent className="p-3">
+            <Card className="w-full lg:w-96">
+              <CardContent className="p-2 sm:p-3">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                   <Input
-                    placeholder="Buscar por nome, email ou telefone..."
+                    placeholder="Buscar paciente..."
                     className="pl-10 border-0"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
