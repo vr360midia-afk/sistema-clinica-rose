@@ -1,1 +1,4 @@
 project_id = "rogngvhlmgxekfygxrwi"
+
+[functions.assinatura-publica]
+verify_jwt = false

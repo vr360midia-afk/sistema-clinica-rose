@@ -77,8 +77,8 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
     }
   };
 
-  const handleGenerateLink = () => {
-    const link = generateSignatureLink(anamneseId);
+  const handleGenerateLink = async () => {
+    const link = await generateSignatureLink(anamneseId);
     setSignatureLink(link);
     toast.success('Link gerado! Envie para o paciente assinar.');
   };
