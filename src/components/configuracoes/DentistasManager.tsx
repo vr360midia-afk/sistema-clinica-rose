@@ -4,22 +4,55 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { UserCog, Plus, Trash2, Loader2 } from 'lucide-react';
-import { useDentistas } from '@/hooks/useDentistas';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { UserCog, Plus, Trash2, Loader2, Pencil } from 'lucide-react';
+import { useDentistas, type Dentista } from '@/hooks/useDentistas';
+
+const emptyForm = { nome: '', cro: '', especialidade: '', telefone: '', email: '' };
 
 const DentistasManager = () => {
   const { dentistas, loading, addDentista, updateDentista, deleteDentista } = useDentistas();
-  const [form, setForm] = useState({ nome: '', cro: '', especialidade: '', telefone: '', email: '' });
+  const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState<Dentista | null>(null);
+  const [editForm, setEditForm] = useState(emptyForm);
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const openEdit = (d: Dentista) => {
+    setEditing(d);
+    setEditForm({
+      nome: d.nome || '',
+      cro: d.cro || '',
+      especialidade: d.especialidade || '',
+      telefone: d.telefone || '',
+      email: d.email || '',
+    });
+  };
+
+  const handleEditSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editing || !editForm.nome.trim()) return;
+    setSavingEdit(true);
+    await updateDentista(editing.id, {
+      nome: editForm.nome.trim(),
+      cro: editForm.cro || null,
+      especialidade: editForm.especialidade || null,
+      telefone: editForm.telefone || null,
+      email: editForm.email || null,
+    });
+    setSavingEdit(false);
+    setEditing(null);
+  };
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.nome.trim()) return;
     setSaving(true);
     await addDentista(form);
-    setForm({ nome: '', cro: '', especialidade: '', telefone: '', email: '' });
+    setForm(emptyForm);
     setSaving(false);
   };
+
 
   return (
     <div className="space-y-6">
