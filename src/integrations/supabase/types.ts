@@ -162,11 +162,14 @@ export type Database = {
           atualizado_em: string
           criado_em: string
           data: string
+          dentista: string | null
+          duracao: number | null
           hora: string | null
           id: string
           observacoes: string | null
           paciente_id: string | null
           paciente_nome: string | null
+          procedimento: string | null
           status: string | null
           tipo: string | null
           user_id: string
@@ -176,11 +179,14 @@ export type Database = {
           atualizado_em?: string
           criado_em?: string
           data: string
+          dentista?: string | null
+          duracao?: number | null
           hora?: string | null
           id?: string
           observacoes?: string | null
           paciente_id?: string | null
           paciente_nome?: string | null
+          procedimento?: string | null
           status?: string | null
           tipo?: string | null
           user_id: string
@@ -190,11 +196,14 @@ export type Database = {
           atualizado_em?: string
           criado_em?: string
           data?: string
+          dentista?: string | null
+          duracao?: number | null
           hora?: string | null
           id?: string
           observacoes?: string | null
           paciente_id?: string | null
           paciente_nome?: string | null
+          procedimento?: string | null
           status?: string | null
           tipo?: string | null
           user_id?: string
@@ -589,52 +598,70 @@ export type Database = {
       }
       prontuarios: {
         Row: {
+          anexos: Json | null
           assinatura: string | null
           atualizado_em: string
+          consulta_id: string | null
           criado_em: string
           data: string
           diagnostico: string | null
+          exame_clinico: string | null
+          historia_doenca: string | null
           id: string
           imagens: Json | null
           observacoes: string | null
           odontograma: Json | null
           paciente_id: string | null
           paciente_nome: string | null
+          plano_tratamento: string | null
           procedimentos: Json | null
+          procedimentos_realizados: Json | null
           queixa_principal: string | null
           tratamento: string | null
           user_id: string
         }
         Insert: {
+          anexos?: Json | null
           assinatura?: string | null
           atualizado_em?: string
+          consulta_id?: string | null
           criado_em?: string
           data?: string
           diagnostico?: string | null
+          exame_clinico?: string | null
+          historia_doenca?: string | null
           id?: string
           imagens?: Json | null
           observacoes?: string | null
           odontograma?: Json | null
           paciente_id?: string | null
           paciente_nome?: string | null
+          plano_tratamento?: string | null
           procedimentos?: Json | null
+          procedimentos_realizados?: Json | null
           queixa_principal?: string | null
           tratamento?: string | null
           user_id: string
         }
         Update: {
+          anexos?: Json | null
           assinatura?: string | null
           atualizado_em?: string
+          consulta_id?: string | null
           criado_em?: string
           data?: string
           diagnostico?: string | null
+          exame_clinico?: string | null
+          historia_doenca?: string | null
           id?: string
           imagens?: Json | null
           observacoes?: string | null
           odontograma?: Json | null
           paciente_id?: string | null
           paciente_nome?: string | null
+          plano_tratamento?: string | null
           procedimentos?: Json | null
+          procedimentos_realizados?: Json | null
           queixa_principal?: string | null
           tratamento?: string | null
           user_id?: string
@@ -653,44 +680,56 @@ export type Database = {
         Row: {
           atualizado_em: string
           categoria: string | null
+          consulta_id: string | null
           criado_em: string
           data: string
           descricao: string | null
           id: string
+          metodo_pagamento: string | null
+          observacoes: string | null
           paciente_id: string | null
           paciente_nome: string | null
           status: string | null
           tipo: string
           user_id: string
           valor: number
+          vencimento: string | null
         }
         Insert: {
           atualizado_em?: string
           categoria?: string | null
+          consulta_id?: string | null
           criado_em?: string
           data?: string
           descricao?: string | null
           id?: string
+          metodo_pagamento?: string | null
+          observacoes?: string | null
           paciente_id?: string | null
           paciente_nome?: string | null
           status?: string | null
           tipo: string
           user_id: string
           valor?: number
+          vencimento?: string | null
         }
         Update: {
           atualizado_em?: string
           categoria?: string | null
+          consulta_id?: string | null
           criado_em?: string
           data?: string
           descricao?: string | null
           id?: string
+          metodo_pagamento?: string | null
+          observacoes?: string | null
           paciente_id?: string | null
           paciente_nome?: string | null
           status?: string | null
           tipo?: string
           user_id?: string
           valor?: number
+          vencimento?: string | null
         }
         Relationships: [
           {
