@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Bell, Search, Menu, LogOut, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,17 +20,20 @@ const Header = ({ onMenuToggle }: HeaderProps) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const { user, signOut } = useAuth();
+  const navigate = useNavigate();
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (searchTerm.trim()) {
-      console.log('Buscando paciente:', searchTerm);
-    }
+    const term = searchTerm.trim();
+    if (!term) return;
+    navigate(`/pacientes?q=${encodeURIComponent(term)}`);
+    setMobileSearchOpen(false);
   };
 
   const handleSignOut = async () => {
     await signOut();
   };
+
 
   return (
     <header className="sticky top-0 z-30 bg-white border-b border-gray-200 w-full">
