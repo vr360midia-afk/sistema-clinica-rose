@@ -125,6 +125,9 @@ const DentistasManager = () => {
                       />
                       <span className="text-xs text-muted-foreground">{d.ativo ? 'Ativo' : 'Inativo'}</span>
                     </div>
+                    <Button variant="ghost" size="icon" onClick={() => openEdit(d)} aria-label={`Editar ${d.nome}`}>
+                      <Pencil className="h-4 w-4" />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -141,7 +144,45 @@ const DentistasManager = () => {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Editar Dentista</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleEditSave} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="e-nome">Nome *</Label>
+              <Input id="e-nome" value={editForm.nome} onChange={(e) => setEditForm({ ...editForm, nome: e.target.value })} required />
+            </div>
+            <div>
+              <Label htmlFor="e-cro">CRO</Label>
+              <Input id="e-cro" value={editForm.cro} onChange={(e) => setEditForm({ ...editForm, cro: e.target.value })} />
+            </div>
+            <div>
+              <Label htmlFor="e-esp">Especialidade</Label>
+              <Input id="e-esp" value={editForm.especialidade} onChange={(e) => setEditForm({ ...editForm, especialidade: e.target.value })} />
+            </div>
+            <div>
+              <Label htmlFor="e-tel">Telefone</Label>
+              <Input id="e-tel" value={editForm.telefone} onChange={(e) => setEditForm({ ...editForm, telefone: e.target.value })} />
+            </div>
+            <div className="md:col-span-2">
+              <Label htmlFor="e-email">Email</Label>
+              <Input id="e-email" type="email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} />
+            </div>
+            <DialogFooter className="md:col-span-2">
+              <Button type="button" variant="outline" onClick={() => setEditing(null)}>Cancelar</Button>
+              <Button type="submit" disabled={savingEdit}>
+                {savingEdit && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Salvar alterações
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
+
   );
 };
 
