@@ -10,39 +10,16 @@ import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { Settings, Wifi, Bell, Shield, Database, MessageSquare, UserCog } from 'lucide-react';
 import DentistasManager from '@/components/configuracoes/DentistasManager';
+import { useConfiguracoes } from '@/hooks/useConfiguracoes';
+import { Loader2 } from 'lucide-react';
 
 const Configuracoes = () => {
   const { toast } = useToast();
-  const [configuracoes, setConfiguracoes] = useState({
-    // Configurações da Clínica
-    nomeClinica: 'Clínica Dental IA',
-    endereco: 'Rua das Flores, 123',
-    telefone: '(11) 9999-9999',
-    email: 'contato@dentalIA.com.br',
-    cnpj: '12.345.678/0001-90',
-    
-    // APIs
-    whatsappToken: '',
-    instagramToken: '',
-    asaasToken: '',
-    
-    // Notificações
-    emailNotificacoes: true,
-    whatsappLembretes: true,
-    lembrete24h: true,
-    lembrete2h: true,
-    
-    // Backup
-    backupAutomatico: true,
-    frequenciaBackup: 'diario',
-  });
+  const { configuracoes, setConfiguracoes, loading, saving, saveConfiguracoes } = useConfiguracoes();
+  const [tokens, setTokens] = useState({ whatsappToken: '', instagramToken: '', asaasToken: '' });
 
-  const salvarConfiguracoes = () => {
-    console.log('Salvando configurações:', configuracoes);
-    toast({
-      title: "Configurações salvas!",
-      description: "As configurações foram atualizadas com sucesso.",
-    });
+  const salvarConfiguracoes = async () => {
+    await saveConfiguracoes(configuracoes);
   };
 
   const testarConexao = (api: string) => {
@@ -61,7 +38,8 @@ const Configuracoes = () => {
             <Settings className="h-6 w-6 text-blue-600" />
             <h1 className="text-xl sm:text-2xl font-bold text-foreground">Configurações</h1>
           </div>
-          <Button onClick={salvarConfiguracoes} className="bg-blue-600 hover:bg-blue-700">
+          <Button onClick={salvarConfiguracoes} disabled={saving || loading} className="bg-blue-600 hover:bg-blue-700">
+            {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Salvar Configurações
           </Button>
         </div>
@@ -148,8 +126,8 @@ const Configuracoes = () => {
                       <Input
                         id="whatsappToken"
                         type="password"
-                        value={configuracoes.whatsappToken}
-                        onChange={(e) => setConfiguracoes({...configuracoes, whatsappToken: e.target.value})}
+                        value={tokens.whatsappToken}
+                        onChange={(e) => setTokens({ ...tokens, whatsappToken: e.target.value })}
                         placeholder="Digite o token do WhatsApp Business API"
                       />
                       <Button variant="outline" onClick={() => testarConexao('WhatsApp')}>
@@ -172,8 +150,8 @@ const Configuracoes = () => {
                       <Input
                         id="instagramToken"
                         type="password"
-                        value={configuracoes.instagramToken}
-                        onChange={(e) => setConfiguracoes({...configuracoes, instagramToken: e.target.value})}
+                        value={tokens.instagramToken}
+                        onChange={(e) => setTokens({ ...tokens, instagramToken: e.target.value })}
                         placeholder="Digite o token do Instagram Graph API"
                       />
                       <Button variant="outline" onClick={() => testarConexao('Instagram')}>
@@ -196,8 +174,8 @@ const Configuracoes = () => {
                       <Input
                         id="asaasToken"
                         type="password"
-                        value={configuracoes.asaasToken}
-                        onChange={(e) => setConfiguracoes({...configuracoes, asaasToken: e.target.value})}
+                        value={tokens.asaasToken}
+                        onChange={(e) => setTokens({ ...tokens, asaasToken: e.target.value })}
                         placeholder="Digite o token da API do ASAAS"
                       />
                       <Button variant="outline" onClick={() => testarConexao('ASAAS')}>
