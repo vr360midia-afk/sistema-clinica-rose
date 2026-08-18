@@ -113,12 +113,25 @@ class SupabaseService {
       if (value === undefined) continue;
       const newKey = camelToSnake[key] || key;
       let newValue: any = value;
-      if (dateFields.has(key) && value instanceof Date) {
-        newValue = value.toISOString();
+      if (dateFields.has(key)) {
+        if (value instanceof Date) {
+          newValue = isNaN(value.getTime()) ? null : value.toISOString();
+        } else if (typeof value === 'string') {
+          const trimmed = value.trim();
+          if (!trimmed) {
+            newValue = null;
+          } else {
+            const parsed = new Date(trimmed);
+            newValue = isNaN(parsed.getTime()) ? null : parsed.toISOString();
+          }
+        } else if (value === null) {
+          newValue = null;
+        }
       }
       result[newKey] = newValue;
     }
     return result;
+
   };
 
   // PACIENTES
