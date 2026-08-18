@@ -15,6 +15,9 @@ import { useAuth } from '@/context/AuthContext';
 import QuickPatientModal from './QuickPatientModal';
 import { useDentistas } from '@/hooks/useDentistas';
 import { Link } from 'react-router-dom';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
 
 interface ConsultaModalProps {
   isOpen: boolean;
