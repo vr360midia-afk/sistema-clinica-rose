@@ -68,6 +68,11 @@ export interface Transacao extends BaseEntity {
   vencimento?: Date;
   descricao: string;
   observacoes?: string;
+  taxaCartaoPercentual?: number;
+  taxaCartaoValor?: number;
+  parcelas?: number;
+  valorParcela?: number;
+  valorLiquido?: number;
 }
 
 export type TipoTransacao = 'receita' | 'despesa';

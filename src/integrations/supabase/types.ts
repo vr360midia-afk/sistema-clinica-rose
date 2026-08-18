@@ -689,10 +689,15 @@ export type Database = {
           observacoes: string | null
           paciente_id: string | null
           paciente_nome: string | null
+          parcelas: number | null
           status: string | null
+          taxa_cartao_percentual: number | null
+          taxa_cartao_valor: number | null
           tipo: string
           user_id: string
           valor: number
+          valor_liquido: number | null
+          valor_parcela: number | null
           vencimento: string | null
         }
         Insert: {
@@ -707,10 +712,15 @@ export type Database = {
           observacoes?: string | null
           paciente_id?: string | null
           paciente_nome?: string | null
+          parcelas?: number | null
           status?: string | null
+          taxa_cartao_percentual?: number | null
+          taxa_cartao_valor?: number | null
           tipo: string
           user_id: string
           valor?: number
+          valor_liquido?: number | null
+          valor_parcela?: number | null
           vencimento?: string | null
         }
         Update: {
@@ -725,10 +735,15 @@ export type Database = {
           observacoes?: string | null
           paciente_id?: string | null
           paciente_nome?: string | null
+          parcelas?: number | null
           status?: string | null
+          taxa_cartao_percentual?: number | null
+          taxa_cartao_valor?: number | null
           tipo?: string
           user_id?: string
           valor?: number
+          valor_liquido?: number | null
+          valor_parcela?: number | null
           vencimento?: string | null
         }
         Relationships: [

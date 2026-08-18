@@ -30,11 +30,22 @@ const TransactionForm = ({ isOpen, onClose, onSave }: TransactionFormProps) => {
     tipo: 'receita' as TipoTransacao,
     status: 'pendente' as StatusTransacao,
     metodoPagamento: 'dinheiro' as MetodoPagamento,
+    taxaCartaoPercentual: '',
+    parcelas: '1',
     data: new Date(),
     vencimento: null as Date | null,
     descricao: '',
     observacoes: ''
   });
+
+  const valorBruto = parseFloat(formData.valor) || 0;
+  const isCartao = formData.metodoPagamento === 'cartao';
+  const taxaPerc = isCartao ? parseFloat(formData.taxaCartaoPercentual) || 0 : 0;
+  const parcelas = isCartao ? Math.max(1, parseInt(formData.parcelas) || 1) : 1;
+  const taxaValor = (valorBruto * taxaPerc) / 100;
+  const valorLiquido = valorBruto - taxaValor;
+  const valorParcela = parcelas > 0 ? valorBruto / parcelas : valorBruto;
+  const money = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,9 +56,15 @@ const TransactionForm = ({ isOpen, onClose, onSave }: TransactionFormProps) => {
     }
 
     try {
+      const { taxaCartaoPercentual, parcelas: _p, ...rest } = formData;
       const transactionData = {
-        ...formData,
-        valor: parseFloat(formData.valor)
+        ...rest,
+        valor: valorBruto,
+        taxaCartaoPercentual: taxaPerc,
+        taxaCartaoValor: taxaValor,
+        parcelas,
+        valorParcela,
+        valorLiquido,
       };
 
       await addTransacao(transactionData);
@@ -60,6 +77,8 @@ const TransactionForm = ({ isOpen, onClose, onSave }: TransactionFormProps) => {
         tipo: 'receita',
         status: 'pendente',
         metodoPagamento: 'dinheiro',
+        taxaCartaoPercentual: '',
+        parcelas: '1',
         data: new Date(),
         vencimento: null,
         descricao: '',
@@ -163,6 +182,54 @@ const TransactionForm = ({ isOpen, onClose, onSave }: TransactionFormProps) => {
               </Select>
             </div>
           </div>
+
+          {isCartao && (
+            <div className="space-y-3 rounded-lg border p-3">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="taxa">Taxa da máquina (%)</Label>
+                  <Input
+                    id="taxa"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="Ex: 3.99"
+                    value={formData.taxaCartaoPercentual}
+                    onChange={(e) => setFormData(prev => ({ ...prev, taxaCartaoPercentual: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="parcelas">Parcelas</Label>
+                  <Input
+                    id="parcelas"
+                    type="number"
+                    min="1"
+                    max="24"
+                    value={formData.parcelas}
+                    onChange={(e) => setFormData(prev => ({ ...prev, parcelas: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div className="space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Valor pago pelo cliente</span>
+                  <span>{money(valorBruto)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Parcelamento</span>
+                  <span>{parcelas}x de {money(valorParcela)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Desconto da taxa ({taxaPerc}%)</span>
+                  <span className="text-destructive">- {money(taxaValor)}</span>
+                </div>
+                <div className="flex justify-between font-medium border-t pt-1">
+                  <span>Valor líquido</span>
+                  <span className="text-primary">{money(valorLiquido)}</span>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div>
