@@ -65,10 +65,36 @@ class SupabaseService {
     };
   };
 
+  // Colunas válidas por tabela (evita enviar campos inexistentes ao banco)
+  private tableColumns: Record<string, string[]> = {
+    pacientes: ['user_id','nome','email','telefone','idade','endereco','cpf','rg','profissao','estado_civil','convenio','origem_lead','foto','historico_medico','alergias','medicamentos','observacoes','status','ultima_consulta','proxima_consulta','data_arquivamento','motivo_arquivamento'],
+    consultas: ['user_id','paciente_id','paciente_nome','data','hora','tipo','status','valor','observacoes','duracao','procedimento','dentista'],
+    transacoes: ['user_id','tipo','descricao','valor','categoria','data','paciente_id','paciente_nome','status','consulta_id','metodo_pagamento','vencimento','observacoes'],
+    prontuarios: ['user_id','paciente_id','paciente_nome','data','queixa_principal','diagnostico','tratamento','observacoes','odontograma','imagens','assinatura','procedimentos','consulta_id','historia_doenca','exame_clinico','plano_tratamento','procedimentos_realizados','anexos'],
+    anamneses: ['user_id','paciente_id','paciente_nome','respostas','assinatura','status','link_assinatura','data_assinatura','data','queixa_principal','historia_atual','historia_familiar','historia_medica','alergias','medicamentos','habitos_vicios_positivos','habitos_vicios_negativos','exame_extra_bucal','exame_intra_bucal','observacoes','anexos','assinatura_paciente','assinatura_doutor','token_assinatura','status_assinatura','data_expiracao_link'],
+    documentos_paciente: ['user_id','paciente_id','nome','tipo','url','tamanho'],
+    produtos: ['user_id','nome','categoria','quantidade','minimo','preco'],
+  };
+
+  // Colunas do tipo DATE (sem hora) — precisam de YYYY-MM-DD no fuso local
+  private dateOnlyColumns: Record<string, string[]> = {
+    consultas: ['data'],
+    transacoes: ['data'],
+    prontuarios: ['data'],
+  };
+
+  private toLocalDateString(value: any): string | null {
+    const d = value instanceof Date ? value : new Date(String(value));
+    if (isNaN(d.getTime())) return null;
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }
+
   // Transformar dados do app para o formato do Supabase
-  private transformLocalToSupabase = (data: any): any => {
+  private transformLocalToSupabase = (data: any, table?: string): any => {
     // Mapeamento camelCase -> snake_case
     const camelToSnake: Record<string, string> = {
+      userId: 'user_id',
       criadoEm: 'criado_em',
       atualizadoEm: 'atualizado_em',
       origemLead: 'origem_lead',
@@ -79,6 +105,7 @@ class SupabaseService {
       ultimaConsulta: 'ultima_consulta',
       proximaConsulta: 'proxima_consulta',
       pacienteId: 'paciente_id',
+      pacienteNome: 'paciente_nome',
       consultaId: 'consulta_id',
       metodoPagamento: 'metodo_pagamento',
       queixaPrincipal: 'queixa_principal',
@@ -99,40 +126,41 @@ class SupabaseService {
       tokenAssinatura: 'token_assinatura',
       statusAssinatura: 'status_assinatura',
       dataExpiracaoLink: 'data_expiracao_link',
+      dataAssinatura: 'data_assinatura',
       arquivo: 'url',
     };
 
     // Campos do tipo Date que precisam virar ISO string
     const dateFields = new Set([
       'criadoEm', 'atualizadoEm', 'dataArquivamento', 'ultimaConsulta',
-      'proximaConsulta', 'dataExpiracaoLink', 'data', 'vencimento'
+      'proximaConsulta', 'dataExpiracaoLink', 'dataAssinatura', 'data', 'vencimento'
     ]);
+
+    const allowed = table ? this.tableColumns[table] : undefined;
+    const dateOnly = table ? (this.dateOnlyColumns[table] || []) : [];
 
     const result: any = {};
     for (const [key, value] of Object.entries(data)) {
       if (value === undefined) continue;
       const newKey = camelToSnake[key] || key;
+      if (allowed && !allowed.includes(newKey)) continue;
+
       let newValue: any = value;
-      if (dateFields.has(key)) {
-        if (value instanceof Date) {
-          newValue = isNaN(value.getTime()) ? null : value.toISOString();
-        } else if (typeof value === 'string') {
-          const trimmed = value.trim();
-          if (!trimmed) {
-            newValue = null;
-          } else {
-            const parsed = new Date(trimmed);
-            newValue = isNaN(parsed.getTime()) ? null : parsed.toISOString();
-          }
-        } else if (value === null) {
+      if (dateFields.has(key) || dateOnly.includes(newKey)) {
+        if (value === null || (typeof value === 'string' && !value.trim())) {
           newValue = null;
+        } else if (dateOnly.includes(newKey)) {
+          newValue = this.toLocalDateString(value);
+        } else {
+          const d = value instanceof Date ? value : new Date(String(value));
+          newValue = isNaN(d.getTime()) ? null : d.toISOString();
         }
       }
       result[newKey] = newValue;
     }
     return result;
-
   };
+
 
   // PACIENTES
   async getPacientes(): Promise<Paciente[]> {
@@ -149,10 +177,7 @@ class SupabaseService {
 
   async savePaciente(paciente: Omit<Paciente, 'id' | 'criadoEm' | 'atualizadoEm'>): Promise<Paciente> {
     const userId = await this.getCurrentUserId();
-    const pacienteData = this.transformLocalToSupabase({
-      ...paciente,
-      user_id: userId
-    });
+    const pacienteData = this.transformLocalToSupabase({ ...paciente, user_id: userId }, 'pacientes');
 
     const { data, error } = await supabase
       .from('pacientes')
@@ -166,7 +191,7 @@ class SupabaseService {
 
   async updatePaciente(id: string, updates: Partial<Paciente>): Promise<Paciente | null> {
     const userId = await this.getCurrentUserId();
-    const updateData = this.transformLocalToSupabase(updates);
+    const updateData = this.transformLocalToSupabase(updates, 'pacientes');
 
     const { data, error } = await supabase
       .from('pacientes')
@@ -207,10 +232,7 @@ class SupabaseService {
 
   async saveConsulta(consulta: Omit<Consulta, 'id' | 'criadoEm' | 'atualizadoEm'>): Promise<Consulta> {
     const userId = await this.getCurrentUserId();
-    const consultaData = this.transformLocalToSupabase({
-      ...consulta,
-      user_id: userId
-    });
+    const consultaData = this.transformLocalToSupabase({ ...consulta, user_id: userId }, 'consultas');
 
     const { data, error } = await supabase
       .from('consultas')
@@ -224,7 +246,7 @@ class SupabaseService {
 
   async updateConsulta(id: string, updates: Partial<Consulta>): Promise<Consulta | null> {
     const userId = await this.getCurrentUserId();
-    const updateData = this.transformLocalToSupabase(updates);
+    const updateData = this.transformLocalToSupabase(updates, 'consultas');
 
     const { data, error } = await supabase
       .from('consultas')
@@ -265,10 +287,7 @@ class SupabaseService {
 
   async saveTransacao(transacao: Omit<Transacao, 'id' | 'criadoEm' | 'atualizadoEm'>): Promise<Transacao> {
     const userId = await this.getCurrentUserId();
-    const transacaoData = this.transformLocalToSupabase({
-      ...transacao,
-      user_id: userId
-    });
+    const transacaoData = this.transformLocalToSupabase({ ...transacao, user_id: userId }, 'transacoes');
 
     const { data, error } = await supabase
       .from('transacoes')
@@ -282,7 +301,7 @@ class SupabaseService {
 
   async updateTransacao(id: string, updates: Partial<Transacao>): Promise<Transacao | null> {
     const userId = await this.getCurrentUserId();
-    const updateData = this.transformLocalToSupabase(updates);
+    const updateData = this.transformLocalToSupabase(updates, 'transacoes');
 
     const { data, error } = await supabase
       .from('transacoes')
@@ -323,10 +342,7 @@ class SupabaseService {
 
   async saveProntuario(prontuario: Omit<Prontuario, 'id' | 'criadoEm' | 'atualizadoEm'>): Promise<Prontuario> {
     const userId = await this.getCurrentUserId();
-    const prontuarioData = this.transformLocalToSupabase({
-      ...prontuario,
-      user_id: userId
-    });
+    const prontuarioData = this.transformLocalToSupabase({ ...prontuario, user_id: userId }, 'prontuarios');
 
     const { data, error } = await supabase
       .from('prontuarios')
@@ -340,7 +356,7 @@ class SupabaseService {
 
   async updateProntuario(id: string, updates: Partial<Prontuario>): Promise<Prontuario | null> {
     const userId = await this.getCurrentUserId();
-    const updateData = this.transformLocalToSupabase(updates);
+    const updateData = this.transformLocalToSupabase(updates, 'prontuarios');
 
     const { data, error } = await supabase
       .from('prontuarios')
@@ -381,10 +397,7 @@ class SupabaseService {
 
   async saveAnamnese(anamnese: Omit<Anamnese, 'id' | 'criadoEm' | 'atualizadoEm'>): Promise<Anamnese> {
     const userId = await this.getCurrentUserId();
-    const anamneseData = this.transformLocalToSupabase({
-      ...anamnese,
-      user_id: userId
-    });
+    const anamneseData = this.transformLocalToSupabase({ ...anamnese, user_id: userId }, 'anamneses');
 
     const { data, error } = await supabase
       .from('anamneses')
@@ -398,7 +411,7 @@ class SupabaseService {
 
   async updateAnamnese(id: string, updates: Partial<Anamnese>): Promise<Anamnese | null> {
     const userId = await this.getCurrentUserId();
-    const updateData = this.transformLocalToSupabase(updates);
+    const updateData = this.transformLocalToSupabase(updates, 'anamneses');
 
     const { data, error } = await supabase
       .from('anamneses')
@@ -449,10 +462,7 @@ class SupabaseService {
 
   async saveDocumento(documento: Omit<DocumentoPaciente, 'id' | 'criadoEm' | 'atualizadoEm'>): Promise<DocumentoPaciente> {
     const userId = await this.getCurrentUserId();
-    const documentoData = this.transformLocalToSupabase({
-      ...documento,
-      user_id: userId
-    });
+    const documentoData = this.transformLocalToSupabase({ ...documento, user_id: userId }, 'documentos_paciente');
 
     const { data, error } = await supabase
       .from('documentos_paciente')
@@ -466,7 +476,7 @@ class SupabaseService {
 
   async updateDocumento(id: string, updates: Partial<DocumentoPaciente>): Promise<DocumentoPaciente | null> {
     const userId = await this.getCurrentUserId();
-    const updateData = this.transformLocalToSupabase(updates);
+    const updateData = this.transformLocalToSupabase(updates, 'documentos_paciente');
 
     const { data, error } = await supabase
       .from('documentos_paciente')
