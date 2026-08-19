@@ -5,12 +5,13 @@ import { z } from 'zod';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { calcularIdade } from '@/utils/idade';
 
 const quickPatientSchema = z.object({
   nome: z.string().min(1, 'Nome é obrigatório'),
   email: z.string().email('Email inválido'),
   telefone: z.string().min(1, 'Telefone é obrigatório'),
-  idade: z.number().min(0, 'Idade deve ser positiva').optional(),
+  dataNascimento: z.date().optional(),
   endereco: z.string().optional(),
   cpf: z.string().optional(),
   rg: z.string().optional(),
@@ -38,7 +39,7 @@ export const useQuickPatientForm = (onPatientCreated: (patientId: string) => voi
       nome: '',
       email: '',
       telefone: '',
-      idade: undefined,
+      dataNascimento: undefined,
       endereco: '',
       cpf: '',
       rg: '',
@@ -66,7 +67,8 @@ export const useQuickPatientForm = (onPatientCreated: (patientId: string) => voi
         nome: data.nome.trim(),
         email: data.email.trim().toLowerCase(),
         telefone: data.telefone.trim(),
-        idade: data.idade || 0,
+        dataNascimento: data.dataNascimento,
+        idade: calcularIdade(data.dataNascimento) || 0,
         convenio: data.convenio || 'particular',
         origemLead: (data.origemLead || '') as any,
         status: 'Ativo' as const,

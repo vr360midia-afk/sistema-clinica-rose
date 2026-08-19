@@ -2,34 +2,35 @@
 import React from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { calcularIdade } from '@/utils/idade';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 
 interface PatientSelectorProps {
+  patients?: any[];
   value: string;
-  onChange: (value: string) => void;
+  onChange: (patientId: string) => void;
 }
 
-const PatientSelector = ({ value, onChange }: PatientSelectorProps) => {
+const PatientSelector = ({ patients: propPatients, value, onChange }: PatientSelectorProps) => {
   const { pacientes } = useDentalSystem();
-  
-  // Filtrar apenas pacientes ativos
-  const activePacientes = pacientes.filter(p => p.status === 'Ativo');
+  const patients = propPatients && propPatients.length > 0 ? propPatients : pacientes;
 
   return (
     <div className="space-y-2">
-      <Label htmlFor="patient-select" className="text-base font-semibold">
-        Selecionar Paciente *
-      </Label>
+      <Label htmlFor="patient-select">Selecionar Paciente</Label>
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger className="w-full">
+        <SelectTrigger id="patient-select" className="w-full">
           <SelectValue placeholder="Selecione um paciente..." />
         </SelectTrigger>
         <SelectContent>
-          {activePacientes.map((patient) => (
-            <SelectItem key={patient.id} value={patient.id}>
-              {patient.nome} - {patient.idade} anos
-            </SelectItem>
-          ))}
+          {patients.map((patient) => {
+            const idade = calcularIdade(patient.dataNascimento) ?? patient.idade;
+            return (
+              <SelectItem key={patient.id} value={patient.id}>
+                {patient.nome} - {idade !== undefined && idade !== null ? `${idade} anos` : 'idade não informada'}
+              </SelectItem>
+            );
+          })}
         </SelectContent>
       </Select>
     </div>

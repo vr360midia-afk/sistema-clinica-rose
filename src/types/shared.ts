@@ -10,6 +10,7 @@ export interface Paciente extends BaseEntity {
   email: string;
   telefone: string;
   idade: number;
+  dataNascimento?: Date;
   foto?: string;
   convenio: string;
   origemLead: OrigemLead;

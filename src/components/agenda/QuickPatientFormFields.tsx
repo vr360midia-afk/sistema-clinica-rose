@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { QuickPatientFormData } from '@/hooks/useQuickPatientForm';
 import PatientPhotoCapture from '../pacientes/PatientPhotoCapture';
+import { dataParaInputDate, calcularIdade } from '@/utils/idade';
 
 interface QuickPatientFormFieldsProps {
   form: UseFormReturn<QuickPatientFormData>;
@@ -84,26 +85,30 @@ const QuickPatientFormFields = ({ form }: QuickPatientFormFieldsProps) => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
                 control={form.control}
-                name="idade"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="font-medium">Idade</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        placeholder="25"
-                        className="h-11"
-                        {...field}
-                        value={field.value || ''}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          field.onChange(value === '' ? undefined : Number(value));
-                        }}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+                name="dataNascimento"
+                render={({ field }) => {
+                  const idade = calcularIdade(field.value);
+                  return (
+                    <FormItem>
+                      <FormLabel className="font-medium">Data de Nascimento</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="date"
+                          className="h-11"
+                          value={dataParaInputDate(field.value)}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            field.onChange(value ? new Date(value + 'T00:00:00') : undefined);
+                          }}
+                        />
+                      </FormControl>
+                      {idade !== undefined && (
+                        <p className="text-xs text-muted-foreground mt-1">{idade} anos</p>
+                      )}
+                      <FormMessage />
+                    </FormItem>
+                  );
+                }}
               />
 
               <FormField

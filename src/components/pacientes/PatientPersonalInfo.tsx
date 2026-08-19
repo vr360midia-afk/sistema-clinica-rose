@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Phone, Mail, Calendar, FileText } from 'lucide-react';
 import { openWhatsApp } from '@/lib/whatsapp';
+import { calcularIdade } from '@/utils/idade';
 
 
 interface PatientPersonalInfoProps {
@@ -11,6 +12,8 @@ interface PatientPersonalInfoProps {
 }
 
 const PatientPersonalInfo = ({ patient }: PatientPersonalInfoProps) => {
+  const idade = calcularIdade(patient.dataNascimento) ?? patient.idade;
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
       <div className="lg:col-span-2 space-y-6">
@@ -29,7 +32,9 @@ const PatientPersonalInfo = ({ patient }: PatientPersonalInfoProps) => {
               </div>
               <div>
                 <h3 className="text-xl font-semibold">{patient.nome}</h3>
-                <p className="text-muted-foreground">{patient.idade} anos</p>
+                <p className="text-muted-foreground">
+                  {idade !== undefined && idade !== null ? `${idade} anos` : 'Idade não informada'}
+                </p>
               </div>
             </div>
             

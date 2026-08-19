@@ -31,6 +31,7 @@ class SupabaseService {
       criadoEm: new Date(data.criado_em),
       atualizadoEm: new Date(data.atualizado_em),
       data: data.data ? new Date(data.data) : undefined,
+      dataNascimento: data.data_nascimento ? new Date(data.data_nascimento) : undefined,
       dataArquivamento: data.data_arquivamento ? new Date(data.data_arquivamento) : undefined,
       dataExpiracaoLink: data.data_expiracao_link ? new Date(data.data_expiracao_link) : undefined,
       ultimaConsulta: data.ultima_consulta ? new Date(data.ultima_consulta) : undefined,
@@ -76,7 +77,7 @@ class SupabaseService {
 
   // Colunas válidas por tabela (evita enviar campos inexistentes ao banco)
   private tableColumns: Record<string, string[]> = {
-    pacientes: ['user_id','nome','email','telefone','idade','endereco','cpf','rg','profissao','estado_civil','convenio','origem_lead','foto','historico_medico','alergias','medicamentos','observacoes','status','ultima_consulta','proxima_consulta','data_arquivamento','motivo_arquivamento'],
+    pacientes: ['user_id','nome','email','telefone','idade','data_nascimento','endereco','cpf','rg','profissao','estado_civil','convenio','origem_lead','foto','historico_medico','alergias','medicamentos','observacoes','status','ultima_consulta','proxima_consulta','data_arquivamento','motivo_arquivamento'],
     consultas: ['user_id','paciente_id','paciente_nome','data','hora','tipo','status','valor','observacoes','duracao','procedimento','dentista','confirmacao_status','confirmado_em'],
     transacoes: ['user_id','tipo','descricao','valor','categoria','data','paciente_id','paciente_nome','status','consulta_id','metodo_pagamento','vencimento','observacoes','taxa_cartao_percentual','taxa_cartao_valor','parcelas','valor_parcela','valor_liquido'],
     prontuarios: ['user_id','paciente_id','paciente_nome','data','queixa_principal','diagnostico','tratamento','observacoes','odontograma','imagens','assinatura','procedimentos','consulta_id','historia_doenca','exame_clinico','plano_tratamento','procedimentos_realizados','anexos'],
@@ -87,6 +88,7 @@ class SupabaseService {
 
   // Colunas do tipo DATE (sem hora) — precisam de YYYY-MM-DD no fuso local
   private dateOnlyColumns: Record<string, string[]> = {
+    pacientes: ['data_nascimento'],
     consultas: ['data'],
     transacoes: ['data'],
     prontuarios: ['data'],
@@ -107,6 +109,7 @@ class SupabaseService {
       criadoEm: 'criado_em',
       atualizadoEm: 'atualizado_em',
       origemLead: 'origem_lead',
+      dataNascimento: 'data_nascimento',
       historicoMedico: 'historico_medico',
       estadoCivil: 'estado_civil',
       dataArquivamento: 'data_arquivamento',
