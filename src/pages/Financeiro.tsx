@@ -4,7 +4,7 @@ import Layout from '@/components/layout/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { DollarSign, TrendingUp, TrendingDown, Plus, CreditCard, Receipt } from 'lucide-react';
+import { DollarSign, TrendingUp, TrendingDown, Plus, CreditCard, Receipt, Pencil, Trash2 } from 'lucide-react';
 import TransactionForm from '@/components/financeiro/TransactionForm';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import Inadimplencia from '@/components/financeiro/Inadimplencia';
@@ -13,13 +13,25 @@ import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { toast } from 'sonner';
 
 const Financeiro = () => {
-  const { transacoes, pacientes } = useDentalSystem();
+  const { transacoes, pacientes, deleteTransacao } = useDentalSystem();
   const { configuracoes } = useConfiguracoes();
   const [showTransactionForm, setShowTransactionForm] = useState(false);
+  const [editingTransacao, setEditingTransacao] = useState<any | null>(null);
 
   const handleSaveTransaction = (transactionData: any) => {
     // O TransactionForm já salva através do contexto
     setShowTransactionForm(false);
+    setEditingTransacao(null);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Excluir esta transação?')) return;
+    try {
+      await deleteTransacao(id);
+      toast.success('Transação excluída');
+    } catch {
+      toast.error('Erro ao excluir transação');
+    }
   };
 
   const totalReceived = transacoes.filter(t => t.status === 'pago' && t.tipo === 'receita').reduce((sum, t) => sum + t.valor, 0);
