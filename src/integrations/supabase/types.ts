@@ -170,6 +170,7 @@ export type Database = {
           id: string
           lembrete_24h: boolean
           lembrete_2h: boolean
+          logo_url: string | null
           nome_clinica: string | null
           telefone: string | null
           user_id: string
@@ -187,6 +188,7 @@ export type Database = {
           id?: string
           lembrete_24h?: boolean
           lembrete_2h?: boolean
+          logo_url?: string | null
           nome_clinica?: string | null
           telefone?: string | null
           user_id: string
@@ -204,6 +206,7 @@ export type Database = {
           id?: string
           lembrete_24h?: boolean
           lembrete_2h?: boolean
+          logo_url?: string | null
           nome_clinica?: string | null
           telefone?: string | null
           user_id?: string
