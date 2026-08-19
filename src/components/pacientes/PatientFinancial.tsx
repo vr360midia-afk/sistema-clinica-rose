@@ -189,10 +189,21 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <p className="text-sm text-muted-foreground">Resumo financeiro e tratamento do paciente</p>
-        <Button onClick={enviarParaAssinar} disabled={enviando} className="w-full sm:w-auto">
-          {enviando ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <MessageCircle className="h-4 w-4 mr-2" />}
-          Enviar para assinar (WhatsApp)
-        </Button>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => { setEditingTransacao(null); setShowTransactionForm(true); }}
+            className="w-full sm:w-auto"
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            Novo
+          </Button>
+          <Button onClick={enviarParaAssinar} disabled={enviando} className="w-full sm:w-auto">
+            {enviando ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <MessageCircle className="h-4 w-4 mr-2" />}
+            Enviar para assinar (WhatsApp)
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
