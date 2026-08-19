@@ -9,7 +9,7 @@ import { ArrowLeft, Save, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import PatientPhotoCapture from './PatientPhotoCapture';
-import { calcularIdade, dataParaInputDate } from '@/utils/idade';
+import { calcularIdade, formatarDataNascimento, parseDataNascimento } from '@/utils/idade';
 
 interface PatientFormProps {
   onClose: () => void;
