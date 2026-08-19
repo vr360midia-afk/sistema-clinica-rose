@@ -3,6 +3,8 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Phone, Mail, Calendar, FileText } from 'lucide-react';
+import { openWhatsApp } from '@/lib/whatsapp';
+
 
 interface PatientPersonalInfoProps {
   patient: any;
@@ -38,7 +40,14 @@ const PatientPersonalInfo = ({ patient }: PatientPersonalInfoProps) => {
               </div>
               <div className="flex items-center gap-2">
                 <Phone className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">{patient.telefone}</span>
+                <button
+                  type="button"
+                  onClick={() => openWhatsApp(patient.telefone, '')}
+                  className="text-sm text-primary hover:underline focus:outline-none"
+                  title="Abrir conversa no WhatsApp"
+                >
+                  {patient.telefone}
+                </button>
               </div>
             </div>
             
