@@ -73,7 +73,7 @@ Não invente diagnóstico definitivo; descreva apenas o que é observável e sin
             role: 'user',
             content: [
               { type: 'text', text: prompt },
-              { type: 'image_url', image_url: { url: imageUrl } },
+              { type: 'image_url', image_url: { url: inlineUrl } },
             ],
           },
         ],
