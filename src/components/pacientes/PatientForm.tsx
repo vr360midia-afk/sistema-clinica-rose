@@ -162,14 +162,27 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
                   <Label htmlFor="dataNascimento" className="font-medium">Data de Nascimento</Label>
                   <Input
                     id="dataNascimento"
-                    type="date"
+                    type="text"
+                    placeholder="dd/mm/aaaa"
                     value={formData.dataNascimento}
                     onChange={(e) => handleInputChange('dataNascimento', e.target.value)}
+                    onPaste={(e) => {
+                      e.preventDefault();
+                      const text = e.clipboardData.getData('text');
+                      const parsed = parseDataNascimento(text);
+                      handleInputChange('dataNascimento', parsed ? formatarDataNascimento(parsed) : text);
+                    }}
+                    onBlur={(e) => {
+                      const parsed = parseDataNascimento(e.target.value);
+                      if (parsed) {
+                        handleInputChange('dataNascimento', formatarDataNascimento(parsed));
+                      }
+                    }}
                     className="h-10 mt-1"
                   />
                   {formData.dataNascimento && (
                     <p className="text-xs text-muted-foreground mt-1">
-                      {calcularIdade(new Date(formData.dataNascimento + 'T00:00:00'))} anos
+                      {calcularIdade(parseDataNascimento(formData.dataNascimento))} anos
                     </p>
                   )}
                 </div>
