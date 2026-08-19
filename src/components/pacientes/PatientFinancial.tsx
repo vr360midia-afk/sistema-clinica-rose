@@ -1,10 +1,16 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { CheckCircle2, CalendarClock, DollarSign, TrendingUp, AlertTriangle, Stethoscope } from 'lucide-react';
+import { CheckCircle2, CalendarClock, DollarSign, TrendingUp, AlertTriangle, Stethoscope, MessageCircle, Loader2, ListChecks } from 'lucide-react';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import EmptyState from '@/components/common/EmptyState';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/context/AuthContext';
+import { useConfiguracoes } from '@/hooks/useConfiguracoes';
+import { openWhatsApp, buildExtratoMessage } from '@/lib/whatsapp';
+import { toast } from 'sonner';
 
 interface PatientFinancialProps {
   patient: any;
@@ -14,6 +20,10 @@ const brl = (v: number) => `R$ ${Number(v || 0).toFixed(2)}`;
 
 const PatientFinancial = ({ patient }: PatientFinancialProps) => {
   const { consultas, prontuarios, transacoes } = useDentalSystem();
+  const { user } = useAuth();
+  const { configuracoes } = useConfiguracoes();
+  const [enviando, setEnviando] = useState(false);
+
 
   const { realizados, previstos, resumo, lancamentos } = useMemo(() => {
     const cons = consultas.filter((c) => c.pacienteId === patient.id);
