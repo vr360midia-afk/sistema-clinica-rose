@@ -248,6 +248,54 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader className="p-3 sm:p-4 pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <ListChecks className="h-4 w-4 text-primary" />
+            Passo a passo por consulta ({etapas.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-3 sm:p-4 pt-0">
+          {etapas.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">Nenhuma consulta registrada.</p>
+          ) : (
+            <ol className="relative border-l border-border ml-2 space-y-4">
+              {etapas.map((e: any, idx: number) => (
+                <li key={idx} className="ml-4">
+                  <span className="absolute -left-[7px] flex h-3 w-3 rounded-full bg-primary" />
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <p className="text-sm font-medium">
+                      Etapa {idx + 1} · {e.data.toLocaleDateString('pt-BR')}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={e.status === 'realizado' ? 'default' : 'secondary'} className="text-[10px]">
+                        {e.status === 'realizado' ? 'realizado' : 'previsto'}
+                      </Badge>
+                      {e.valor > 0 && <span className="text-sm font-semibold">{brl(e.valor)}</span>}
+                    </div>
+                  </div>
+                  <ul className="mt-1 space-y-1">
+                    {e.itens.map((it: any, i: number) => (
+                      <li key={i} className="text-xs text-muted-foreground flex justify-between gap-2">
+                        <span className="truncate">
+                          • {it.nome}
+                          {it.hora ? ` · ${it.hora}` : ''}
+                          {it.dentista ? ` · ${it.dentista}` : ''}
+                          {` · ${it.origem}`}
+                        </span>
+                        {it.valor > 0 && <span className="shrink-0">{brl(it.valor)}</span>}
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              ))}
+            </ol>
+          )}
+        </CardContent>
+      </Card>
+
+
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
           <CardHeader className="p-3 sm:p-4 pb-2">
