@@ -75,15 +75,110 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
     const total = pago + pendente;
     const previstoValor = previstos.reduce((s, p) => s + p.valor, 0);
 
+    const etapasMap = new Map<string, any>();
+    cons
+      .filter((c) => ['realizado', 'agendado', 'confirmado'].includes(c.status))
+      .forEach((c) => {
+        const key = new Date(c.data).toISOString().slice(0, 10);
+        const item = etapasMap.get(key) || { data: new Date(c.data), itens: [], valor: 0, status: c.status };
+        item.itens.push({
+          nome: c.procedimento || 'Consulta',
+          valor: Number(c.valor || 0),
+          status: c.status,
+          hora: c.hora,
+          dentista: c.dentista,
+          origem: 'Consulta',
+        });
+        item.valor += Number(c.valor || 0);
+        etapasMap.set(key, item);
+      });
+    pront.forEach((p) => {
+      const key = new Date(p.data).toISOString().slice(0, 10);
+      const item = etapasMap.get(key) || { data: new Date(p.data), itens: [], valor: 0, status: 'realizado' };
+      (p.procedimentosRealizados || []).forEach((n: any) => {
+        item.itens.push({
+          nome: typeof n === 'string' ? n : n?.nome || 'Procedimento',
+          valor: typeof n === 'object' ? Number(n?.valor || 0) : 0,
+          status: 'realizado',
+          origem: 'Prontuário',
+        });
+        item.valor += typeof n === 'object' ? Number(n?.valor || 0) : 0;
+      });
+      etapasMap.set(key, item);
+    });
+    const etapas = Array.from(etapasMap.values()).sort((a, b) => a.data.getTime() - b.data.getTime());
+
     return {
       realizados,
       previstos,
+      etapas,
       resumo: { pago, pendente, vencido, total, previstoValor },
       lancamentos: receitas.sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime()),
     };
   }, [consultas, prontuarios, transacoes, patient.id]);
 
   const percentPago = resumo.total > 0 ? Math.round((resumo.pago / resumo.total) * 100) : 0;
+
+  const enviarParaAssinar = async () => {
+    if (!patient.telefone) {
+      toast.error('Paciente sem telefone cadastrado.');
+      return;
+    }
+    setEnviando(true);
+    try {
+      const token = crypto.randomUUID().replace(/-/g, '');
+      const payload = {
+        user_id: user?.id,
+        paciente_id: patient.id,
+        paciente_nome: patient.nome,
+        dados: {
+          realizados: realizados.map((r) => ({ nome: r.nome, valor: r.valor, data: r.data.toLocaleDateString('pt-BR') })),
+          previstos: previstos.map((p) => ({ nome: p.nome, valor: p.valor, data: p.data.toLocaleDateString('pt-BR') })),
+          pagamentos: lancamentos.map((t: any) => ({
+            descricao: t.descricao || 'Pagamento',
+            valor: Number(t.valor || 0),
+            status: t.status,
+            data: new Date(t.data).toLocaleDateString('pt-BR'),
+          })),
+        },
+        total_pago: resumo.pago,
+        total_pendente: resumo.pendente,
+        total_previsto: resumo.previstoValor,
+        total: resumo.total,
+        token_assinatura: token,
+        data_expiracao_link: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        status_assinatura: 'pendente',
+      };
+
+      const { data, error } = await supabase
+        .from('extratos_financeiros')
+        .insert(payload as any)
+        .select('id')
+        .single();
+      if (error) throw error;
+
+      const link = `${window.location.origin}/assinar-extrato/${data.id}?token=${token}`;
+      const msg = buildExtratoMessage({
+        pacienteNome: patient.nome,
+        clinicaNome: configuracoes?.nomeClinica || undefined,
+        totalPago: resumo.pago,
+        totalPendente: resumo.pendente,
+        totalPrevisto: resumo.previstoValor,
+        link,
+      });
+
+      if (!openWhatsApp(patient.telefone, msg)) {
+        toast.error('Telefone inválido para WhatsApp.');
+        return;
+      }
+      toast.success('Extrato gerado e WhatsApp aberto.');
+    } catch (e: any) {
+      toast.error('Erro ao gerar extrato', { description: e?.message });
+    } finally {
+      setEnviando(false);
+    }
+  };
+
 
   return (
     <div className="space-y-4">
