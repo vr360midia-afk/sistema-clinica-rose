@@ -38,6 +38,27 @@ Responda SOMENTE com um JSON válido, sem markdown, no formato:
 }
 Não invente diagnóstico definitivo; descreva apenas o que é observável e sinalize incertezas.`;
 
+    // Baixa a imagem e envia inline (base64) — evita erros de fetch/robots.txt no provedor
+    let inlineUrl = imageUrl;
+    try {
+      const imgRes = await fetch(imageUrl);
+      if (imgRes.ok) {
+        const buf = new Uint8Array(await imgRes.arrayBuffer());
+        if (buf.byteLength > 0) {
+          const mime = imgRes.headers.get('content-type')?.split(';')[0] || 'image/jpeg';
+          let binary = '';
+          for (let i = 0; i < buf.length; i += 8192) {
+            binary += String.fromCharCode(...buf.subarray(i, i + 8192));
+          }
+          inlineUrl = `data:${mime};base64,${btoa(binary)}`;
+        }
+      } else {
+        console.error(`Falha ao baixar imagem [${imgRes.status}]`);
+      }
+    } catch (e) {
+      console.error('Erro ao baixar imagem:', e);
+    }
+
     const res = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
