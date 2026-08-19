@@ -146,6 +146,46 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
             </Select>
           </div>
 
+          <div>
+            <Label htmlFor="procedimento">Procedimento cadastrado</Label>
+            <Select
+              value=""
+              onValueChange={(value) => {
+                if (!value) return;
+                const proc = procedimentos.find((p) => p.id === value);
+                if (proc) {
+                  setFormData((prev) => ({
+                    ...prev,
+                    descricao: proc.nome,
+                    valor: String(proc.preco || ''),
+                  }));
+                }
+              }}
+            >
+              <SelectTrigger>
+                <div className="flex items-center gap-2">
+                  <Stethoscope className="h-4 w-4 text-muted-foreground" />
+                  <SelectValue placeholder="Selecione um procedimento" />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                {procedimentos.length === 0 && (
+                  <SelectItem value="__empty__" disabled>
+                    Nenhum procedimento cadastrado
+                  </SelectItem>
+                )}
+                {procedimentos.map((proc) => (
+                  <SelectItem key={proc.id} value={proc.id}>
+                    {proc.nome} — {Number(proc.preco || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground mt-1">
+              Selecionar preenche a descrição e o valor automaticamente.
+            </p>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label htmlFor="tipo">Tipo *</Label>
