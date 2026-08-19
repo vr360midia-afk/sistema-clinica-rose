@@ -9,7 +9,7 @@ import { ArrowLeft, Save, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import PatientPhotoCapture from './PatientPhotoCapture';
-import { calcularIdade, dataParaInputDate } from '@/utils/idade';
+import { calcularIdade, formatarDataNascimento, parseDataNascimento } from '@/utils/idade';
 
 interface PatientFormProps {
   onClose: () => void;
@@ -24,7 +24,7 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
     nome: patient?.nome || '',
     email: patient?.email || '',
     telefone: patient?.telefone || '',
-    dataNascimento: dataParaInputDate(patient?.dataNascimento || patient?.data_nascimento) || '',
+    dataNascimento: formatarDataNascimento(patient?.dataNascimento || patient?.data_nascimento) || '',
     endereco: patient?.endereco || '',
     cpf: patient?.cpf || '',
     rg: patient?.rg || '',
@@ -82,7 +82,7 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
 
     try {
       // Preparar dados conforme a interface Paciente
-      const dataNascimento = formData.dataNascimento ? new Date(formData.dataNascimento + 'T00:00:00') : undefined;
+      const dataNascimento = parseDataNascimento(formData.dataNascimento);
       const patientData = {
         nome: formData.nome.trim(),
         email: formData.email.trim().toLowerCase(),
@@ -162,14 +162,27 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
                   <Label htmlFor="dataNascimento" className="font-medium">Data de Nascimento</Label>
                   <Input
                     id="dataNascimento"
-                    type="date"
+                    type="text"
+                    placeholder="dd/mm/aaaa"
                     value={formData.dataNascimento}
                     onChange={(e) => handleInputChange('dataNascimento', e.target.value)}
+                    onPaste={(e) => {
+                      e.preventDefault();
+                      const text = e.clipboardData.getData('text');
+                      const parsed = parseDataNascimento(text);
+                      handleInputChange('dataNascimento', parsed ? formatarDataNascimento(parsed) : text);
+                    }}
+                    onBlur={(e) => {
+                      const parsed = parseDataNascimento(e.target.value);
+                      if (parsed) {
+                        handleInputChange('dataNascimento', formatarDataNascimento(parsed));
+                      }
+                    }}
                     className="h-10 mt-1"
                   />
                   {formData.dataNascimento && (
                     <p className="text-xs text-muted-foreground mt-1">
-                      {calcularIdade(new Date(formData.dataNascimento + 'T00:00:00'))} anos
+                      {calcularIdade(parseDataNascimento(formData.dataNascimento))} anos
                     </p>
                   )}
                 </div>

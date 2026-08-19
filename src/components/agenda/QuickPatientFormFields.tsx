@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { UseFormReturn } from 'react-hook-form';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { QuickPatientFormData } from '@/hooks/useQuickPatientForm';
 import PatientPhotoCapture from '../pacientes/PatientPhotoCapture';
-import { dataParaInputDate, calcularIdade } from '@/utils/idade';
+import { formatarDataNascimento, parseDataNascimento, calcularIdade } from '@/utils/idade';
 
 interface QuickPatientFormFieldsProps {
   form: UseFormReturn<QuickPatientFormData>;
@@ -87,19 +87,45 @@ const QuickPatientFormFields = ({ form }: QuickPatientFormFieldsProps) => {
                 control={form.control}
                 name="dataNascimento"
                 render={({ field }) => {
+                  const [display, setDisplay] = useState(formatarDataNascimento(field.value));
                   const idade = calcularIdade(field.value);
+
+                  useEffect(() => {
+                    setDisplay(formatarDataNascimento(field.value));
+                  }, [field.value]);
+
+                  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+                    e.preventDefault();
+                    const text = e.clipboardData.getData('text');
+                    const parsed = parseDataNascimento(text);
+                    if (parsed) {
+                      setDisplay(formatarDataNascimento(parsed));
+                      field.onChange(parsed);
+                    } else {
+                      setDisplay(text);
+                    }
+                  };
+
+                  const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+                    const parsed = parseDataNascimento(e.target.value);
+                    if (parsed) {
+                      setDisplay(formatarDataNascimento(parsed));
+                      field.onChange(parsed);
+                    }
+                  };
+
                   return (
                     <FormItem>
                       <FormLabel className="font-medium">Data de Nascimento</FormLabel>
                       <FormControl>
                         <Input
-                          type="date"
+                          type="text"
+                          placeholder="dd/mm/aaaa"
                           className="h-11"
-                          value={dataParaInputDate(field.value)}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            field.onChange(value ? new Date(value + 'T00:00:00') : undefined);
-                          }}
+                          value={display}
+                          onChange={(e) => setDisplay(e.target.value)}
+                          onPaste={handlePaste}
+                          onBlur={handleBlur}
                         />
                       </FormControl>
                       {idade !== undefined && (
