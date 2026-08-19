@@ -16,6 +16,8 @@ import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 
 const Prontuarios = () => {
   const { prontuarios, pacientes } = useDentalSystem();
+  const { configuracoes } = useConfiguracoes();
+
   const [selectedProntuario, setSelectedProntuario] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
