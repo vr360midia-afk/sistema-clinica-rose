@@ -10,9 +10,10 @@ import { TrendingUp, Download, Calendar, DollarSign, Users, FileText } from 'luc
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import { downloadCSV, formatMoney } from '@/utils/exportCsv';
 import { toast } from 'sonner';
+import { supabaseService } from '@/services/supabaseService';
 
 const Relatorios = () => {
-  const { pacientes, consultas, transacoes, prontuarios, produtos } = useDentalSystem();
+  const { pacientes, consultas, transacoes, prontuarios } = useDentalSystem();
   const [periodo, setPeriodo] = useState('mes');
 
   // Calcular dados financeiros baseados nos dados reais
@@ -175,7 +176,7 @@ const Relatorios = () => {
     };
   }, [transacoes, consultas]);
 
-  const gerarRelatorio = (tipo: string) => {
+  const gerarRelatorio = async (tipo: string) => {
     const hoje = new Date().toISOString().slice(0, 10);
     try {
       switch (tipo) {
@@ -227,13 +228,15 @@ const Relatorios = () => {
             ])
           );
           break;
-        case 'Relatório de Estoque':
+        case 'Relatório de Estoque': {
+          const produtos = await supabaseService.getProdutos();
           downloadCSV(
             `estoque-${hoje}`,
             ['Produto', 'Categoria', 'Quantidade', 'Mínimo', 'Preço'],
             produtos.map((p: any) => [p.nome, p.categoria, p.quantidade, p.minimo, p.preco])
           );
           break;
+        }
         default:
           return;
       }
