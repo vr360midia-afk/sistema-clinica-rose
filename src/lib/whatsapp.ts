@@ -41,6 +41,38 @@ export const buildConsultaMessage = (info: ConsultaWhatsAppInfo): string => {
   return linhas.join('\n');
 };
 
+interface PacienteConfirmacaoInfo {
+  pacienteNome?: string;
+  data: Date | string;
+  hora?: string;
+  dentistaNome?: string;
+  procedimento?: string;
+  clinicaNome?: string;
+}
+
+export const buildConfirmacaoPacienteMessage = (info: PacienteConfirmacaoInfo): string => {
+  const dataObj = info.data instanceof Date ? info.data : new Date(info.data);
+  const dataFmt = isNaN(dataObj.getTime())
+    ? String(info.data)
+    : format(dataObj, "EEEE, dd/MM/yyyy", { locale: ptBR });
+
+  const linhas = [
+    `Olá${info.pacienteNome ? `, ${info.pacienteNome}` : ''}!`,
+    '',
+    `Gostaríamos de confirmar sua consulta${info.clinicaNome ? ` na ${info.clinicaNome}` : ''}.`,
+    info.procedimento ? `Procedimento: ${info.procedimento}` : null,
+    `Data: ${dataFmt}`,
+    info.hora ? `Horário: ${info.hora}` : null,
+    info.dentistaNome ? `Dentista: ${info.dentistaNome}` : null,
+    '',
+    'Por favor, confirme sua presença respondendo:',
+    '*SIM* para confirmar',
+    '*NÃO* para cancelar',
+  ].filter(Boolean);
+
+  return linhas.join('\n');
+};
+
 /** Abre o WhatsApp (app ou web) com a mensagem pronta para o número informado */
 export const openWhatsApp = (phone: string | null | undefined, message: string): boolean => {
   const number = normalizePhone(phone);
