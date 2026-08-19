@@ -3,9 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { CheckCircle2, CalendarClock, DollarSign, TrendingUp, AlertTriangle, Stethoscope, MessageCircle, Loader2, ListChecks } from 'lucide-react';
+import { CheckCircle2, CalendarClock, DollarSign, TrendingUp, AlertTriangle, Stethoscope, MessageCircle, Loader2, ListChecks, Plus, Pencil, Trash2 } from 'lucide-react';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import EmptyState from '@/components/common/EmptyState';
+import TransactionForm from '@/components/financeiro/TransactionForm';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
@@ -19,10 +20,12 @@ interface PatientFinancialProps {
 const brl = (v: number) => `R$ ${Number(v || 0).toFixed(2)}`;
 
 const PatientFinancial = ({ patient }: PatientFinancialProps) => {
-  const { consultas, prontuarios, transacoes } = useDentalSystem();
+  const { consultas, prontuarios, transacoes, deleteTransacao } = useDentalSystem();
   const { user } = useAuth();
   const { configuracoes } = useConfiguracoes();
   const [enviando, setEnviando] = useState(false);
+  const [showTransactionForm, setShowTransactionForm] = useState(false);
+  const [editingTransacao, setEditingTransacao] = useState<any | null>(null);
 
 
   const { realizados, previstos, etapas, resumo, lancamentos } = useMemo(() => {
@@ -399,12 +402,45 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
                     {t.status}
                   </Badge>
                   <span className="text-sm font-semibold">{brl(t.valor)}</span>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7"
+                    onClick={() => { setEditingTransacao(t); setShowTransactionForm(true); }}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7 text-destructive"
+                    onClick={async () => {
+                      if (!confirm('Excluir este lançamento?')) return;
+                      try {
+                        await deleteTransacao(t.id);
+                        toast.success('Lançamento excluído');
+                      } catch {
+                        toast.error('Erro ao excluir lançamento');
+                      }
+                    }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
                 </div>
               </div>
             ))
           )}
         </CardContent>
       </Card>
+
+      {showTransactionForm && (
+        <TransactionForm
+          isOpen={showTransactionForm}
+          onClose={() => { setShowTransactionForm(false); setEditingTransacao(null); }}
+          onSave={() => { setShowTransactionForm(false); setEditingTransacao(null); }}
+          transacao={editingTransacao || { pacienteId: patient.id, pacienteNome: patient.nome }}
+        />
+      )}
     </div>
   );
 };
