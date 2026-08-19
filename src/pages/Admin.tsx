@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { AlertTriangle, Trash2, Download, Upload } from 'lucide-react';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import { toast } from 'sonner';
+import RolesManager from '@/components/admin/RolesManager';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -71,6 +72,8 @@ const Admin = () => {
           <h1 className="text-xl sm:text-2xl font-bold text-foreground mb-2">Administração</h1>
           <p className="text-muted-foreground">Gerenciamento de dados do sistema</p>
         </div>
+
+        <RolesManager />
 
         {/* Status dos dados */}
         <Card>

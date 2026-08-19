@@ -2,12 +2,13 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Edit2, User, FileText, ClipboardList, FolderOpen } from 'lucide-react';
+import { ArrowLeft, Edit2, User, FileText, ClipboardList, FolderOpen, History } from 'lucide-react';
 import { openWhatsApp } from '@/lib/whatsapp';
 import PatientPersonalInfo from './PatientPersonalInfo';
 import PatientMedicalRecords from './PatientMedicalRecords';
 import PatientAnamnesis from './PatientAnamnesis';
 import PatientDocuments from './PatientDocuments';
+import PatientTimeline from './PatientTimeline';
 
 
 interface PatientDetailsProps {
@@ -49,7 +50,7 @@ const PatientDetails = ({ patient, onClose, onEdit }: PatientDetailsProps) => {
       </div>
 
       <Tabs defaultValue="personal" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5 h-auto">
           <TabsTrigger value="personal" className="flex items-center gap-2">
             <User className="h-4 w-4" />
             Dados Pessoais
@@ -61,6 +62,10 @@ const PatientDetails = ({ patient, onClose, onEdit }: PatientDetailsProps) => {
           <TabsTrigger value="anamnesis" className="flex items-center gap-2">
             <ClipboardList className="h-4 w-4" />
             Anamneses
+          </TabsTrigger>
+          <TabsTrigger value="timeline" className="flex items-center gap-2">
+            <History className="h-4 w-4" />
+            Linha do tempo
           </TabsTrigger>
           <TabsTrigger value="documents" className="flex items-center gap-2">
             <FolderOpen className="h-4 w-4" />
@@ -78,6 +83,10 @@ const PatientDetails = ({ patient, onClose, onEdit }: PatientDetailsProps) => {
 
         <TabsContent value="anamnesis" className="space-y-6">
           <PatientAnamnesis patient={patient} />
+        </TabsContent>
+
+        <TabsContent value="timeline" className="space-y-6">
+          <PatientTimeline patient={patient} />
         </TabsContent>
 
         <TabsContent value="documents" className="space-y-6">

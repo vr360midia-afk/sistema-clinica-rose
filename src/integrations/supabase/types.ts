@@ -416,6 +416,41 @@ export type Database = {
         }
         Relationships: []
       }
+      odontogramas: {
+        Row: {
+          atualizado_em: string
+          criado_em: string
+          dados: Json
+          id: string
+          paciente_id: string
+          user_id: string
+        }
+        Insert: {
+          atualizado_em?: string
+          criado_em?: string
+          dados?: Json
+          id?: string
+          paciente_id: string
+          user_id: string
+        }
+        Update: {
+          atualizado_em?: string
+          criado_em?: string
+          dados?: Json
+          id?: string
+          paciente_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "odontogramas_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pacientes: {
         Row: {
           alergias: string | null
@@ -825,15 +860,42 @@ export type Database = {
           },
         ]
       }
+      user_roles: {
+        Row: {
+          criado_em: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          criado_em?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          criado_em?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "dentista" | "recepcao"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -960,6 +1022,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "dentista", "recepcao"],
+    },
   },
 } as const

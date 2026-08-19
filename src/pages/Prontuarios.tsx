@@ -179,7 +179,7 @@ const Prontuarios = () => {
                       </div>
                     </CardHeader>
                     <CardContent>
-                      <Odontogram />
+                      <Odontogram pacienteId={selectedPatient.id} />
                     </CardContent>
                   </Card>
                 )}

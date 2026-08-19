@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { DollarSign, TrendingUp, TrendingDown, Plus, CreditCard, Receipt } from 'lucide-react';
 import TransactionForm from '@/components/financeiro/TransactionForm';
 import { useDentalSystem } from '@/context/DentalSystemContext';
+import Inadimplencia from '@/components/financeiro/Inadimplencia';
 
 const Financeiro = () => {
   const { transacoes, pacientes } = useDentalSystem();
@@ -77,6 +78,8 @@ const Financeiro = () => {
             </CardContent>
           </Card>
         </div>
+
+        <Inadimplencia />
 
         {/* Lista de Transações */}
         <Card>
