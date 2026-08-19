@@ -20,6 +20,7 @@ export const useAgendaViews = (selectedDate: Date) => {
         duracao: consulta.duracao,
         procedimento: consulta.procedimento,
         status: consulta.status,
+        confirmacaoStatus: consulta.confirmacaoStatus || 'pendente',
         dentista: consulta.dentista,
         patient: paciente?.nome || 'Paciente não encontrado',
         patientData: paciente ? {
@@ -46,7 +47,9 @@ export const useAgendaViews = (selectedDate: Date) => {
       duration: `${consulta.duracao}min`,
       procedure: consulta.procedimento,
       status: consulta.status,
+      confirmacaoStatus: consulta.confirmacaoStatus,
       dentist: consulta.dentista,
+      date: consulta.data,
       patientData: consulta.patientData
     }));
   }, [transformedConsultas, selectedDate]);
@@ -56,6 +59,19 @@ export const useAgendaViews = (selectedDate: Date) => {
       await updateConsulta(appointmentId, { status: newStatus });
     } catch (error) {
       console.error('Erro ao atualizar status da consulta:', error);
+    }
+  };
+
+  const handleConfirmacaoChange = async (appointmentId: string, novo: 'pendente' | 'confirmado' | 'recusado') => {
+    try {
+      await updateConsulta(appointmentId, {
+        confirmacaoStatus: novo,
+        confirmadoEm: novo === 'pendente' ? undefined : new Date(),
+        ...(novo === 'confirmado' ? { status: 'confirmado' as const } : {}),
+        ...(novo === 'recusado' ? { status: 'cancelado' as const } : {}),
+      });
+    } catch (error) {
+      console.error('Erro ao atualizar confirmação da consulta:', error);
     }
   };
 
@@ -73,6 +89,7 @@ export const useAgendaViews = (selectedDate: Date) => {
     transformedConsultas,
     appointmentsForSelectedDate,
     handleStatusChange,
+    handleConfirmacaoChange,
     handleDeleteAppointment
   };
 };
