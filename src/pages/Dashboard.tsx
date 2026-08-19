@@ -2,6 +2,7 @@
 import React from 'react';
 import Layout from '@/components/layout/Layout';
 import StatsCard from '@/components/dashboard/StatsCard';
+import ConfirmacoesPendentes from '@/components/dashboard/ConfirmacoesPendentes';
 import AppointmentsList from '@/components/dashboard/AppointmentsList';
 import RecentActivity from '@/components/dashboard/RecentActivity';
 import { Users, Calendar, CreditCard, TrendingUp } from 'lucide-react';
@@ -104,6 +105,7 @@ const Dashboard = () => {
         {/* Main Content */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <AppointmentsList />
+          <ConfirmacoesPendentes />
           <RecentActivity />
         </div>
       </div>
