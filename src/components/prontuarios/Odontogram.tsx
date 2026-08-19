@@ -1,14 +1,16 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { Button } from '@/components/ui/button';
+import { Save, RotateCcw } from 'lucide-react';
+import { useOdontograma } from '@/hooks/useOdontograma';
 
-interface ToothStatus {
-  [key: number]: 'healthy' | 'cavity' | 'restoration' | 'crown' | 'extraction' | 'root-canal' | 'prophylaxis' | 'veneer' | 'wisdom' | 'whitening' | 'aesthetic-aligners' | 'invisible-aligners';
+interface OdontogramProps {
+  pacienteId?: string;
 }
 
-const Odontogram = () => {
-  const [teethStatus, setTeethStatus] = useState<ToothStatus>({});
-  const [selectedTreatment, setSelectedTreatment] = useState<string>('healthy');
+const Odontogram = ({ pacienteId }: OdontogramProps) => {
+  const { dados, setDados, loading, saving, salvar } = useOdontograma(pacienteId);
+  const [selectedTreatment, setSelectedTreatment] = React.useState<string>('healthy');
 
   // Dentes superiores (18-11, 21-28)
   const upperTeeth = [18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28];
@@ -31,26 +33,23 @@ const Odontogram = () => {
   ];
 
   const handleToothClick = (toothNumber: number) => {
-    setTeethStatus(prev => ({
-      ...prev,
-      [toothNumber]: selectedTreatment as any
-    }));
+    setDados((prev) => ({ ...prev, [String(toothNumber)]: selectedTreatment }));
   };
 
   const getToothColor = (toothNumber: number) => {
-    const status = teethStatus[toothNumber] || 'healthy';
+    const status = dados[String(toothNumber)] || 'healthy';
     return treatments.find(t => t.id === status)?.color || 'bg-card';
   };
 
   const renderTooth = (toothNumber: number) => (
     <div
       key={toothNumber}
-      className={`w-8 h-10 border-2 border-border rounded-sm cursor-pointer hover:border-blue-500 transition-colors ${getToothColor(toothNumber)}`}
+      className={`w-7 h-9 sm:w-8 sm:h-10 border-2 border-border rounded-sm cursor-pointer hover:border-primary transition-colors ${getToothColor(toothNumber)}`}
       onClick={() => handleToothClick(toothNumber)}
       title={`Dente ${toothNumber}`}
     >
       <div className="h-full flex items-center justify-center">
-        <span className="text-xs font-semibold text-foreground">{toothNumber}</span>
+        <span className="text-[10px] sm:text-xs font-semibold text-foreground mix-blend-difference">{toothNumber}</span>
       </div>
     </div>
   );
@@ -59,7 +58,7 @@ const Odontogram = () => {
     <div className="space-y-6">
       {/* Seletor de Tratamento */}
       <div>
-        <h3 className="text-lg font-medium mb-3">Selecione o Tratamento:</h3>
+        <h3 className="text-base sm:text-lg font-medium mb-3">Selecione o Tratamento:</h3>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
           {treatments.map((treatment) => (
             <Button
@@ -77,9 +76,8 @@ const Odontogram = () => {
       </div>
 
       {/* Odontograma */}
-      <div className="bg-muted p-8 rounded-lg">
-        <div className="max-w-4xl mx-auto">
-          {/* Dentes Superiores */}
+      <div className="bg-muted p-3 sm:p-8 rounded-lg overflow-x-auto">
+        <div className="max-w-4xl mx-auto min-w-[520px]">
           <div className="mb-8">
             <h4 className="text-center mb-4 font-medium">Arcada Superior</h4>
             <div className="flex justify-center gap-1">
@@ -87,10 +85,8 @@ const Odontogram = () => {
             </div>
           </div>
 
-          {/* Linha divisória */}
           <div className="border-t-2 border-border my-6"></div>
 
-          {/* Dentes Inferiores */}
           <div>
             <h4 className="text-center mb-4 font-medium">Arcada Inferior</h4>
             <div className="flex justify-center gap-1">
@@ -99,6 +95,19 @@ const Odontogram = () => {
           </div>
         </div>
       </div>
+
+      {pacienteId && (
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={() => salvar(dados)} disabled={saving || loading}>
+            <Save className="h-4 w-4 mr-2" />
+            {saving ? 'Salvando...' : 'Salvar odontograma'}
+          </Button>
+          <Button variant="outline" onClick={() => setDados({})} disabled={saving || loading}>
+            <RotateCcw className="h-4 w-4 mr-2" />
+            Limpar
+          </Button>
+        </div>
+      )}
 
       {/* Legenda */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mt-6">
