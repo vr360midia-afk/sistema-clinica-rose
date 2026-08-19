@@ -1,5 +1,6 @@
 interface ReciboClinica {
   nomeClinica?: string;
+  logoUrl?: string;
   cnpj?: string;
   endereco?: string;
   telefone?: string;
@@ -95,6 +96,7 @@ export const gerarRecibo = (dados: ReciboDados, clinica: ReciboClinica = {}) => 
   <div class="recibo">
     <div class="topo">
       <div class="clinica">
+        ${clinica.logoUrl ? `<img src="${clinica.logoUrl}" alt="Logo" style="max-height:64px;max-width:200px;margin-bottom:8px;display:block;" />` : ''}
         <h1>${emissor}</h1>
         ${clinica.cnpj ? `<p>CNPJ: ${clinica.cnpj}</p>` : ''}
         ${clinica.endereco ? `<p>${clinica.endereco}</p>` : ''}

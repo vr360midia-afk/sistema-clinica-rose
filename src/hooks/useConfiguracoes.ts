@@ -5,6 +5,7 @@ import { useToast } from '@/hooks/use-toast';
 
 export interface ConfiguracoesGerais {
   nomeClinica: string;
+  logoUrl: string;
   cnpj: string;
   endereco: string;
   telefone: string;
@@ -19,6 +20,7 @@ export interface ConfiguracoesGerais {
 
 export const defaultConfiguracoes: ConfiguracoesGerais = {
   nomeClinica: '',
+  logoUrl: '',
   cnpj: '',
   endereco: '',
   telefone: '',
@@ -52,6 +54,7 @@ export const useConfiguracoes = () => {
     } else if (data) {
       setConfiguracoes({
         nomeClinica: data.nome_clinica || '',
+        logoUrl: (data as any).logo_url || '',
         cnpj: data.cnpj || '',
         endereco: data.endereco || '',
         telefone: data.telefone || '',
@@ -80,6 +83,7 @@ export const useConfiguracoes = () => {
         {
           user_id: user.id,
           nome_clinica: values.nomeClinica,
+          logo_url: values.logoUrl || null,
           cnpj: values.cnpj,
           endereco: values.endereco,
           telefone: values.telefone,
