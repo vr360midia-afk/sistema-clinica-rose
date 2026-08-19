@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { QuickPatientFormData } from '@/hooks/useQuickPatientForm';
 import PatientPhotoCapture from '../pacientes/PatientPhotoCapture';
-import { dataParaInputDate, calcularIdade } from '@/utils/idade';
+import { formatarDataNascimento, parseDataNascimento, calcularIdade } from '@/utils/idade';
 
 interface QuickPatientFormFieldsProps {
   form: UseFormReturn<QuickPatientFormData>;
