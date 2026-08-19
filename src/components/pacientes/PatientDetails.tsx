@@ -94,6 +94,10 @@ const PatientDetails = ({ patient, onClose, onEdit }: PatientDetailsProps) => {
           <PatientTimeline patient={patient} />
         </TabsContent>
 
+        <TabsContent value="financial" className="space-y-6">
+          <PatientFinancial patient={patient} />
+        </TabsContent>
+
         <TabsContent value="documents" className="space-y-6">
           <PatientDocuments patient={patient} />
         </TabsContent>
