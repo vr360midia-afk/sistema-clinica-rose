@@ -2,3 +2,6 @@ project_id = "rogngvhlmgxekfygxrwi"
 
 [functions.assinatura-publica]
 verify_jwt = false
+
+[functions.extrato-publico]
+verify_jwt = false
