@@ -158,19 +158,36 @@ const Financeiro = () => {
                         >
                           {transacao.status === 'pago' ? 'Pago' : 'Pendente'}
                         </Badge>
-                        {transacao.tipo === 'receita' && (
-                          <div>
+                        <div className="flex flex-wrap justify-end gap-1 pt-1">
+                          {transacao.tipo === 'receita' && (
                             <Button
                               variant="outline"
                               size="sm"
-                              className="mt-1 gap-1"
+                              className="gap-1"
                               onClick={() => emitirRecibo(transacao)}
                             >
                               <Receipt className="h-3.5 w-3.5" />
                               Recibo
                             </Button>
-                          </div>
-                        )}
+                          )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1"
+                            onClick={() => { setEditingTransacao(transacao); setShowTransactionForm(true); }}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                            Editar
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1 text-destructive"
+                            onClick={() => handleDelete(transacao.id)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </div>
 
                     </div>
@@ -182,8 +199,9 @@ const Financeiro = () => {
 
         <TransactionForm
           isOpen={showTransactionForm}
-          onClose={() => setShowTransactionForm(false)}
+          onClose={() => { setShowTransactionForm(false); setEditingTransacao(null); }}
           onSave={handleSaveTransaction}
+          transacao={editingTransacao}
         />
       </div>
     </Layout>
