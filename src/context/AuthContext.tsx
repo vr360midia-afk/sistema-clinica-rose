@@ -28,24 +28,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Configurar listener de mudanças de autenticação
+    // Atualiza apenas quando o usuário realmente muda (evita re-render/reload
+    // ao trocar de aba, quando o Supabase dispara TOKEN_REFRESHED/SIGNED_IN)
+    const applySession = (newSession: Session | null) => {
+      setSession(prev => {
+        if (prev?.user?.id === newSession?.user?.id) return prev;
+        return newSession;
+      });
+      setUser(prev => {
+        if (prev?.id === newSession?.user?.id) return prev;
+        return newSession?.user ?? null;
+      });
+      setLoading(false);
+    };
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
+      (_event, session) => {
+        applySession(session);
       }
     );
 
-    // Verificar sessão existente
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
+      applySession(session);
     });
 
     return () => subscription.unsubscribe();
   }, []);
+
 
   const signUp = async (email: string, password: string, nome?: string) => {
     const redirectUrl = `${window.location.origin}/`;
