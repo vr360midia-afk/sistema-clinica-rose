@@ -2,13 +2,14 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Edit2, User, FileText, ClipboardList, FolderOpen, History } from 'lucide-react';
+import { ArrowLeft, Edit2, User, FileText, ClipboardList, FolderOpen, History, DollarSign } from 'lucide-react';
 import { openWhatsApp } from '@/lib/whatsapp';
 import PatientPersonalInfo from './PatientPersonalInfo';
 import PatientMedicalRecords from './PatientMedicalRecords';
 import PatientAnamnesis from './PatientAnamnesis';
 import PatientDocuments from './PatientDocuments';
 import PatientTimeline from './PatientTimeline';
+import PatientFinancial from './PatientFinancial';
 
 
 interface PatientDetailsProps {
