@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { consultaSchema, ConsultaFormData } from '@/schemas/validations';
 import { useDentalSystem } from '@/context/DentalSystemContext';
-import { CalendarIcon, Clock, User, UserPlus, Loader2 } from 'lucide-react';
+import { CalendarIcon, Clock, User, UserPlus, Loader2, MessageCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth } from '@/context/AuthContext';
 import QuickPatientModal from './QuickPatientModal';
