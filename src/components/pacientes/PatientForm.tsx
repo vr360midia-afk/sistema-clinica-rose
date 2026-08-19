@@ -82,7 +82,7 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
 
     try {
       // Preparar dados conforme a interface Paciente
-      const dataNascimento = formData.dataNascimento ? new Date(formData.dataNascimento + 'T00:00:00') : undefined;
+      const dataNascimento = parseDataNascimento(formData.dataNascimento);
       const patientData = {
         nome: formData.nome.trim(),
         email: formData.email.trim().toLowerCase(),
