@@ -12,6 +12,7 @@ import Odontogram from '@/components/prontuarios/Odontogram';
 import ProntuarioModal from '@/components/prontuarios/ProntuarioModal';
 import ImageUploadSection from '@/components/prontuarios/ImageUploadSection';
 import PDFGenerator from '@/components/prontuarios/PDFGenerator';
+import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 
 const Prontuarios = () => {
   const { prontuarios, pacientes } = useDentalSystem();
@@ -172,6 +173,7 @@ const Prontuarios = () => {
                       <div className="flex justify-between items-center">
                         <CardTitle>Odontograma - {selectedPatient.nome}</CardTitle>
                         <PDFGenerator 
+                          clinicLogo={configuracoes.logoUrl || undefined}
                           patientData={selectedProntuarioData}
                           teethStatus={{}}
                           images={[]}
@@ -232,6 +234,7 @@ const Prontuarios = () => {
                       </div>
                       <div className="flex gap-2">
                         <PDFGenerator 
+                          clinicLogo={configuracoes.logoUrl || undefined}
                           patientData={selectedProntuarioData}
                           teethStatus={{}}
                           images={[]}
@@ -247,6 +250,7 @@ const Prontuarios = () => {
                       <div className="flex justify-between items-center">
                         <CardTitle>Anexos - {selectedPatient.nome}</CardTitle>
                         <PDFGenerator 
+                          clinicLogo={configuracoes.logoUrl || undefined}
                           patientData={selectedProntuarioData}
                           teethStatus={{}}
                           images={[]}
