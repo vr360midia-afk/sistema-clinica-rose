@@ -105,25 +105,18 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
         valorLiquido,
       };
 
-      await addTransacao(transactionData);
+      if (isEdit) {
+        await updateTransacao(transacao.id, transactionData);
+        toast.success('Transação atualizada');
+      } else {
+        await addTransacao(transactionData);
+        toast.success('Transação criada');
+      }
       onSave(transactionData);
-      
-      // Reset form
-      setFormData({
-        pacienteId: '',
-        valor: '',
-        tipo: 'receita',
-        status: 'pendente',
-        metodoPagamento: 'dinheiro',
-        taxaCartaoPercentual: '',
-        parcelas: '1',
-        data: new Date(),
-        vencimento: null,
-        descricao: '',
-        observacoes: ''
-      });
+      setFormData(emptyForm);
     } catch (error) {
       console.error('Erro ao salvar transação:', error);
+      toast.error('Erro ao salvar transação');
     }
   };
 
