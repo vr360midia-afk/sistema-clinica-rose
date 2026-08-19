@@ -371,6 +371,71 @@ export type Database = {
           },
         ]
       }
+      extratos_financeiros: {
+        Row: {
+          assinatura_paciente: Json | null
+          atualizado_em: string
+          criado_em: string
+          dados: Json
+          data_assinatura: string | null
+          data_expiracao_link: string | null
+          id: string
+          paciente_id: string | null
+          paciente_nome: string | null
+          status_assinatura: string
+          token_assinatura: string | null
+          total: number
+          total_pago: number
+          total_pendente: number
+          total_previsto: number
+          user_id: string
+        }
+        Insert: {
+          assinatura_paciente?: Json | null
+          atualizado_em?: string
+          criado_em?: string
+          dados?: Json
+          data_assinatura?: string | null
+          data_expiracao_link?: string | null
+          id?: string
+          paciente_id?: string | null
+          paciente_nome?: string | null
+          status_assinatura?: string
+          token_assinatura?: string | null
+          total?: number
+          total_pago?: number
+          total_pendente?: number
+          total_previsto?: number
+          user_id: string
+        }
+        Update: {
+          assinatura_paciente?: Json | null
+          atualizado_em?: string
+          criado_em?: string
+          dados?: Json
+          data_assinatura?: string | null
+          data_expiracao_link?: string | null
+          id?: string
+          paciente_id?: string | null
+          paciente_nome?: string | null
+          status_assinatura?: string
+          token_assinatura?: string | null
+          total?: number
+          total_pago?: number
+          total_pendente?: number
+          total_previsto?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "extratos_financeiros_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notas: {
         Row: {
           categoria: string

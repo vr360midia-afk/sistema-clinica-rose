@@ -81,3 +81,29 @@ export const openWhatsApp = (phone: string | null | undefined, message: string):
   window.open(url, '_blank', 'noopener,noreferrer');
   return true;
 };
+
+interface ExtratoWhatsAppInfo {
+  pacienteNome?: string;
+  clinicaNome?: string;
+  totalPago: number;
+  totalPendente: number;
+  totalPrevisto: number;
+  link: string;
+}
+
+const brlMsg = (v: number) => `R$ ${Number(v || 0).toFixed(2).replace('.', ',')}`;
+
+export const buildExtratoMessage = (info: ExtratoWhatsAppInfo): string =>
+  [
+    `Olá${info.pacienteNome ? `, ${info.pacienteNome}` : ''}!`,
+    '',
+    `Segue o resumo financeiro do seu tratamento${info.clinicaNome ? ` na ${info.clinicaNome}` : ''}:`,
+    `• Já pago: ${brlMsg(info.totalPago)}`,
+    `• Em aberto: ${brlMsg(info.totalPendente)}`,
+    `• Previsto (agendado): ${brlMsg(info.totalPrevisto)}`,
+    '',
+    'Para conferir o detalhamento e assinar digitalmente, acesse:',
+    info.link,
+    '',
+    'O link é válido por 7 dias.',
+  ].join('\n');
