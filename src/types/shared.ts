@@ -137,6 +137,9 @@ export interface DocumentoPaciente extends BaseEntity {
   arquivo: string;
   tamanho?: number;
   descricao?: string;
+  analiseIa?: string;
+  analiseDados?: any;
+  analiseStatus?: 'pendente' | 'processando' | 'concluida' | 'erro';
 }
 
 export type TipoDocumento = 'foto' | 'raio-x' | 'exame' | 'receita' | 'atestado' | 'outro';

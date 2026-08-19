@@ -65,7 +65,10 @@ class SupabaseService {
       linkAssinatura: data.link_assinatura,
       tokenAssinatura: data.token_assinatura,
       statusAssinatura: data.status_assinatura,
-      arquivo: data.url ?? data.arquivo
+      arquivo: data.url ?? data.arquivo,
+      analiseIa: data.analise_ia,
+      analiseDados: data.analise_dados,
+      analiseStatus: data.analise_status
     };
   };
 
@@ -76,7 +79,7 @@ class SupabaseService {
     transacoes: ['user_id','tipo','descricao','valor','categoria','data','paciente_id','paciente_nome','status','consulta_id','metodo_pagamento','vencimento','observacoes','taxa_cartao_percentual','taxa_cartao_valor','parcelas','valor_parcela','valor_liquido'],
     prontuarios: ['user_id','paciente_id','paciente_nome','data','queixa_principal','diagnostico','tratamento','observacoes','odontograma','imagens','assinatura','procedimentos','consulta_id','historia_doenca','exame_clinico','plano_tratamento','procedimentos_realizados','anexos'],
     anamneses: ['user_id','paciente_id','paciente_nome','respostas','assinatura','status','link_assinatura','data_assinatura','data','queixa_principal','historia_atual','historia_familiar','historia_medica','alergias','medicamentos','habitos_vicios_positivos','habitos_vicios_negativos','exame_extra_bucal','exame_intra_bucal','observacoes','anexos','assinatura_paciente','assinatura_doutor','token_assinatura','status_assinatura','data_expiracao_link'],
-    documentos_paciente: ['user_id','paciente_id','nome','tipo','url','tamanho'],
+    documentos_paciente: ['user_id','paciente_id','nome','tipo','url','tamanho','analise_ia','analise_dados','analise_status'],
     produtos: ['user_id','nome','categoria','quantidade','minimo','preco'],
   };
 
@@ -136,6 +139,9 @@ class SupabaseService {
       dataExpiracaoLink: 'data_expiracao_link',
       dataAssinatura: 'data_assinatura',
       arquivo: 'url',
+      analiseIa: 'analise_ia',
+      analiseDados: 'analise_dados',
+      analiseStatus: 'analise_status',
     };
 
     // Campos do tipo Date que precisam virar ISO string
