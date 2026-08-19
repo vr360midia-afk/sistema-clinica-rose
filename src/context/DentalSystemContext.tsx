@@ -40,36 +40,43 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
   }, [user]);
 
   const loadAllData = async () => {
-    try {
-      setLoading(true);
-      const [
-        pacientesData,
-        consultasData,
-        transacoesData,
-        prontuariosData,
-        anamnesesData,
-        documentosData
-      ] = await Promise.all([
-        supabaseService.getPacientes(),
-        supabaseService.getConsultas(),
-        supabaseService.getTransacoes(),
-        supabaseService.getProntuarios(),
-        supabaseService.getAnamneses(),
-        supabaseService.getDocumentos()
-      ]);
+    setLoading(true);
 
-      setPacientes(pacientesData);
-      setConsultas(consultasData);
-      setTransacoes(transacoesData);
-      setProntuarios(prontuariosData);
-      setAnamneses(anamnesesData);
-      setDocumentos(documentosData);
-    } catch (error) {
-      console.error('Erro ao carregar dados:', error);
-      toast.error('Erro ao carregar dados do Supabase');
-    } finally {
-      setLoading(false);
+    // Tenta 2x cada recurso e nunca derruba o carregamento inteiro por uma falha isolada
+    const load = async <T,>(nome: string, fn: () => Promise<T>, fallback: T): Promise<{ nome: string; ok: boolean; data: T }> => {
+      for (let tentativa = 0; tentativa < 2; tentativa++) {
+        try {
+          return { nome, ok: true, data: await fn() };
+        } catch (error) {
+          console.error(`Erro ao carregar ${nome} (tentativa ${tentativa + 1}):`, error);
+          if (tentativa === 0) await new Promise(r => setTimeout(r, 600));
+        }
+      }
+      return { nome, ok: false, data: fallback };
+    };
+
+    const [pac, con, tra, pro, ana, doc] = await Promise.all([
+      load('pacientes', () => supabaseService.getPacientes(), []),
+      load('consultas', () => supabaseService.getConsultas(), []),
+      load('transações', () => supabaseService.getTransacoes(), []),
+      load('prontuários', () => supabaseService.getProntuarios(), []),
+      load('anamneses', () => supabaseService.getAnamneses(), []),
+      load('documentos', () => supabaseService.getDocumentos(), []),
+    ]);
+
+    setPacientes(pac.data);
+    setConsultas(con.data);
+    setTransacoes(tra.data);
+    setProntuarios(pro.data);
+    setAnamneses(ana.data);
+    setDocumentos(doc.data);
+
+    const falhas = [pac, con, tra, pro, ana, doc].filter(r => !r.ok).map(r => r.nome);
+    if (falhas.length) {
+      toast.error(`Não foi possível carregar: ${falhas.join(', ')}`);
     }
+
+    setLoading(false);
   };
 
   // Funções para Pacientes

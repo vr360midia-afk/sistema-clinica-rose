@@ -17,9 +17,14 @@ interface Produto {
 
 class SupabaseService {
   private async getCurrentUserId(): Promise<string> {
+    // Sessão local primeiro (sem rede) para evitar falhas por rate limit/instabilidade
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user?.id) return session.user.id;
+
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Usuário não autenticado');
-    return user.id;
+    if (user?.id) return user.id;
+
+    throw new Error('Usuário não autenticado');
   }
 
   // Transformar dados do Supabase para o formato esperado pelo app
