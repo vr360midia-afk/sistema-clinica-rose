@@ -3,10 +3,12 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft, Edit2, User, FileText, ClipboardList, FolderOpen } from 'lucide-react';
+import { openWhatsApp } from '@/lib/whatsapp';
 import PatientPersonalInfo from './PatientPersonalInfo';
 import PatientMedicalRecords from './PatientMedicalRecords';
 import PatientAnamnesis from './PatientAnamnesis';
 import PatientDocuments from './PatientDocuments';
+
 
 interface PatientDetailsProps {
   patient: any;
@@ -24,7 +26,20 @@ const PatientDetails = ({ patient, onClose, onEdit }: PatientDetailsProps) => {
           </Button>
           <div>
             <h1 className="text-xl sm:text-2xl font-bold text-foreground">{patient.nome}</h1>
-            <p className="text-sm text-muted-foreground">{patient.email} • {patient.telefone}</p>
+            <p className="text-sm text-muted-foreground">
+              {patient.email}
+              {patient.email && patient.telefone ? ' • ' : ''}
+              {patient.telefone ? (
+                <button
+                  type="button"
+                  onClick={() => openWhatsApp(patient.telefone, '')}
+                  className="text-primary hover:underline focus:outline-none"
+                  title="Abrir conversa no WhatsApp"
+                >
+                  {patient.telefone}
+                </button>
+              ) : null}
+            </p>
           </div>
         </div>
         <Button onClick={onEdit} className="bg-blue-600 hover:bg-blue-700">

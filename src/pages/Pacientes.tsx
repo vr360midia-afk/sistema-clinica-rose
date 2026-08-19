@@ -14,7 +14,9 @@ import PatientDeleteModal from '@/components/pacientes/PatientDeleteModal';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import EmptyState from '@/components/common/EmptyState';
 import { useDentalSystem } from '@/context/DentalSystemContext';
+import { openWhatsApp } from '@/lib/whatsapp';
 import { Users, Search, Plus, UserCheck, Calendar, Archive, MoreVertical, Edit2, Trash2, RotateCcw } from 'lucide-react';
+
 
 const Pacientes = () => {
   const { 
@@ -299,7 +301,21 @@ const Pacientes = () => {
                                   <span>{paciente.email}</span>
                                 </div>
                                 <div className="mt-2 flex items-center text-sm text-muted-foreground">
-                                  <span>{paciente.telefone}</span>
+                                  {paciente.telefone ? (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        openWhatsApp(paciente.telefone, '');
+                                      }}
+                                      className="text-primary hover:underline focus:outline-none"
+                                      title="Abrir conversa no WhatsApp"
+                                    >
+                                      {paciente.telefone}
+                                    </button>
+                                  ) : (
+                                    <span>—</span>
+                                  )}
                                 </div>
                                 <div className="mt-2 flex items-center text-sm text-muted-foreground">
                                   <span>Convênio: {paciente.convenio}</span>
