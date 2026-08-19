@@ -9,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, FileText, Image, Download, Eye, Trash2, Loader2, UploadCloud } from 'lucide-react';
+import { Plus, FileText, Image, Download, Eye, Trash2, Loader2, UploadCloud, Sparkles } from 'lucide-react';
 import EmptyState from '@/components/common/EmptyState';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -38,16 +38,50 @@ const isValidFile = (file: File) =>
   file.type === 'application/pdf' || file.type.startsWith('image/');
 
 const PatientDocuments = ({ patient }: PatientDocumentsProps) => {
-  const { documentos, addDocumento, deleteDocumento } = useDentalSystem();
+  const { documentos, addDocumento, updateDocumento, deleteDocumento } = useDentalSystem();
   const { user } = useAuth();
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [tipo, setTipo] = useState<TipoDocumento>('exame');
+  const [analisando, setAnalisando] = useState<string[]>([]);
 
   const patientDocuments = documentos.filter((d) => d.pacienteId === patient?.id);
 
   const handleNewDocument = () => inputRef.current?.click();
+
+
+  const analisarImagem = async (path: string, nome: string, tipoDoc: string) => {
+    try {
+      const { data: row } = await supabase
+        .from('documentos_paciente')
+        .select('id')
+        .eq('url', path)
+        .maybeSingle();
+      if (!row?.id) return;
+
+      setAnalisando((prev) => [...prev, row.id]);
+      await updateDocumento(row.id, { analiseStatus: 'processando' } as any);
+
+      const { data: signed } = await supabase.storage.from(BUCKET).createSignedUrl(path, 600);
+      if (!signed?.signedUrl) throw new Error('Falha ao gerar link do arquivo');
+
+      const { data, error } = await supabase.functions.invoke('analisar-documento', {
+        body: { imageUrl: signed.signedUrl, nome, tipo: tipoDoc },
+      });
+      if (error) throw error;
+
+      await updateDocumento(row.id, {
+        analiseIa: data?.resumo || null,
+        analiseDados: data?.dados || null,
+        analiseStatus: 'concluida',
+      } as any);
+      toast.success(`Análise de IA concluída: ${nome}`);
+      setAnalisando((prev) => prev.filter((id) => id !== row.id));
+    } catch (err: any) {
+      toast.error('Não foi possível analisar a imagem', { description: err.message });
+    }
+  };
 
   const uploadFiles = async (files: File[]) => {
     if (!files.length || !user?.id || !patient?.id) return;
@@ -79,6 +113,14 @@ const PatientDocuments = ({ patient }: PatientDocumentsProps) => {
           tamanho: file.size,
         });
         ok++;
+
+        if (file.type.startsWith('image/')) {
+          void analisarImagem(
+            path,
+            file.name,
+            file.type.startsWith('image/') && tipo === 'exame' ? 'foto' : tipo,
+          );
+        }
       } catch (err: any) {
         toast.error(`Erro ao enviar ${file.name}`, { description: err.message });
       }
@@ -260,6 +302,33 @@ const PatientDocuments = ({ patient }: PatientDocumentsProps) => {
                     <p>Tamanho: {(documento.tamanho / 1024).toFixed(1)} KB</p>
                   )}
                 </div>
+
+                {(documento.analiseStatus === 'processando' || analisando.includes(documento.id)) && (
+                  <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Analisando com IA...
+                  </div>
+                )}
+
+                {documento.analiseIa && (
+                  <div className="mt-3 rounded-md border border-border bg-muted/40 p-2">
+                    <div className="flex items-center gap-1 text-xs font-medium mb-1">
+                      <Sparkles className="h-3 w-3 text-primary" />
+                      Análise por IA
+                    </div>
+                    <p className="text-xs text-muted-foreground whitespace-pre-wrap">
+                      {documento.analiseIa}
+                    </p>
+                    {Array.isArray(documento.analiseDados?.achados) &&
+                      documento.analiseDados.achados.length > 0 && (
+                        <ul className="mt-2 list-disc pl-4 text-xs text-muted-foreground space-y-0.5">
+                          {documento.analiseDados.achados.slice(0, 4).map((a: string, i: number) => (
+                            <li key={i}>{a}</li>
+                          ))}
+                        </ul>
+                      )}
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}
