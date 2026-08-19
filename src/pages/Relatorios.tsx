@@ -370,7 +370,87 @@ const Relatorios = () => {
             </CardContent>
           </Card>
 
+          {/* Faturamento detalhado */}
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle>Faturamento (bruto x líquido)</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="rounded-lg border p-3">
+                  <p className="text-sm text-muted-foreground">Bruto recebido</p>
+                  <p className="text-lg font-semibold">{formatMoney(faturamento.totalBruto)}</p>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <p className="text-sm text-muted-foreground">Taxas / descontos</p>
+                  <p className="text-lg font-semibold text-red-500">-{formatMoney(faturamento.totalTaxas)}</p>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <p className="text-sm text-muted-foreground">Líquido</p>
+                  <p className="text-lg font-semibold text-green-600">{formatMoney(faturamento.totalLiquido)}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div>
+                  <h4 className="font-medium mb-2">Por forma de pagamento</h4>
+                  <div className="space-y-2">
+                    {faturamento.porMetodo.length === 0 && (
+                      <p className="text-sm text-muted-foreground">Sem recebimentos registrados.</p>
+                    )}
+                    {faturamento.porMetodo.map((m: any) => (
+                      <div key={m.chave} className="flex items-center justify-between text-sm border rounded-md p-2">
+                        <span className="capitalize">{m.chave}</span>
+                        <span className="text-right">
+                          {formatMoney(m.bruto)}
+                          <span className="block text-xs text-muted-foreground">líq. {formatMoney(m.liquido)}</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="font-medium mb-2">Por dentista</h4>
+                  <div className="space-y-2">
+                    {faturamento.porDentista.length === 0 && (
+                      <p className="text-sm text-muted-foreground">Sem consultas realizadas.</p>
+                    )}
+                    {faturamento.porDentista.map((d: any) => (
+                      <div key={d.chave} className="flex items-center justify-between text-sm border rounded-md p-2">
+                        <span>{d.chave}</span>
+                        <span className="text-right">
+                          {formatMoney(d.bruto)}
+                          <span className="block text-xs text-muted-foreground">{d.qtd} consultas</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="font-medium mb-2">Por procedimento</h4>
+                  <div className="space-y-2">
+                    {faturamento.porProcedimento.length === 0 && (
+                      <p className="text-sm text-muted-foreground">Sem consultas realizadas.</p>
+                    )}
+                    {faturamento.porProcedimento.slice(0, 8).map((p: any) => (
+                      <div key={p.chave} className="flex items-center justify-between text-sm border rounded-md p-2">
+                        <span>{p.chave}</span>
+                        <span className="text-right">
+                          {formatMoney(p.bruto)}
+                          <span className="block text-xs text-muted-foreground">{p.qtd}x</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Relatórios Disponíveis */}
+
           <Card>
             <CardHeader>
               <CardTitle>Relatórios Disponíveis</CardTitle>
