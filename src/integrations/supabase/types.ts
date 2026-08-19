@@ -314,6 +314,9 @@ export type Database = {
       }
       documentos_paciente: {
         Row: {
+          analise_dados: Json | null
+          analise_ia: string | null
+          analise_status: string | null
           atualizado_em: string
           criado_em: string
           id: string
@@ -325,6 +328,9 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          analise_dados?: Json | null
+          analise_ia?: string | null
+          analise_status?: string | null
           atualizado_em?: string
           criado_em?: string
           id?: string
@@ -336,6 +342,9 @@ export type Database = {
           user_id: string
         }
         Update: {
+          analise_dados?: Json | null
+          analise_ia?: string | null
+          analise_status?: string | null
           atualizado_em?: string
           criado_em?: string
           id?: string
