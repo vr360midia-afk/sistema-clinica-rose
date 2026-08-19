@@ -12,7 +12,7 @@ import { downloadCSV, formatMoney } from '@/utils/exportCsv';
 import { toast } from 'sonner';
 
 const Relatorios = () => {
-  const { pacientes, consultas, transacoes, prontuarios } = useDentalSystem();
+  const { pacientes, consultas, transacoes, prontuarios, produtos } = useDentalSystem();
   const [periodo, setPeriodo] = useState('mes');
 
   // Calcular dados financeiros baseados nos dados reais
@@ -231,7 +231,7 @@ const Relatorios = () => {
           downloadCSV(
             `estoque-${hoje}`,
             ['Produto', 'Categoria', 'Quantidade', 'Mínimo', 'Preço'],
-            (produtos || []).map((p: any) => [p.nome, p.categoria, p.quantidade, p.minimo, p.preco])
+            produtos.map((p: any) => [p.nome, p.categoria, p.quantidade, p.minimo, p.preco])
           );
           break;
         default:
