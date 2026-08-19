@@ -9,6 +9,7 @@ import { ArrowLeft, Save, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import PatientPhotoCapture from './PatientPhotoCapture';
+import { calcularIdade, dataParaInputDate } from '@/utils/idade';
 
 interface PatientFormProps {
   onClose: () => void;
@@ -23,7 +24,7 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
     nome: patient?.nome || '',
     email: patient?.email || '',
     telefone: patient?.telefone || '',
-    idade: patient?.idade || '',
+    dataNascimento: dataParaInputDate(patient?.dataNascimento || patient?.data_nascimento) || '',
     endereco: patient?.endereco || '',
     cpf: patient?.cpf || '',
     rg: patient?.rg || '',
@@ -81,11 +82,13 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
 
     try {
       // Preparar dados conforme a interface Paciente
+      const dataNascimento = formData.dataNascimento ? new Date(formData.dataNascimento + 'T00:00:00') : undefined;
       const patientData = {
         nome: formData.nome.trim(),
         email: formData.email.trim().toLowerCase(),
         telefone: formData.telefone.trim(),
-        idade: formData.idade ? parseInt(formData.idade.toString()) : 0,
+        dataNascimento,
+        idade: calcularIdade(dataNascimento) || 0,
         endereco: formData.endereco?.trim() || '',
         cpf: formData.cpf?.trim() || '',
         rg: formData.rg?.trim() || '',
@@ -156,15 +159,19 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="idade" className="font-medium">Idade</Label>
+                  <Label htmlFor="dataNascimento" className="font-medium">Data de Nascimento</Label>
                   <Input
-                    id="idade"
-                    type="number"
-                    value={formData.idade}
-                    onChange={(e) => handleInputChange('idade', e.target.value)}
-                    placeholder="Idade"
+                    id="dataNascimento"
+                    type="date"
+                    value={formData.dataNascimento}
+                    onChange={(e) => handleInputChange('dataNascimento', e.target.value)}
                     className="h-10 mt-1"
                   />
+                  {formData.dataNascimento && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {calcularIdade(new Date(formData.dataNascimento + 'T00:00:00'))} anos
+                    </p>
+                  )}
                 </div>
               </div>
 

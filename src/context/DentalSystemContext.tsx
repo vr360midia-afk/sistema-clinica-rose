@@ -3,6 +3,7 @@ import { useAuth } from './AuthContext';
 import { supabaseService } from '@/services/supabaseService';
 import { toast } from 'sonner';
 import { Paciente, Consulta, Transacao, Prontuario, Anamnese, DocumentoPaciente } from '@/types/shared';
+import { calcularIdade } from '@/utils/idade';
 
 interface DentalSystemContextType {
   // Estado
@@ -126,7 +127,8 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
         nome: pacienteData.nome,
         email: pacienteData.email,
         telefone: pacienteData.telefone,
-        idade: pacienteData.idade || 0,
+        dataNascimento: pacienteData.dataNascimento,
+        idade: pacienteData.idade ?? calcularIdade(pacienteData.dataNascimento) ?? 0,
         convenio: pacienteData.convenio,
         origemLead: pacienteData.origemLead,
         status: pacienteData.status || 'Ativo',

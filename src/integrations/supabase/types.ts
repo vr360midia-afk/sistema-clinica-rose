@@ -459,6 +459,7 @@ export type Database = {
           cpf: string | null
           criado_em: string
           data_arquivamento: string | null
+          data_nascimento: string | null
           email: string | null
           endereco: string | null
           estado_civil: string | null
@@ -486,6 +487,7 @@ export type Database = {
           cpf?: string | null
           criado_em?: string
           data_arquivamento?: string | null
+          data_nascimento?: string | null
           email?: string | null
           endereco?: string | null
           estado_civil?: string | null
@@ -513,6 +515,7 @@ export type Database = {
           cpf?: string | null
           criado_em?: string
           data_arquivamento?: string | null
+          data_nascimento?: string | null
           email?: string | null
           endereco?: string | null
           estado_civil?: string | null

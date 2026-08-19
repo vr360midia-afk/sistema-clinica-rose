@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { format, isSameDay } from 'date-fns';
 import { useDentalSystem } from '@/context/DentalSystemContext';
+import { calcularIdade } from '@/utils/idade';
 
 type ViewType = 'day' | 'week' | 'month';
 
@@ -12,6 +13,7 @@ export const useAgendaViews = (selectedDate: Date) => {
   const transformedConsultas = useMemo(() => {
     return consultas.map(consulta => {
       const paciente = pacientes.find(p => p.id === consulta.pacienteId);
+      const idade = paciente ? (calcularIdade(paciente.dataNascimento) ?? paciente.idade ?? 0) : 0;
       return {
         id: consulta.id,
         pacienteId: consulta.pacienteId,
@@ -25,7 +27,7 @@ export const useAgendaViews = (selectedDate: Date) => {
         patient: paciente?.nome || 'Paciente não encontrado',
         patientData: paciente ? {
           phone: paciente.telefone || '',
-          age: paciente.idade || 0,
+          age: idade,
           insurance: paciente.convenio || '',
           lastVisit: paciente.ultimaConsulta ? new Date(paciente.ultimaConsulta).toLocaleDateString('pt-BR') : '',
           allergies: paciente.alergias || ''
