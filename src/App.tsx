@@ -20,6 +20,7 @@ import Notas from '@/pages/Notas';
 import Anamnese from '@/pages/Anamnese';
 import Admin from '@/pages/Admin';
 import AssinarAnamnese from '@/pages/AssinarAnamnese';
+import AssinarExtrato from '@/pages/AssinarExtrato';
 import NotFound from '@/pages/NotFound';
 
 function App() {
@@ -31,6 +32,7 @@ function App() {
             <Routes>
               <Route path="/auth" element={<Auth />} />
               <Route path="/assinar-anamnese/:id" element={<AssinarAnamnese />} />
+              <Route path="/assinar-extrato/:id" element={<AssinarExtrato />} />
               <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/pacientes" element={<ProtectedRoute><Pacientes /></ProtectedRoute>} />
