@@ -359,11 +359,19 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
       </div>
 
       <Card>
-        <CardHeader className="p-3 sm:p-4 pb-2">
+        <CardHeader className="p-3 sm:p-4 pb-2 flex-row items-center justify-between gap-2 space-y-0">
           <CardTitle className="text-sm flex items-center gap-2">
             <Stethoscope className="h-4 w-4 text-muted-foreground" />
             Pagamentos ({lancamentos.length})
           </CardTitle>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => { setEditingTransacao(null); setShowTransactionForm(true); }}
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            Novo
+          </Button>
         </CardHeader>
         <CardContent className="p-3 sm:p-4 pt-0 space-y-2">
           {lancamentos.length === 0 ? (
