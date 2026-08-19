@@ -40,6 +40,42 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
     observacoes: ''
   });
 
+  const emptyForm = {
+    pacienteId: '',
+    valor: '',
+    tipo: 'receita' as TipoTransacao,
+    status: 'pendente' as StatusTransacao,
+    metodoPagamento: 'dinheiro' as MetodoPagamento,
+    taxaCartaoPercentual: '',
+    parcelas: '1',
+    data: new Date(),
+    vencimento: null as Date | null,
+    descricao: '',
+    observacoes: ''
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (transacao) {
+      setFormData({
+        pacienteId: transacao.pacienteId || '',
+        valor: String(transacao.valor ?? ''),
+        tipo: (transacao.tipo || 'receita') as TipoTransacao,
+        status: (transacao.status || 'pendente') as StatusTransacao,
+        metodoPagamento: (transacao.metodoPagamento || 'dinheiro') as MetodoPagamento,
+        taxaCartaoPercentual: transacao.taxaCartaoPercentual ? String(transacao.taxaCartaoPercentual) : '',
+        parcelas: String(transacao.parcelas || 1),
+        data: transacao.data ? new Date(transacao.data) : new Date(),
+        vencimento: transacao.vencimento ? new Date(transacao.vencimento) : null,
+        descricao: transacao.descricao || '',
+        observacoes: transacao.observacoes || ''
+      });
+    } else {
+      setFormData(emptyForm);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, transacao]);
+
   const valorBruto = parseFloat(formData.valor) || 0;
   const isCartao = formData.metodoPagamento === 'cartao';
   const taxaPerc = isCartao ? parseFloat(formData.taxaCartaoPercentual) || 0 : 0;
