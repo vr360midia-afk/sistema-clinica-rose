@@ -68,6 +68,10 @@ const PatientDetails = ({ patient, onClose, onEdit }: PatientDetailsProps) => {
             <History className="h-4 w-4" />
             Linha do tempo
           </TabsTrigger>
+          <TabsTrigger value="financial" className="flex items-center gap-2">
+            <DollarSign className="h-4 w-4" />
+            Financeiro
+          </TabsTrigger>
           <TabsTrigger value="documents" className="flex items-center gap-2">
             <FolderOpen className="h-4 w-4" />
             Documentos
