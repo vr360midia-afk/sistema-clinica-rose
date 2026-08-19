@@ -68,7 +68,7 @@ const Financeiro = () => {
             <h1 className="text-xl sm:text-2xl font-bold text-foreground mb-2">Financeiro</h1>
             <p className="text-muted-foreground">Controle financeiro e faturamento</p>
           </div>
-          <Button onClick={() => setShowTransactionForm(true)} className="flex items-center gap-2">
+          <Button onClick={() => { setEditingTransacao(null); setShowTransactionForm(true); }} className="flex items-center gap-2">
             <Plus className="h-4 w-4" />
             Nova Transação
           </Button>
