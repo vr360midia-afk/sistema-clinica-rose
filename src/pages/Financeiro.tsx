@@ -8,9 +8,13 @@ import { DollarSign, TrendingUp, TrendingDown, Plus, CreditCard, Receipt } from 
 import TransactionForm from '@/components/financeiro/TransactionForm';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import Inadimplencia from '@/components/financeiro/Inadimplencia';
+import { gerarRecibo } from '@/utils/recibo';
+import { useConfiguracoes } from '@/hooks/useConfiguracoes';
+import { toast } from 'sonner';
 
 const Financeiro = () => {
   const { transacoes, pacientes } = useDentalSystem();
+  const { configuracoes } = useConfiguracoes();
   const [showTransactionForm, setShowTransactionForm] = useState(false);
 
   const handleSaveTransaction = (transactionData: any) => {
@@ -25,6 +29,24 @@ const Financeiro = () => {
     const paciente = pacientes.find(p => p.id === pacienteId);
     return paciente?.nome || 'Paciente não encontrado';
   };
+
+  const emitirRecibo = (transacao: any) => {
+    const ok = gerarRecibo(
+      {
+        numero: String(transacao.id).slice(0, 8).toUpperCase(),
+        pacienteNome: transacao.pacienteNome || getPacienteName(transacao.pacienteId),
+        descricao: transacao.descricao,
+        valor: Number(transacao.valor || 0),
+        data: transacao.data,
+        metodoPagamento: transacao.metodoPagamento,
+        parcelas: transacao.parcelas,
+        valorParcela: transacao.valorParcela,
+      },
+      configuracoes
+    );
+    if (!ok) toast.error('Permita pop-ups para emitir o recibo');
+  };
+
 
   return (
     <Layout>
@@ -114,7 +136,7 @@ const Financeiro = () => {
                           <div className="text-sm text-muted-foreground">{new Date(transacao.data).toLocaleDateString('pt-BR')}</div>
                         </div>
                       </div>
-                      <div className="text-right">
+                      <div className="text-right space-y-1">
                         <div className="font-semibold">R$ {transacao.valor.toFixed(2)}</div>
                         <Badge 
                           className={transacao.status === 'pago' 
@@ -124,7 +146,21 @@ const Financeiro = () => {
                         >
                           {transacao.status === 'pago' ? 'Pago' : 'Pendente'}
                         </Badge>
+                        {transacao.tipo === 'receita' && (
+                          <div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="mt-1 gap-1"
+                              onClick={() => emitirRecibo(transacao)}
+                            >
+                              <Receipt className="h-3.5 w-3.5" />
+                              Recibo
+                            </Button>
+                          </div>
+                        )}
                       </div>
+
                     </div>
                   ))
               )}
