@@ -4,7 +4,7 @@ import Layout from '@/components/layout/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { DollarSign, TrendingUp, TrendingDown, Plus, CreditCard, Receipt } from 'lucide-react';
+import { DollarSign, TrendingUp, TrendingDown, Plus, CreditCard, Receipt, Pencil, Trash2 } from 'lucide-react';
 import TransactionForm from '@/components/financeiro/TransactionForm';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import Inadimplencia from '@/components/financeiro/Inadimplencia';
@@ -13,13 +13,25 @@ import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { toast } from 'sonner';
 
 const Financeiro = () => {
-  const { transacoes, pacientes } = useDentalSystem();
+  const { transacoes, pacientes, deleteTransacao } = useDentalSystem();
   const { configuracoes } = useConfiguracoes();
   const [showTransactionForm, setShowTransactionForm] = useState(false);
+  const [editingTransacao, setEditingTransacao] = useState<any | null>(null);
 
   const handleSaveTransaction = (transactionData: any) => {
     // O TransactionForm já salva através do contexto
     setShowTransactionForm(false);
+    setEditingTransacao(null);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Excluir esta transação?')) return;
+    try {
+      await deleteTransacao(id);
+      toast.success('Transação excluída');
+    } catch {
+      toast.error('Erro ao excluir transação');
+    }
   };
 
   const totalReceived = transacoes.filter(t => t.status === 'pago' && t.tipo === 'receita').reduce((sum, t) => sum + t.valor, 0);
@@ -56,7 +68,7 @@ const Financeiro = () => {
             <h1 className="text-xl sm:text-2xl font-bold text-foreground mb-2">Financeiro</h1>
             <p className="text-muted-foreground">Controle financeiro e faturamento</p>
           </div>
-          <Button onClick={() => setShowTransactionForm(true)} className="flex items-center gap-2">
+          <Button onClick={() => { setEditingTransacao(null); setShowTransactionForm(true); }} className="flex items-center gap-2">
             <Plus className="h-4 w-4" />
             Nova Transação
           </Button>
@@ -146,19 +158,36 @@ const Financeiro = () => {
                         >
                           {transacao.status === 'pago' ? 'Pago' : 'Pendente'}
                         </Badge>
-                        {transacao.tipo === 'receita' && (
-                          <div>
+                        <div className="flex flex-wrap justify-end gap-1 pt-1">
+                          {transacao.tipo === 'receita' && (
                             <Button
                               variant="outline"
                               size="sm"
-                              className="mt-1 gap-1"
+                              className="gap-1"
                               onClick={() => emitirRecibo(transacao)}
                             >
                               <Receipt className="h-3.5 w-3.5" />
                               Recibo
                             </Button>
-                          </div>
-                        )}
+                          )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1"
+                            onClick={() => { setEditingTransacao(transacao); setShowTransactionForm(true); }}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                            Editar
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1 text-destructive"
+                            onClick={() => handleDelete(transacao.id)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </div>
 
                     </div>
@@ -170,8 +199,9 @@ const Financeiro = () => {
 
         <TransactionForm
           isOpen={showTransactionForm}
-          onClose={() => setShowTransactionForm(false)}
+          onClose={() => { setShowTransactionForm(false); setEditingTransacao(null); }}
           onSave={handleSaveTransaction}
+          transacao={editingTransacao}
         />
       </div>
     </Layout>

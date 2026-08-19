@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,11 +19,13 @@ interface TransactionFormProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (transaction: any) => void;
+  transacao?: any | null;
 }
 
-const TransactionForm = ({ isOpen, onClose, onSave }: TransactionFormProps) => {
-  const { pacientes, addTransacao } = useDentalSystem();
-  
+const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionFormProps) => {
+  const { pacientes, addTransacao, updateTransacao } = useDentalSystem();
+  const isEdit = !!transacao?.id;
+
   const [formData, setFormData] = useState({
     pacienteId: '',
     valor: '',
@@ -37,6 +39,42 @@ const TransactionForm = ({ isOpen, onClose, onSave }: TransactionFormProps) => {
     descricao: '',
     observacoes: ''
   });
+
+  const emptyForm = {
+    pacienteId: '',
+    valor: '',
+    tipo: 'receita' as TipoTransacao,
+    status: 'pendente' as StatusTransacao,
+    metodoPagamento: 'dinheiro' as MetodoPagamento,
+    taxaCartaoPercentual: '',
+    parcelas: '1',
+    data: new Date(),
+    vencimento: null as Date | null,
+    descricao: '',
+    observacoes: ''
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (transacao) {
+      setFormData({
+        pacienteId: transacao.pacienteId || '',
+        valor: String(transacao.valor ?? ''),
+        tipo: (transacao.tipo || 'receita') as TipoTransacao,
+        status: (transacao.status || 'pendente') as StatusTransacao,
+        metodoPagamento: (transacao.metodoPagamento || 'dinheiro') as MetodoPagamento,
+        taxaCartaoPercentual: transacao.taxaCartaoPercentual ? String(transacao.taxaCartaoPercentual) : '',
+        parcelas: String(transacao.parcelas || 1),
+        data: transacao.data ? new Date(transacao.data) : new Date(),
+        vencimento: transacao.vencimento ? new Date(transacao.vencimento) : null,
+        descricao: transacao.descricao || '',
+        observacoes: transacao.observacoes || ''
+      });
+    } else {
+      setFormData(emptyForm);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, transacao]);
 
   const valorBruto = parseFloat(formData.valor) || 0;
   const isCartao = formData.metodoPagamento === 'cartao';
@@ -67,25 +105,18 @@ const TransactionForm = ({ isOpen, onClose, onSave }: TransactionFormProps) => {
         valorLiquido,
       };
 
-      await addTransacao(transactionData);
+      if (isEdit) {
+        await updateTransacao(transacao.id, transactionData);
+        toast.success('Transação atualizada');
+      } else {
+        await addTransacao(transactionData);
+        toast.success('Transação criada');
+      }
       onSave(transactionData);
-      
-      // Reset form
-      setFormData({
-        pacienteId: '',
-        valor: '',
-        tipo: 'receita',
-        status: 'pendente',
-        metodoPagamento: 'dinheiro',
-        taxaCartaoPercentual: '',
-        parcelas: '1',
-        data: new Date(),
-        vencimento: null,
-        descricao: '',
-        observacoes: ''
-      });
+      setFormData(emptyForm);
     } catch (error) {
       console.error('Erro ao salvar transação:', error);
+      toast.error('Erro ao salvar transação');
     }
   };
 
@@ -93,7 +124,7 @@ const TransactionForm = ({ isOpen, onClose, onSave }: TransactionFormProps) => {
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Nova Transação</DialogTitle>
+          <DialogTitle>{isEdit ? 'Editar Transação' : 'Nova Transação'}</DialogTitle>
         </DialogHeader>
         
         <form onSubmit={handleSubmit} className="space-y-4">
