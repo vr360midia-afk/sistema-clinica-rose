@@ -24,7 +24,7 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
     nome: patient?.nome || '',
     email: patient?.email || '',
     telefone: patient?.telefone || '',
-    dataNascimento: dataParaInputDate(patient?.dataNascimento || patient?.data_nascimento) || '',
+    dataNascimento: formatarDataNascimento(patient?.dataNascimento || patient?.data_nascimento) || '',
     endereco: patient?.endereco || '',
     cpf: patient?.cpf || '',
     rg: patient?.rg || '',
