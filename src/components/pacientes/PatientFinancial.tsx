@@ -189,10 +189,21 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <p className="text-sm text-muted-foreground">Resumo financeiro e tratamento do paciente</p>
-        <Button onClick={enviarParaAssinar} disabled={enviando} className="w-full sm:w-auto">
-          {enviando ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <MessageCircle className="h-4 w-4 mr-2" />}
-          Enviar para assinar (WhatsApp)
-        </Button>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => { setEditingTransacao(null); setShowTransactionForm(true); }}
+            className="w-full sm:w-auto"
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            Novo
+          </Button>
+          <Button onClick={enviarParaAssinar} disabled={enviando} className="w-full sm:w-auto">
+            {enviando ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <MessageCircle className="h-4 w-4 mr-2" />}
+            Enviar para assinar (WhatsApp)
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -362,19 +373,11 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
       </div>
 
       <Card>
-        <CardHeader className="p-3 sm:p-4 pb-2 flex-row items-center justify-between gap-2 space-y-0">
+        <CardHeader className="p-3 sm:p-4 pb-2">
           <CardTitle className="text-sm flex items-center gap-2">
             <Stethoscope className="h-4 w-4 text-muted-foreground" />
             Pagamentos ({lancamentos.length})
           </CardTitle>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => { setEditingTransacao(null); setShowTransactionForm(true); }}
-          >
-            <Plus className="h-4 w-4 mr-1" />
-            Novo
-          </Button>
         </CardHeader>
         <CardContent className="p-3 sm:p-4 pt-0 space-y-2">
           {lancamentos.length === 0 ? (
