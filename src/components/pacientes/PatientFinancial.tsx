@@ -25,7 +25,7 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
   const [enviando, setEnviando] = useState(false);
 
 
-  const { realizados, previstos, resumo, lancamentos } = useMemo(() => {
+  const { realizados, previstos, etapas, resumo, lancamentos } = useMemo(() => {
     const cons = consultas.filter((c) => c.pacienteId === patient.id);
     const pront = prontuarios.filter((p) => p.pacienteId === patient.id);
     const trans = transacoes.filter((t) => t.pacienteId === patient.id);
@@ -182,7 +182,16 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
 
   return (
     <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <p className="text-sm text-muted-foreground">Resumo financeiro e tratamento do paciente</p>
+        <Button onClick={enviarParaAssinar} disabled={enviando} className="w-full sm:w-auto">
+          {enviando ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <MessageCircle className="h-4 w-4 mr-2" />}
+          Enviar para assinar (WhatsApp)
+        </Button>
+      </div>
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+
         <Card>
           <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between gap-2">
