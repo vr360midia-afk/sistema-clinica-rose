@@ -25,7 +25,7 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   // Carregar dados quando usuário estiver autenticado
   useEffect(() => {
-    if (user) {
+    if (user?.id) {
       loadAllData();
     } else {
       // Limpar dados quando usuário não estiver autenticado
@@ -37,7 +37,9 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
       setDocumentos([]);
       setLoading(false);
     }
-  }, [user]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
 
   const loadAllData = async () => {
     setLoading(true);
