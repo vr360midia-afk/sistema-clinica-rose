@@ -125,6 +125,9 @@ const AssinarExtrato = () => {
       <div className="w-full max-w-2xl space-y-4">
         <Card>
           <CardHeader className="pb-3">
+            {dadosHeader.logoUrl ? (
+              <img src={dadosHeader.logoUrl} alt="Logo da clínica" className="max-h-16 object-contain mb-2" />
+            ) : null}
             <CardTitle className="flex items-center gap-2 text-base">
               <FileSignature className="h-5 w-5" />
               Extrato financeiro — {extrato?.pacienteNome}
