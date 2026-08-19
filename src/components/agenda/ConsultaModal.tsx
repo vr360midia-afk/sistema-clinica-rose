@@ -30,7 +30,7 @@ interface ConsultaModalProps {
 }
 
 const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime }: ConsultaModalProps) => {
-  const { pacientes, addConsulta } = useDentalSystem();
+  const { pacientes, consultas, addConsulta } = useDentalSystem();
   const { user } = useAuth();
   const { dentistas } = useDentistas();
   const dentistasAtivos = dentistas.filter((d) => d.ativo);
@@ -91,9 +91,39 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime }: Consulta
     }
   }, [isOpen, selectedDate, selectedTime, form]);
 
+  const toMinutes = (hora: string) => {
+    const [h, m] = (hora || '0:0').split(':').map(Number);
+    return (h || 0) * 60 + (m || 0);
+  };
+
+  // Detecta sobreposição de horário para o mesmo dentista na mesma data
+  const findConflito = (data: ConsultaFormData) => {
+    const inicio = toMinutes(data.hora);
+    const fim = inicio + (data.duracao || 60);
+    return consultas.find((c) => {
+      if (c.status === 'cancelado') return false;
+      if (!c.dentista || !data.dentista) return false;
+      if (c.dentista !== data.dentista) return false;
+      const cData = new Date(c.data);
+      if (format(cData, 'yyyy-MM-dd') !== format(data.data, 'yyyy-MM-dd')) return false;
+      const cInicio = toMinutes(c.hora);
+      const cFim = cInicio + (c.duracao || 60);
+      return inicio < cFim && cInicio < fim;
+    });
+  };
+
   const onSubmit = async (data: ConsultaFormData) => {
     if (!user?.id) return;
-    
+
+    const conflito = findConflito(data);
+    if (conflito) {
+      const nomeConflito = pacientes.find((p) => p.id === conflito.pacienteId)?.nome || 'outro paciente';
+      toast.error(
+        `Conflito de horário: ${data.dentista} já tem consulta às ${conflito.hora} (${conflito.duracao || 60}min) com ${nomeConflito}.`
+      );
+      return;
+    }
+
     try {
       setIsLoading(true);
       const consultaData = {
@@ -106,6 +136,7 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime }: Consulta
         dentista: data.dentista,
         observacoes: data.observacoes || '',
         valor: data.valor,
+        confirmacaoStatus: 'pendente' as const,
         userId: user.id
       };
       await addConsulta(consultaData);

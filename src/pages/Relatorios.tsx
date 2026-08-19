@@ -8,6 +8,9 @@ import { Badge } from '@/components/ui/badge';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import { TrendingUp, Download, Calendar, DollarSign, Users, FileText } from 'lucide-react';
 import { useDentalSystem } from '@/context/DentalSystemContext';
+import { downloadCSV, formatMoney } from '@/utils/exportCsv';
+import { toast } from 'sonner';
+import { supabaseService } from '@/services/supabaseService';
 
 const Relatorios = () => {
   const { pacientes, consultas, transacoes, prontuarios } = useDentalSystem();
@@ -132,9 +135,116 @@ const Relatorios = () => {
     ];
   }, [transacoes, pacientes, consultas, prontuarios]);
 
-  const gerarRelatorio = (tipo: string) => {
-    console.log(`Gerando relatório: ${tipo}`);
-    // Aqui implementaria a geração do PDF/Excel
+  // Faturamento detalhado: por dentista, procedimento e forma de pagamento (bruto x líquido)
+  const faturamento = useMemo(() => {
+    const receitas = transacoes.filter((t) => t.tipo === 'receita' && t.status === 'pago');
+    const liquidoDe = (t: any) => (t.valorLiquido ?? t.valor) || 0;
+
+    const porMetodo = Object.values(
+      receitas.reduce((acc: any, t: any) => {
+        const key = t.metodoPagamento || 'não informado';
+        acc[key] = acc[key] || { chave: key, bruto: 0, liquido: 0, qtd: 0 };
+        acc[key].bruto += t.valor || 0;
+        acc[key].liquido += liquidoDe(t);
+        acc[key].qtd += 1;
+        return acc;
+      }, {})
+    ) as any[];
+
+    const consultasRealizadas = consultas.filter((c) => c.status === 'realizado');
+    const agrupar = (campo: 'dentista' | 'procedimento') =>
+      Object.values(
+        consultasRealizadas.reduce((acc: any, c: any) => {
+          const key = c[campo] || 'não informado';
+          acc[key] = acc[key] || { chave: key, qtd: 0, bruto: 0 };
+          acc[key].qtd += 1;
+          acc[key].bruto += c.valor || 0;
+          return acc;
+        }, {})
+      ).sort((a: any, b: any) => b.bruto - a.bruto) as any[];
+
+    const totalBruto = receitas.reduce((s, t: any) => s + (t.valor || 0), 0);
+    const totalLiquido = receitas.reduce((s, t: any) => s + liquidoDe(t), 0);
+
+    return {
+      porMetodo: porMetodo.sort((a, b) => b.bruto - a.bruto),
+      porDentista: agrupar('dentista'),
+      porProcedimento: agrupar('procedimento'),
+      totalBruto,
+      totalLiquido,
+      totalTaxas: totalBruto - totalLiquido,
+    };
+  }, [transacoes, consultas]);
+
+  const gerarRelatorio = async (tipo: string) => {
+    const hoje = new Date().toISOString().slice(0, 10);
+    try {
+      switch (tipo) {
+        case 'Relatório Financeiro Completo':
+          downloadCSV(
+            `financeiro-${hoje}`,
+            ['Data', 'Tipo', 'Descrição', 'Paciente', 'Categoria', 'Método', 'Parcelas', 'Valor bruto', 'Taxa cartão', 'Valor líquido', 'Status'],
+            transacoes.map((t: any) => [
+              new Date(t.data),
+              t.tipo,
+              t.descricao,
+              t.pacienteNome || pacientes.find((p) => p.id === t.pacienteId)?.nome || '',
+              t.categoria,
+              t.metodoPagamento,
+              t.parcelas ?? 1,
+              t.valor,
+              t.taxaCartaoValor ?? 0,
+              t.valorLiquido ?? t.valor,
+              t.status,
+            ])
+          );
+          break;
+        case 'Relatório de Pacientes':
+          downloadCSV(
+            `pacientes-${hoje}`,
+            ['Nome', 'Telefone', 'E-mail', 'Idade', 'CPF', 'Convênio', 'Origem', 'Status', 'Última consulta', 'Próxima consulta'],
+            pacientes.map((p: any) => [
+              p.nome, p.telefone, p.email, p.idade, p.cpf, p.convenio, p.origemLead, p.status,
+              p.ultimaConsulta ? new Date(p.ultimaConsulta) : '',
+              p.proximaConsulta ? new Date(p.proximaConsulta) : '',
+            ])
+          );
+          break;
+        case 'Relatório de Produtividade':
+          downloadCSV(
+            `produtividade-${hoje}`,
+            ['Dentista', 'Consultas realizadas', 'Faturamento'],
+            faturamento.porDentista.map((d: any) => [d.chave, d.qtd, d.bruto])
+          );
+          break;
+        case 'Relatório de Agendamentos':
+          downloadCSV(
+            `agendamentos-${hoje}`,
+            ['Data', 'Hora', 'Paciente', 'Dentista', 'Procedimento', 'Duração (min)', 'Status', 'Confirmação', 'Valor'],
+            consultas.map((c: any) => [
+              new Date(c.data), c.hora,
+              c.pacienteNome || pacientes.find((p) => p.id === c.pacienteId)?.nome || '',
+              c.dentista, c.procedimento, c.duracao, c.status, c.confirmacaoStatus || 'pendente', c.valor ?? 0,
+            ])
+          );
+          break;
+        case 'Relatório de Estoque': {
+          const produtos = await supabaseService.getProdutos();
+          downloadCSV(
+            `estoque-${hoje}`,
+            ['Produto', 'Categoria', 'Quantidade', 'Mínimo', 'Preço'],
+            produtos.map((p: any) => [p.nome, p.categoria, p.quantidade, p.minimo, p.preco])
+          );
+          break;
+        }
+        default:
+          return;
+      }
+      toast.success('Relatório exportado em CSV');
+    } catch (e) {
+      console.error(e);
+      toast.error('Não foi possível gerar o relatório');
+    }
   };
 
   return (
@@ -260,7 +370,87 @@ const Relatorios = () => {
             </CardContent>
           </Card>
 
+          {/* Faturamento detalhado */}
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle>Faturamento (bruto x líquido)</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="rounded-lg border p-3">
+                  <p className="text-sm text-muted-foreground">Bruto recebido</p>
+                  <p className="text-lg font-semibold">{formatMoney(faturamento.totalBruto)}</p>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <p className="text-sm text-muted-foreground">Taxas / descontos</p>
+                  <p className="text-lg font-semibold text-red-500">-{formatMoney(faturamento.totalTaxas)}</p>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <p className="text-sm text-muted-foreground">Líquido</p>
+                  <p className="text-lg font-semibold text-green-600">{formatMoney(faturamento.totalLiquido)}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div>
+                  <h4 className="font-medium mb-2">Por forma de pagamento</h4>
+                  <div className="space-y-2">
+                    {faturamento.porMetodo.length === 0 && (
+                      <p className="text-sm text-muted-foreground">Sem recebimentos registrados.</p>
+                    )}
+                    {faturamento.porMetodo.map((m: any) => (
+                      <div key={m.chave} className="flex items-center justify-between text-sm border rounded-md p-2">
+                        <span className="capitalize">{m.chave}</span>
+                        <span className="text-right">
+                          {formatMoney(m.bruto)}
+                          <span className="block text-xs text-muted-foreground">líq. {formatMoney(m.liquido)}</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="font-medium mb-2">Por dentista</h4>
+                  <div className="space-y-2">
+                    {faturamento.porDentista.length === 0 && (
+                      <p className="text-sm text-muted-foreground">Sem consultas realizadas.</p>
+                    )}
+                    {faturamento.porDentista.map((d: any) => (
+                      <div key={d.chave} className="flex items-center justify-between text-sm border rounded-md p-2">
+                        <span>{d.chave}</span>
+                        <span className="text-right">
+                          {formatMoney(d.bruto)}
+                          <span className="block text-xs text-muted-foreground">{d.qtd} consultas</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="font-medium mb-2">Por procedimento</h4>
+                  <div className="space-y-2">
+                    {faturamento.porProcedimento.length === 0 && (
+                      <p className="text-sm text-muted-foreground">Sem consultas realizadas.</p>
+                    )}
+                    {faturamento.porProcedimento.slice(0, 8).map((p: any) => (
+                      <div key={p.chave} className="flex items-center justify-between text-sm border rounded-md p-2">
+                        <span>{p.chave}</span>
+                        <span className="text-right">
+                          {formatMoney(p.bruto)}
+                          <span className="block text-xs text-muted-foreground">{p.qtd}x</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Relatórios Disponíveis */}
+
           <Card>
             <CardHeader>
               <CardTitle>Relatórios Disponíveis</CardTitle>

@@ -4,7 +4,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { User, Clock, Phone, Calendar, FileText, Edit, Trash2, CheckCircle, XCircle } from 'lucide-react';
+import { User, Clock, Phone, Calendar, FileText, Edit, Trash2, CheckCircle, XCircle, MessageCircle } from 'lucide-react';
+import { ConfirmacaoStatus } from '@/types/shared';
+import { buildConfirmacaoPacienteMessage, openWhatsApp } from '@/lib/whatsapp';
+import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { StatusConsulta } from '@/types/shared';
@@ -19,6 +22,8 @@ interface AppointmentDetailsModalProps {
     duration: string;
     procedure: string;
     status: StatusConsulta;
+    confirmacaoStatus?: ConfirmacaoStatus;
+    date?: Date;
     dentist: string;
     patientData?: {
       phone: string;
@@ -31,6 +36,7 @@ interface AppointmentDetailsModalProps {
   onEdit?: (appointment: any) => void;
   onDelete?: (appointmentId: string) => void;
   onStatusChange?: (appointmentId: string, newStatus: StatusConsulta) => void;
+  onConfirmacaoChange?: (appointmentId: string, novo: ConfirmacaoStatus) => void;
 }
 
 const AppointmentDetailsModal = ({ 
@@ -39,9 +45,32 @@ const AppointmentDetailsModal = ({
   appointment, 
   onEdit, 
   onDelete, 
-  onStatusChange 
+  onStatusChange,
+  onConfirmacaoChange
 }: AppointmentDetailsModalProps) => {
   if (!appointment) return null;
+
+  const confirmacao: ConfirmacaoStatus = appointment.confirmacaoStatus || 'pendente';
+
+  const confirmacaoInfo: Record<ConfirmacaoStatus, { label: string; className: string }> = {
+    pendente: { label: 'Aguardando confirmação', className: 'bg-yellow-100 text-yellow-800' },
+    confirmado: { label: 'Paciente confirmou', className: 'bg-green-100 text-green-800' },
+    recusado: { label: 'Paciente não confirmou', className: 'bg-red-100 text-red-800' },
+  };
+
+  const handleWhatsAppPaciente = () => {
+    const telefone = appointment.patientData?.phone;
+    const mensagem = buildConfirmacaoPacienteMessage({
+      pacienteNome: appointment.patient,
+      data: appointment.date || new Date(),
+      hora: appointment.time,
+      dentistaNome: appointment.dentist,
+      procedimento: appointment.procedure,
+    });
+    if (!openWhatsApp(telefone, mensagem)) {
+      toast.warning('Paciente sem telefone válido para WhatsApp.');
+    }
+  };
 
   const getStatusColor = (status: StatusConsulta) => {
     switch (status) {
@@ -78,9 +107,14 @@ const AppointmentDetailsModal = ({
         <div className="space-y-6">
           {/* Status e Ações */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <Badge className={getStatusColor(appointment.status)}>
-              {getStatusLabel(appointment.status)}
-            </Badge>
+            <div className="flex flex-wrap gap-2">
+              <Badge className={getStatusColor(appointment.status)}>
+                {getStatusLabel(appointment.status)}
+              </Badge>
+              <Badge className={confirmacaoInfo[confirmacao].className}>
+                {confirmacaoInfo[confirmacao].label}
+              </Badge>
+            </div>
             
             <div className="flex gap-2">
               {onEdit && (
@@ -119,6 +153,36 @@ const AppointmentDetailsModal = ({
                 </Button>
               )}
             </div>
+          </div>
+
+          {/* Confirmação do paciente */}
+          <div className="flex flex-wrap gap-2 rounded-lg border p-3">
+            <Button variant="outline" size="sm" className="gap-2" onClick={handleWhatsAppPaciente}>
+              <MessageCircle className="h-4 w-4" />
+              Enviar WhatsApp
+            </Button>
+            {onConfirmacaoChange && (
+              <>
+                <Button
+                  variant={confirmacao === 'confirmado' ? 'default' : 'outline'}
+                  size="sm"
+                  className="gap-2"
+                  onClick={() => onConfirmacaoChange(appointment.id, 'confirmado')}
+                >
+                  <CheckCircle className="h-4 w-4" />
+                  Confirmou
+                </Button>
+                <Button
+                  variant={confirmacao === 'recusado' ? 'destructive' : 'outline'}
+                  size="sm"
+                  className="gap-2"
+                  onClick={() => onConfirmacaoChange(appointment.id, 'recusado')}
+                >
+                  <XCircle className="h-4 w-4" />
+                  Não confirmou
+                </Button>
+              </>
+            )}
           </div>
 
           {/* Informações da Consulta */}

@@ -68,14 +68,16 @@ class SupabaseService {
       arquivo: data.url ?? data.arquivo,
       analiseIa: data.analise_ia,
       analiseDados: data.analise_dados,
-      analiseStatus: data.analise_status
+      analiseStatus: data.analise_status,
+      confirmacaoStatus: data.confirmacao_status,
+      confirmadoEm: data.confirmado_em ? new Date(data.confirmado_em) : undefined
     };
   };
 
   // Colunas válidas por tabela (evita enviar campos inexistentes ao banco)
   private tableColumns: Record<string, string[]> = {
     pacientes: ['user_id','nome','email','telefone','idade','endereco','cpf','rg','profissao','estado_civil','convenio','origem_lead','foto','historico_medico','alergias','medicamentos','observacoes','status','ultima_consulta','proxima_consulta','data_arquivamento','motivo_arquivamento'],
-    consultas: ['user_id','paciente_id','paciente_nome','data','hora','tipo','status','valor','observacoes','duracao','procedimento','dentista'],
+    consultas: ['user_id','paciente_id','paciente_nome','data','hora','tipo','status','valor','observacoes','duracao','procedimento','dentista','confirmacao_status','confirmado_em'],
     transacoes: ['user_id','tipo','descricao','valor','categoria','data','paciente_id','paciente_nome','status','consulta_id','metodo_pagamento','vencimento','observacoes','taxa_cartao_percentual','taxa_cartao_valor','parcelas','valor_parcela','valor_liquido'],
     prontuarios: ['user_id','paciente_id','paciente_nome','data','queixa_principal','diagnostico','tratamento','observacoes','odontograma','imagens','assinatura','procedimentos','consulta_id','historia_doenca','exame_clinico','plano_tratamento','procedimentos_realizados','anexos'],
     anamneses: ['user_id','paciente_id','paciente_nome','respostas','assinatura','status','link_assinatura','data_assinatura','data','queixa_principal','historia_atual','historia_familiar','historia_medica','alergias','medicamentos','habitos_vicios_positivos','habitos_vicios_negativos','exame_extra_bucal','exame_intra_bucal','observacoes','anexos','assinatura_paciente','assinatura_doutor','token_assinatura','status_assinatura','data_expiracao_link'],
@@ -142,12 +144,14 @@ class SupabaseService {
       analiseIa: 'analise_ia',
       analiseDados: 'analise_dados',
       analiseStatus: 'analise_status',
+      confirmacaoStatus: 'confirmacao_status',
+      confirmadoEm: 'confirmado_em',
     };
 
     // Campos do tipo Date que precisam virar ISO string
     const dateFields = new Set([
       'criadoEm', 'atualizadoEm', 'dataArquivamento', 'ultimaConsulta',
-      'proximaConsulta', 'dataExpiracaoLink', 'dataAssinatura', 'data', 'vencimento'
+      'proximaConsulta', 'dataExpiracaoLink', 'dataAssinatura', 'data', 'vencimento', 'confirmadoEm'
     ]);
 
     const allowed = table ? this.tableColumns[table] : undefined;

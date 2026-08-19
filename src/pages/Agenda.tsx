@@ -32,6 +32,7 @@ const Agenda = () => {
     transformedConsultas,
     appointmentsForSelectedDate,
     handleStatusChange,
+    handleConfirmacaoChange,
     handleDeleteAppointment
   } = useAgendaViews(selectedDate || new Date());
 
@@ -263,6 +264,7 @@ const Agenda = () => {
           onEdit={handlePatientSummaryClick}
           onDelete={handleDeleteAppointment}
           onStatusChange={handleStatusChange}
+          onConfirmacaoChange={handleConfirmacaoChange}
         />
       </div>
     </Layout>

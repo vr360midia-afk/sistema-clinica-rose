@@ -53,7 +53,11 @@ export interface Consulta extends BaseEntity {
   dentista: string;
   observacoes?: string;
   valor?: number;
+  confirmacaoStatus?: ConfirmacaoStatus;
+  confirmadoEm?: Date;
 }
+
+export type ConfirmacaoStatus = 'pendente' | 'confirmado' | 'recusado';
 
 export type StatusConsulta = 'agendado' | 'confirmado' | 'realizado' | 'cancelado' | 'faltou';
 

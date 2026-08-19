@@ -214,6 +214,8 @@ export type Database = {
       consultas: {
         Row: {
           atualizado_em: string
+          confirmacao_status: string
+          confirmado_em: string | null
           criado_em: string
           data: string
           dentista: string | null
@@ -231,6 +233,8 @@ export type Database = {
         }
         Insert: {
           atualizado_em?: string
+          confirmacao_status?: string
+          confirmado_em?: string | null
           criado_em?: string
           data: string
           dentista?: string | null
@@ -248,6 +252,8 @@ export type Database = {
         }
         Update: {
           atualizado_em?: string
+          confirmacao_status?: string
+          confirmado_em?: string | null
           criado_em?: string
           data?: string
           dentista?: string | null
