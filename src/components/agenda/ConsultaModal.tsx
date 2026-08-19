@@ -403,6 +403,16 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime }: Consulta
                 <Button type="button" variant="outline" onClick={onClose} className="w-full sm:w-auto">
                   Cancelar
                 </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!podeEnviarWhatsAppPaciente}
+                  onClick={handleSendPatientWhatsApp}
+                  className="w-full sm:w-auto text-green-600 hover:text-green-700 hover:bg-green-950/30 border-green-600/30 disabled:text-muted-foreground"
+                >
+                  <MessageCircle className="mr-2 h-4 w-4" />
+                  WhatsApp Paciente
+                </Button>
                 <Button type="submit" disabled={isLoading} className="w-full sm:w-auto">
                   {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Agendar Consulta
