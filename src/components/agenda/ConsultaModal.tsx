@@ -146,6 +146,30 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime }: Consulta
     setIsQuickPatientModalOpen(false);
   };
 
+  const handleSendPatientWhatsApp = () => {
+    const values = form.getValues();
+    const paciente = pacientes.find((p) => p.id === values.pacienteId);
+    if (!paciente) {
+      toast.warning('Selecione um paciente para enviar a mensagem.');
+      return;
+    }
+    const dentista = dentistasAtivos.find((d) => d.nome === values.dentista);
+    const mensagem = buildConfirmacaoPacienteMessage({
+      pacienteNome: paciente.nome,
+      data: values.data,
+      hora: values.hora,
+      dentistaNome: dentista?.nome,
+      procedimento: values.procedimento || undefined,
+    });
+    const aberto = openWhatsApp(paciente.telefone, mensagem);
+    if (!aberto) {
+      toast.warning(`Paciente ${paciente.nome} não tem telefone válido para WhatsApp.`);
+    }
+  };
+
+  const pacienteSelecionado = pacientes.find((p) => p.id === form.watch('pacienteId'));
+  const podeEnviarWhatsAppPaciente = !!pacienteSelecionado?.telefone;
+
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
