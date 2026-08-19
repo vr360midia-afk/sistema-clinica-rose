@@ -132,6 +132,8 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
         paciente_id: patient.id,
         paciente_nome: patient.nome,
         dados: {
+          clinicaNome: configuracoes?.nomeClinica || '',
+          logoUrl: configuracoes?.logoUrl || '',
           realizados: realizados.map((r) => ({ nome: r.nome, valor: r.valor, data: r.data.toLocaleDateString('pt-BR') })),
           previstos: previstos.map((p) => ({ nome: p.nome, valor: p.valor, data: p.data.toLocaleDateString('pt-BR') })),
           pagamentos: lancamentos.map((t: any) => ({

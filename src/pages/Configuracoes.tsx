@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import Layout from '@/components/layout/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
-import { Settings, Wifi, Bell, Shield, Database, MessageSquare, UserCog } from 'lucide-react';
+import { Settings, Wifi, Bell, Shield, Database, MessageSquare, UserCog, Upload, Trash2, Image as ImageIcon } from 'lucide-react';
 import DentistasManager from '@/components/configuracoes/DentistasManager';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { Loader2 } from 'lucide-react';
@@ -17,10 +17,64 @@ const Configuracoes = () => {
   const { toast } = useToast();
   const { configuracoes, setConfiguracoes, loading, saving, saveConfiguracoes } = useConfiguracoes();
   const [tokens, setTokens] = useState({ whatsappToken: '', instagramToken: '', asaasToken: '' });
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  const [logoLoading, setLogoLoading] = useState(false);
 
   const salvarConfiguracoes = async () => {
     await saveConfiguracoes(configuracoes);
   };
+
+  const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast({ title: 'Arquivo inválido', description: 'Envie uma imagem.', variant: 'destructive' });
+      return;
+    }
+    if (file.size > 4 * 1024 * 1024) {
+      toast({ title: 'Imagem muito grande', description: 'Use uma imagem de até 4MB.', variant: 'destructive' });
+      return;
+    }
+    setLogoLoading(true);
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      let finalUrl = dataUrl;
+      if (file.type !== 'image/svg+xml') {
+        finalUrl = await new Promise<string>((resolve) => {
+          const img = new Image();
+          img.onload = () => {
+            const max = 600;
+            const scale = Math.min(1, max / Math.max(img.width, img.height));
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.round(img.width * scale);
+            canvas.height = Math.round(img.height * scale);
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return resolve(dataUrl);
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            resolve(canvas.toDataURL('image/png'));
+          };
+          img.onerror = () => resolve(dataUrl);
+          img.src = dataUrl;
+        });
+      }
+
+      const novas = { ...configuracoes, logoUrl: finalUrl };
+      setConfiguracoes(novas);
+      await saveConfiguracoes(novas);
+    } catch {
+      toast({ title: 'Erro ao carregar a logo', variant: 'destructive' });
+    } finally {
+      setLogoLoading(false);
+    }
+  };
+
 
   const testarConexao = (api: string) => {
     console.log(`Testando conexão com ${api}`);
@@ -106,8 +160,45 @@ const Configuracoes = () => {
                     />
                   </div>
                 </div>
+
+                <div className="space-y-2 pt-2 border-t">
+                  <Label>Logo da clínica</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Usada em recibos, prontuários e demais documentos em PDF.
+                  </p>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="h-20 w-32 border rounded-md flex items-center justify-center bg-muted/30 overflow-hidden">
+                      {configuracoes.logoUrl ? (
+                        <img src={configuracoes.logoUrl} alt="Logo da clínica" className="max-h-full max-w-full object-contain" />
+                      ) : (
+                        <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                      )}
+                    </div>
+                    <input
+                      ref={logoInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                      className="hidden"
+                      onChange={handleLogoChange}
+                    />
+                    <Button variant="outline" onClick={() => logoInputRef.current?.click()} disabled={logoLoading}>
+                      {logoLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
+                      {configuracoes.logoUrl ? 'Trocar logo' : 'Enviar logo'}
+                    </Button>
+                    {configuracoes.logoUrl && (
+                      <Button
+                        variant="ghost"
+                        onClick={() => setConfiguracoes({ ...configuracoes, logoUrl: '' })}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Remover
+                      </Button>
+                    )}
+                  </div>
+                </div>
               </CardContent>
             </Card>
+
           </TabsContent>
 
           <TabsContent value="apis">
