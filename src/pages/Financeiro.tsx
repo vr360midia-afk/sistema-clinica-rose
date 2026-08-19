@@ -136,7 +136,7 @@ const Financeiro = () => {
                           <div className="text-sm text-muted-foreground">{new Date(transacao.data).toLocaleDateString('pt-BR')}</div>
                         </div>
                       </div>
-                      <div className="text-right">
+                      <div className="text-right space-y-1">
                         <div className="font-semibold">R$ {transacao.valor.toFixed(2)}</div>
                         <Badge 
                           className={transacao.status === 'pago' 
@@ -146,7 +146,21 @@ const Financeiro = () => {
                         >
                           {transacao.status === 'pago' ? 'Pago' : 'Pendente'}
                         </Badge>
+                        {transacao.tipo === 'receita' && (
+                          <div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="mt-1 gap-1"
+                              onClick={() => emitirRecibo(transacao)}
+                            >
+                              <Receipt className="h-3.5 w-3.5" />
+                              Recibo
+                            </Button>
+                          </div>
+                        )}
                       </div>
+
                     </div>
                   ))
               )}
