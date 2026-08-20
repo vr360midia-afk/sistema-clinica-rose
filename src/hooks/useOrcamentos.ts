@@ -88,6 +88,7 @@ export const useOrcamentos = (pacienteId?: string) => {
       status: o.status || 'rascunho',
       validade: o.validade || null,
       observacoes: o.observacoes || null,
+      formas_pagamento: o.formasPagamento || null,
       parceiro_id: o.parceiroId || null,
       parceiro_nome: o.parceiroNome || null,
       parceiro_tipo_repasse: o.parceiroTipoRepasse || null,
