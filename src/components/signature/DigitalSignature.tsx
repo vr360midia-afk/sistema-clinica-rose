@@ -11,7 +11,7 @@ interface DigitalSignatureProps {
   title?: string;
   signerName: string;
   signerRole: 'paciente' | 'dentista';
-  documentType: 'anamnese' | 'orcamento' | 'contrato' | 'consentimento';
+  documentType: 'anamnese' | 'orcamento' | 'contrato' | 'consentimento' | 'prescricao' | 'atestado';
   onSignatureComplete: (signatureData: SignatureData) => void;
   onCancel?: () => void;
   required?: boolean;

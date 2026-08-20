@@ -402,6 +402,74 @@ export type Database = {
         }
         Relationships: []
       }
+      documentos_clinicos: {
+        Row: {
+          assinado_em: string | null
+          assinante_nome: string | null
+          assinatura_data: string | null
+          assinatura_id: string | null
+          atualizado_em: string
+          cid: string | null
+          conteudo: string | null
+          criado_em: string
+          dentista: string | null
+          dias_afastamento: number | null
+          id: string
+          itens: Json
+          paciente_id: string | null
+          paciente_nome: string | null
+          tipo: string
+          titulo: string
+          user_id: string
+        }
+        Insert: {
+          assinado_em?: string | null
+          assinante_nome?: string | null
+          assinatura_data?: string | null
+          assinatura_id?: string | null
+          atualizado_em?: string
+          cid?: string | null
+          conteudo?: string | null
+          criado_em?: string
+          dentista?: string | null
+          dias_afastamento?: number | null
+          id?: string
+          itens?: Json
+          paciente_id?: string | null
+          paciente_nome?: string | null
+          tipo?: string
+          titulo: string
+          user_id: string
+        }
+        Update: {
+          assinado_em?: string | null
+          assinante_nome?: string | null
+          assinatura_data?: string | null
+          assinatura_id?: string | null
+          atualizado_em?: string
+          cid?: string | null
+          conteudo?: string | null
+          criado_em?: string
+          dentista?: string | null
+          dias_afastamento?: number | null
+          id?: string
+          itens?: Json
+          paciente_id?: string | null
+          paciente_nome?: string | null
+          tipo?: string
+          titulo?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "documentos_clinicos_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       documentos_paciente: {
         Row: {
           analise_dados: Json | null
@@ -600,6 +668,41 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      odontograma_versoes: {
+        Row: {
+          criado_em: string
+          dados: Json
+          id: string
+          observacoes: string | null
+          paciente_id: string
+          user_id: string
+        }
+        Insert: {
+          criado_em?: string
+          dados?: Json
+          id?: string
+          observacoes?: string | null
+          paciente_id: string
+          user_id: string
+        }
+        Update: {
+          criado_em?: string
+          dados?: Json
+          id?: string
+          observacoes?: string | null
+          paciente_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "odontograma_versoes_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       odontogramas: {
         Row: {

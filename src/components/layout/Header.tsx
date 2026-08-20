@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useAuth } from '@/context/AuthContext';
 import GlobalSearch from '@/components/common/GlobalSearch';
+import NotificationsBell from '@/components/common/NotificationsBell';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -93,12 +94,8 @@ const Header = ({ onMenuToggle }: HeaderProps) => {
             {mobileSearchOpen ? <X className="h-5 w-5" /> : <Search className="h-5 w-5" />}
           </Button>
 
-          <Button variant="ghost" size="icon" className="relative h-10 w-10" aria-label="Notificações">
-            <Bell className="h-5 w-5" />
-            <span className="absolute top-1 right-1 bg-red-500 text-white text-[10px] rounded-full h-4 w-4 flex items-center justify-center">
-              3
-            </span>
-          </Button>
+          <NotificationsBell />
+
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
