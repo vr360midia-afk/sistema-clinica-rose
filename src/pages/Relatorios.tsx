@@ -11,9 +11,11 @@ import { useDentalSystem } from '@/context/DentalSystemContext';
 import { downloadCSV, formatMoney } from '@/utils/exportCsv';
 import { toast } from 'sonner';
 import { supabaseService } from '@/services/supabaseService';
+import { useOrcamentos } from '@/hooks/useOrcamentos';
 
 const Relatorios = () => {
   const { pacientes, consultas, transacoes, prontuarios } = useDentalSystem();
+  const { orcamentos } = useOrcamentos();
   const [periodo, setPeriodo] = useState('mes');
 
   // Calcular dados financeiros baseados nos dados reais
