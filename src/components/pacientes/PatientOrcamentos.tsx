@@ -100,6 +100,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
       itens,
       desconto,
       observacoes,
+      formasPagamento,
       pacienteId: patient.id,
       pacienteNome: patient.nome,
       status: 'rascunho',
@@ -112,11 +113,37 @@ const PatientOrcamentos = ({ patient }: Props) => {
     setItens([]);
     setDesconto(0);
     setObservacoes('');
+    setFormasPagamento('');
     setParceriaAtiva(false);
     setParceiroId('');
     setValorRepasse(0);
     setNovoParceiro(false);
     setNovoNome('');
+  };
+
+  const baixarPdf = (o: (typeof orcamentos)[number]) => {
+    const ok = gerarOrcamentoPdf(
+      {
+        titulo: o.titulo,
+        pacienteNome: o.pacienteNome || patient?.nome,
+        itens: o.itens,
+        desconto: o.desconto,
+        total: o.total,
+        observacoes: o.observacoes,
+        formasPagamento: o.formasPagamento,
+        validade: o.validade,
+        criadoEm: o.criadoEm,
+      },
+      {
+        nomeClinica: configuracoes?.nomeClinica,
+        logoUrl: configuracoes?.logoUrl,
+        cnpj: configuracoes?.cnpj,
+        endereco: configuracoes?.endereco,
+        telefone: configuracoes?.telefone,
+        email: configuracoes?.email,
+      }
+    );
+    if (!ok) toast.error('Permita pop-ups para gerar o PDF');
   };
 
   const enviarWhatsApp = (o: (typeof orcamentos)[number]) => {
@@ -129,6 +156,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
       ...o.itens.map((i) => `• ${i.nome} ${i.quantidade > 1 ? `(${i.quantidade}x) ` : ''}— ${formatMoney(i.valor * i.quantidade)}`),
       o.desconto ? `Desconto: ${formatMoney(o.desconto)}` : null,
       `*Total: ${formatMoney(o.total)}*`,
+      o.formasPagamento ? `Formas de pagamento: ${o.formasPagamento}` : null,
       o.observacoes || null,
       '',
       'Podemos seguir com este plano de tratamento?',
@@ -136,6 +164,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
     openWhatsApp(patient.telefone, linhas.join('\n'));
     updateStatus(o.id, 'enviado');
   };
+
 
   return (
     <Card>
