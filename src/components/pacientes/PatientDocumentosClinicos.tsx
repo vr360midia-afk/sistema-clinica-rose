@@ -264,6 +264,20 @@ const PatientDocumentosClinicos = ({ patient }: Props) => {
             {tipo === 'prescricao' ? (
               <div className="space-y-2">
                 <Label>Medicamentos</Label>
+                {!!medicamentos.filter((m) => m.ativo).length && (
+                  <Select value="" onValueChange={aplicarMedicamento}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Usar medicamento pré-cadastrado" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {medicamentos.filter((m) => m.ativo).map((m) => (
+                        <SelectItem key={m.id} value={m.id}>
+                          {m.nome}{m.dosagem ? ` — ${m.dosagem}` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
                 {itens.map((item, idx) => (
                   <div key={idx} className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     <Input
@@ -287,6 +301,7 @@ const PatientDocumentosClinicos = ({ patient }: Props) => {
                   <Plus className="h-4 w-4 mr-2" /> Adicionar item
                 </Button>
               </div>
+
             ) : (
               <div className="grid grid-cols-2 gap-3">
                 <div>
