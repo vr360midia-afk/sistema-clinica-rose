@@ -216,10 +216,35 @@ const PatientOrcamentos = ({ patient }: Props) => {
                   </li>
                 ))}
               </ul>
+
+              <div className="rounded-md bg-muted/40 p-2 space-y-1 text-xs">
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Subtotal</span>
+                  <span>{formatMoney(o.itens.reduce((s, i) => s + i.valor * i.quantidade, 0))}</span>
+                </div>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Desconto</span>
+                  <span>- {formatMoney(o.desconto || 0)}</span>
+                </div>
+                <div className="flex justify-between text-sm font-semibold text-foreground border-t border-border pt-1">
+                  <span>Total</span>
+                  <span>{formatMoney(o.total)}</span>
+                </div>
+                {o.formasPagamento && (
+                  <p className="text-muted-foreground pt-1">
+                    Pagamento: <span className="text-foreground">{o.formasPagamento}</span>
+                  </p>
+                )}
+              </div>
+
               <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="outline" onClick={() => baixarPdf(o)}>
+                  <FileText className="h-4 w-4 mr-1" /> PDF
+                </Button>
                 <Button size="sm" variant="outline" onClick={() => enviarWhatsApp(o)}>
                   <MessageCircle className="h-4 w-4 mr-1" /> Enviar
                 </Button>
+
                 <Button size="sm" variant="outline" onClick={() => updateStatus(o.id, 'aprovado')}>
                   <Check className="h-4 w-4 mr-1" /> Aprovar
                 </Button>
