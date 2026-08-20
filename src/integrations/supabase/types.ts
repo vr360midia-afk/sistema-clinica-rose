@@ -830,6 +830,51 @@ export type Database = {
         }
         Relationships: []
       }
+      parceiros: {
+        Row: {
+          ativo: boolean
+          atualizado_em: string
+          criado_em: string
+          email: string | null
+          especialidade: string | null
+          id: string
+          nome: string
+          observacoes: string | null
+          telefone: string | null
+          tipo_repasse: string
+          user_id: string
+          valor_repasse: number
+        }
+        Insert: {
+          ativo?: boolean
+          atualizado_em?: string
+          criado_em?: string
+          email?: string | null
+          especialidade?: string | null
+          id?: string
+          nome: string
+          observacoes?: string | null
+          telefone?: string | null
+          tipo_repasse?: string
+          user_id: string
+          valor_repasse?: number
+        }
+        Update: {
+          ativo?: boolean
+          atualizado_em?: string
+          criado_em?: string
+          email?: string | null
+          especialidade?: string | null
+          id?: string
+          nome?: string
+          observacoes?: string | null
+          telefone?: string | null
+          tipo_repasse?: string
+          user_id?: string
+          valor_repasse?: number
+        }
+        Relationships: []
+      }
       procedimentos: {
         Row: {
           ativo: boolean
@@ -1073,6 +1118,8 @@ export type Database = {
           observacoes: string | null
           paciente_id: string | null
           paciente_nome: string | null
+          parceiro_id: string | null
+          parceiro_nome: string | null
           parcelas: number | null
           status: string | null
           taxa_cartao_percentual: number | null
@@ -1081,6 +1128,7 @@ export type Database = {
           user_id: string
           valor: number
           valor_liquido: number | null
+          valor_parceiro: number | null
           valor_parcela: number | null
           vencimento: string | null
         }
@@ -1096,6 +1144,8 @@ export type Database = {
           observacoes?: string | null
           paciente_id?: string | null
           paciente_nome?: string | null
+          parceiro_id?: string | null
+          parceiro_nome?: string | null
           parcelas?: number | null
           status?: string | null
           taxa_cartao_percentual?: number | null
@@ -1104,6 +1154,7 @@ export type Database = {
           user_id: string
           valor?: number
           valor_liquido?: number | null
+          valor_parceiro?: number | null
           valor_parcela?: number | null
           vencimento?: string | null
         }
@@ -1119,6 +1170,8 @@ export type Database = {
           observacoes?: string | null
           paciente_id?: string | null
           paciente_nome?: string | null
+          parceiro_id?: string | null
+          parceiro_nome?: string | null
           parcelas?: number | null
           status?: string | null
           taxa_cartao_percentual?: number | null
@@ -1127,6 +1180,7 @@ export type Database = {
           user_id?: string
           valor?: number
           valor_liquido?: number | null
+          valor_parceiro?: number | null
           valor_parcela?: number | null
           vencimento?: string | null
         }

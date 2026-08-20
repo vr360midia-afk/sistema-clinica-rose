@@ -8,11 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, Stethoscope } from 'lucide-react';
+import { CalendarIcon, Stethoscope, Handshake } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import { useProcedimentos } from '@/hooks/useProcedimentos';
+import { useParceiros } from '@/hooks/useParceiros';
 import { TipoTransacao, StatusTransacao, MetodoPagamento } from '@/types/shared';
 import { toast } from 'sonner';
 
@@ -26,6 +27,7 @@ interface TransactionFormProps {
 const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionFormProps) => {
   const { pacientes, addTransacao, updateTransacao } = useDentalSystem();
   const { procedimentos } = useProcedimentos();
+  const { parceiros } = useParceiros();
   const isEdit = !!transacao?.id;
 
   const [formData, setFormData] = useState({
@@ -39,7 +41,9 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
     data: new Date(),
     vencimento: null as Date | null,
     descricao: '',
-    observacoes: ''
+    observacoes: '',
+    parceiroId: '',
+    valorParceiro: ''
   });
 
   const emptyForm = {
@@ -53,7 +57,9 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
     data: new Date(),
     vencimento: null as Date | null,
     descricao: '',
-    observacoes: ''
+    observacoes: '',
+    parceiroId: '',
+    valorParceiro: ''
   };
 
   useEffect(() => {
@@ -70,7 +76,9 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
         data: transacao.data ? new Date(transacao.data) : new Date(),
         vencimento: transacao.vencimento ? new Date(transacao.vencimento) : null,
         descricao: transacao.descricao || '',
-        observacoes: transacao.observacoes || ''
+        observacoes: transacao.observacoes || '',
+        parceiroId: transacao.parceiroId || '',
+        valorParceiro: transacao.valorParceiro ? String(transacao.valorParceiro) : ''
       });
     } else {
       setFormData(emptyForm);
@@ -85,6 +93,15 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
   const taxaValor = (valorBruto * taxaPerc) / 100;
   const valorLiquido = valorBruto - taxaValor;
   const valorParcela = parcelas > 0 ? valorBruto / parcelas : valorBruto;
+  const parceiro = parceiros.find((p) => p.id === formData.parceiroId);
+  const valorParceiroSugerido = parceiro
+    ? parceiro.tipoRepasse === 'percentual'
+      ? (valorBruto * (parceiro.valorRepasse || 0)) / 100
+      : parceiro.valorRepasse || 0
+    : 0;
+  const valorParceiro = formData.valorParceiro !== ''
+    ? parseFloat(formData.valorParceiro) || 0
+    : valorParceiroSugerido;
   const money = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -96,7 +113,7 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
     }
 
     try {
-      const { taxaCartaoPercentual, parcelas: _p, ...rest } = formData;
+      const { taxaCartaoPercentual, parcelas: _p, valorParceiro: _vp, ...rest } = formData;
       const transactionData = {
         ...rest,
         valor: valorBruto,
@@ -105,6 +122,9 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
         parcelas,
         valorParcela,
         valorLiquido,
+        parceiroId: formData.parceiroId || undefined,
+        parceiroNome: parceiro?.nome,
+        valorParceiro: parceiro ? valorParceiro : undefined,
       };
 
       if (isEdit) {
@@ -112,7 +132,25 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
         toast.success('Transação atualizada');
       } else {
         await addTransacao(transactionData);
-        toast.success('Transação criada');
+        // Repasse ao parceiro entra automaticamente como despesa/parceria
+        if (parceiro && valorParceiro > 0 && formData.tipo === 'receita') {
+          await addTransacao({
+            pacienteId: formData.pacienteId,
+            tipo: 'despesa',
+            status: formData.status,
+            categoria: 'parceria',
+            metodoPagamento: formData.metodoPagamento,
+            data: formData.data,
+            descricao: `Repasse parceiro ${parceiro.nome} — ${formData.descricao}`,
+            valor: valorParceiro,
+            parceiroId: parceiro.id,
+            parceiroNome: parceiro.nome,
+            valorParceiro,
+          });
+          toast.success('Transação criada com repasse ao parceiro');
+        } else {
+          toast.success('Transação criada');
+        }
       }
       onSave(transactionData);
       setFormData(emptyForm);
@@ -186,6 +224,31 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
             </p>
           </div>
 
+          <div>
+            <Label htmlFor="parceiro">Parceiro (opcional)</Label>
+            <Select
+              value={formData.parceiroId || 'none'}
+              onValueChange={(value) =>
+                setFormData((prev) => ({ ...prev, parceiroId: value === 'none' ? '' : value, valorParceiro: '' }))
+              }
+            >
+              <SelectTrigger>
+                <div className="flex items-center gap-2">
+                  <Handshake className="h-4 w-4 text-muted-foreground" />
+                  <SelectValue placeholder="Sem parceiro" />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Sem parceiro</SelectItem>
+                {parceiros.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.nome} — {p.tipoRepasse === 'percentual' ? `${p.valorRepasse}%` : money(p.valorRepasse || 0)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label htmlFor="tipo">Tipo *</Label>
@@ -212,6 +275,25 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
               />
             </div>
           </div>
+
+          {parceiro && (
+            <div className="space-y-2 rounded-lg border p-3">
+              <Label htmlFor="valorParceiro">Valor pago ao parceiro (R$)</Label>
+              <Input
+                id="valorParceiro"
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder={valorParceiroSugerido.toFixed(2)}
+                value={formData.valorParceiro}
+                onChange={(e) => setFormData((prev) => ({ ...prev, valorParceiro: e.target.value }))}
+              />
+              <div className="text-xs text-muted-foreground space-y-0.5">
+                <p>Repasse ao parceiro: {money(valorParceiro)} (lançado como despesa/parceria)</p>
+                <p>Resultado da clínica: {money(valorBruto - valorParceiro)}</p>
+              </div>
+            </div>
+          )}
 
           <div>
             <Label htmlFor="descricao">Descrição *</Label>
