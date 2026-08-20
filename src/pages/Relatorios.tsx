@@ -176,6 +176,93 @@ const Relatorios = () => {
     };
   }, [transacoes, consultas]);
 
+  // Indicadores: conversão de orçamento, faltas por período, ticket médio por dentista/parceiro
+  const indicadores = useMemo(() => {
+    const hoje = new Date();
+    const inicio = new Date(hoje);
+    if (periodo === 'semana') inicio.setDate(hoje.getDate() - 7);
+    else if (periodo === 'mes') inicio.setMonth(hoje.getMonth() - 1);
+    else if (periodo === 'trimestre') inicio.setMonth(hoje.getMonth() - 3);
+    else inicio.setFullYear(hoje.getFullYear() - 1);
+
+    const noPeriodo = (d: any) => {
+      const data = new Date(d);
+      return !isNaN(data.getTime()) && data >= inicio && data <= hoje;
+    };
+
+    // Conversão de orçamento
+    const orcPeriodo = orcamentos.filter((o) => noPeriodo(o.criadoEm));
+    const enviados = orcPeriodo.filter((o) => o.status !== 'rascunho');
+    const aprovados = orcPeriodo.filter((o) => o.status === 'aprovado');
+    const recusados = orcPeriodo.filter((o) => o.status === 'recusado');
+    const taxaConversao = enviados.length ? (aprovados.length / enviados.length) * 100 : 0;
+    const valorAprovado = aprovados.reduce((s, o) => s + (o.total || 0), 0);
+    const valorEmAberto = orcPeriodo
+      .filter((o) => o.status === 'enviado')
+      .reduce((s, o) => s + (o.total || 0), 0);
+
+    // Faltas por período
+    const consultasPeriodo = consultas.filter((c: any) => noPeriodo(c.data));
+    const faltas = consultasPeriodo.filter((c: any) => c.status === 'faltou');
+    const cancelamentos = consultasPeriodo.filter((c: any) => c.status === 'cancelado');
+    const taxaFalta = consultasPeriodo.length ? (faltas.length / consultasPeriodo.length) * 100 : 0;
+    const faltasPorDentista = Object.values(
+      faltas.reduce((acc: any, c: any) => {
+        const key = c.dentista || 'não informado';
+        acc[key] = acc[key] || { chave: key, qtd: 0 };
+        acc[key].qtd += 1;
+        return acc;
+      }, {})
+    ).sort((a: any, b: any) => b.qtd - a.qtd) as any[];
+
+    // Ticket médio por dentista (consultas realizadas com valor) e por parceiro (receitas)
+    const realizadas = consultasPeriodo.filter((c: any) => c.status === 'realizado');
+    const ticketDentista = Object.values(
+      realizadas.reduce((acc: any, c: any) => {
+        const key = c.dentista || 'não informado';
+        acc[key] = acc[key] || { chave: key, qtd: 0, total: 0 };
+        acc[key].qtd += 1;
+        acc[key].total += c.valor || 0;
+        return acc;
+      }, {})
+    )
+      .map((d: any) => ({ ...d, ticket: d.qtd ? d.total / d.qtd : 0 }))
+      .sort((a: any, b: any) => b.ticket - a.ticket) as any[];
+
+    const receitasPeriodo = transacoes.filter(
+      (t: any) => t.tipo === 'receita' && noPeriodo(t.data) && t.parceiroNome
+    );
+    const ticketParceiro = Object.values(
+      receitasPeriodo.reduce((acc: any, t: any) => {
+        const key = t.parceiroNome;
+        acc[key] = acc[key] || { chave: key, qtd: 0, total: 0, repasse: 0 };
+        acc[key].qtd += 1;
+        acc[key].total += t.valor || 0;
+        acc[key].repasse += t.valorParceiro || 0;
+        return acc;
+      }, {})
+    )
+      .map((d: any) => ({ ...d, ticket: d.qtd ? d.total / d.qtd : 0 }))
+      .sort((a: any, b: any) => b.total - a.total) as any[];
+
+    return {
+      taxaConversao,
+      totalOrcamentos: orcPeriodo.length,
+      enviados: enviados.length,
+      aprovados: aprovados.length,
+      recusados: recusados.length,
+      valorAprovado,
+      valorEmAberto,
+      faltas: faltas.length,
+      cancelamentos: cancelamentos.length,
+      taxaFalta,
+      faltasPorDentista,
+      ticketDentista,
+      ticketParceiro,
+    };
+  }, [orcamentos, consultas, transacoes, periodo]);
+
+
   const gerarRelatorio = async (tipo: string) => {
     const hoje = new Date().toISOString().slice(0, 10);
     try {
