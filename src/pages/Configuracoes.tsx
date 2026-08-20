@@ -9,8 +9,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import BloqueiosManager from '@/components/configuracoes/BloqueiosManager';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
-import { Settings, Wifi, Bell, Shield, Database, MessageSquare, UserCog, Upload, Trash2, Image as ImageIcon, Handshake } from 'lucide-react';
+import { Settings, Wifi, Bell, Shield, Database, MessageSquare, UserCog, Upload, Trash2, Image as ImageIcon, Handshake, ShieldCheck } from 'lucide-react';
 import DentistasManager from '@/components/configuracoes/DentistasManager';
+import CertificadoDigitalManager from '@/components/configuracoes/CertificadoDigitalManager';
 import ParceirosManager from '@/components/configuracoes/ParceirosManager';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { Loader2 } from 'lucide-react';
@@ -120,6 +121,7 @@ const Configuracoes = () => {
             <TabsTrigger value="geral">Geral</TabsTrigger>
             <TabsTrigger value="dentistas"><UserCog className="h-4 w-4 mr-1" />Dentistas</TabsTrigger>
             <TabsTrigger value="parceiros"><Handshake className="h-4 w-4 mr-1" />Parceiros</TabsTrigger>
+            <TabsTrigger value="certificado"><ShieldCheck className="h-4 w-4 mr-1" />Certificado</TabsTrigger>
             <TabsTrigger value="bloqueios">Bloqueios</TabsTrigger>
             <TabsTrigger value="apis">APIs</TabsTrigger>
             <TabsTrigger value="notificacoes">Notificações</TabsTrigger>
@@ -133,6 +135,11 @@ const Configuracoes = () => {
           <TabsContent value="parceiros">
             <ParceirosManager />
           </TabsContent>
+
+          <TabsContent value="certificado">
+            <CertificadoDigitalManager />
+          </TabsContent>
+
 
           <TabsContent value="geral">
             <Card>
