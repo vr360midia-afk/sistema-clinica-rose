@@ -13,6 +13,21 @@ import DentistasManager from '@/components/configuracoes/DentistasManager';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { Loader2 } from 'lucide-react';
 
+const formatCnpjCpf = (value: string) => {
+  const digits = value.replace(/\D/g, '').slice(0, 14);
+  if (digits.length <= 11) {
+    return digits
+      .replace(/^(\d{3})(\d)/, '$1.$2')
+      .replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3')
+      .replace(/\.(\d{3})(\d{1,2})$/, '.$1-$2');
+  }
+  return digits
+    .replace(/^(\d{2})(\d)/, '$1.$2')
+    .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+    .replace(/\.(\d{3})(\d)/, '.$1/$2')
+    .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
+};
+
 const Configuracoes = () => {
   const { toast } = useToast();
   const { configuracoes, setConfiguracoes, loading, saving, saveConfiguracoes } = useConfiguracoes();
@@ -127,12 +142,17 @@ const Configuracoes = () => {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="cnpj">CNPJ</Label>
+                    <Label htmlFor="cnpj">CNPJ ou CPF</Label>
                     <Input
                       id="cnpj"
+                      inputMode="numeric"
+                      placeholder="00.000.000/0000-00 ou 000.000.000-00"
                       value={configuracoes.cnpj}
-                      onChange={(e) => setConfiguracoes({...configuracoes, cnpj: e.target.value})}
+                      onChange={(e) => setConfiguracoes({ ...configuracoes, cnpj: formatCnpjCpf(e.target.value) })}
                     />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Usado nos recibos e documentos gerados.
+                    </p>
                   </div>
                   <div className="md:col-span-2">
                     <Label htmlFor="endereco">Endereço</Label>
