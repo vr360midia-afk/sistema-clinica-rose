@@ -26,13 +26,16 @@ const PatientOrcamentos = ({ patient }: Props) => {
   const { orcamentos, loading, saveOrcamento, updateStatus, deleteOrcamento } = useOrcamentos(patient?.id);
   const { procedimentos } = useProcedimentos();
   const { parceiros, addParceiro, refetch: refetchParceiros } = useParceiros();
+  const { configuracoes } = useConfiguracoes();
 
   const [open, setOpen] = useState(false);
   const [titulo, setTitulo] = useState('Plano de tratamento');
   const [itens, setItens] = useState<OrcamentoItem[]>([]);
   const [desconto, setDesconto] = useState(0);
   const [observacoes, setObservacoes] = useState('');
+  const [formasPagamento, setFormasPagamento] = useState('');
   const [selectKey, setSelectKey] = useState(0);
+
 
   // Parceria
   const [parceriaAtiva, setParceriaAtiva] = useState(false);
