@@ -26,6 +26,9 @@ export interface DocumentoClinico {
   assinaturaData?: string | null;
   assinanteNome?: string | null;
   assinadoEm?: Date | null;
+  cfoLinkValidacao?: string | null;
+  cfoCodigoValidacao?: string | null;
+  cfoEmitidoEm?: Date | null;
   criadoEm: Date;
 }
 
@@ -44,6 +47,9 @@ const rowToDoc = (row: any): DocumentoClinico => ({
   assinaturaData: row.assinatura_data,
   assinanteNome: row.assinante_nome,
   assinadoEm: row.assinado_em ? new Date(row.assinado_em) : null,
+  cfoLinkValidacao: row.cfo_link_validacao ?? null,
+  cfoCodigoValidacao: row.cfo_codigo_validacao ?? null,
+  cfoEmitidoEm: row.cfo_emitido_em ? new Date(row.cfo_emitido_em) : null,
   criadoEm: new Date(row.criado_em),
 });
 
@@ -123,6 +129,28 @@ export const useDocumentosClinicos = (pacienteId?: string) => {
     return true;
   };
 
+  const registrarCfo = async (
+    id: string,
+    params: { link?: string | null; codigo?: string | null }
+  ) => {
+    const { error } = await supabase
+      .from('documentos_clinicos')
+      .update({
+        cfo_link_validacao: params.link || null,
+        cfo_codigo_validacao: params.codigo || null,
+        cfo_emitido_em: params.link || params.codigo ? new Date().toISOString() : null,
+      })
+      .eq('id', id);
+    if (error) {
+      console.error(error);
+      toast.error('Erro ao salvar dados do CFO');
+      return false;
+    }
+    toast.success('Prescrição do CFO vinculada ao documento');
+    await load();
+    return true;
+  };
+
   const deleteDocumento = async (id: string) => {
     const { error } = await supabase.from('documentos_clinicos').delete().eq('id', id);
     if (error) {
@@ -133,5 +161,5 @@ export const useDocumentosClinicos = (pacienteId?: string) => {
     await load();
   };
 
-  return { documentos, loading, salvarDocumento, registrarAssinatura, deleteDocumento, reload: load };
+  return { documentos, loading, salvarDocumento, registrarAssinatura, registrarCfo, deleteDocumento, reload: load };
 };

@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { FileText, Plus, Trash2, PenTool, Printer, MessageCircle } from 'lucide-react';
+import { FileText, Plus, Trash2, PenTool, Printer, MessageCircle, ShieldCheck, ExternalLink } from 'lucide-react';
 import { useDocumentosClinicos, DocumentoClinico, DocumentoClinicoItem, DocumentoClinicoTipo } from '@/hooks/useDocumentosClinicos';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { useDentistas } from '@/hooks/useDentistas';
@@ -22,7 +22,7 @@ interface Props {
 }
 
 const PatientDocumentosClinicos = ({ patient }: Props) => {
-  const { documentos, salvarDocumento, registrarAssinatura, deleteDocumento } = useDocumentosClinicos(patient?.id);
+  const { documentos, salvarDocumento, registrarAssinatura, registrarCfo, deleteDocumento } = useDocumentosClinicos(patient?.id);
   const { configuracoes } = useConfiguracoes();
   const { dentistas } = useDentistas();
   const { saveSignature } = useSignatures();
@@ -36,6 +36,9 @@ const PatientDocumentosClinicos = ({ patient }: Props) => {
   const [cid, setCid] = useState('');
   const [itens, setItens] = useState<DocumentoClinicoItem[]>([{ nome: '', quantidade: '', posologia: '' }]);
   const [assinandoDoc, setAssinandoDoc] = useState<DocumentoClinico | null>(null);
+  const [cfoDoc, setCfoDoc] = useState<DocumentoClinico | null>(null);
+  const [cfoLink, setCfoLink] = useState('');
+  const [cfoCodigo, setCfoCodigo] = useState('');
 
   const resetForm = () => {
     setTipo('prescricao');
@@ -98,6 +101,45 @@ const PatientDocumentosClinicos = ({ patient }: Props) => {
     openWhatsApp(patient.telefone, msg);
   };
 
+  const textoCfo = (doc: DocumentoClinico) => {
+    const linhas = [
+      `Paciente: ${doc.pacienteNome || patient?.nome || ''}`,
+      doc.dentista ? `Dentista: ${doc.dentista}` : '',
+      '',
+      doc.tipo === 'prescricao'
+        ? doc.itens
+            .map(
+              (i) =>
+                `${i.nome}${i.quantidade ? ` — ${i.quantidade}` : ''}${i.posologia ? ` — ${i.posologia}` : ''}`
+            )
+            .join('\n')
+        : `${doc.diasAfastamento ? `${doc.diasAfastamento} dia(s) de afastamento` : ''}${
+            doc.cid ? ` — CID ${doc.cid}` : ''
+          }`,
+      doc.conteudo ? `\n${doc.conteudo}` : '',
+    ];
+    return linhas.filter(Boolean).join('\n');
+  };
+
+  const abrirCfo = async (doc: DocumentoClinico) => {
+    try {
+      await navigator.clipboard.writeText(textoCfo(doc));
+      toast.success('Conteúdo copiado. Cole no portal do CFO.');
+    } catch {
+      toast.info('Abra o portal do CFO e preencha a prescrição.');
+    }
+    window.open('https://prescricao.cfo.org.br/index', '_blank', 'noopener,noreferrer');
+    setCfoDoc(doc);
+    setCfoLink(doc.cfoLinkValidacao || '');
+    setCfoCodigo(doc.cfoCodigoValidacao || '');
+  };
+
+  const salvarCfo = async () => {
+    if (!cfoDoc) return;
+    await registrarCfo(cfoDoc.id, { link: cfoLink.trim(), codigo: cfoCodigo.trim() });
+    setCfoDoc(null);
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -130,6 +172,9 @@ const PatientDocumentosClinicos = ({ patient }: Props) => {
                   ) : (
                     <Badge variant="secondary">Sem assinatura</Badge>
                   )}
+                  {doc.cfoEmitidoEm && (
+                    <Badge variant="outline" className="border-primary text-primary">CFO</Badge>
+                  )}
                 </span>
                 <span className="text-xs font-normal text-muted-foreground">
                   {doc.criadoEm.toLocaleDateString('pt-BR')}
@@ -159,6 +204,16 @@ const PatientDocumentosClinicos = ({ patient }: Props) => {
                 <Button size="sm" variant="outline" onClick={() => setAssinandoDoc(doc)}>
                   <PenTool className="h-4 w-4 mr-2" /> {doc.assinadoEm ? 'Reassinar' : 'Assinar'}
                 </Button>
+                <Button size="sm" variant="outline" onClick={() => abrirCfo(doc)}>
+                  <ShieldCheck className="h-4 w-4 mr-2" /> Emitir no CFO
+                </Button>
+                {doc.cfoLinkValidacao && (
+                  <Button size="sm" variant="ghost" asChild>
+                    <a href={doc.cfoLinkValidacao} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="h-4 w-4 mr-2" /> Validar
+                    </a>
+                  </Button>
+                )}
                 <Button size="sm" variant="outline" onClick={() => handleWhatsApp(doc)}>
                   <MessageCircle className="h-4 w-4 mr-2" /> WhatsApp
                 </Button>
@@ -255,6 +310,37 @@ const PatientDocumentosClinicos = ({ patient }: Props) => {
               <Button type="submit">Salvar</Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!cfoDoc} onOpenChange={(v) => !v && setCfoDoc(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Prescrição Eletrônica CFO</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              O conteúdo do documento foi copiado. No portal do CFO, faça login com seu certificado
+              digital, cole a prescrição e assine. Depois volte aqui e guarde o link/código de validação
+              (QR Code) para ficar arquivado na ficha do paciente.
+            </p>
+            <div>
+              <Label>Link de validação</Label>
+              <Input
+                value={cfoLink}
+                onChange={(e) => setCfoLink(e.target.value)}
+                placeholder="https://prescricao.cfo.org.br/validar/..."
+              />
+            </div>
+            <div>
+              <Label>Código de validação</Label>
+              <Input value={cfoCodigo} onChange={(e) => setCfoCodigo(e.target.value)} placeholder="Código do QR Code" />
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="outline" onClick={() => setCfoDoc(null)}>Fechar</Button>
+              <Button onClick={salvarCfo}>Salvar</Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
