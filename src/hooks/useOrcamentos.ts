@@ -42,7 +42,7 @@ const rowToOrcamento = (row: any): Orcamento => ({
   validade: row.validade,
   observacoes: row.observacoes,
   formasPagamento: (row as any).formas_pagamento ?? null,
-
+  parceiroId: row.parceiro_id,
   parceiroNome: row.parceiro_nome,
   parceiroTipoRepasse: row.parceiro_tipo_repasse,
   parceiroValorRepasse: Number(row.parceiro_valor_repasse || 0),
