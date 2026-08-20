@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { FileText, Plus, Trash2, PenTool, Printer, MessageCircle } from 'lucide-react';
+import { FileText, Plus, Trash2, PenTool, Printer, MessageCircle, ShieldCheck, ExternalLink } from 'lucide-react';
 import { useDocumentosClinicos, DocumentoClinico, DocumentoClinicoItem, DocumentoClinicoTipo } from '@/hooks/useDocumentosClinicos';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { useDentistas } from '@/hooks/useDentistas';
@@ -22,7 +22,7 @@ interface Props {
 }
 
 const PatientDocumentosClinicos = ({ patient }: Props) => {
-  const { documentos, salvarDocumento, registrarAssinatura, deleteDocumento } = useDocumentosClinicos(patient?.id);
+  const { documentos, salvarDocumento, registrarAssinatura, registrarCfo, deleteDocumento } = useDocumentosClinicos(patient?.id);
   const { configuracoes } = useConfiguracoes();
   const { dentistas } = useDentistas();
   const { saveSignature } = useSignatures();
@@ -36,6 +36,9 @@ const PatientDocumentosClinicos = ({ patient }: Props) => {
   const [cid, setCid] = useState('');
   const [itens, setItens] = useState<DocumentoClinicoItem[]>([{ nome: '', quantidade: '', posologia: '' }]);
   const [assinandoDoc, setAssinandoDoc] = useState<DocumentoClinico | null>(null);
+  const [cfoDoc, setCfoDoc] = useState<DocumentoClinico | null>(null);
+  const [cfoLink, setCfoLink] = useState('');
+  const [cfoCodigo, setCfoCodigo] = useState('');
 
   const resetForm = () => {
     setTipo('prescricao');
