@@ -5,6 +5,7 @@ import StatsCard from '@/components/dashboard/StatsCard';
 import ConfirmacoesPendentes from '@/components/dashboard/ConfirmacoesPendentes';
 import AppointmentsList from '@/components/dashboard/AppointmentsList';
 import RecentActivity from '@/components/dashboard/RecentActivity';
+import LembretesWhatsApp from '@/components/dashboard/LembretesWhatsApp';
 import { Users, Calendar, CreditCard, TrendingUp } from 'lucide-react';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import { useAuth } from '@/context/AuthContext';
@@ -105,6 +106,7 @@ const Dashboard = () => {
         {/* Main Content */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <AppointmentsList />
+          <LembretesWhatsApp />
           <ConfirmacoesPendentes />
           <RecentActivity />
         </div>

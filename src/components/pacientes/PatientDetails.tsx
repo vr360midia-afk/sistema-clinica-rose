@@ -2,7 +2,7 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Edit2, User, FileText, ClipboardList, FolderOpen, History, DollarSign } from 'lucide-react';
+import { ArrowLeft, Edit2, User, FileText, ClipboardList, ListChecks, FolderOpen, History, DollarSign } from 'lucide-react';
 import { openWhatsApp } from '@/lib/whatsapp';
 import PatientPersonalInfo from './PatientPersonalInfo';
 import PatientMedicalRecords from './PatientMedicalRecords';
@@ -10,6 +10,7 @@ import PatientAnamnesis from './PatientAnamnesis';
 import PatientDocuments from './PatientDocuments';
 import PatientTimeline from './PatientTimeline';
 import PatientFinancial from './PatientFinancial';
+import PatientOrcamentos from './PatientOrcamentos';
 
 
 interface PatientDetailsProps {
@@ -51,7 +52,7 @@ const PatientDetails = ({ patient, onClose, onEdit }: PatientDetailsProps) => {
       </div>
 
       <Tabs defaultValue="personal" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 h-auto">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 h-auto">
           <TabsTrigger value="personal" className="flex items-center gap-2">
             <User className="h-4 w-4" />
             Dados Pessoais
@@ -71,6 +72,10 @@ const PatientDetails = ({ patient, onClose, onEdit }: PatientDetailsProps) => {
           <TabsTrigger value="financial" className="flex items-center gap-2">
             <DollarSign className="h-4 w-4" />
             Financeiro
+          </TabsTrigger>
+          <TabsTrigger value="orcamentos" className="flex items-center gap-2">
+            <ListChecks className="h-4 w-4" />
+            <span className="hidden sm:inline">Orçamentos</span>
           </TabsTrigger>
           <TabsTrigger value="documents" className="flex items-center gap-2">
             <FolderOpen className="h-4 w-4" />
@@ -96,6 +101,10 @@ const PatientDetails = ({ patient, onClose, onEdit }: PatientDetailsProps) => {
 
         <TabsContent value="financial" className="space-y-6">
           <PatientFinancial patient={patient} />
+        </TabsContent>
+
+        <TabsContent value="orcamentos" className="space-y-6">
+          <PatientOrcamentos patient={patient} />
         </TabsContent>
 
         <TabsContent value="documents" className="space-y-6">
