@@ -4,10 +4,44 @@ import { toast } from 'sonner';
 
 export type ToothStatusMap = Record<string, string>;
 
+export interface OdontogramaVersao {
+  id: string;
+  pacienteId: string;
+  dados: ToothStatusMap;
+  observacoes?: string | null;
+  criadoEm: Date;
+}
+
+const rowToVersao = (row: any): OdontogramaVersao => ({
+  id: row.id,
+  pacienteId: row.paciente_id,
+  dados: (row.dados || {}) as ToothStatusMap,
+  observacoes: row.observacoes,
+  criadoEm: new Date(row.criado_em),
+});
+
 export const useOdontograma = (pacienteId?: string) => {
   const [dados, setDados] = useState<ToothStatusMap>({});
+  const [versoes, setVersoes] = useState<OdontogramaVersao[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const carregarVersoes = useCallback(async () => {
+    if (!pacienteId) {
+      setVersoes([]);
+      return;
+    }
+    const { data, error } = await supabase
+      .from('odontograma_versoes')
+      .select('*')
+      .eq('paciente_id', pacienteId)
+      .order('criado_em', { ascending: false });
+    if (error) {
+      console.error('Erro ao carregar histórico do odontograma:', error);
+      return;
+    }
+    setVersoes((data || []).map(rowToVersao));
+  }, [pacienteId]);
 
   useEffect(() => {
     let ativo = true;
@@ -28,13 +62,14 @@ export const useOdontograma = (pacienteId?: string) => {
       setLoading(false);
     };
     load();
+    carregarVersoes();
     return () => {
       ativo = false;
     };
-  }, [pacienteId]);
+  }, [pacienteId, carregarVersoes]);
 
   const salvar = useCallback(
-    async (novosDados: ToothStatusMap) => {
+    async (novosDados: ToothStatusMap, observacoes?: string) => {
       if (!pacienteId) return;
       setSaving(true);
       try {
@@ -49,6 +84,17 @@ export const useOdontograma = (pacienteId?: string) => {
             { onConflict: 'user_id,paciente_id' }
           );
         if (error) throw error;
+
+        // Arquiva uma versão para comparativo antes/depois
+        const { error: versaoError } = await supabase.from('odontograma_versoes').insert({
+          user_id: userId,
+          paciente_id: pacienteId,
+          dados: novosDados as never,
+          observacoes: observacoes || null,
+        });
+        if (versaoError) console.error('Erro ao arquivar versão:', versaoError);
+
+        await carregarVersoes();
         toast.success('Odontograma salvo');
       } catch (e: any) {
         console.error(e);
@@ -57,8 +103,8 @@ export const useOdontograma = (pacienteId?: string) => {
         setSaving(false);
       }
     },
-    [pacienteId]
+    [pacienteId, carregarVersoes]
   );
 
-  return { dados, setDados, loading, saving, salvar };
+  return { dados, setDados, versoes, loading, saving, salvar, recarregarVersoes: carregarVersoes };
 };
