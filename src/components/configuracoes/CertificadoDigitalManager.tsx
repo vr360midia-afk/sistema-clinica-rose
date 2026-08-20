@@ -114,7 +114,7 @@ const CertificadoDigitalManager = () => {
           </div>
 
           <div className="space-y-2">
-            <Label>Client ID da aplicação</Label>
+            <Label>Client ID da aplicação (opcional)</Label>
             <Input
               value={form.clientId}
               onChange={(e) => set({ clientId: e.target.value })}
@@ -124,7 +124,7 @@ const CertificadoDigitalManager = () => {
           </div>
 
           <div className="space-y-2">
-            <Label>Client Secret</Label>
+            <Label>Client Secret (opcional)</Label>
             <div className="relative">
               <Input
                 type={showSecret ? 'text' : 'password'}
@@ -156,10 +156,23 @@ const CertificadoDigitalManager = () => {
           <Switch checked={form.ativo} onCheckedChange={(v) => set({ ativo: v })} />
         </div>
 
-        <p className="text-xs text-muted-foreground">
-          As credenciais são armazenadas de forma privada e só podem ser lidas pela sua conta. Elas são
-          obtidas no portal de administração do seu provedor de certificado em nuvem.
-        </p>
+        <div className="rounded-lg border p-3 space-y-1 text-xs text-muted-foreground">
+          <p className="font-medium text-foreground">Não encontrou o Client ID / Secret?</p>
+          <p>
+            Isso é normal: no app/portal do SafeID (usuário final) essas credenciais não aparecem. Elas
+            não pertencem ao seu certificado — são de uma <strong>aplicação integradora</strong> criada
+            pela Safeweb.
+          </p>
+          <p>
+            Para obtê-las é preciso solicitar acesso à API à Safeweb (integracao@safeweb.com.br /
+            comercial), informando que deseja assinar documentos via API SafeID. Eles liberam um
+            Client ID e Client Secret de homologação e depois de produção.
+          </p>
+          <p>
+            Enquanto isso, deixe esses campos em branco e salve apenas provedor, titular e CPF: os
+            documentos continuam sendo assinados com a assinatura eletrônica simples da clínica.
+          </p>
+        </div>
 
         <div className="flex flex-wrap gap-2">
           <Button onClick={() => salvar(form)} disabled={saving}>
