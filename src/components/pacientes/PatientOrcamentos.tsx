@@ -339,6 +339,34 @@ const PatientOrcamentos = ({ patient }: Props) => {
               </div>
             </div>
 
+            <div className="space-y-1.5">
+              <Label>Formas de pagamento</Label>
+              <div className="flex flex-wrap gap-1.5">
+                {['À vista (PIX)', 'Dinheiro', 'Cartão de crédito', 'Cartão de débito', '2x sem juros', '3x sem juros', '6x', '12x', 'Boleto'].map((f) => (
+                  <Button
+                    key={f}
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs"
+                    onClick={() =>
+                      setFormasPagamento((prev) => (prev ? (prev.includes(f) ? prev : `${prev}, ${f}`) : f))
+                    }
+                  >
+                    {f}
+                  </Button>
+                ))}
+              </div>
+              <Textarea
+                value={formasPagamento}
+                onChange={(e) => setFormasPagamento(e.target.value)}
+                placeholder="Ex.: À vista com 10% de desconto, ou em até 12x no cartão"
+                maxLength={500}
+              />
+            </div>
+
+
+
             <div className="rounded-lg border border-border p-3 space-y-3">
               <div className="flex items-center justify-between gap-2">
                 <Label className="flex items-center gap-2 mb-0">
