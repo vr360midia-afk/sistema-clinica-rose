@@ -21,6 +21,8 @@ export interface Orcamento {
   status: 'rascunho' | 'enviado' | 'aprovado' | 'recusado';
   validade?: string | null;
   observacoes?: string | null;
+  formasPagamento?: string | null;
+
   parceiroId?: string | null;
   parceiroNome?: string | null;
   parceiroTipoRepasse?: 'percentual' | 'fixo' | null;
