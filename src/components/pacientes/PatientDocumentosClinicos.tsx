@@ -172,6 +172,9 @@ const PatientDocumentosClinicos = ({ patient }: Props) => {
                   ) : (
                     <Badge variant="secondary">Sem assinatura</Badge>
                   )}
+                  {doc.cfoEmitidoEm && (
+                    <Badge variant="outline" className="border-primary text-primary">CFO</Badge>
+                  )}
                 </span>
                 <span className="text-xs font-normal text-muted-foreground">
                   {doc.criadoEm.toLocaleDateString('pt-BR')}
@@ -201,6 +204,16 @@ const PatientDocumentosClinicos = ({ patient }: Props) => {
                 <Button size="sm" variant="outline" onClick={() => setAssinandoDoc(doc)}>
                   <PenTool className="h-4 w-4 mr-2" /> {doc.assinadoEm ? 'Reassinar' : 'Assinar'}
                 </Button>
+                <Button size="sm" variant="outline" onClick={() => abrirCfo(doc)}>
+                  <ShieldCheck className="h-4 w-4 mr-2" /> Emitir no CFO
+                </Button>
+                {doc.cfoLinkValidacao && (
+                  <Button size="sm" variant="ghost" asChild>
+                    <a href={doc.cfoLinkValidacao} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="h-4 w-4 mr-2" /> Validar
+                    </a>
+                  </Button>
+                )}
                 <Button size="sm" variant="outline" onClick={() => handleWhatsApp(doc)}>
                   <MessageCircle className="h-4 w-4 mr-2" /> WhatsApp
                 </Button>
