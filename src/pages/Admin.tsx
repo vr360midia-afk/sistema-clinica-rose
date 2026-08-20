@@ -35,7 +35,12 @@ const Admin = () => {
     documentos 
   } = useDentalSystem();
 
+  const handleBackup = () => {
+    downloadBackupJSON({ pacientes, consultas, transacoes, prontuarios, anamneses, documentos });
+  };
+
   const handleClearAnamneses = async () => {
+
     try {
       await clearAnamneses();
     } catch (error) {
