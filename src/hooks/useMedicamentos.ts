@@ -42,8 +42,10 @@ const fromRow = (r: MedicamentoRow): Medicamento => ({
   ativo: r.ativo,
 });
 
-const toRow = (m: Partial<Medicamento>) => {
-  const row: Record<string, unknown> = {};
+type MedicamentoUpdate = Partial<Omit<MedicamentoRow, 'id'>>;
+
+const toRow = (m: Partial<Medicamento>): MedicamentoUpdate => {
+  const row: MedicamentoUpdate = {};
   if (m.nome !== undefined) row.nome = m.nome;
   if (m.principioAtivo !== undefined) row.principio_ativo = m.principioAtivo || null;
   if (m.apresentacao !== undefined) row.apresentacao = m.apresentacao || null;
