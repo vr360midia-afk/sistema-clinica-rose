@@ -53,19 +53,24 @@ const GlobalSearch = ({ open, onOpenChange }: GlobalSearchProps) => {
     [pacientes, termo]
   );
 
+  const nomePaciente = useMemo(() => {
+    const map = new Map(pacientes.map((p) => [p.id, p.nome]));
+    return (id?: string) => (id ? map.get(id) : undefined);
+  }, [pacientes]);
+
   const consultasFiltradas = useMemo(
     () =>
       termo
         ? consultas
             .filter(
               (c) =>
-                c.pacienteNome?.toLowerCase().includes(termo) ||
+                nomePaciente(c.pacienteId)?.toLowerCase().includes(termo) ||
                 c.procedimento?.toLowerCase().includes(termo) ||
                 c.dentista?.toLowerCase().includes(termo)
             )
             .slice(0, 5)
         : [],
-    [consultas, termo]
+    [consultas, termo, nomePaciente]
   );
 
   const transacoesFiltradas = useMemo(
@@ -75,11 +80,11 @@ const GlobalSearch = ({ open, onOpenChange }: GlobalSearchProps) => {
             .filter(
               (t) =>
                 t.descricao?.toLowerCase().includes(termo) ||
-                t.pacienteNome?.toLowerCase().includes(termo)
+                nomePaciente(t.pacienteId)?.toLowerCase().includes(termo)
             )
             .slice(0, 5)
         : [],
-    [transacoes, termo]
+    [transacoes, termo, nomePaciente]
   );
 
   const go = (path: string) => {
@@ -115,7 +120,7 @@ const GlobalSearch = ({ open, onOpenChange }: GlobalSearchProps) => {
               <CommandItem key={c.id} value={`consulta-${c.id}`} onSelect={() => go('/agenda')}>
                 <Calendar className="mr-2 h-4 w-4" />
                 <span className="truncate">
-                  {c.pacienteNome || 'Consulta'} — {c.procedimento || c.tipo || 'Atendimento'}
+                  {nomePaciente(c.pacienteId) || 'Consulta'} — {c.procedimento || 'Atendimento'}
                 </span>
                 <span className="ml-auto text-xs text-muted-foreground">
                   {format(new Date(c.data), 'dd/MM')} {c.hora}
@@ -130,7 +135,7 @@ const GlobalSearch = ({ open, onOpenChange }: GlobalSearchProps) => {
             {transacoesFiltradas.map((t) => (
               <CommandItem key={t.id} value={`transacao-${t.id}`} onSelect={() => go('/financeiro')}>
                 <DollarSign className="mr-2 h-4 w-4" />
-                <span className="truncate">{t.descricao || t.categoria}</span>
+                <span className="truncate">{t.descricao || nomePaciente(t.pacienteId) || 'Lançamento'}</span>
                 <span className="ml-auto text-xs text-muted-foreground">
                   {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(t.valor || 0)}
                 </span>
