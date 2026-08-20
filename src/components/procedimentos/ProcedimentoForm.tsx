@@ -137,9 +137,8 @@ const ProcedimentoForm = ({ procedimento, onSave, onCancel }: ProcedimentoFormPr
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <Tabs defaultValue="basico">
-            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto">
+            <TabsList className="grid w-full grid-cols-3 h-auto">
               <TabsTrigger value="basico">Básico</TabsTrigger>
-              <TabsTrigger value="financeiro">Financeiro</TabsTrigger>
               <TabsTrigger value="operacional">Operacional</TabsTrigger>
               <TabsTrigger value="recursos">Recursos</TabsTrigger>
             </TabsList>
@@ -249,54 +248,6 @@ const ProcedimentoForm = ({ procedimento, onSave, onCancel }: ProcedimentoFormPr
               </Card>
             </TabsContent>
 
-            <TabsContent value="financeiro" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Valores e Custos</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-3 gap-4">
-                    <div>
-                      <Label htmlFor="preco">Preço Particular (R$) *</Label>
-                      <Input
-                        id="preco"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={formData.preco === 0 ? '' : formData.preco}
-                        placeholder="0,00"
-                        onChange={(e) => { const v = e.target.value.replace(/^0+(?=\d)/, ''); setFormData(prev => ({ ...prev, preco: v === '' ? 0 : parseFloat(v) || 0 })); }}
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="precoConvenio">Preço Convênio (R$)</Label>
-                      <Input
-                        id="precoConvenio"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={formData.precoConvenio === 0 ? '' : formData.precoConvenio}
-                        placeholder="0,00"
-                        onChange={(e) => { const v = e.target.value.replace(/^0+(?=\d)/, ''); setFormData(prev => ({ ...prev, precoConvenio: v === '' ? 0 : parseFloat(v) || 0 })); }}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="custoMaterial">Custo Material (R$)</Label>
-                      <Input
-                        id="custoMaterial"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={formData.custoMaterial === 0 ? '' : formData.custoMaterial}
-                        placeholder="0,00"
-                        onChange={(e) => { const v = e.target.value.replace(/^0+(?=\d)/, ''); setFormData(prev => ({ ...prev, custoMaterial: v === '' ? 0 : parseFloat(v) || 0 })); }}
-                      />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
 
             <TabsContent value="operacional" className="space-y-4">
               <Card>
