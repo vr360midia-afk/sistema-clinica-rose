@@ -1,5 +1,7 @@
 
 import React from 'react';
+import AuditLogViewer from '@/components/admin/AuditLogViewer';
+import { downloadBackupJSON } from '@/utils/backup';
 import Layout from '@/components/layout/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -226,7 +228,7 @@ const Admin = () => {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Button variant="outline" className="w-full">
+              <Button variant="outline" className="w-full" onClick={handleBackup}>
                 <Download className="h-4 w-4 mr-2" />
                 Fazer Backup dos Dados
               </Button>
@@ -237,6 +239,8 @@ const Admin = () => {
             </div>
           </CardContent>
         </Card>
+
+        <AuditLogViewer />
       </div>
     </Layout>
   );
