@@ -27,6 +27,30 @@ class SupabaseService {
     throw new Error('Usuário não autenticado');
   }
 
+  private async snapshotToLixeira(tabela: string, id: string, titulo?: string): Promise<void> {
+    try {
+      const userId = await this.getCurrentUserId();
+      const { data } = await (supabase as any)
+        .from(tabela)
+        .select('*')
+        .eq('id', id)
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (!data) return;
+      const { data: { session } } = await supabase.auth.getSession();
+      await (supabase as any).from('lixeira').insert({
+        user_id: userId,
+        entidade: tabela,
+        entidade_id: id,
+        titulo: titulo || data.nome || data.paciente_nome || data.descricao || data.titulo || null,
+        dados: data,
+        excluido_por: session?.user?.email ?? null,
+      });
+    } catch (e) {
+      console.error('Erro ao mover para a lixeira:', e);
+    }
+  }
+
   // Transformar dados do Supabase para o formato esperado pelo app
   private transformSupabaseToLocal = (data: any): any => {
     if (!data) return data;
@@ -233,6 +257,7 @@ class SupabaseService {
 
   async deletePaciente(id: string): Promise<boolean> {
     const userId = await this.getCurrentUserId();
+    await this.snapshotToLixeira('pacientes', id);
     const { error } = await supabase
       .from('pacientes')
       .delete()
@@ -288,6 +313,7 @@ class SupabaseService {
 
   async deleteConsulta(id: string): Promise<boolean> {
     const userId = await this.getCurrentUserId();
+    await this.snapshotToLixeira('consultas', id);
     const { error } = await supabase
       .from('consultas')
       .delete()
@@ -343,6 +369,7 @@ class SupabaseService {
 
   async deleteTransacao(id: string): Promise<boolean> {
     const userId = await this.getCurrentUserId();
+    await this.snapshotToLixeira('transacoes', id);
     const { error } = await supabase
       .from('transacoes')
       .delete()
@@ -398,6 +425,7 @@ class SupabaseService {
 
   async deleteProntuario(id: string): Promise<boolean> {
     const userId = await this.getCurrentUserId();
+    await this.snapshotToLixeira('prontuarios', id);
     const { error } = await supabase
       .from('prontuarios')
       .delete()
@@ -453,6 +481,7 @@ class SupabaseService {
 
   async deleteAnamnese(id: string): Promise<boolean> {
     const userId = await this.getCurrentUserId();
+    await this.snapshotToLixeira('anamneses', id);
     const { error } = await supabase
       .from('anamneses')
       .delete()
@@ -518,6 +547,7 @@ class SupabaseService {
 
   async deleteDocumento(id: string): Promise<boolean> {
     const userId = await this.getCurrentUserId();
+    await this.snapshotToLixeira('documentos_paciente', id);
     const { error } = await supabase
       .from('documentos_paciente')
       .delete()
@@ -575,6 +605,7 @@ class SupabaseService {
 
   async deleteProduto(id: string): Promise<boolean> {
     const userId = await this.getCurrentUserId();
+    await this.snapshotToLixeira('produtos', id);
     const { error } = await supabase
       .from('produtos')
       .delete()

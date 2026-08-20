@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { DollarSign, TrendingUp, TrendingDown, Plus, CreditCard, Receipt, Pencil, Trash2 } from 'lucide-react';
 import TransactionForm from '@/components/financeiro/TransactionForm';
 import { registrarAuditoria } from '@/hooks/useAuditLog';
+import { useSecurityGate } from '@/context/SecurityContext';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import Inadimplencia from '@/components/financeiro/Inadimplencia';
 import { gerarRecibo } from '@/utils/recibo';
@@ -15,6 +16,7 @@ import { toast } from 'sonner';
 
 const Financeiro = () => {
   const { transacoes, pacientes, deleteTransacao } = useDentalSystem();
+  const { requireMasterPassword } = useSecurityGate();
   const { configuracoes } = useConfiguracoes();
   const [showTransactionForm, setShowTransactionForm] = useState(false);
   const [editingTransacao, setEditingTransacao] = useState<any | null>(null);
@@ -26,7 +28,8 @@ const Financeiro = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Excluir esta transação?')) return;
+    const autorizado = await requireMasterPassword('O lançamento será movido para a lixeira por 30 dias.');
+    if (!autorizado) return;
     try {
       await deleteTransacao(id);
       await registrarAuditoria({ acao: 'excluir', entidade: 'transacao', entidadeId: id, descricao: 'Transação excluída' });

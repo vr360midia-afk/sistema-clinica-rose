@@ -15,6 +15,8 @@ import LoadingSpinner from '@/components/common/LoadingSpinner';
 import EmptyState from '@/components/common/EmptyState';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import { openWhatsApp } from '@/lib/whatsapp';
+import { useSecurityGate } from '@/context/SecurityContext';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Users, Search, Plus, UserCheck, Calendar, Archive, MoreVertical, Edit2, Trash2, RotateCcw } from 'lucide-react';
 
 
@@ -33,6 +35,8 @@ const Pacientes = () => {
   const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || '');
   const [editingPatient, setEditingPatient] = useState(null);
   const [activeTab, setActiveTab] = useState('ativos');
+  const [anoArquivo, setAnoArquivo] = useState('todos');
+  const { requireMasterPassword } = useSecurityGate();
   
   // Modals
   const [archiveModal, setArchiveModal] = useState({ isOpen: false, patient: null });
@@ -41,7 +45,21 @@ const Pacientes = () => {
   const pacientesAtivos = pacientes.filter(p => p.status === 'Ativo' || p.status === 'Inativo');
   const pacientesArquivados = pacientes.filter(p => p.status === 'Arquivado');
 
-  const currentPacientes = activeTab === 'ativos' ? pacientesAtivos : pacientesArquivados;
+  const anosArquivo = Array.from(
+    new Set(
+      pacientesArquivados
+        .filter(p => p.dataArquivamento)
+        .map(p => String(new Date(p.dataArquivamento).getFullYear()))
+    )
+  ).sort((a, b) => Number(b) - Number(a));
+
+  const arquivadosFiltradosPorAno = anoArquivo === 'todos'
+    ? pacientesArquivados
+    : pacientesArquivados.filter(
+        p => p.dataArquivamento && String(new Date(p.dataArquivamento).getFullYear()) === anoArquivo
+      );
+
+  const currentPacientes = activeTab === 'ativos' ? pacientesAtivos : arquivadosFiltradosPorAno;
 
   const termo = searchTerm.toLowerCase();
   const filteredPacientes = currentPacientes.filter(paciente =>
@@ -88,6 +106,10 @@ const Pacientes = () => {
     const patient = deleteModal.patient;
     setDeleteModal({ isOpen: false, patient: null });
     if (patient) {
+      const autorizado = await requireMasterPassword(
+        `O paciente "${patient.nome}" será movido para a lixeira e poderá ser restaurado por 30 dias.`
+      );
+      if (!autorizado) return;
       try {
         await deletePaciente(patient.id);
       } catch (e) {
@@ -371,7 +393,20 @@ const Pacientes = () => {
           <TabsContent value="arquivados">
             <Card>
               <CardHeader>
-                <CardTitle>Pacientes Arquivados ({filteredPacientes.length})</CardTitle>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <CardTitle>Pacientes Arquivados ({filteredPacientes.length})</CardTitle>
+                  <Select value={anoArquivo} onValueChange={setAnoArquivo}>
+                    <SelectTrigger className="w-full sm:w-44">
+                      <SelectValue placeholder="Ano" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos os anos</SelectItem>
+                      {anosArquivo.map((ano) => (
+                        <SelectItem key={ano} value={ano}>{ano}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </CardHeader>
               <CardContent>
                 {filteredPacientes.length === 0 ? (

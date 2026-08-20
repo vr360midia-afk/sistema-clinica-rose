@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { CheckCircle2, CalendarClock, DollarSign, TrendingUp, AlertTriangle, Stethoscope, MessageCircle, Loader2, ListChecks, Plus, Pencil, Trash2 } from 'lucide-react';
+import { useSecurityGate } from '@/context/SecurityContext';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import EmptyState from '@/components/common/EmptyState';
 import TransactionForm from '@/components/financeiro/TransactionForm';
@@ -21,6 +22,7 @@ const brl = (v: number) => `R$ ${Number(v || 0).toFixed(2)}`;
 
 const PatientFinancial = ({ patient }: PatientFinancialProps) => {
   const { consultas, prontuarios, transacoes, deleteTransacao } = useDentalSystem();
+  const { requireMasterPassword } = useSecurityGate();
   const { user } = useAuth();
   const { configuracoes } = useConfiguracoes();
   const [enviando, setEnviando] = useState(false);
@@ -418,7 +420,8 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
                     variant="ghost"
                     className="h-7 w-7 text-destructive"
                     onClick={async () => {
-                      if (!confirm('Excluir este lançamento?')) return;
+                      const autorizado = await requireMasterPassword('O lançamento será movido para a lixeira por 30 dias.');
+                      if (!autorizado) return;
                       try {
                         await deleteTransacao(t.id);
                         toast.success('Lançamento excluído');

@@ -520,6 +520,42 @@ export type Database = {
           },
         ]
       }
+      lixeira: {
+        Row: {
+          dados: Json
+          entidade: string
+          entidade_id: string | null
+          excluido_em: string
+          excluido_por: string | null
+          expira_em: string
+          id: string
+          titulo: string | null
+          user_id: string
+        }
+        Insert: {
+          dados?: Json
+          entidade: string
+          entidade_id?: string | null
+          excluido_em?: string
+          excluido_por?: string | null
+          expira_em?: string
+          id?: string
+          titulo?: string | null
+          user_id: string
+        }
+        Update: {
+          dados?: Json
+          entidade?: string
+          entidade_id?: string | null
+          excluido_em?: string
+          excluido_por?: string | null
+          expira_em?: string
+          id?: string
+          titulo?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       notas: {
         Row: {
           categoria: string
@@ -999,6 +1035,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      seguranca_config: {
+        Row: {
+          atualizado_em: string
+          criado_em: string
+          id: string
+          senha_mestre_hash: string | null
+          user_id: string
+        }
+        Insert: {
+          atualizado_em?: string
+          criado_em?: string
+          id?: string
+          senha_mestre_hash?: string | null
+          user_id: string
+        }
+        Update: {
+          atualizado_em?: string
+          criado_em?: string
+          id?: string
+          senha_mestre_hash?: string | null
+          user_id?: string
+        }
+        Relationships: []
       }
       transacoes: {
         Row: {

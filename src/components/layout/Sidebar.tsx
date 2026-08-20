@@ -17,7 +17,8 @@ import {
   Settings,
   Shield,
   X,
-  StickyNote
+  StickyNote,
+  Trash2
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -45,6 +46,7 @@ const navigation: NavItem[] = [
   { name: 'Estoque', href: '/estoque', icon: Package },
   { name: 'Relatórios', href: '/relatorios', icon: BarChart3, allow: ['admin'] },
   { name: 'Configurações', href: '/configuracoes', icon: Settings, allow: ['admin'] },
+  { name: 'Lixeira', href: '/lixeira', icon: Trash2, allow: ['admin'] },
   { name: 'Admin', href: '/admin', icon: Shield, allow: ['admin'] },
 ];
 
