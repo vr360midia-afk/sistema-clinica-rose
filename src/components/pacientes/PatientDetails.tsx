@@ -52,7 +52,7 @@ const PatientDetails = ({ patient, onClose, onEdit }: PatientDetailsProps) => {
       </div>
 
       <Tabs defaultValue="personal" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 h-auto">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 h-auto">
           <TabsTrigger value="personal" className="flex items-center gap-2">
             <User className="h-4 w-4" />
             Dados Pessoais
@@ -77,11 +77,16 @@ const PatientDetails = ({ patient, onClose, onEdit }: PatientDetailsProps) => {
             <ListChecks className="h-4 w-4" />
             <span className="hidden sm:inline">Orçamentos</span>
           </TabsTrigger>
+          <TabsTrigger value="clinicos" className="flex items-center gap-2">
+            <Stethoscope className="h-4 w-4" />
+            <span className="hidden sm:inline">Receitas</span>
+          </TabsTrigger>
           <TabsTrigger value="documents" className="flex items-center gap-2">
             <FolderOpen className="h-4 w-4" />
             Documentos
           </TabsTrigger>
         </TabsList>
+
 
         <TabsContent value="personal" className="space-y-6">
           <PatientPersonalInfo patient={patient} />
