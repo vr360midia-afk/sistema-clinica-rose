@@ -215,7 +215,7 @@ const ParceirosManager = () => {
               </Button>
             </DialogFooter>
           </form>
-        </CardContent>
+        </DialogContent>
       </Dialog>
     </div>
   );
