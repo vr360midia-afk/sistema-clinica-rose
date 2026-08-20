@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { consultaSchema, ConsultaFormData } from '@/schemas/validations';
 import { useDentalSystem } from '@/context/DentalSystemContext';
-import { CalendarIcon, Clock, User, UserPlus, Loader2, MessageCircle } from 'lucide-react';
+import { CalendarIcon, Clock, User, UserPlus, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth } from '@/context/AuthContext';
 import QuickPatientModal from './QuickPatientModal';
@@ -20,7 +20,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { buildConsultaMessage, buildConfirmacaoPacienteMessage, openWhatsApp } from '@/lib/whatsapp';
+import { buildConsultaMessage, openWhatsApp } from '@/lib/whatsapp';
 
 
 interface ConsultaModalProps {
@@ -185,29 +185,6 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime }: Consulta
     setIsQuickPatientModalOpen(false);
   };
 
-  const handleSendPatientWhatsApp = () => {
-    const values = form.getValues();
-    const paciente = pacientes.find((p) => p.id === values.pacienteId);
-    if (!paciente) {
-      toast.warning('Selecione um paciente para enviar a mensagem.');
-      return;
-    }
-    const dentista = dentistasAtivos.find((d) => d.nome === values.dentista);
-    const mensagem = buildConfirmacaoPacienteMessage({
-      pacienteNome: paciente.nome,
-      data: values.data,
-      hora: values.hora,
-      dentistaNome: dentista?.nome,
-      procedimento: values.procedimento || undefined,
-    });
-    const aberto = openWhatsApp(paciente.telefone, mensagem);
-    if (!aberto) {
-      toast.warning(`Paciente ${paciente.nome} não tem telefone válido para WhatsApp.`);
-    }
-  };
-
-  const pacienteSelecionado = pacientes.find((p) => p.id === form.watch('pacienteId'));
-  const podeEnviarWhatsAppPaciente = !!pacienteSelecionado?.telefone;
 
   return (
     <>
@@ -441,16 +418,6 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime }: Consulta
               <div className="flex flex-col-reverse sm:flex-row gap-2 pt-4">
                 <Button type="button" variant="outline" onClick={onClose} className="w-full sm:w-auto">
                   Cancelar
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={!podeEnviarWhatsAppPaciente}
-                  onClick={handleSendPatientWhatsApp}
-                  className="w-full sm:w-auto text-green-600 hover:text-green-700 hover:bg-green-950/30 border-green-600/30 disabled:text-muted-foreground"
-                >
-                  <MessageCircle className="mr-2 h-4 w-4" />
-                  WhatsApp Paciente
                 </Button>
                 <Button type="submit" disabled={isLoading} className="w-full sm:w-auto">
                   {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
