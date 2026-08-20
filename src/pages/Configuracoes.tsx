@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import BloqueiosManager from '@/components/configuracoes/BloqueiosManager';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { Settings, Wifi, Bell, Shield, Database, MessageSquare, UserCog, Upload, Trash2, Image as ImageIcon } from 'lucide-react';
@@ -117,6 +118,7 @@ const Configuracoes = () => {
           <TabsList className="flex flex-wrap h-auto">
             <TabsTrigger value="geral">Geral</TabsTrigger>
             <TabsTrigger value="dentistas"><UserCog className="h-4 w-4 mr-1" />Dentistas</TabsTrigger>
+            <TabsTrigger value="bloqueios">Bloqueios</TabsTrigger>
             <TabsTrigger value="apis">APIs</TabsTrigger>
             <TabsTrigger value="notificacoes">Notificações</TabsTrigger>
             <TabsTrigger value="backup">Backup</TabsTrigger>
@@ -219,6 +221,10 @@ const Configuracoes = () => {
               </CardContent>
             </Card>
 
+          </TabsContent>
+
+          <TabsContent value="bloqueios">
+            <BloqueiosManager />
           </TabsContent>
 
           <TabsContent value="apis">

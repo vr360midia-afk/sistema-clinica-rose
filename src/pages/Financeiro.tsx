@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DollarSign, TrendingUp, TrendingDown, Plus, CreditCard, Receipt, Pencil, Trash2 } from 'lucide-react';
 import TransactionForm from '@/components/financeiro/TransactionForm';
+import { registrarAuditoria } from '@/hooks/useAuditLog';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import Inadimplencia from '@/components/financeiro/Inadimplencia';
 import { gerarRecibo } from '@/utils/recibo';
@@ -28,6 +29,7 @@ const Financeiro = () => {
     if (!window.confirm('Excluir esta transação?')) return;
     try {
       await deleteTransacao(id);
+      await registrarAuditoria({ acao: 'excluir', entidade: 'transacao', entidadeId: id, descricao: 'Transação excluída' });
       toast.success('Transação excluída');
     } catch {
       toast.error('Erro ao excluir transação');

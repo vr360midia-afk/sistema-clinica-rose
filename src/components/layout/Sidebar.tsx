@@ -2,6 +2,7 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { useUserRoles, AppRole } from '@/hooks/useUserRoles';
 import {
   Home,
   Users,
@@ -24,7 +25,14 @@ interface SidebarProps {
   onClose: () => void;
 }
 
-const navigation = [
+interface NavItem {
+  name: string;
+  href: string;
+  icon: typeof Home;
+  allow?: AppRole[];
+}
+
+const navigation: NavItem[] = [
   { name: 'Dashboard', href: '/', icon: Home },
   { name: 'Notas', href: '/notas', icon: StickyNote },
   { name: 'Pacientes', href: '/pacientes', icon: Users },
@@ -32,16 +40,21 @@ const navigation = [
   { name: 'Anamnese', href: '/anamnese', icon: FileText },
   { name: 'Prontuários', href: '/prontuarios', icon: Clipboard },
   { name: 'Procedimentos', href: '/procedimentos', icon: Wrench },
-  { name: 'Financeiro', href: '/financeiro', icon: DollarSign },
+  { name: 'Financeiro', href: '/financeiro', icon: DollarSign, allow: ['admin'] },
   { name: 'Comunicação', href: '/comunicacao', icon: MessageSquare },
   { name: 'Estoque', href: '/estoque', icon: Package },
-  { name: 'Relatórios', href: '/relatorios', icon: BarChart3 },
-  { name: 'Configurações', href: '/configuracoes', icon: Settings },
-  { name: 'Admin', href: '/admin', icon: Shield },
+  { name: 'Relatórios', href: '/relatorios', icon: BarChart3, allow: ['admin'] },
+  { name: 'Configurações', href: '/configuracoes', icon: Settings, allow: ['admin'] },
+  { name: 'Admin', href: '/admin', icon: Shield, allow: ['admin'] },
 ];
 
 const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
   const location = useLocation();
+  const { roles } = useUserRoles();
+  const semPerfil = roles.length === 0;
+  const podeVer = (item: NavItem) =>
+    !item.allow || semPerfil || roles.includes('admin') || item.allow.some((r) => roles.includes(r));
+  const itensVisiveis = navigation.filter(podeVer);
 
   return (
     <>
@@ -77,7 +90,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
 
         <nav className="mt-2 px-2 pb-24 h-full overflow-y-auto overscroll-contain safe-bottom">
           <ul className="space-y-1">
-            {navigation.map((item) => {
+            {itensVisiveis.map((item) => {
               const isActive =
                 location.pathname === item.href ||
                 (item.href === '/' && location.pathname === '/dashboard');

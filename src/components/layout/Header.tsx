@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useAuth } from '@/context/AuthContext';
+import GlobalSearch from '@/components/common/GlobalSearch';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,6 +20,18 @@ interface HeaderProps {
 const Header = ({ onMenuToggle }: HeaderProps) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
+
+  React.useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setCommandOpen((v) => !v);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
 
@@ -36,6 +49,8 @@ const Header = ({ onMenuToggle }: HeaderProps) => {
 
 
   return (
+    <>
+    <GlobalSearch open={commandOpen} onOpenChange={setCommandOpen} />
     <header className="sticky top-0 z-30 bg-card border-b border-border w-full">
       <div className="px-3 sm:px-4 lg:px-6 h-14 sm:h-16 flex items-center justify-between gap-2">
         <div className="flex items-center gap-1 sm:gap-3 min-w-0">
@@ -58,21 +73,21 @@ const Header = ({ onMenuToggle }: HeaderProps) => {
         </div>
 
         <div className="flex items-center gap-0.5 sm:gap-2">
-          <form onSubmit={handleSearch} className="relative hidden md:block">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-            <Input
-              placeholder="Buscar pacientes..."
-              className="pl-10 w-48 lg:w-64"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </form>
+          <button
+            type="button"
+            onClick={() => setCommandOpen(true)}
+            className="relative hidden md:flex items-center gap-2 w-48 lg:w-64 rounded-md border border-input bg-background px-3 py-2 text-sm text-muted-foreground hover:bg-muted transition-colors"
+          >
+            <Search className="h-4 w-4" />
+            <span className="truncate">Buscar tudo...</span>
+            <kbd className="ml-auto text-[10px] border border-border rounded px-1.5 py-0.5">⌘K</kbd>
+          </button>
 
           <Button
             variant="ghost"
             size="icon"
             className="md:hidden h-10 w-10"
-            onClick={() => setMobileSearchOpen((prev) => !prev)}
+            onClick={() => setCommandOpen(true)}
             aria-label="Buscar"
           >
             {mobileSearchOpen ? <X className="h-5 w-5" /> : <Search className="h-5 w-5" />}
@@ -124,6 +139,7 @@ const Header = ({ onMenuToggle }: HeaderProps) => {
         </form>
       )}
     </header>
+    </>
   );
 };
 

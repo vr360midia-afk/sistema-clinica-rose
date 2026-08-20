@@ -14,6 +14,7 @@ import { format } from 'date-fns';
 import { useAuth } from '@/context/AuthContext';
 import QuickPatientModal from './QuickPatientModal';
 import { useDentistas } from '@/hooks/useDentistas';
+import { useBloqueios, encontrarBloqueio } from '@/hooks/useBloqueios';
 import { Link } from 'react-router-dom';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -33,6 +34,7 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime }: Consulta
   const { pacientes, consultas, addConsulta } = useDentalSystem();
   const { user } = useAuth();
   const { dentistas } = useDentistas();
+  const { bloqueios } = useBloqueios();
   const dentistasAtivos = dentistas.filter((d) => d.ativo);
   const [isQuickPatientModalOpen, setIsQuickPatientModalOpen] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(false);
@@ -114,6 +116,12 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime }: Consulta
 
   const onSubmit = async (data: ConsultaFormData) => {
     if (!user?.id) return;
+
+    const bloqueio = encontrarBloqueio(bloqueios, data.data, data.hora, data.duracao || 60, data.dentista);
+    if (bloqueio) {
+      toast.error(`Horário bloqueado: ${bloqueio.titulo || 'indisponível'}.`);
+      return;
+    }
 
     const conflito = findConflito(data);
     if (conflito) {
