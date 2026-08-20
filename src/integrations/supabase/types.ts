@@ -238,6 +238,48 @@ export type Database = {
         }
         Relationships: []
       }
+      certificados_digitais: {
+        Row: {
+          ambiente: string
+          ativo: boolean
+          atualizado_em: string
+          client_id: string | null
+          client_secret: string | null
+          criado_em: string
+          id: string
+          provedor: string
+          titular_cpf: string | null
+          titular_nome: string | null
+          user_id: string
+        }
+        Insert: {
+          ambiente?: string
+          ativo?: boolean
+          atualizado_em?: string
+          client_id?: string | null
+          client_secret?: string | null
+          criado_em?: string
+          id?: string
+          provedor?: string
+          titular_cpf?: string | null
+          titular_nome?: string | null
+          user_id: string
+        }
+        Update: {
+          ambiente?: string
+          ativo?: boolean
+          atualizado_em?: string
+          client_id?: string | null
+          client_secret?: string | null
+          criado_em?: string
+          id?: string
+          provedor?: string
+          titular_cpf?: string | null
+          titular_nome?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       configuracoes: {
         Row: {
           atualizado_em: string
