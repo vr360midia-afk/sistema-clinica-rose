@@ -11,6 +11,7 @@ import { FileText, Plus, Trash2, PenTool, Printer, MessageCircle, ShieldCheck, E
 import { useDocumentosClinicos, DocumentoClinico, DocumentoClinicoItem, DocumentoClinicoTipo } from '@/hooks/useDocumentosClinicos';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { useDentistas } from '@/hooks/useDentistas';
+import { useMedicamentos } from '@/hooks/useMedicamentos';
 import { useSignatures } from '@/hooks/useSignatures';
 import SignatureModal from '@/components/signature/SignatureModal';
 import { gerarDocumentoClinicoPdf } from '@/utils/documentoClinicoPdf';
@@ -25,6 +26,7 @@ const PatientDocumentosClinicos = ({ patient }: Props) => {
   const { documentos, salvarDocumento, registrarAssinatura, registrarCfo, deleteDocumento } = useDocumentosClinicos(patient?.id);
   const { configuracoes } = useConfiguracoes();
   const { dentistas } = useDentistas();
+  const { medicamentos } = useMedicamentos();
   const { saveSignature } = useSignatures();
 
   const [open, setOpen] = useState(false);
@@ -39,6 +41,23 @@ const PatientDocumentosClinicos = ({ patient }: Props) => {
   const [cfoDoc, setCfoDoc] = useState<DocumentoClinico | null>(null);
   const [cfoLink, setCfoLink] = useState('');
   const [cfoCodigo, setCfoCodigo] = useState('');
+
+  const aplicarMedicamento = (id: string) => {
+    const m = medicamentos.find((x) => x.id === id);
+    if (!m) return;
+    const nome = [m.nome, m.dosagem].filter(Boolean).join(' ');
+    const posologia = [m.posologia, m.periodo].filter(Boolean).join(' — ');
+    const novo = {
+      nome,
+      quantidade: m.quantidade || m.apresentacao || '',
+      posologia,
+    };
+    setItens((prev) => {
+      const vazio = prev.findIndex((i) => !i.nome.trim());
+      if (vazio >= 0) return prev.map((it, i) => (i === vazio ? novo : it));
+      return [...prev, novo];
+    });
+  };
 
   const resetForm = () => {
     setTipo('prescricao');
