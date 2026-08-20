@@ -192,14 +192,13 @@ const ProcedimentoForm = ({ procedimento, onSave, onCancel }: ProcedimentoFormPr
                   </div>
 
                   <div>
-                    <Label htmlFor="descricao">Descrição *</Label>
+                    <Label htmlFor="descricao">Descrição</Label>
                     <Textarea
                       id="descricao"
                       value={formData.descricao}
                       onChange={(e) => setFormData(prev => ({ ...prev, descricao: e.target.value }))}
                       placeholder="Descreva detalhadamente o procedimento..."
                       rows={4}
-                      required
                     />
                   </div>
 
