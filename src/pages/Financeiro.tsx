@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { DollarSign, TrendingUp, TrendingDown, Plus, CreditCard, Receipt, Pencil, Trash2 } from 'lucide-react';
 import TransactionForm from '@/components/financeiro/TransactionForm';
 import { registrarAuditoria } from '@/hooks/useAuditLog';
+import { useSecurityGate } from '@/context/SecurityContext';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import Inadimplencia from '@/components/financeiro/Inadimplencia';
 import { gerarRecibo } from '@/utils/recibo';
@@ -15,6 +16,7 @@ import { toast } from 'sonner';
 
 const Financeiro = () => {
   const { transacoes, pacientes, deleteTransacao } = useDentalSystem();
+  const { requireMasterPassword } = useSecurityGate();
   const { configuracoes } = useConfiguracoes();
   const [showTransactionForm, setShowTransactionForm] = useState(false);
   const [editingTransacao, setEditingTransacao] = useState<any | null>(null);

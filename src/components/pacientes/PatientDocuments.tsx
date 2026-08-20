@@ -40,6 +40,7 @@ const isValidFile = (file: File) =>
 
 const PatientDocuments = ({ patient }: PatientDocumentsProps) => {
   const { documentos, addDocumento, updateDocumento, deleteDocumento } = useDentalSystem();
+  const { requireMasterPassword } = useSecurityGate();
   const { user } = useAuth();
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
