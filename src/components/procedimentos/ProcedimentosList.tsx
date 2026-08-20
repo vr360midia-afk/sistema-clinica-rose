@@ -123,11 +123,8 @@ const ProcedimentosList = ({ procedimentos, onEdit, onDelete, onDuplicate }: Pro
                 )}
               </div>
 
-              {procedimento.codigoTUSS && (
-                <div className="text-xs text-muted-foreground">
-                  TUSS: {procedimento.codigoTUSS}
-                </div>
-              )}
+
+
 
               <div className="flex justify-between items-center pt-2 border-t">
                 <div className="text-xs text-muted-foreground">
