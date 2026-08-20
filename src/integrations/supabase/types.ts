@@ -451,6 +451,9 @@ export type Database = {
           assinatura_data: string | null
           assinatura_id: string | null
           atualizado_em: string
+          cfo_codigo_validacao: string | null
+          cfo_emitido_em: string | null
+          cfo_link_validacao: string | null
           cid: string | null
           conteudo: string | null
           criado_em: string
@@ -470,6 +473,9 @@ export type Database = {
           assinatura_data?: string | null
           assinatura_id?: string | null
           atualizado_em?: string
+          cfo_codigo_validacao?: string | null
+          cfo_emitido_em?: string | null
+          cfo_link_validacao?: string | null
           cid?: string | null
           conteudo?: string | null
           criado_em?: string
@@ -489,6 +495,9 @@ export type Database = {
           assinatura_data?: string | null
           assinatura_id?: string | null
           atualizado_em?: string
+          cfo_codigo_validacao?: string | null
+          cfo_emitido_em?: string | null
+          cfo_link_validacao?: string | null
           cid?: string | null
           conteudo?: string | null
           criado_em?: string
