@@ -137,9 +137,8 @@ const ProcedimentoForm = ({ procedimento, onSave, onCancel }: ProcedimentoFormPr
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <Tabs defaultValue="basico">
-            <TabsList className="grid w-full grid-cols-3 h-auto">
+            <TabsList className="grid w-full grid-cols-2 h-auto">
               <TabsTrigger value="basico">Básico</TabsTrigger>
-              <TabsTrigger value="operacional">Operacional</TabsTrigger>
               <TabsTrigger value="recursos">Recursos</TabsTrigger>
             </TabsList>
 
@@ -244,17 +243,6 @@ const ProcedimentoForm = ({ procedimento, onSave, onCancel }: ProcedimentoFormPr
                     </div>
                   </div>
 
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-
-            <TabsContent value="operacional" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Informações Operacionais</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="duracaoMinutos">Duração (minutos) *</Label>
