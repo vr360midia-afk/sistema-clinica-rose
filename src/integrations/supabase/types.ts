@@ -649,6 +649,10 @@ export type Database = {
           observacoes: string | null
           paciente_id: string | null
           paciente_nome: string | null
+          parceiro_id: string | null
+          parceiro_nome: string | null
+          parceiro_tipo_repasse: string | null
+          parceiro_valor_repasse: number
           status: string
           titulo: string
           token_assinatura: string | null
@@ -668,6 +672,10 @@ export type Database = {
           observacoes?: string | null
           paciente_id?: string | null
           paciente_nome?: string | null
+          parceiro_id?: string | null
+          parceiro_nome?: string | null
+          parceiro_tipo_repasse?: string | null
+          parceiro_valor_repasse?: number
           status?: string
           titulo?: string
           token_assinatura?: string | null
@@ -687,6 +695,10 @@ export type Database = {
           observacoes?: string | null
           paciente_id?: string | null
           paciente_nome?: string | null
+          parceiro_id?: string | null
+          parceiro_nome?: string | null
+          parceiro_tipo_repasse?: string | null
+          parceiro_valor_repasse?: number
           status?: string
           titulo?: string
           token_assinatura?: string | null
