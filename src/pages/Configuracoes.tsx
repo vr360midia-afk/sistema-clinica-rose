@@ -11,6 +11,7 @@ import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { Settings, Wifi, Bell, Shield, Database, MessageSquare, UserCog, Upload, Trash2, Image as ImageIcon } from 'lucide-react';
 import DentistasManager from '@/components/configuracoes/DentistasManager';
+import ParceirosManager from '@/components/configuracoes/ParceirosManager';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { Loader2 } from 'lucide-react';
 
@@ -118,6 +119,7 @@ const Configuracoes = () => {
           <TabsList className="flex flex-wrap h-auto">
             <TabsTrigger value="geral">Geral</TabsTrigger>
             <TabsTrigger value="dentistas"><UserCog className="h-4 w-4 mr-1" />Dentistas</TabsTrigger>
+            <TabsTrigger value="parceiros"><Handshake className="h-4 w-4 mr-1" />Parceiros</TabsTrigger>
             <TabsTrigger value="bloqueios">Bloqueios</TabsTrigger>
             <TabsTrigger value="apis">APIs</TabsTrigger>
             <TabsTrigger value="notificacoes">Notificações</TabsTrigger>
@@ -126,6 +128,10 @@ const Configuracoes = () => {
 
           <TabsContent value="dentistas">
             <DentistasManager />
+          </TabsContent>
+
+          <TabsContent value="parceiros">
+            <ParceirosManager />
           </TabsContent>
 
           <TabsContent value="geral">
