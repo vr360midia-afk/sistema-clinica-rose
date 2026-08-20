@@ -4,6 +4,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { DentalSystemProvider } from '@/context/DentalSystemContext';
 import { AuthProvider } from '@/context/AuthContext';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
+import RoleRoute from '@/components/auth/RoleRoute';
 import Index from '@/pages/Index';
 import Auth from '@/pages/Auth';
 import Dashboard from '@/pages/Dashboard';
@@ -37,16 +38,16 @@ function App() {
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/pacientes" element={<ProtectedRoute><Pacientes /></ProtectedRoute>} />
               <Route path="/agenda" element={<ProtectedRoute><Agenda /></ProtectedRoute>} />
-              <Route path="/financeiro" element={<ProtectedRoute><Financeiro /></ProtectedRoute>} />
+              <Route path="/financeiro" element={<ProtectedRoute><RoleRoute allow={['admin']}><Financeiro /></RoleRoute></ProtectedRoute>} />
               <Route path="/prontuarios" element={<ProtectedRoute><Prontuarios /></ProtectedRoute>} />
-              <Route path="/relatorios" element={<ProtectedRoute><Relatorios /></ProtectedRoute>} />
-              <Route path="/configuracoes" element={<ProtectedRoute><Configuracoes /></ProtectedRoute>} />
+              <Route path="/relatorios" element={<ProtectedRoute><RoleRoute allow={['admin']}><Relatorios /></RoleRoute></ProtectedRoute>} />
+              <Route path="/configuracoes" element={<ProtectedRoute><RoleRoute allow={['admin']}><Configuracoes /></RoleRoute></ProtectedRoute>} />
               <Route path="/estoque" element={<ProtectedRoute><Estoque /></ProtectedRoute>} />
               <Route path="/procedimentos" element={<ProtectedRoute><Procedimentos /></ProtectedRoute>} />
               <Route path="/comunicacao" element={<ProtectedRoute><Comunicacao /></ProtectedRoute>} />
               <Route path="/notas" element={<ProtectedRoute><Notas /></ProtectedRoute>} />
               <Route path="/anamnese" element={<ProtectedRoute><Anamnese /></ProtectedRoute>} />
-              <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
+              <Route path="/admin" element={<ProtectedRoute><RoleRoute allow={['admin']}><Admin /></RoleRoute></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
             <Toaster />
