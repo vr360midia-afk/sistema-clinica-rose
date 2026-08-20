@@ -7,9 +7,11 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ClipboardList, Plus, Trash2, MessageCircle, Check, X } from 'lucide-react';
+import { ClipboardList, Plus, Trash2, MessageCircle, Check, X, Handshake } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
 import { useOrcamentos, OrcamentoItem } from '@/hooks/useOrcamentos';
 import { useProcedimentos } from '@/hooks/useProcedimentos';
+import { useParceiros, TipoRepasse } from '@/hooks/useParceiros';
 import { openWhatsApp } from '@/lib/whatsapp';
 import { formatMoney } from '@/utils/exportCsv';
 import { toast } from 'sonner';
@@ -21,12 +23,22 @@ interface Props {
 const PatientOrcamentos = ({ patient }: Props) => {
   const { orcamentos, loading, saveOrcamento, updateStatus, deleteOrcamento } = useOrcamentos(patient?.id);
   const { procedimentos } = useProcedimentos();
+  const { parceiros, addParceiro, refetch: refetchParceiros } = useParceiros();
 
   const [open, setOpen] = useState(false);
   const [titulo, setTitulo] = useState('Plano de tratamento');
   const [itens, setItens] = useState<OrcamentoItem[]>([]);
   const [desconto, setDesconto] = useState(0);
   const [observacoes, setObservacoes] = useState('');
+  const [selectKey, setSelectKey] = useState(0);
+
+  // Parceria
+  const [parceriaAtiva, setParceriaAtiva] = useState(false);
+  const [parceiroId, setParceiroId] = useState('');
+  const [tipoRepasse, setTipoRepasse] = useState<TipoRepasse>('percentual');
+  const [valorRepasse, setValorRepasse] = useState(0);
+  const [novoParceiro, setNovoParceiro] = useState(false);
+  const [novoNome, setNovoNome] = useState('');
 
   const subtotal = itens.reduce((s, i) => s + i.valor * i.quantidade, 0);
   const total = Math.max(0, subtotal - desconto);
@@ -35,6 +47,42 @@ const PatientOrcamentos = ({ patient }: Props) => {
     const p = procedimentos.find((x) => x.id === id);
     if (!p) return;
     setItens((prev) => [...prev, { nome: p.nome, quantidade: 1, valor: p.preco }]);
+    setSelectKey((k) => k + 1);
+  };
+
+  const addItemManual = () => setItens((prev) => [...prev, { nome: '', quantidade: 1, valor: 0 }]);
+
+  const parceiroSelecionado = parceiros.find((p) => p.id === parceiroId);
+  const repasseCalculado = !parceriaAtiva
+    ? 0
+    : tipoRepasse === 'percentual'
+      ? (total * (valorRepasse || 0)) / 100
+      : valorRepasse || 0;
+
+  const handleSelecionarParceiro = (id: string) => {
+    setParceiroId(id);
+    const p = parceiros.find((x) => x.id === id);
+    if (p) {
+      setTipoRepasse(p.tipoRepasse);
+      setValorRepasse(p.valorRepasse);
+    }
+  };
+
+  const criarParceiroRapido = async () => {
+    if (!novoNome.trim()) {
+      toast.error('Informe o nome do parceiro');
+      return;
+    }
+    await addParceiro({
+      nome: novoNome.trim(),
+      tipoRepasse,
+      valorRepasse: valorRepasse || 0,
+      ativo: true,
+    } as never);
+    const lista = await refetchParceiros();
+    setNovoParceiro(false);
+    setNovoNome('');
+    void lista;
   };
 
   const handleSave = async () => {
@@ -50,11 +98,20 @@ const PatientOrcamentos = ({ patient }: Props) => {
       pacienteId: patient.id,
       pacienteNome: patient.nome,
       status: 'rascunho',
+      parceiroId: parceriaAtiva ? parceiroId || null : null,
+      parceiroNome: parceriaAtiva ? parceiroSelecionado?.nome || novoNome || null : null,
+      parceiroTipoRepasse: parceriaAtiva ? tipoRepasse : null,
+      parceiroValorRepasse: parceriaAtiva ? valorRepasse || 0 : 0,
     });
     setOpen(false);
     setItens([]);
     setDesconto(0);
     setObservacoes('');
+    setParceriaAtiva(false);
+    setParceiroId('');
+    setValorRepasse(0);
+    setNovoParceiro(false);
+    setNovoNome('');
   };
 
   const enviarWhatsApp = (o: (typeof orcamentos)[number]) => {
@@ -108,6 +165,16 @@ const PatientOrcamentos = ({ patient }: Props) => {
                   {o.status}
                 </Badge>
               </div>
+              {o.parceiroNome && (
+                <p className="text-xs text-muted-foreground">
+                  Parceiro: <span className="text-foreground">{o.parceiroNome}</span>
+                  {o.parceiroTipoRepasse === 'percentual'
+                    ? ` — ${o.parceiroValorRepasse}%`
+                    : o.parceiroValorRepasse
+                      ? ` — ${formatMoney(o.parceiroValorRepasse)}`
+                      : ''}
+                </p>
+              )}
               <ul className="text-xs text-muted-foreground space-y-0.5">
                 {o.itens.map((i, idx) => (
                   <li key={idx}>
@@ -147,7 +214,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
 
             <div className="space-y-1.5">
               <Label>Adicionar procedimento</Label>
-              <Select value="" onValueChange={addProcedimento}>
+              <Select key={selectKey} value="" onValueChange={addProcedimento}>
                 <SelectTrigger><SelectValue placeholder="Selecione um procedimento" /></SelectTrigger>
                 <SelectContent>
                   {procedimentos.filter((p) => p.ativo).map((p) => (
@@ -157,6 +224,9 @@ const PatientOrcamentos = ({ patient }: Props) => {
                   ))}
                 </SelectContent>
               </Select>
+              <Button type="button" variant="outline" size="sm" className="w-full" onClick={addItemManual}>
+                <Plus className="h-4 w-4 mr-1" /> Adicionar item manual
+              </Button>
             </div>
 
             <div className="space-y-2">
@@ -208,6 +278,72 @@ const PatientOrcamentos = ({ patient }: Props) => {
                 <Label>Total</Label>
                 <Input value={formatMoney(total)} readOnly />
               </div>
+            </div>
+
+            <div className="rounded-lg border border-border p-3 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <Label className="flex items-center gap-2 mb-0">
+                  <Handshake className="h-4 w-4 text-primary" /> Procedimento com parceiro
+                </Label>
+                <Switch checked={parceriaAtiva} onCheckedChange={setParceriaAtiva} />
+              </div>
+
+              {parceriaAtiva && (
+                <div className="space-y-3">
+                  {!novoParceiro ? (
+                    <div className="space-y-1.5">
+                      <Label>Parceiro</Label>
+                      <Select value={parceiroId} onValueChange={handleSelecionarParceiro}>
+                        <SelectTrigger><SelectValue placeholder="Selecione o parceiro" /></SelectTrigger>
+                        <SelectContent>
+                          {parceiros.filter((p) => p.ativo).map((p) => (
+                            <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button type="button" variant="ghost" size="sm" onClick={() => setNovoParceiro(true)}>
+                        <Plus className="h-4 w-4 mr-1" /> Cadastrar novo parceiro
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <Label>Nome do novo parceiro</Label>
+                      <Input value={novoNome} onChange={(e) => setNovoNome(e.target.value)} placeholder="Dr. João" />
+                      <div className="flex gap-2">
+                        <Button type="button" size="sm" onClick={criarParceiroRapido}>Salvar parceiro</Button>
+                        <Button type="button" size="sm" variant="outline" onClick={() => setNovoParceiro(false)}>Cancelar</Button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label>Tipo de repasse</Label>
+                      <Select value={tipoRepasse} onValueChange={(v) => setTipoRepasse(v as TipoRepasse)}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="percentual">Percentual (%)</SelectItem>
+                          <SelectItem value="fixo">Valor fixo (R$)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>{tipoRepasse === 'percentual' ? 'Percentual (%)' : 'Valor (R$)'}</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={valorRepasse || ''}
+                        onChange={(e) => setValorRepasse(Number(e.target.value) || 0)}
+                      />
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-muted-foreground">
+                    Repasse estimado ao parceiro: <span className="font-medium text-foreground">{formatMoney(repasseCalculado)}</span>
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="space-y-1.5">
