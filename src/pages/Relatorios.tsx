@@ -385,6 +385,91 @@ const Relatorios = () => {
           ))}
         </div>
 
+        {/* Indicadores avançados */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Conversão de orçamentos</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <p className="text-3xl font-bold text-green-600">
+                {indicadores.taxaConversao.toFixed(1)}%
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {indicadores.aprovados} aprovados de {indicadores.enviados} enviados
+                {indicadores.recusados > 0 && ` · ${indicadores.recusados} recusados`}
+              </p>
+              <div className="text-sm pt-2 border-t border-border space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Valor aprovado</span>
+                  <span className="font-medium">R$ {indicadores.valorAprovado.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Em aberto</span>
+                  <span className="font-medium">R$ {indicadores.valorEmAberto.toFixed(2)}</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Faltas no período</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <p className="text-3xl font-bold text-red-500">{indicadores.taxaFalta.toFixed(1)}%</p>
+              <p className="text-sm text-muted-foreground">
+                {indicadores.faltas} faltas · {indicadores.cancelamentos} cancelamentos
+              </p>
+              <div className="text-sm pt-2 border-t border-border space-y-1">
+                {indicadores.faltasPorDentista.length === 0 && (
+                  <p className="text-muted-foreground">Nenhuma falta registrada.</p>
+                )}
+                {indicadores.faltasPorDentista.slice(0, 4).map((d: any) => (
+                  <div key={d.chave} className="flex justify-between">
+                    <span className="text-muted-foreground truncate">{d.chave}</span>
+                    <span className="font-medium">{d.qtd}</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Ticket médio</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div>
+                <p className="text-xs uppercase text-muted-foreground mb-1">Por dentista</p>
+                {indicadores.ticketDentista.length === 0 && (
+                  <p className="text-sm text-muted-foreground">Sem consultas realizadas.</p>
+                )}
+                {indicadores.ticketDentista.slice(0, 4).map((d: any) => (
+                  <div key={d.chave} className="flex justify-between text-sm">
+                    <span className="text-muted-foreground truncate">{d.chave} ({d.qtd})</span>
+                    <span className="font-medium">R$ {d.ticket.toFixed(2)}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="pt-2 border-t border-border">
+                <p className="text-xs uppercase text-muted-foreground mb-1">Por parceiro</p>
+                {indicadores.ticketParceiro.length === 0 && (
+                  <p className="text-sm text-muted-foreground">Sem receitas com parceiros.</p>
+                )}
+                {indicadores.ticketParceiro.slice(0, 4).map((d: any) => (
+                  <div key={d.chave} className="flex justify-between text-sm">
+                    <span className="text-muted-foreground truncate">{d.chave} ({d.qtd})</span>
+                    <span className="font-medium">R$ {d.ticket.toFixed(2)}</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Gráfico Financeiro */}
           <Card>
