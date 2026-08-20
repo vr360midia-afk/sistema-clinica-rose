@@ -89,7 +89,7 @@ export const useParceiros = () => {
   };
 
   const updateParceiro = async (id: string, patch: Partial<Parceiro>) => {
-    const row: Record<string, unknown> = {};
+    const row: Partial<ParceiroRow> & { user_id?: string } = {};
     if (patch.nome !== undefined) row.nome = patch.nome;
     if (patch.especialidade !== undefined) row.especialidade = patch.especialidade || null;
     if (patch.telefone !== undefined) row.telefone = patch.telefone || null;
