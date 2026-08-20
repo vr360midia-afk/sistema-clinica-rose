@@ -675,6 +675,54 @@ export type Database = {
         }
         Relationships: []
       }
+      medicamentos: {
+        Row: {
+          apresentacao: string | null
+          ativo: boolean
+          atualizado_em: string
+          criado_em: string
+          dosagem: string | null
+          id: string
+          nome: string
+          observacoes: string | null
+          periodo: string | null
+          posologia: string | null
+          principio_ativo: string | null
+          quantidade: string | null
+          user_id: string
+        }
+        Insert: {
+          apresentacao?: string | null
+          ativo?: boolean
+          atualizado_em?: string
+          criado_em?: string
+          dosagem?: string | null
+          id?: string
+          nome: string
+          observacoes?: string | null
+          periodo?: string | null
+          posologia?: string | null
+          principio_ativo?: string | null
+          quantidade?: string | null
+          user_id: string
+        }
+        Update: {
+          apresentacao?: string | null
+          ativo?: boolean
+          atualizado_em?: string
+          criado_em?: string
+          dosagem?: string | null
+          id?: string
+          nome?: string
+          observacoes?: string | null
+          periodo?: string | null
+          posologia?: string | null
+          principio_ativo?: string | null
+          quantidade?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       notas: {
         Row: {
           categoria: string
