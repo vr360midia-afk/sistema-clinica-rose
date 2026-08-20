@@ -101,6 +101,45 @@ const PatientDocumentosClinicos = ({ patient }: Props) => {
     openWhatsApp(patient.telefone, msg);
   };
 
+  const textoCfo = (doc: DocumentoClinico) => {
+    const linhas = [
+      `Paciente: ${doc.pacienteNome || patient?.nome || ''}`,
+      doc.dentista ? `Dentista: ${doc.dentista}` : '',
+      '',
+      doc.tipo === 'prescricao'
+        ? doc.itens
+            .map(
+              (i) =>
+                `${i.nome}${i.quantidade ? ` — ${i.quantidade}` : ''}${i.posologia ? ` — ${i.posologia}` : ''}`
+            )
+            .join('\n')
+        : `${doc.diasAfastamento ? `${doc.diasAfastamento} dia(s) de afastamento` : ''}${
+            doc.cid ? ` — CID ${doc.cid}` : ''
+          }`,
+      doc.conteudo ? `\n${doc.conteudo}` : '',
+    ];
+    return linhas.filter(Boolean).join('\n');
+  };
+
+  const abrirCfo = async (doc: DocumentoClinico) => {
+    try {
+      await navigator.clipboard.writeText(textoCfo(doc));
+      toast.success('Conteúdo copiado. Cole no portal do CFO.');
+    } catch {
+      toast.info('Abra o portal do CFO e preencha a prescrição.');
+    }
+    window.open('https://prescricao.cfo.org.br/index', '_blank', 'noopener,noreferrer');
+    setCfoDoc(doc);
+    setCfoLink(doc.cfoLinkValidacao || '');
+    setCfoCodigo(doc.cfoCodigoValidacao || '');
+  };
+
+  const salvarCfo = async () => {
+    if (!cfoDoc) return;
+    await registrarCfo(cfoDoc.id, { link: cfoLink.trim(), codigo: cfoCodigo.trim() });
+    setCfoDoc(null);
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2 flex-wrap">
