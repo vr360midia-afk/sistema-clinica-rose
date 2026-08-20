@@ -21,6 +21,10 @@ export interface Orcamento {
   status: 'rascunho' | 'enviado' | 'aprovado' | 'recusado';
   validade?: string | null;
   observacoes?: string | null;
+  parceiroId?: string | null;
+  parceiroNome?: string | null;
+  parceiroTipoRepasse?: 'percentual' | 'fixo' | null;
+  parceiroValorRepasse?: number;
   criadoEm: Date;
 }
 
@@ -35,6 +39,10 @@ const rowToOrcamento = (row: any): Orcamento => ({
   status: row.status || 'rascunho',
   validade: row.validade,
   observacoes: row.observacoes,
+  parceiroId: row.parceiro_id,
+  parceiroNome: row.parceiro_nome,
+  parceiroTipoRepasse: row.parceiro_tipo_repasse,
+  parceiroValorRepasse: Number(row.parceiro_valor_repasse || 0),
   criadoEm: new Date(row.criado_em),
 });
 
@@ -77,6 +85,10 @@ export const useOrcamentos = (pacienteId?: string) => {
       status: o.status || 'rascunho',
       validade: o.validade || null,
       observacoes: o.observacoes || null,
+      parceiro_id: o.parceiroId || null,
+      parceiro_nome: o.parceiroNome || null,
+      parceiro_tipo_repasse: o.parceiroTipoRepasse || null,
+      parceiro_valor_repasse: o.parceiroValorRepasse || 0,
     };
 
     const { error } = o.id
