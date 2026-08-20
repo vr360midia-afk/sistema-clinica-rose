@@ -121,6 +121,7 @@ const Configuracoes = () => {
             <TabsTrigger value="geral">Geral</TabsTrigger>
             <TabsTrigger value="dentistas"><UserCog className="h-4 w-4 mr-1" />Dentistas</TabsTrigger>
             <TabsTrigger value="parceiros"><Handshake className="h-4 w-4 mr-1" />Parceiros</TabsTrigger>
+            <TabsTrigger value="medicamentos"><Pill className="h-4 w-4 mr-1" />Medicamentos</TabsTrigger>
             <TabsTrigger value="certificado"><ShieldCheck className="h-4 w-4 mr-1" />Certificado</TabsTrigger>
             <TabsTrigger value="bloqueios">Bloqueios</TabsTrigger>
             <TabsTrigger value="apis">APIs</TabsTrigger>
@@ -136,9 +137,14 @@ const Configuracoes = () => {
             <ParceirosManager />
           </TabsContent>
 
+          <TabsContent value="medicamentos">
+            <MedicamentosManager />
+          </TabsContent>
+
           <TabsContent value="certificado">
             <CertificadoDigitalManager />
           </TabsContent>
+
 
 
           <TabsContent value="geral">
