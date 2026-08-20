@@ -26,6 +26,9 @@ export interface DocumentoClinico {
   assinaturaData?: string | null;
   assinanteNome?: string | null;
   assinadoEm?: Date | null;
+  cfoLinkValidacao?: string | null;
+  cfoCodigoValidacao?: string | null;
+  cfoEmitidoEm?: Date | null;
   criadoEm: Date;
 }
 
@@ -44,6 +47,9 @@ const rowToDoc = (row: any): DocumentoClinico => ({
   assinaturaData: row.assinatura_data,
   assinanteNome: row.assinante_nome,
   assinadoEm: row.assinado_em ? new Date(row.assinado_em) : null,
+  cfoLinkValidacao: row.cfo_link_validacao ?? null,
+  cfoCodigoValidacao: row.cfo_codigo_validacao ?? null,
+  cfoEmitidoEm: row.cfo_emitido_em ? new Date(row.cfo_emitido_em) : null,
   criadoEm: new Date(row.criado_em),
 });
 
