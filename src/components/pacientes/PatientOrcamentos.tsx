@@ -7,11 +7,13 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ClipboardList, Plus, Trash2, MessageCircle, Check, X, Handshake } from 'lucide-react';
+import { ClipboardList, Plus, Trash2, MessageCircle, Check, X, Handshake, FileText } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { useOrcamentos, OrcamentoItem } from '@/hooks/useOrcamentos';
 import { useProcedimentos } from '@/hooks/useProcedimentos';
 import { useParceiros, TipoRepasse } from '@/hooks/useParceiros';
+import { useConfiguracoes } from '@/hooks/useConfiguracoes';
+import { gerarOrcamentoPdf } from '@/utils/orcamentoPdf';
 import { openWhatsApp } from '@/lib/whatsapp';
 import { formatMoney } from '@/utils/exportCsv';
 import { toast } from 'sonner';
@@ -24,13 +26,16 @@ const PatientOrcamentos = ({ patient }: Props) => {
   const { orcamentos, loading, saveOrcamento, updateStatus, deleteOrcamento } = useOrcamentos(patient?.id);
   const { procedimentos } = useProcedimentos();
   const { parceiros, addParceiro, refetch: refetchParceiros } = useParceiros();
+  const { configuracoes } = useConfiguracoes();
 
   const [open, setOpen] = useState(false);
   const [titulo, setTitulo] = useState('Plano de tratamento');
   const [itens, setItens] = useState<OrcamentoItem[]>([]);
   const [desconto, setDesconto] = useState(0);
   const [observacoes, setObservacoes] = useState('');
+  const [formasPagamento, setFormasPagamento] = useState('');
   const [selectKey, setSelectKey] = useState(0);
+
 
   // Parceria
   const [parceriaAtiva, setParceriaAtiva] = useState(false);
@@ -95,6 +100,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
       itens,
       desconto,
       observacoes,
+      formasPagamento,
       pacienteId: patient.id,
       pacienteNome: patient.nome,
       status: 'rascunho',
@@ -107,11 +113,37 @@ const PatientOrcamentos = ({ patient }: Props) => {
     setItens([]);
     setDesconto(0);
     setObservacoes('');
+    setFormasPagamento('');
     setParceriaAtiva(false);
     setParceiroId('');
     setValorRepasse(0);
     setNovoParceiro(false);
     setNovoNome('');
+  };
+
+  const baixarPdf = (o: (typeof orcamentos)[number]) => {
+    const ok = gerarOrcamentoPdf(
+      {
+        titulo: o.titulo,
+        pacienteNome: o.pacienteNome || patient?.nome,
+        itens: o.itens,
+        desconto: o.desconto,
+        total: o.total,
+        observacoes: o.observacoes,
+        formasPagamento: o.formasPagamento,
+        validade: o.validade,
+        criadoEm: o.criadoEm,
+      },
+      {
+        nomeClinica: configuracoes?.nomeClinica,
+        logoUrl: configuracoes?.logoUrl,
+        cnpj: configuracoes?.cnpj,
+        endereco: configuracoes?.endereco,
+        telefone: configuracoes?.telefone,
+        email: configuracoes?.email,
+      }
+    );
+    if (!ok) toast.error('Permita pop-ups para gerar o PDF');
   };
 
   const enviarWhatsApp = (o: (typeof orcamentos)[number]) => {
@@ -124,6 +156,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
       ...o.itens.map((i) => `• ${i.nome} ${i.quantidade > 1 ? `(${i.quantidade}x) ` : ''}— ${formatMoney(i.valor * i.quantidade)}`),
       o.desconto ? `Desconto: ${formatMoney(o.desconto)}` : null,
       `*Total: ${formatMoney(o.total)}*`,
+      o.formasPagamento ? `Formas de pagamento: ${o.formasPagamento}` : null,
       o.observacoes || null,
       '',
       'Podemos seguir com este plano de tratamento?',
@@ -131,6 +164,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
     openWhatsApp(patient.telefone, linhas.join('\n'));
     updateStatus(o.id, 'enviado');
   };
+
 
   return (
     <Card>
@@ -182,10 +216,35 @@ const PatientOrcamentos = ({ patient }: Props) => {
                   </li>
                 ))}
               </ul>
+
+              <div className="rounded-md bg-muted/40 p-2 space-y-1 text-xs">
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Subtotal</span>
+                  <span>{formatMoney(o.itens.reduce((s, i) => s + i.valor * i.quantidade, 0))}</span>
+                </div>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Desconto</span>
+                  <span>- {formatMoney(o.desconto || 0)}</span>
+                </div>
+                <div className="flex justify-between text-sm font-semibold text-foreground border-t border-border pt-1">
+                  <span>Total</span>
+                  <span>{formatMoney(o.total)}</span>
+                </div>
+                {o.formasPagamento && (
+                  <p className="text-muted-foreground pt-1">
+                    Pagamento: <span className="text-foreground">{o.formasPagamento}</span>
+                  </p>
+                )}
+              </div>
+
               <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="outline" onClick={() => baixarPdf(o)}>
+                  <FileText className="h-4 w-4 mr-1" /> PDF
+                </Button>
                 <Button size="sm" variant="outline" onClick={() => enviarWhatsApp(o)}>
                   <MessageCircle className="h-4 w-4 mr-1" /> Enviar
                 </Button>
+
                 <Button size="sm" variant="outline" onClick={() => updateStatus(o.id, 'aprovado')}>
                   <Check className="h-4 w-4 mr-1" /> Aprovar
                 </Button>
@@ -279,6 +338,34 @@ const PatientOrcamentos = ({ patient }: Props) => {
                 <Input value={formatMoney(total)} readOnly />
               </div>
             </div>
+
+            <div className="space-y-1.5">
+              <Label>Formas de pagamento</Label>
+              <div className="flex flex-wrap gap-1.5">
+                {['À vista (PIX)', 'Dinheiro', 'Cartão de crédito', 'Cartão de débito', '2x sem juros', '3x sem juros', '6x', '12x', 'Boleto'].map((f) => (
+                  <Button
+                    key={f}
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs"
+                    onClick={() =>
+                      setFormasPagamento((prev) => (prev ? (prev.includes(f) ? prev : `${prev}, ${f}`) : f))
+                    }
+                  >
+                    {f}
+                  </Button>
+                ))}
+              </div>
+              <Textarea
+                value={formasPagamento}
+                onChange={(e) => setFormasPagamento(e.target.value)}
+                placeholder="Ex.: À vista com 10% de desconto, ou em até 12x no cartão"
+                maxLength={500}
+              />
+            </div>
+
+
 
             <div className="rounded-lg border border-border p-3 space-y-3">
               <div className="flex items-center justify-between gap-2">
