@@ -157,6 +157,87 @@ export type Database = {
         }
         Relationships: []
       }
+      audit_logs: {
+        Row: {
+          acao: string
+          ator_email: string | null
+          criado_em: string
+          dados: Json | null
+          descricao: string | null
+          entidade: string
+          entidade_id: string | null
+          id: string
+          user_id: string
+        }
+        Insert: {
+          acao: string
+          ator_email?: string | null
+          criado_em?: string
+          dados?: Json | null
+          descricao?: string | null
+          entidade: string
+          entidade_id?: string | null
+          id?: string
+          user_id: string
+        }
+        Update: {
+          acao?: string
+          ator_email?: string | null
+          criado_em?: string
+          dados?: Json | null
+          descricao?: string | null
+          entidade?: string
+          entidade_id?: string | null
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      bloqueios_agenda: {
+        Row: {
+          atualizado_em: string
+          criado_em: string
+          data_fim: string
+          data_inicio: string
+          dentista: string | null
+          dia_inteiro: boolean
+          hora_fim: string | null
+          hora_inicio: string | null
+          id: string
+          observacoes: string | null
+          titulo: string
+          user_id: string
+        }
+        Insert: {
+          atualizado_em?: string
+          criado_em?: string
+          data_fim: string
+          data_inicio: string
+          dentista?: string | null
+          dia_inteiro?: boolean
+          hora_fim?: string | null
+          hora_inicio?: string | null
+          id?: string
+          observacoes?: string | null
+          titulo: string
+          user_id: string
+        }
+        Update: {
+          atualizado_em?: string
+          criado_em?: string
+          data_fim?: string
+          data_inicio?: string
+          dentista?: string | null
+          dia_inteiro?: boolean
+          hora_fim?: string | null
+          hora_inicio?: string | null
+          id?: string
+          observacoes?: string | null
+          titulo?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       configuracoes: {
         Row: {
           atualizado_em: string
@@ -512,6 +593,74 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "odontogramas_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orcamentos: {
+        Row: {
+          assinatura_paciente: Json | null
+          atualizado_em: string
+          criado_em: string
+          data_assinatura: string | null
+          data_expiracao_link: string | null
+          desconto: number
+          id: string
+          itens: Json
+          observacoes: string | null
+          paciente_id: string | null
+          paciente_nome: string | null
+          status: string
+          titulo: string
+          token_assinatura: string | null
+          total: number
+          user_id: string
+          validade: string | null
+        }
+        Insert: {
+          assinatura_paciente?: Json | null
+          atualizado_em?: string
+          criado_em?: string
+          data_assinatura?: string | null
+          data_expiracao_link?: string | null
+          desconto?: number
+          id?: string
+          itens?: Json
+          observacoes?: string | null
+          paciente_id?: string | null
+          paciente_nome?: string | null
+          status?: string
+          titulo?: string
+          token_assinatura?: string | null
+          total?: number
+          user_id: string
+          validade?: string | null
+        }
+        Update: {
+          assinatura_paciente?: Json | null
+          atualizado_em?: string
+          criado_em?: string
+          data_assinatura?: string | null
+          data_expiracao_link?: string | null
+          desconto?: number
+          id?: string
+          itens?: Json
+          observacoes?: string | null
+          paciente_id?: string | null
+          paciente_nome?: string | null
+          status?: string
+          titulo?: string
+          token_assinatura?: string | null
+          total?: number
+          user_id?: string
+          validade?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orcamentos_paciente_id_fkey"
             columns: ["paciente_id"]
             isOneToOne: false
             referencedRelation: "pacientes"
