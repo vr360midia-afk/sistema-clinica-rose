@@ -644,6 +644,7 @@ export type Database = {
           data_assinatura: string | null
           data_expiracao_link: string | null
           desconto: number
+          formas_pagamento: string | null
           id: string
           itens: Json
           observacoes: string | null
@@ -667,6 +668,7 @@ export type Database = {
           data_assinatura?: string | null
           data_expiracao_link?: string | null
           desconto?: number
+          formas_pagamento?: string | null
           id?: string
           itens?: Json
           observacoes?: string | null
@@ -690,6 +692,7 @@ export type Database = {
           data_assinatura?: string | null
           data_expiracao_link?: string | null
           desconto?: number
+          formas_pagamento?: string | null
           id?: string
           itens?: Json
           observacoes?: string | null
