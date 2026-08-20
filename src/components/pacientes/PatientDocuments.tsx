@@ -12,6 +12,7 @@ import {
 import { Plus, FileText, Image, Download, Eye, Trash2, Loader2, UploadCloud, Sparkles } from 'lucide-react';
 import EmptyState from '@/components/common/EmptyState';
 import { useDentalSystem } from '@/context/DentalSystemContext';
+import { useSecurityGate } from '@/context/SecurityContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
@@ -154,6 +155,8 @@ const PatientDocuments = ({ patient }: PatientDocumentsProps) => {
   };
 
   const handleDelete = async (documento: any) => {
+    const autorizado = await requireMasterPassword('O documento será movido para a lixeira por 30 dias.');
+    if (!autorizado) return;
     try {
       if (documento.arquivo) await supabase.storage.from(BUCKET).remove([documento.arquivo]);
       await deleteDocumento(documento.id);

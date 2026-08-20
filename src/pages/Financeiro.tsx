@@ -26,7 +26,8 @@ const Financeiro = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Excluir esta transação?')) return;
+    const autorizado = await requireMasterPassword('O lançamento será movido para a lixeira por 30 dias.');
+    if (!autorizado) return;
     try {
       await deleteTransacao(id);
       await registrarAuditoria({ acao: 'excluir', entidade: 'transacao', entidadeId: id, descricao: 'Transação excluída' });

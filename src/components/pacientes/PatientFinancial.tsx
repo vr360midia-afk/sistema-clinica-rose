@@ -418,7 +418,8 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
                     variant="ghost"
                     className="h-7 w-7 text-destructive"
                     onClick={async () => {
-                      if (!confirm('Excluir este lançamento?')) return;
+                      const autorizado = await requireMasterPassword('O lançamento será movido para a lixeira por 30 dias.');
+                      if (!autorizado) return;
                       try {
                         await deleteTransacao(t.id);
                         toast.success('Lançamento excluído');
