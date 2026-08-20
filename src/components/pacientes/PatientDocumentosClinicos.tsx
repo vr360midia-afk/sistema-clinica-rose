@@ -313,6 +313,37 @@ const PatientDocumentosClinicos = ({ patient }: Props) => {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={!!cfoDoc} onOpenChange={(v) => !v && setCfoDoc(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Prescrição Eletrônica CFO</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              O conteúdo do documento foi copiado. No portal do CFO, faça login com seu certificado
+              digital, cole a prescrição e assine. Depois volte aqui e guarde o link/código de validação
+              (QR Code) para ficar arquivado na ficha do paciente.
+            </p>
+            <div>
+              <Label>Link de validação</Label>
+              <Input
+                value={cfoLink}
+                onChange={(e) => setCfoLink(e.target.value)}
+                placeholder="https://prescricao.cfo.org.br/validar/..."
+              />
+            </div>
+            <div>
+              <Label>Código de validação</Label>
+              <Input value={cfoCodigo} onChange={(e) => setCfoCodigo(e.target.value)} placeholder="Código do QR Code" />
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="outline" onClick={() => setCfoDoc(null)}>Fechar</Button>
+              <Button onClick={salvarCfo}>Salvar</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {assinandoDoc && (
         <SignatureModal
           isOpen={!!assinandoDoc}
