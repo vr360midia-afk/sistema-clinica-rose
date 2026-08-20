@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Toaster } from '@/components/ui/sonner';
 import { DentalSystemProvider } from '@/context/DentalSystemContext';
 import { AuthProvider } from '@/context/AuthContext';
+import { SecurityProvider } from '@/context/SecurityContext';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import RoleRoute from '@/components/auth/RoleRoute';
 import Index from '@/pages/Index';
@@ -20,6 +21,7 @@ import Comunicacao from '@/pages/Comunicacao';
 import Notas from '@/pages/Notas';
 import Anamnese from '@/pages/Anamnese';
 import Admin from '@/pages/Admin';
+import Lixeira from '@/pages/Lixeira';
 import AssinarAnamnese from '@/pages/AssinarAnamnese';
 import AssinarExtrato from '@/pages/AssinarExtrato';
 import NotFound from '@/pages/NotFound';
@@ -27,6 +29,7 @@ import NotFound from '@/pages/NotFound';
 function App() {
   return (
     <AuthProvider>
+      <SecurityProvider>
       <DentalSystemProvider>
         <Router>
           <div className="App">
@@ -48,12 +51,14 @@ function App() {
               <Route path="/notas" element={<ProtectedRoute><Notas /></ProtectedRoute>} />
               <Route path="/anamnese" element={<ProtectedRoute><Anamnese /></ProtectedRoute>} />
               <Route path="/admin" element={<ProtectedRoute><RoleRoute allow={['admin']}><Admin /></RoleRoute></ProtectedRoute>} />
+              <Route path="/lixeira" element={<ProtectedRoute><RoleRoute allow={['admin']}><Lixeira /></RoleRoute></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
             <Toaster />
           </div>
         </Router>
       </DentalSystemProvider>
+      </SecurityProvider>
     </AuthProvider>
   );
 }
