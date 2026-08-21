@@ -492,15 +492,25 @@ const Configuracoes = () => {
                     className="hidden"
                     onChange={handleRestore}
                   />
-                  <Button variant="outline" className="mr-2" onClick={handleBackupNow} disabled={backupLoading}>
+                  <Button variant="outline" className="mr-2" onClick={handleBackupNow} disabled={backupLoading || restoreLoading}>
                     {backupLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Database className="h-4 w-4 mr-2" />}
-                    Fazer Backup Agora
+                    {backupLoading && progresso ? `Fazendo backup... ${progresso.percentual}%` : 'Fazer Backup Agora'}
                   </Button>
-                  <Button variant="outline" onClick={() => restoreInputRef.current?.click()} disabled={restoreLoading}>
+                  <Button variant="outline" onClick={() => restoreInputRef.current?.click()} disabled={restoreLoading || backupLoading}>
                     {restoreLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Shield className="h-4 w-4 mr-2" />}
-                    Restaurar Backup
+                    {restoreLoading && progresso ? `Restaurando... ${progresso.percentual}%` : 'Restaurar Backup'}
                   </Button>
+
+                  <div className="mt-4 space-y-2">
+                    <BackupProgress progresso={progresso} titulo={restoreLoading ? 'Restauração' : backupLoading ? 'Backup' : undefined} />
+                    {resumoRestauracao && (
+                      <p className="text-sm text-muted-foreground">
+                        Restauração concluída: {resumoRestauracao} Atualizando a página...
+                      </p>
+                    )}
+                  </div>
                 </div>
+
 
               </CardContent>
             </Card>
