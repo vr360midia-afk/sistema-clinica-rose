@@ -16,6 +16,8 @@ import ParceirosManager from '@/components/configuracoes/ParceirosManager';
 import MedicamentosManager from '@/components/configuracoes/MedicamentosManager';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { Loader2 } from 'lucide-react';
+import { downloadBackupCompleto, lerArquivoBackup, restaurarBackup } from '@/utils/backup';
+
 
 const formatCnpjCpf = (value: string) => {
   const digits = value.replace(/\D/g, '').slice(0, 14);
