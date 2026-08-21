@@ -68,7 +68,7 @@ const Configuracoes = () => {
     try {
       const payload = await lerArquivoBackup(file);
       const resultado = await restaurarBackup(payload);
-      toast({ title: 'Backup restaurado', description: `${resultado.total} registros importados. Recarregue a página.` });
+      toast({ title: 'Backup restaurado', description: `${resultado.inseridos} registros importados. Recarregue a página.` });
     } catch (err) {
       toast({ title: 'Erro ao restaurar backup', description: err instanceof Error ? err.message : 'Arquivo inválido.', variant: 'destructive' });
     } finally {
