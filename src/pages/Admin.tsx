@@ -1,7 +1,8 @@
 
 import React, { useRef, useState } from 'react';
 import AuditLogViewer from '@/components/admin/AuditLogViewer';
-import { downloadBackupCompleto, lerArquivoBackup, restaurarBackup } from '@/utils/backup';
+import { downloadBackupCompleto, lerArquivoBackup, restaurarBackup, type ProgressoBackup } from '@/utils/backup';
+import BackupProgress from '@/components/common/BackupProgress';
 import { marcarBackupFeito, ultimoBackupEm } from '@/hooks/useBackupAutomatico';
 import { useAuth } from '@/context/AuthContext';
 import Layout from '@/components/layout/Layout';
