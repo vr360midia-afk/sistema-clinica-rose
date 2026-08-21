@@ -186,6 +186,7 @@ export type RestauracaoResultado = {
   inseridos: number;
   arquivos: number;
   erros: { tabela: string; mensagem: string }[];
+  porTabela: Record<string, number>;
 };
 
 const FOREIGN_KEYS: Record<string, Record<string, string>> = {
