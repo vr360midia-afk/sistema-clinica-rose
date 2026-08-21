@@ -71,11 +71,11 @@ const Configuracoes = () => {
       if (resultado.erros.length > 0) {
         toast({
           title: 'Restauração concluída parcialmente',
-          description: `${resultado.inseridos} registros importados. Falha em: ${resultado.erros.map(({ tabela }) => tabela).join(', ')}.`,
+          description: `${resultado.inseridos} registros e ${resultado.arquivos} arquivo(s) importados. Falha em: ${resultado.erros.map(({ tabela }) => tabela).join(', ')}.`,
           variant: 'destructive',
         });
       } else {
-        toast({ title: 'Backup restaurado', description: `${resultado.inseridos} registros importados. Atualizando os dados...` });
+        toast({ title: 'Backup restaurado', description: `${resultado.inseridos} registros e ${resultado.arquivos} arquivo(s) importados. Atualizando os dados...` });
       }
       window.setTimeout(() => window.location.reload(), 1200);
     } catch (err) {
