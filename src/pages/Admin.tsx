@@ -301,7 +301,7 @@ const Admin = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Button variant="outline" className="w-full" onClick={handleBackup} disabled={busy}>
                 <Download className="h-4 w-4 mr-2" />
-                {busy ? 'Gerando...' : 'Fazer Backup Completo'}
+                {busy && modo === 'backup' ? `Gerando... ${progresso?.percentual ?? 0}%` : 'Fazer Backup Completo'}
               </Button>
               <Button
                 variant="outline"
@@ -310,7 +310,7 @@ const Admin = () => {
                 onClick={() => fileRef.current?.click()}
               >
                 <Upload className="h-4 w-4 mr-2" />
-                Restaurar Backup
+                {busy && modo === 'restore' ? `Restaurando... ${progresso?.percentual ?? 0}%` : 'Restaurar Backup'}
               </Button>
               <input
                 ref={fileRef}
@@ -320,6 +320,17 @@ const Admin = () => {
                 onChange={handleRestore}
               />
             </div>
+
+            <BackupProgress
+              progresso={progresso}
+              titulo={modo === 'restore' ? 'Restauração' : modo === 'backup' ? 'Backup' : undefined}
+            />
+            {resumoRestauracao && (
+              <p className="text-sm text-muted-foreground">
+                Restauração concluída: {resumoRestauracao} Atualizando a página...
+              </p>
+            )}
+
           </CardContent>
         </Card>
 
