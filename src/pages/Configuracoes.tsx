@@ -68,7 +68,16 @@ const Configuracoes = () => {
     try {
       const payload = await lerArquivoBackup(file);
       const resultado = await restaurarBackup(payload);
-      toast({ title: 'Backup restaurado', description: `${resultado.inseridos} registros importados. Recarregue a página.` });
+      if (resultado.erros.length > 0) {
+        toast({
+          title: 'Restauração concluída parcialmente',
+          description: `${resultado.inseridos} registros importados. Falha em: ${resultado.erros.map(({ tabela }) => tabela).join(', ')}.`,
+          variant: 'destructive',
+        });
+      } else {
+        toast({ title: 'Backup restaurado', description: `${resultado.inseridos} registros importados. Atualizando os dados...` });
+      }
+      window.setTimeout(() => window.location.reload(), 1200);
     } catch (err) {
       toast({ title: 'Erro ao restaurar backup', description: err instanceof Error ? err.message : 'Arquivo inválido.', variant: 'destructive' });
     } finally {

@@ -100,20 +100,30 @@ export const restaurarBackup = async (payload: BackupPayload): Promise<Restaurac
   const userId = await getUserId();
   const resultado: RestauracaoResultado = { inseridos: 0, erros: [] };
 
-  if (!payload?.tabelas) throw new Error('Arquivo de backup inválido');
+  if (!payload || typeof payload !== 'object' || !payload.tabelas || typeof payload.tabelas !== 'object') {
+    throw new Error('Arquivo de backup inválido ou incompatível');
+  }
 
   for (const tabela of BACKUP_TABLES) {
     const registros = payload.tabelas[tabela];
     if (!Array.isArray(registros) || registros.length === 0) continue;
 
-    const linhas = registros.map((r) => ({ ...r, user_id: userId }));
+    const linhas = registros.map((r) => {
+      const linha = { ...r, user_id: userId };
+
+      // Cada conta possui apenas uma configuração. Na migração entre contas,
+      // o conflito correto é o user_id, não o id da conta de origem.
+      if (tabela === 'configuracoes') delete linha.id;
+
+      return linha;
+    });
 
     // Em lotes para evitar payloads gigantes
     for (let i = 0; i < linhas.length; i += 200) {
       const lote = linhas.slice(i, i + 200);
       const { error } = await (supabase as any)
         .from(tabela)
-        .upsert(lote, { onConflict: 'id' });
+        .upsert(lote, { onConflict: tabela === 'configuracoes' ? 'user_id' : 'id' });
       if (error) {
         console.error(`Restauração: erro em ${tabela}`, error);
         resultado.erros.push({ tabela, mensagem: error.message });
@@ -121,6 +131,10 @@ export const restaurarBackup = async (payload: BackupPayload): Promise<Restaurac
         resultado.inseridos += lote.length;
       }
     }
+  }
+
+  if (resultado.inseridos === 0 && resultado.erros.length > 0) {
+    throw new Error(resultado.erros.map(({ tabela, mensagem }) => `${tabela}: ${mensagem}`).join(' | '));
   }
 
   return resultado;
