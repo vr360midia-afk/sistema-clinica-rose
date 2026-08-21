@@ -16,7 +16,8 @@ import ParceirosManager from '@/components/configuracoes/ParceirosManager';
 import MedicamentosManager from '@/components/configuracoes/MedicamentosManager';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { Loader2 } from 'lucide-react';
-import { downloadBackupCompleto, lerArquivoBackup, restaurarBackup } from '@/utils/backup';
+import { downloadBackupCompleto, lerArquivoBackup, restaurarBackup, type ProgressoBackup } from '@/utils/backup';
+import BackupProgress from '@/components/common/BackupProgress';
 
 
 const formatCnpjCpf = (value: string) => {
