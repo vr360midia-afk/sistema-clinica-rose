@@ -171,8 +171,9 @@ const baixarArquivo = (conteudo: string, nome: string) => {
 export const downloadBackupCompleto = async (
   prefixo = 'backup-dental',
   incluirArquivos = true,
+  onProgresso?: OnProgresso,
 ): Promise<number> => {
-  const payload = await gerarBackupCompleto(incluirArquivos);
+  const payload = await gerarBackupCompleto(incluirArquivos, onProgresso);
   const total =
     Object.values(payload.tabelas).reduce((acc, arr) => acc + arr.length, 0) +
     (payload.arquivos?.length || 0);
