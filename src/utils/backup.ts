@@ -330,12 +330,17 @@ export const restaurarBackup = async (
         resultado.erros.push({ tabela, mensagem: error.message });
       } else {
         resultado.inseridos += lote.length;
+        resultado.porTabela[tabela] = (resultado.porTabela[tabela] || 0) + lote.length;
       }
+      processadas += lote.length;
+      reportar(`Restaurando ${tabela}`);
     }
   }
 
   // Arquivos do armazenamento
-  for (const arquivo of payload.arquivos || []) {
+  const arquivosBackup = payload.arquivos || [];
+  for (let i = 0; i < arquivosBackup.length; i++) {
+    const arquivo = arquivosBackup[i];
     try {
       const blob = base64ParaBlob(arquivo.base64, arquivo.contentType);
       const { error } = await supabase.storage
@@ -347,7 +352,12 @@ export const restaurarBackup = async (
       console.error('Restauração: erro ao enviar arquivo', arquivo.path, e);
       resultado.erros.push({ tabela: 'arquivos', mensagem: e?.message || 'falha no upload' });
     }
+    processadas += 1;
+    reportar(`Enviando arquivos (${i + 1}/${arquivosBackup.length})`);
   }
+
+  onProgresso?.({ etapa: 'Concluído', percentual: 100 });
+
 
   if (resultado.inseridos === 0 && resultado.arquivos === 0 && resultado.erros.length > 0) {
     throw new Error(resultado.erros.map(({ tabela, mensagem }) => `${tabela}: ${mensagem}`).join(' | '));
