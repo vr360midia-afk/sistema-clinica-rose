@@ -43,6 +43,8 @@ const Configuracoes = () => {
   const restoreInputRef = useRef<HTMLInputElement>(null);
   const [backupLoading, setBackupLoading] = useState(false);
   const [restoreLoading, setRestoreLoading] = useState(false);
+  const [progresso, setProgresso] = useState<ProgressoBackup | null>(null);
+  const [resumoRestauracao, setResumoRestauracao] = useState<string | null>(null);
 
   const salvarConfiguracoes = async () => {
     await saveConfiguracoes(configuracoes);
@@ -50,13 +52,16 @@ const Configuracoes = () => {
 
   const handleBackupNow = async () => {
     setBackupLoading(true);
+    setResumoRestauracao(null);
+    setProgresso({ etapa: 'Iniciando backup', percentual: 0 });
     try {
-      const total = await downloadBackupCompleto();
-      toast({ title: 'Backup gerado', description: `${total} registros exportados.` });
+      const total = await downloadBackupCompleto('backup-dental', true, setProgresso);
+      toast({ title: 'Backup gerado (100%)', description: `${total} registros exportados.` });
     } catch (err) {
       toast({ title: 'Erro ao gerar backup', description: err instanceof Error ? err.message : 'Tente novamente.', variant: 'destructive' });
     } finally {
       setBackupLoading(false);
+      window.setTimeout(() => setProgresso(null), 1500);
     }
   };
 
@@ -65,25 +70,35 @@ const Configuracoes = () => {
     e.target.value = '';
     if (!file) return;
     setRestoreLoading(true);
+    setResumoRestauracao(null);
+    setProgresso({ etapa: 'Lendo arquivo', percentual: 0 });
     try {
       const payload = await lerArquivoBackup(file);
-      const resultado = await restaurarBackup(payload);
+      const resultado = await restaurarBackup(payload, setProgresso);
+      const detalhes = Object.entries(resultado.porTabela)
+        .map(([tabela, qtd]) => `${tabela}: ${qtd}`)
+        .join(' • ');
+      setResumoRestauracao(
+        `${resultado.inseridos} registros e ${resultado.arquivos} arquivo(s) restaurados.${detalhes ? ` ${detalhes}` : ''}`,
+      );
       if (resultado.erros.length > 0) {
         toast({
-          title: 'Restauração concluída parcialmente',
+          title: 'Restauração concluída parcialmente (100%)',
           description: `${resultado.inseridos} registros e ${resultado.arquivos} arquivo(s) importados. Falha em: ${resultado.erros.map(({ tabela }) => tabela).join(', ')}.`,
           variant: 'destructive',
         });
       } else {
-        toast({ title: 'Backup restaurado', description: `${resultado.inseridos} registros e ${resultado.arquivos} arquivo(s) importados. Atualizando os dados...` });
+        toast({ title: 'Backup restaurado (100%)', description: `${resultado.inseridos} registros e ${resultado.arquivos} arquivo(s) importados. Atualizando a página...` });
       }
-      window.setTimeout(() => window.location.reload(), 1200);
+      window.setTimeout(() => window.location.reload(), 2500);
     } catch (err) {
       toast({ title: 'Erro ao restaurar backup', description: err instanceof Error ? err.message : 'Arquivo inválido.', variant: 'destructive' });
+      setProgresso(null);
     } finally {
       setRestoreLoading(false);
     }
   };
+
 
 
   const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
