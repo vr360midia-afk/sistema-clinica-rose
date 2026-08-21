@@ -8,6 +8,7 @@ interface LayoutProps {
 }
 
 const Layout = ({ children }: LayoutProps) => {
+  useBackupAutomatico();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const toggleSidebar = () => setSidebarOpen((prev) => !prev);
   const closeSidebar = () => setSidebarOpen(false);
