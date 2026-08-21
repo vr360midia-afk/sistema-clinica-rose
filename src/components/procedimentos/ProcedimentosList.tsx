@@ -126,10 +126,7 @@ const ProcedimentosList = ({ procedimentos, onEdit, onDelete, onDuplicate }: Pro
 
 
 
-              <div className="flex justify-between items-center pt-2 border-t">
-                <div className="text-xs text-muted-foreground">
-                  Por: {procedimento.criadoPor}
-                </div>
+              <div className="flex justify-end items-center pt-2 border-t">
                 <div className="flex gap-1">
                   <Button
                     variant="ghost"
