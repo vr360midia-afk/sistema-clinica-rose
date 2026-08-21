@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import Header from './Header';
 import Sidebar from './Sidebar';
+import { useBackupAutomatico } from '@/hooks/useBackupAutomatico';
 
 interface LayoutProps {
   children: React.ReactNode;
