@@ -1,7 +1,8 @@
 
 import React, { useRef, useState } from 'react';
 import AuditLogViewer from '@/components/admin/AuditLogViewer';
-import { downloadBackupCompleto, lerArquivoBackup, restaurarBackup } from '@/utils/backup';
+import { downloadBackupCompleto, lerArquivoBackup, restaurarBackup, type ProgressoBackup } from '@/utils/backup';
+import BackupProgress from '@/components/common/BackupProgress';
 import { marcarBackupFeito, ultimoBackupEm } from '@/hooks/useBackupAutomatico';
 import { useAuth } from '@/context/AuthContext';
 import Layout from '@/components/layout/Layout';
@@ -41,20 +42,27 @@ const Admin = () => {
   const { user } = useAuth();
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
+  const [modo, setModo] = useState<'backup' | 'restore' | null>(null);
+  const [progresso, setProgresso] = useState<ProgressoBackup | null>(null);
+  const [resumoRestauracao, setResumoRestauracao] = useState<string | null>(null);
   const [ultimoBackup, setUltimoBackup] = useState<Date | null>(() => ultimoBackupEm(user?.id));
 
   const handleBackup = async () => {
     setBusy(true);
+    setModo('backup');
+    setResumoRestauracao(null);
+    setProgresso({ etapa: 'Iniciando backup', percentual: 0 });
     try {
-      const total = await downloadBackupCompleto();
+      const total = await downloadBackupCompleto('backup-dental', true, setProgresso);
       marcarBackupFeito(user?.id);
       setUltimoBackup(new Date());
-      toast.success(`Backup completo gerado com ${total} registros`);
+      toast.success(`Backup completo gerado com ${total} registros (100%)`);
     } catch (e) {
       console.error(e);
       toast.error('Erro ao gerar o backup');
     } finally {
       setBusy(false);
+      window.setTimeout(() => { setProgresso(null); setModo(null); }, 1500);
     }
   };
 
@@ -63,22 +71,30 @@ const Admin = () => {
     e.target.value = '';
     if (!file) return;
     setBusy(true);
+    setModo('restore');
+    setResumoRestauracao(null);
+    setProgresso({ etapa: 'Lendo arquivo', percentual: 0 });
     try {
       const payload = await lerArquivoBackup(file);
-      const { inseridos, arquivos, erros } = await restaurarBackup(payload);
+      const { inseridos, arquivos, erros, porTabela } = await restaurarBackup(payload, setProgresso);
+      const detalhes = Object.entries(porTabela).map(([tabela, qtd]) => `${tabela}: ${qtd}`).join(' • ');
+      setResumoRestauracao(`${inseridos} registros e ${arquivos} arquivo(s) restaurados.${detalhes ? ` ${detalhes}` : ''}`);
       if (erros.length) {
         toast.warning(`${inseridos} registros e ${arquivos} arquivo(s) restaurados. Falhas: ${erros.map(x => x.tabela).join(', ')}`);
       } else {
-        toast.success(`${inseridos} registros e ${arquivos} arquivo(s) restaurados nesta conta`);
+        toast.success(`100% concluído: ${inseridos} registros e ${arquivos} arquivo(s) restaurados. Atualizando a página...`);
       }
-      setTimeout(() => window.location.reload(), 1200);
+      setTimeout(() => window.location.reload(), 2500);
     } catch (err) {
       console.error(err);
       toast.error(err instanceof Error ? err.message : 'Erro ao restaurar backup');
+      setProgresso(null);
+      setModo(null);
     } finally {
       setBusy(false);
     }
   };
+
 
   const handleClearAnamneses = async () => {
 
@@ -285,7 +301,7 @@ const Admin = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Button variant="outline" className="w-full" onClick={handleBackup} disabled={busy}>
                 <Download className="h-4 w-4 mr-2" />
-                {busy ? 'Gerando...' : 'Fazer Backup Completo'}
+                {busy && modo === 'backup' ? `Gerando... ${progresso?.percentual ?? 0}%` : 'Fazer Backup Completo'}
               </Button>
               <Button
                 variant="outline"
@@ -294,7 +310,7 @@ const Admin = () => {
                 onClick={() => fileRef.current?.click()}
               >
                 <Upload className="h-4 w-4 mr-2" />
-                Restaurar Backup
+                {busy && modo === 'restore' ? `Restaurando... ${progresso?.percentual ?? 0}%` : 'Restaurar Backup'}
               </Button>
               <input
                 ref={fileRef}
@@ -304,6 +320,17 @@ const Admin = () => {
                 onChange={handleRestore}
               />
             </div>
+
+            <BackupProgress
+              progresso={progresso}
+              titulo={modo === 'restore' ? 'Restauração' : modo === 'backup' ? 'Backup' : undefined}
+            />
+            {resumoRestauracao && (
+              <p className="text-sm text-muted-foreground">
+                Restauração concluída: {resumoRestauracao} Atualizando a página...
+              </p>
+            )}
+
           </CardContent>
         </Card>
 

@@ -16,7 +16,8 @@ import ParceirosManager from '@/components/configuracoes/ParceirosManager';
 import MedicamentosManager from '@/components/configuracoes/MedicamentosManager';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { Loader2 } from 'lucide-react';
-import { downloadBackupCompleto, lerArquivoBackup, restaurarBackup } from '@/utils/backup';
+import { downloadBackupCompleto, lerArquivoBackup, restaurarBackup, type ProgressoBackup } from '@/utils/backup';
+import BackupProgress from '@/components/common/BackupProgress';
 
 
 const formatCnpjCpf = (value: string) => {
@@ -43,6 +44,8 @@ const Configuracoes = () => {
   const restoreInputRef = useRef<HTMLInputElement>(null);
   const [backupLoading, setBackupLoading] = useState(false);
   const [restoreLoading, setRestoreLoading] = useState(false);
+  const [progresso, setProgresso] = useState<ProgressoBackup | null>(null);
+  const [resumoRestauracao, setResumoRestauracao] = useState<string | null>(null);
 
   const salvarConfiguracoes = async () => {
     await saveConfiguracoes(configuracoes);
@@ -50,13 +53,16 @@ const Configuracoes = () => {
 
   const handleBackupNow = async () => {
     setBackupLoading(true);
+    setResumoRestauracao(null);
+    setProgresso({ etapa: 'Iniciando backup', percentual: 0 });
     try {
-      const total = await downloadBackupCompleto();
-      toast({ title: 'Backup gerado', description: `${total} registros exportados.` });
+      const total = await downloadBackupCompleto('backup-dental', true, setProgresso);
+      toast({ title: 'Backup gerado (100%)', description: `${total} registros exportados.` });
     } catch (err) {
       toast({ title: 'Erro ao gerar backup', description: err instanceof Error ? err.message : 'Tente novamente.', variant: 'destructive' });
     } finally {
       setBackupLoading(false);
+      window.setTimeout(() => setProgresso(null), 1500);
     }
   };
 
@@ -65,25 +71,35 @@ const Configuracoes = () => {
     e.target.value = '';
     if (!file) return;
     setRestoreLoading(true);
+    setResumoRestauracao(null);
+    setProgresso({ etapa: 'Lendo arquivo', percentual: 0 });
     try {
       const payload = await lerArquivoBackup(file);
-      const resultado = await restaurarBackup(payload);
+      const resultado = await restaurarBackup(payload, setProgresso);
+      const detalhes = Object.entries(resultado.porTabela)
+        .map(([tabela, qtd]) => `${tabela}: ${qtd}`)
+        .join(' • ');
+      setResumoRestauracao(
+        `${resultado.inseridos} registros e ${resultado.arquivos} arquivo(s) restaurados.${detalhes ? ` ${detalhes}` : ''}`,
+      );
       if (resultado.erros.length > 0) {
         toast({
-          title: 'Restauração concluída parcialmente',
+          title: 'Restauração concluída parcialmente (100%)',
           description: `${resultado.inseridos} registros e ${resultado.arquivos} arquivo(s) importados. Falha em: ${resultado.erros.map(({ tabela }) => tabela).join(', ')}.`,
           variant: 'destructive',
         });
       } else {
-        toast({ title: 'Backup restaurado', description: `${resultado.inseridos} registros e ${resultado.arquivos} arquivo(s) importados. Atualizando os dados...` });
+        toast({ title: 'Backup restaurado (100%)', description: `${resultado.inseridos} registros e ${resultado.arquivos} arquivo(s) importados. Atualizando a página...` });
       }
-      window.setTimeout(() => window.location.reload(), 1200);
+      window.setTimeout(() => window.location.reload(), 2500);
     } catch (err) {
       toast({ title: 'Erro ao restaurar backup', description: err instanceof Error ? err.message : 'Arquivo inválido.', variant: 'destructive' });
+      setProgresso(null);
     } finally {
       setRestoreLoading(false);
     }
   };
+
 
 
   const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -476,15 +492,25 @@ const Configuracoes = () => {
                     className="hidden"
                     onChange={handleRestore}
                   />
-                  <Button variant="outline" className="mr-2" onClick={handleBackupNow} disabled={backupLoading}>
+                  <Button variant="outline" className="mr-2" onClick={handleBackupNow} disabled={backupLoading || restoreLoading}>
                     {backupLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Database className="h-4 w-4 mr-2" />}
-                    Fazer Backup Agora
+                    {backupLoading && progresso ? `Fazendo backup... ${progresso.percentual}%` : 'Fazer Backup Agora'}
                   </Button>
-                  <Button variant="outline" onClick={() => restoreInputRef.current?.click()} disabled={restoreLoading}>
+                  <Button variant="outline" onClick={() => restoreInputRef.current?.click()} disabled={restoreLoading || backupLoading}>
                     {restoreLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Shield className="h-4 w-4 mr-2" />}
-                    Restaurar Backup
+                    {restoreLoading && progresso ? `Restaurando... ${progresso.percentual}%` : 'Restaurar Backup'}
                   </Button>
+
+                  <div className="mt-4 space-y-2">
+                    <BackupProgress progresso={progresso} titulo={restoreLoading ? 'Restauração' : backupLoading ? 'Backup' : undefined} />
+                    {resumoRestauracao && (
+                      <p className="text-sm text-muted-foreground">
+                        Restauração concluída: {resumoRestauracao} Atualizando a página...
+                      </p>
+                    )}
+                  </div>
                 </div>
+
 
               </CardContent>
             </Card>

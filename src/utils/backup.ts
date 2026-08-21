@@ -90,12 +90,25 @@ const listarArquivos = async (prefixo: string): Promise<string[]> => {
   return encontrados;
 };
 
+export type ProgressoBackup = { etapa: string; percentual: number };
+export type OnProgresso = (p: ProgressoBackup) => void;
+
 /** Lê todas as tabelas da conta atual (e opcionalmente os arquivos enviados) */
-export const gerarBackupCompleto = async (incluirArquivos = true): Promise<BackupPayload> => {
+export const gerarBackupCompleto = async (
+  incluirArquivos = true,
+  onProgresso?: OnProgresso,
+): Promise<BackupPayload> => {
   const userId = await getUserId();
   const tabelas: Record<string, any[]> = {};
+  const totalEtapas = BACKUP_TABLES.length + (incluirArquivos ? 1 : 0);
+  let etapaAtual = 0;
+  const avancar = (etapa: string, extra = 0) => {
+    const pct = Math.min(99, Math.round(((etapaAtual + extra) / totalEtapas) * 100));
+    onProgresso?.({ etapa, percentual: pct });
+  };
 
   for (const tabela of BACKUP_TABLES) {
+    avancar(`Exportando ${tabela}`);
     const { data, error } = await (supabase as any)
       .from(tabela)
       .select('*')
@@ -103,16 +116,20 @@ export const gerarBackupCompleto = async (incluirArquivos = true): Promise<Backu
     if (error) {
       console.error(`Backup: erro ao ler ${tabela}`, error);
       tabelas[tabela] = [];
-      continue;
+    } else {
+      tabelas[tabela] = data || [];
     }
-    tabelas[tabela] = data || [];
+    etapaAtual++;
   }
 
   const arquivos: BackupArquivo[] = [];
   if (incluirArquivos) {
     try {
+      avancar('Listando arquivos');
       const caminhos = await listarArquivos(userId);
-      for (const path of caminhos) {
+      for (let i = 0; i < caminhos.length; i++) {
+        const path = caminhos[i];
+        avancar(`Baixando arquivos (${i + 1}/${caminhos.length})`, caminhos.length ? i / caminhos.length : 0);
         const { data, error } = await supabase.storage.from(BUCKET).download(path);
         if (error || !data) {
           console.error('Backup: erro ao baixar arquivo', path, error);
@@ -123,7 +140,10 @@ export const gerarBackupCompleto = async (incluirArquivos = true): Promise<Backu
     } catch (e) {
       console.error('Backup: falha ao exportar arquivos', e);
     }
+    etapaAtual++;
   }
+
+  onProgresso?.({ etapa: 'Gerando arquivo', percentual: 100 });
 
   return {
     geradoEm: new Date().toISOString(),
@@ -133,6 +153,7 @@ export const gerarBackupCompleto = async (incluirArquivos = true): Promise<Backu
     arquivos,
   };
 };
+
 
 const baixarArquivo = (conteudo: string, nome: string) => {
   const blob = new Blob([conteudo], { type: 'application/json' });
@@ -150,8 +171,9 @@ const baixarArquivo = (conteudo: string, nome: string) => {
 export const downloadBackupCompleto = async (
   prefixo = 'backup-dental',
   incluirArquivos = true,
+  onProgresso?: OnProgresso,
 ): Promise<number> => {
-  const payload = await gerarBackupCompleto(incluirArquivos);
+  const payload = await gerarBackupCompleto(incluirArquivos, onProgresso);
   const total =
     Object.values(payload.tabelas).reduce((acc, arr) => acc + arr.length, 0) +
     (payload.arquivos?.length || 0);
@@ -164,6 +186,7 @@ export type RestauracaoResultado = {
   inseridos: number;
   arquivos: number;
   erros: { tabela: string; mensagem: string }[];
+  porTabela: Record<string, number>;
 };
 
 const FOREIGN_KEYS: Record<string, Record<string, string>> = {
@@ -223,9 +246,12 @@ const remapearCaminhoArquivo = (
  * Restaura um backup na conta logada (pode ser outro usuário).
  * Os registros são reatribuídos ao usuário atual e mesclados por id (upsert).
  */
-export const restaurarBackup = async (payload: BackupPayload): Promise<RestauracaoResultado> => {
+export const restaurarBackup = async (
+  payload: BackupPayload,
+  onProgresso?: OnProgresso,
+): Promise<RestauracaoResultado> => {
   const userId = await getUserId();
-  const resultado: RestauracaoResultado = { inseridos: 0, arquivos: 0, erros: [] };
+  const resultado: RestauracaoResultado = { inseridos: 0, arquivos: 0, erros: [], porTabela: {} };
 
   if (!payload || typeof payload !== 'object' || !payload.tabelas || typeof payload.tabelas !== 'object') {
     throw new Error('Arquivo de backup inválido ou incompatível');
@@ -239,9 +265,22 @@ export const restaurarBackup = async (payload: BackupPayload): Promise<Restaurac
   const novoCaminho = (path: string) =>
     remapearCaminhoArquivo(path, origem, userId, mapasDeIds.pacientes);
 
+  const totalRegistros = BACKUP_TABLES.reduce(
+    (acc, t) => acc + (Array.isArray(payload.tabelas[t]) ? payload.tabelas[t].length : 0),
+    0,
+  );
+  const totalArquivos = payload.arquivos?.length || 0;
+  const totalUnidades = Math.max(1, totalRegistros + totalArquivos);
+  let processadas = 0;
+  const reportar = (etapa: string) =>
+    onProgresso?.({ etapa, percentual: Math.min(99, Math.round((processadas / totalUnidades) * 100)) });
+
+  reportar('Preparando restauração');
+
   for (const tabela of BACKUP_TABLES) {
     const registros = payload.tabelas[tabela];
     if (!Array.isArray(registros) || registros.length === 0) continue;
+
 
     // Permissões pertencem à conta de destino e nunca devem ser copiadas de outro usuário.
     if (crossAccount && tabela === 'user_roles') continue;
@@ -291,12 +330,17 @@ export const restaurarBackup = async (payload: BackupPayload): Promise<Restaurac
         resultado.erros.push({ tabela, mensagem: error.message });
       } else {
         resultado.inseridos += lote.length;
+        resultado.porTabela[tabela] = (resultado.porTabela[tabela] || 0) + lote.length;
       }
+      processadas += lote.length;
+      reportar(`Restaurando ${tabela}`);
     }
   }
 
   // Arquivos do armazenamento
-  for (const arquivo of payload.arquivos || []) {
+  const arquivosBackup = payload.arquivos || [];
+  for (let i = 0; i < arquivosBackup.length; i++) {
+    const arquivo = arquivosBackup[i];
     try {
       const blob = base64ParaBlob(arquivo.base64, arquivo.contentType);
       const { error } = await supabase.storage
@@ -308,7 +352,12 @@ export const restaurarBackup = async (payload: BackupPayload): Promise<Restaurac
       console.error('Restauração: erro ao enviar arquivo', arquivo.path, e);
       resultado.erros.push({ tabela: 'arquivos', mensagem: e?.message || 'falha no upload' });
     }
+    processadas += 1;
+    reportar(`Enviando arquivos (${i + 1}/${arquivosBackup.length})`);
   }
+
+  onProgresso?.({ etapa: 'Concluído', percentual: 100 });
+
 
   if (resultado.inseridos === 0 && resultado.arquivos === 0 && resultado.erros.length > 0) {
     throw new Error(resultado.erros.map(({ tabela, mensagem }) => `${tabela}: ${mensagem}`).join(' | '));
