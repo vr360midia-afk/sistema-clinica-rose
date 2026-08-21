@@ -104,7 +104,7 @@ const ProcedimentosList = ({ procedimentos, onEdit, onDelete, onDuplicate }: Pro
                 </div>
               </div>
 
-              {procedimento.precoConvenio && (
+              {procedimento.precoConvenio > 0 && (
                 <div className="text-sm text-muted-foreground">
                   <span>Convênio: R$ {procedimento.precoConvenio.toFixed(2)}</span>
                 </div>
