@@ -234,16 +234,35 @@ const Admin = () => {
           <CardHeader>
             <CardTitle>Backup e Restauração</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              O backup completo inclui pacientes, consultas, financeiro, prontuários, anamneses,
+              orçamentos, procedimentos, medicamentos, dentistas, parceiros, estoque e configurações.
+              Ele é gerado automaticamente conforme a frequência definida em Configurações
+              {ultimoBackup && ` (último: ${ultimoBackup.toLocaleString('pt-BR')})`}.
+              Para migrar para outra conta, basta restaurar este arquivo estando logado nela.
+            </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Button variant="outline" className="w-full" onClick={handleBackup}>
+              <Button variant="outline" className="w-full" onClick={handleBackup} disabled={busy}>
                 <Download className="h-4 w-4 mr-2" />
-                Fazer Backup dos Dados
+                {busy ? 'Gerando...' : 'Fazer Backup Completo'}
               </Button>
-              <Button variant="outline" className="w-full">
+              <Button
+                variant="outline"
+                className="w-full"
+                disabled={busy}
+                onClick={() => fileRef.current?.click()}
+              >
                 <Upload className="h-4 w-4 mr-2" />
                 Restaurar Backup
               </Button>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="application/json"
+                className="hidden"
+                onChange={handleRestore}
+              />
             </div>
           </CardContent>
         </Card>
