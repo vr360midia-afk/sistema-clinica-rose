@@ -1,7 +1,9 @@
 
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import AuditLogViewer from '@/components/admin/AuditLogViewer';
-import { downloadBackupJSON } from '@/utils/backup';
+import { downloadBackupCompleto, lerArquivoBackup, restaurarBackup } from '@/utils/backup';
+import { marcarBackupFeito, ultimoBackupEm } from '@/hooks/useBackupAutomatico';
+import { useAuth } from '@/context/AuthContext';
 import Layout from '@/components/layout/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -36,8 +38,46 @@ const Admin = () => {
     documentos 
   } = useDentalSystem();
 
-  const handleBackup = () => {
-    downloadBackupJSON({ pacientes, consultas, transacoes, prontuarios, anamneses, documentos });
+  const { user } = useAuth();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const [ultimoBackup, setUltimoBackup] = useState<Date | null>(() => ultimoBackupEm(user?.id));
+
+  const handleBackup = async () => {
+    setBusy(true);
+    try {
+      const total = await downloadBackupCompleto();
+      marcarBackupFeito(user?.id);
+      setUltimoBackup(new Date());
+      toast.success(`Backup completo gerado com ${total} registros`);
+    } catch (e) {
+      console.error(e);
+      toast.error('Erro ao gerar o backup');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRestore = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setBusy(true);
+    try {
+      const payload = await lerArquivoBackup(file);
+      const { inseridos, erros } = await restaurarBackup(payload);
+      if (erros.length) {
+        toast.warning(`${inseridos} registros restaurados. Falhas: ${erros.map(x => x.tabela).join(', ')}`);
+      } else {
+        toast.success(`${inseridos} registros restaurados nesta conta`);
+      }
+      setTimeout(() => window.location.reload(), 1200);
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : 'Erro ao restaurar backup');
+    } finally {
+      setBusy(false);
+    }
   };
 
   const handleClearAnamneses = async () => {
@@ -234,16 +274,35 @@ const Admin = () => {
           <CardHeader>
             <CardTitle>Backup e Restauração</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              O backup completo inclui pacientes, consultas, financeiro, prontuários, anamneses,
+              orçamentos, procedimentos, medicamentos, dentistas, parceiros, estoque e configurações.
+              Ele é gerado automaticamente conforme a frequência definida em Configurações
+              {ultimoBackup && ` (último: ${ultimoBackup.toLocaleString('pt-BR')})`}.
+              Para migrar para outra conta, basta restaurar este arquivo estando logado nela.
+            </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Button variant="outline" className="w-full" onClick={handleBackup}>
+              <Button variant="outline" className="w-full" onClick={handleBackup} disabled={busy}>
                 <Download className="h-4 w-4 mr-2" />
-                Fazer Backup dos Dados
+                {busy ? 'Gerando...' : 'Fazer Backup Completo'}
               </Button>
-              <Button variant="outline" className="w-full">
+              <Button
+                variant="outline"
+                className="w-full"
+                disabled={busy}
+                onClick={() => fileRef.current?.click()}
+              >
                 <Upload className="h-4 w-4 mr-2" />
                 Restaurar Backup
               </Button>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="application/json"
+                className="hidden"
+                onChange={handleRestore}
+              />
             </div>
           </CardContent>
         </Card>
