@@ -16,6 +16,8 @@ import ParceirosManager from '@/components/configuracoes/ParceirosManager';
 import MedicamentosManager from '@/components/configuracoes/MedicamentosManager';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { Loader2 } from 'lucide-react';
+import { downloadBackupCompleto, lerArquivoBackup, restaurarBackup } from '@/utils/backup';
+
 
 const formatCnpjCpf = (value: string) => {
   const digits = value.replace(/\D/g, '').slice(0, 14);
@@ -38,10 +40,42 @@ const Configuracoes = () => {
   const [tokens, setTokens] = useState({ whatsappToken: '', instagramToken: '', asaasToken: '' });
   const logoInputRef = useRef<HTMLInputElement>(null);
   const [logoLoading, setLogoLoading] = useState(false);
+  const restoreInputRef = useRef<HTMLInputElement>(null);
+  const [backupLoading, setBackupLoading] = useState(false);
+  const [restoreLoading, setRestoreLoading] = useState(false);
 
   const salvarConfiguracoes = async () => {
     await saveConfiguracoes(configuracoes);
   };
+
+  const handleBackupNow = async () => {
+    setBackupLoading(true);
+    try {
+      const total = await downloadBackupCompleto();
+      toast({ title: 'Backup gerado', description: `${total} registros exportados.` });
+    } catch (err) {
+      toast({ title: 'Erro ao gerar backup', description: err instanceof Error ? err.message : 'Tente novamente.', variant: 'destructive' });
+    } finally {
+      setBackupLoading(false);
+    }
+  };
+
+  const handleRestore = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setRestoreLoading(true);
+    try {
+      const payload = await lerArquivoBackup(file);
+      const resultado = await restaurarBackup(payload);
+      toast({ title: 'Backup restaurado', description: `${resultado.inseridos} registros importados. Recarregue a página.` });
+    } catch (err) {
+      toast({ title: 'Erro ao restaurar backup', description: err instanceof Error ? err.message : 'Arquivo inválido.', variant: 'destructive' });
+    } finally {
+      setRestoreLoading(false);
+    }
+  };
+
 
   const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -426,15 +460,23 @@ const Configuracoes = () => {
                 </div>
 
                 <div className="pt-4 border-t">
-                  <Button variant="outline" className="mr-2">
-                    <Database className="h-4 w-4 mr-2" />
+                  <input
+                    ref={restoreInputRef}
+                    type="file"
+                    accept="application/json"
+                    className="hidden"
+                    onChange={handleRestore}
+                  />
+                  <Button variant="outline" className="mr-2" onClick={handleBackupNow} disabled={backupLoading}>
+                    {backupLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Database className="h-4 w-4 mr-2" />}
                     Fazer Backup Agora
                   </Button>
-                  <Button variant="outline">
-                    <Shield className="h-4 w-4 mr-2" />
+                  <Button variant="outline" onClick={() => restoreInputRef.current?.click()} disabled={restoreLoading}>
+                    {restoreLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Shield className="h-4 w-4 mr-2" />}
                     Restaurar Backup
                   </Button>
                 </div>
+
               </CardContent>
             </Card>
           </TabsContent>
