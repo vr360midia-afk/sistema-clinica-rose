@@ -90,12 +90,25 @@ const listarArquivos = async (prefixo: string): Promise<string[]> => {
   return encontrados;
 };
 
+export type ProgressoBackup = { etapa: string; percentual: number };
+export type OnProgresso = (p: ProgressoBackup) => void;
+
 /** Lê todas as tabelas da conta atual (e opcionalmente os arquivos enviados) */
-export const gerarBackupCompleto = async (incluirArquivos = true): Promise<BackupPayload> => {
+export const gerarBackupCompleto = async (
+  incluirArquivos = true,
+  onProgresso?: OnProgresso,
+): Promise<BackupPayload> => {
   const userId = await getUserId();
   const tabelas: Record<string, any[]> = {};
+  const totalEtapas = BACKUP_TABLES.length + (incluirArquivos ? 1 : 0);
+  let etapaAtual = 0;
+  const avancar = (etapa: string, extra = 0) => {
+    const pct = Math.min(99, Math.round(((etapaAtual + extra) / totalEtapas) * 100));
+    onProgresso?.({ etapa, percentual: pct });
+  };
 
   for (const tabela of BACKUP_TABLES) {
+    avancar(`Exportando ${tabela}`);
     const { data, error } = await (supabase as any)
       .from(tabela)
       .select('*')
@@ -103,16 +116,20 @@ export const gerarBackupCompleto = async (incluirArquivos = true): Promise<Backu
     if (error) {
       console.error(`Backup: erro ao ler ${tabela}`, error);
       tabelas[tabela] = [];
-      continue;
+    } else {
+      tabelas[tabela] = data || [];
     }
-    tabelas[tabela] = data || [];
+    etapaAtual++;
   }
 
   const arquivos: BackupArquivo[] = [];
   if (incluirArquivos) {
     try {
+      avancar('Listando arquivos');
       const caminhos = await listarArquivos(userId);
-      for (const path of caminhos) {
+      for (let i = 0; i < caminhos.length; i++) {
+        const path = caminhos[i];
+        avancar(`Baixando arquivos (${i + 1}/${caminhos.length})`, caminhos.length ? i / caminhos.length : 0);
         const { data, error } = await supabase.storage.from(BUCKET).download(path);
         if (error || !data) {
           console.error('Backup: erro ao baixar arquivo', path, error);
@@ -123,7 +140,10 @@ export const gerarBackupCompleto = async (incluirArquivos = true): Promise<Backu
     } catch (e) {
       console.error('Backup: falha ao exportar arquivos', e);
     }
+    etapaAtual++;
   }
+
+  onProgresso?.({ etapa: 'Gerando arquivo', percentual: 100 });
 
   return {
     geradoEm: new Date().toISOString(),
@@ -133,6 +153,7 @@ export const gerarBackupCompleto = async (incluirArquivos = true): Promise<Backu
     arquivos,
   };
 };
+
 
 const baixarArquivo = (conteudo: string, nome: string) => {
   const blob = new Blob([conteudo], { type: 'application/json' });
