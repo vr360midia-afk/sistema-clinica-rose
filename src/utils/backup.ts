@@ -166,6 +166,47 @@ export type RestauracaoResultado = {
   erros: { tabela: string; mensagem: string }[];
 };
 
+const FOREIGN_KEYS: Record<string, Record<string, string>> = {
+  anamneses: { paciente_id: 'pacientes' },
+  consultas: { paciente_id: 'pacientes' },
+  documentos_clinicos: { paciente_id: 'pacientes', assinatura_id: 'assinaturas' },
+  documentos_paciente: { paciente_id: 'pacientes' },
+  extratos_financeiros: { paciente_id: 'pacientes' },
+  odontogramas: { paciente_id: 'pacientes' },
+  odontograma_versoes: { paciente_id: 'pacientes' },
+  orcamentos: { paciente_id: 'pacientes', parceiro_id: 'parceiros' },
+  prontuarios: { paciente_id: 'pacientes', consulta_id: 'consultas' },
+  transacoes: { paciente_id: 'pacientes', consulta_id: 'consultas', parceiro_id: 'parceiros' },
+};
+
+const criarMapasDeIds = (payload: BackupPayload, crossAccount: boolean) => {
+  const mapas: Record<string, Map<string, string>> = {};
+  if (!crossAccount) return mapas;
+
+  for (const tabela of BACKUP_TABLES) {
+    const registros = payload.tabelas[tabela];
+    if (!Array.isArray(registros) || SINGLETON_TABLES.has(tabela) || tabela === 'user_roles') continue;
+    mapas[tabela] = new Map(
+      registros
+        .filter((registro) => typeof registro?.id === 'string')
+        .map((registro) => [registro.id, crypto.randomUUID()]),
+    );
+  }
+  return mapas;
+};
+
+const remapearCaminhoArquivo = (
+  path: string,
+  origem: string | undefined,
+  destino: string,
+  pacientes: Map<string, string> | undefined,
+) => {
+  const partes = path.split('/');
+  if (origem && partes[0] === origem) partes[0] = destino;
+  if (partes.length > 1 && pacientes?.has(partes[1])) partes[1] = pacientes.get(partes[1]) || partes[1];
+  return partes.join('/');
+};
+
 /**
  * Restaura um backup na conta logada (pode ser outro usuário).
  * Os registros são reatribuídos ao usuário atual e mesclados por id (upsert).
@@ -179,18 +220,42 @@ export const restaurarBackup = async (payload: BackupPayload): Promise<Restaurac
   }
 
   const origem = payload.origemUserId;
+  const crossAccount = Boolean(origem && origem !== userId);
+  const mapasDeIds = criarMapasDeIds(payload, crossAccount);
   const novoCaminho = (path: string) =>
-    origem && path.startsWith(`${origem}/`) ? `${userId}/${path.slice(origem.length + 1)}` : path;
+    remapearCaminhoArquivo(path, origem, userId, mapasDeIds.pacientes);
 
   for (const tabela of BACKUP_TABLES) {
     const registros = payload.tabelas[tabela];
     if (!Array.isArray(registros) || registros.length === 0) continue;
+
+    // Permissões pertencem à conta de destino e nunca devem ser copiadas de outro usuário.
+    if (crossAccount && tabela === 'user_roles') continue;
 
     const linhas = registros.map((r) => {
       const linha = { ...r, user_id: userId };
 
       // Registros únicos por conta: o conflito correto é o user_id, não o id de origem.
       if (SINGLETON_TABLES.has(tabela)) delete linha.id;
+
+      // Em outra conta, cada registro recebe um novo id para não colidir com o original.
+      if (crossAccount && typeof r.id === 'string' && mapasDeIds[tabela]?.has(r.id)) {
+        linha.id = mapasDeIds[tabela].get(r.id);
+      }
+
+      // Mantém os relacionamentos apontando para os novos ids da conta de destino.
+      for (const [coluna, tabelaPai] of Object.entries(FOREIGN_KEYS[tabela] || {})) {
+        const valorAntigo = linha[coluna];
+        if (typeof valorAntigo === 'string' && mapasDeIds[tabelaPai]?.has(valorAntigo)) {
+          linha[coluna] = mapasDeIds[tabelaPai].get(valorAntigo);
+        }
+      }
+
+      if (crossAccount && tabela === 'pacotes_procedimentos' && Array.isArray(linha.procedimento_ids)) {
+        linha.procedimento_ids = linha.procedimento_ids.map(
+          (id: unknown) => typeof id === 'string' ? mapasDeIds.procedimentos?.get(id) || id : id,
+        );
+      }
 
       // Documentos apontam para caminhos no armazenamento com o id do usuário de origem
       if (tabela === 'documentos_paciente' && typeof linha.url === 'string') {
@@ -203,9 +268,10 @@ export const restaurarBackup = async (payload: BackupPayload): Promise<Restaurac
     // Em lotes para evitar payloads gigantes
     for (let i = 0; i < linhas.length; i += 200) {
       const lote = linhas.slice(i, i + 200);
-      const { error } = await (supabase as any)
-        .from(tabela)
-        .upsert(lote, { onConflict: SINGLETON_TABLES.has(tabela) ? 'user_id' : 'id' });
+      const query = (supabase as any).from(tabela);
+      const { error } = crossAccount && !SINGLETON_TABLES.has(tabela)
+        ? await query.insert(lote)
+        : await query.upsert(lote, { onConflict: SINGLETON_TABLES.has(tabela) ? 'user_id' : 'id' });
       if (error) {
         console.error(`Restauração: erro em ${tabela}`, error);
         resultado.erros.push({ tabela, mensagem: error.message });
