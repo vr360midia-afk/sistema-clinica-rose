@@ -245,9 +245,12 @@ const remapearCaminhoArquivo = (
  * Restaura um backup na conta logada (pode ser outro usuário).
  * Os registros são reatribuídos ao usuário atual e mesclados por id (upsert).
  */
-export const restaurarBackup = async (payload: BackupPayload): Promise<RestauracaoResultado> => {
+export const restaurarBackup = async (
+  payload: BackupPayload,
+  onProgresso?: OnProgresso,
+): Promise<RestauracaoResultado> => {
   const userId = await getUserId();
-  const resultado: RestauracaoResultado = { inseridos: 0, arquivos: 0, erros: [] };
+  const resultado: RestauracaoResultado = { inseridos: 0, arquivos: 0, erros: [], porTabela: {} };
 
   if (!payload || typeof payload !== 'object' || !payload.tabelas || typeof payload.tabelas !== 'object') {
     throw new Error('Arquivo de backup inválido ou incompatível');
@@ -261,9 +264,22 @@ export const restaurarBackup = async (payload: BackupPayload): Promise<Restaurac
   const novoCaminho = (path: string) =>
     remapearCaminhoArquivo(path, origem, userId, mapasDeIds.pacientes);
 
+  const totalRegistros = BACKUP_TABLES.reduce(
+    (acc, t) => acc + (Array.isArray(payload.tabelas[t]) ? payload.tabelas[t].length : 0),
+    0,
+  );
+  const totalArquivos = payload.arquivos?.length || 0;
+  const totalUnidades = Math.max(1, totalRegistros + totalArquivos);
+  let processadas = 0;
+  const reportar = (etapa: string) =>
+    onProgresso?.({ etapa, percentual: Math.min(99, Math.round((processadas / totalUnidades) * 100)) });
+
+  reportar('Preparando restauração');
+
   for (const tabela of BACKUP_TABLES) {
     const registros = payload.tabelas[tabela];
     if (!Array.isArray(registros) || registros.length === 0) continue;
+
 
     // Permissões pertencem à conta de destino e nunca devem ser copiadas de outro usuário.
     if (crossAccount && tabela === 'user_roles') continue;
