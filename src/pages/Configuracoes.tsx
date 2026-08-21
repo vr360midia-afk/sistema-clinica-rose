@@ -38,10 +38,42 @@ const Configuracoes = () => {
   const [tokens, setTokens] = useState({ whatsappToken: '', instagramToken: '', asaasToken: '' });
   const logoInputRef = useRef<HTMLInputElement>(null);
   const [logoLoading, setLogoLoading] = useState(false);
+  const restoreInputRef = useRef<HTMLInputElement>(null);
+  const [backupLoading, setBackupLoading] = useState(false);
+  const [restoreLoading, setRestoreLoading] = useState(false);
 
   const salvarConfiguracoes = async () => {
     await saveConfiguracoes(configuracoes);
   };
+
+  const handleBackupNow = async () => {
+    setBackupLoading(true);
+    try {
+      const total = await downloadBackupCompleto();
+      toast({ title: 'Backup gerado', description: `${total} registros exportados.` });
+    } catch (err) {
+      toast({ title: 'Erro ao gerar backup', description: err instanceof Error ? err.message : 'Tente novamente.', variant: 'destructive' });
+    } finally {
+      setBackupLoading(false);
+    }
+  };
+
+  const handleRestore = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setRestoreLoading(true);
+    try {
+      const payload = await lerArquivoBackup(file);
+      const resultado = await restaurarBackup(payload);
+      toast({ title: 'Backup restaurado', description: `${resultado.total} registros importados. Recarregue a página.` });
+    } catch (err) {
+      toast({ title: 'Erro ao restaurar backup', description: err instanceof Error ? err.message : 'Arquivo inválido.', variant: 'destructive' });
+    } finally {
+      setRestoreLoading(false);
+    }
+  };
+
 
   const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
