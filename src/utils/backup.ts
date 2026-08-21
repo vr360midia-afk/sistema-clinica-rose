@@ -179,7 +179,19 @@ const FOREIGN_KEYS: Record<string, Record<string, string>> = {
   transacoes: { paciente_id: 'pacientes', consulta_id: 'consultas', parceiro_id: 'parceiros' },
 };
 
-const criarMapasDeIds = (payload: BackupPayload, crossAccount: boolean) => {
+const gerarIdDestino = (idOrigem: string, userId: string) => {
+  const origemHex = idOrigem.replace(/-/g, '');
+  const usuarioHex = userId.replace(/-/g, '');
+  if (!/^[0-9a-f]{32}$/i.test(origemHex) || !/^[0-9a-f]{32}$/i.test(usuarioHex)) {
+    return crypto.randomUUID();
+  }
+  const hex = Array.from({ length: 32 }, (_, i) =>
+    (parseInt(origemHex[i], 16) ^ parseInt(usuarioHex[i], 16)).toString(16),
+  ).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+};
+
+const criarMapasDeIds = (payload: BackupPayload, crossAccount: boolean, userId: string) => {
   const mapas: Record<string, Map<string, string>> = {};
   if (!crossAccount) return mapas;
 
@@ -189,7 +201,7 @@ const criarMapasDeIds = (payload: BackupPayload, crossAccount: boolean) => {
     mapas[tabela] = new Map(
       registros
         .filter((registro) => typeof registro?.id === 'string')
-        .map((registro) => [registro.id, crypto.randomUUID()]),
+        .map((registro) => [registro.id, gerarIdDestino(registro.id, userId)]),
     );
   }
   return mapas;
@@ -219,9 +231,11 @@ export const restaurarBackup = async (payload: BackupPayload): Promise<Restaurac
     throw new Error('Arquivo de backup inválido ou incompatível');
   }
 
-  const origem = payload.origemUserId;
+  const origem = payload.origemUserId || Object.values(payload.tabelas)
+    .flat()
+    .find((registro) => typeof registro?.user_id === 'string')?.user_id;
   const crossAccount = Boolean(origem && origem !== userId);
-  const mapasDeIds = criarMapasDeIds(payload, crossAccount);
+  const mapasDeIds = criarMapasDeIds(payload, crossAccount, userId);
   const novoCaminho = (path: string) =>
     remapearCaminhoArquivo(path, origem, userId, mapasDeIds.pacientes);
 
@@ -269,9 +283,9 @@ export const restaurarBackup = async (payload: BackupPayload): Promise<Restaurac
     for (let i = 0; i < linhas.length; i += 200) {
       const lote = linhas.slice(i, i + 200);
       const query = (supabase as any).from(tabela);
-      const { error } = crossAccount && !SINGLETON_TABLES.has(tabela)
-        ? await query.insert(lote)
-        : await query.upsert(lote, { onConflict: SINGLETON_TABLES.has(tabela) ? 'user_id' : 'id' });
+      const { error } = await query.upsert(lote, {
+        onConflict: SINGLETON_TABLES.has(tabela) ? 'user_id' : 'id',
+      });
       if (error) {
         console.error(`Restauração: erro em ${tabela}`, error);
         resultado.erros.push({ tabela, mensagem: error.message });
