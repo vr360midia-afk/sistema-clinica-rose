@@ -65,11 +65,11 @@ const Admin = () => {
     setBusy(true);
     try {
       const payload = await lerArquivoBackup(file);
-      const { inseridos, erros } = await restaurarBackup(payload);
+      const { inseridos, arquivos, erros } = await restaurarBackup(payload);
       if (erros.length) {
-        toast.warning(`${inseridos} registros restaurados. Falhas: ${erros.map(x => x.tabela).join(', ')}`);
+        toast.warning(`${inseridos} registros e ${arquivos} arquivo(s) restaurados. Falhas: ${erros.map(x => x.tabela).join(', ')}`);
       } else {
-        toast.success(`${inseridos} registros restaurados nesta conta`);
+        toast.success(`${inseridos} registros e ${arquivos} arquivo(s) restaurados nesta conta`);
       }
       setTimeout(() => window.location.reload(), 1200);
     } catch (err) {
