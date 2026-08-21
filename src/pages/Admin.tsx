@@ -38,8 +38,46 @@ const Admin = () => {
     documentos 
   } = useDentalSystem();
 
-  const handleBackup = () => {
-    downloadBackupJSON({ pacientes, consultas, transacoes, prontuarios, anamneses, documentos });
+  const { user } = useAuth();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const [ultimoBackup, setUltimoBackup] = useState<Date | null>(() => ultimoBackupEm(user?.id));
+
+  const handleBackup = async () => {
+    setBusy(true);
+    try {
+      const total = await downloadBackupCompleto();
+      marcarBackupFeito(user?.id);
+      setUltimoBackup(new Date());
+      toast.success(`Backup completo gerado com ${total} registros`);
+    } catch (e) {
+      console.error(e);
+      toast.error('Erro ao gerar o backup');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRestore = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setBusy(true);
+    try {
+      const payload = await lerArquivoBackup(file);
+      const { inseridos, erros } = await restaurarBackup(payload);
+      if (erros.length) {
+        toast.warning(`${inseridos} registros restaurados. Falhas: ${erros.map(x => x.tabela).join(', ')}`);
+      } else {
+        toast.success(`${inseridos} registros restaurados nesta conta`);
+      }
+      setTimeout(() => window.location.reload(), 1200);
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : 'Erro ao restaurar backup');
+    } finally {
+      setBusy(false);
+    }
   };
 
   const handleClearAnamneses = async () => {
