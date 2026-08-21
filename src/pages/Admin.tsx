@@ -1,7 +1,9 @@
 
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import AuditLogViewer from '@/components/admin/AuditLogViewer';
-import { downloadBackupJSON } from '@/utils/backup';
+import { downloadBackupCompleto, lerArquivoBackup, restaurarBackup } from '@/utils/backup';
+import { marcarBackupFeito, ultimoBackupEm } from '@/hooks/useBackupAutomatico';
+import { useAuth } from '@/context/AuthContext';
 import Layout from '@/components/layout/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
