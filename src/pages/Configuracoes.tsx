@@ -426,15 +426,23 @@ const Configuracoes = () => {
                 </div>
 
                 <div className="pt-4 border-t">
-                  <Button variant="outline" className="mr-2">
-                    <Database className="h-4 w-4 mr-2" />
+                  <input
+                    ref={restoreInputRef}
+                    type="file"
+                    accept="application/json"
+                    className="hidden"
+                    onChange={handleRestore}
+                  />
+                  <Button variant="outline" className="mr-2" onClick={handleBackupNow} disabled={backupLoading}>
+                    {backupLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Database className="h-4 w-4 mr-2" />}
                     Fazer Backup Agora
                   </Button>
-                  <Button variant="outline">
-                    <Shield className="h-4 w-4 mr-2" />
+                  <Button variant="outline" onClick={() => restoreInputRef.current?.click()} disabled={restoreLoading}>
+                    {restoreLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Shield className="h-4 w-4 mr-2" />}
                     Restaurar Backup
                   </Button>
                 </div>
+
               </CardContent>
             </Card>
           </TabsContent>
