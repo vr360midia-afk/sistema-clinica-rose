@@ -224,7 +224,7 @@ const Agenda = () => {
                         day: "h-8 w-8 sm:h-9 sm:w-9 p-0 font-normal aria-selected:opacity-100 hover:bg-accent hover:text-accent-foreground rounded-md transition-colors",
                         day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
                         day_today: "bg-accent text-accent-foreground font-semibold",
-                        day_outside: "text-muted-foreground opacity-50",
+                        day_outside: "text-muted-foreground opacity-50 pointer-events-none",
                         day_disabled: "text-muted-foreground opacity-50",
                       }}
                     />
@@ -255,6 +255,10 @@ const Agenda = () => {
           }}
           selectedDate={consultaFormDate}
           selectedTime={consultaFormTime}
+          onSaved={(data) => {
+            setSelectedDate(data);
+            setView('day');
+          }}
         />
 
         <AppointmentDetailsModal
