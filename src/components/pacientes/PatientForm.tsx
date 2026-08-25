@@ -56,9 +56,7 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
       errors.push('Nome é obrigatório');
     }
     
-    if (!formData.email.trim()) {
-      errors.push('Email é obrigatório');
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+    if (formData.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       errors.push('Email deve ter um formato válido');
     }
     
