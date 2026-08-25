@@ -49,7 +49,7 @@ const QuickPatientFormFields = ({ form }: QuickPatientFormFieldsProps) => {
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="font-medium">Email *</FormLabel>
+                    <FormLabel className="font-medium">Email</FormLabel>
                     <FormControl>
                       <Input 
                         type="email" 
