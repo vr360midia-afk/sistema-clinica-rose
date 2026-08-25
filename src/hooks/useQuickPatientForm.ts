@@ -9,7 +9,7 @@ import { calcularIdade } from '@/utils/idade';
 
 const quickPatientSchema = z.object({
   nome: z.string().min(1, 'Nome é obrigatório'),
-  email: z.string().email('Email inválido'),
+  email: z.string().email('Email inválido').optional().or(z.literal('')),
   telefone: z.string().min(1, 'Telefone é obrigatório'),
   dataNascimento: z.date().optional(),
   endereco: z.string().optional(),
@@ -65,7 +65,7 @@ export const useQuickPatientForm = (onPatientCreated: (patientId: string) => voi
       // Preparar dados conforme a interface Paciente
       const pacienteData = {
         nome: data.nome.trim(),
-        email: data.email.trim().toLowerCase(),
+        email: (data.email || '').trim().toLowerCase(),
         telefone: data.telefone.trim(),
         dataNascimento: data.dataNascimento,
         idade: calcularIdade(data.dataNascimento) || 0,

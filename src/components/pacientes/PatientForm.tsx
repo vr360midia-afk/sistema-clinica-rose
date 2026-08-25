@@ -56,9 +56,7 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
       errors.push('Nome é obrigatório');
     }
     
-    if (!formData.email.trim()) {
-      errors.push('Email é obrigatório');
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+    if (formData.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       errors.push('Email deve ter um formato válido');
     }
     
@@ -190,7 +188,7 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="email" className="font-medium">Email *</Label>
+                  <Label htmlFor="email" className="font-medium">Email</Label>
                   <Input
                     id="email"
                     type="email"
