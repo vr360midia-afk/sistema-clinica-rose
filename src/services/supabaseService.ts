@@ -16,6 +16,18 @@ interface Produto {
 }
 
 class SupabaseService {
+  private parseLocalDate(value: unknown): Date | undefined {
+    if (!value) return undefined;
+    if (value instanceof Date) return value;
+    const text = String(value);
+    const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
+    if (dateOnly) {
+      return new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]));
+    }
+    const parsed = new Date(text);
+    return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+  }
+
   private async getCurrentUserId(): Promise<string> {
     // Sessão local primeiro (sem rede) para evitar falhas por rate limit/instabilidade
     const { data: { session } } = await supabase.auth.getSession();
@@ -59,7 +71,9 @@ class SupabaseService {
       ...data,
       criadoEm: new Date(data.criado_em),
       atualizadoEm: new Date(data.atualizado_em),
-      data: data.data ? new Date(data.data) : undefined,
+      // Colunas DATE chegam como YYYY-MM-DD. Interpretá-las como UTC desloca
+      // a consulta para o dia anterior em fusos como o de São Paulo.
+      data: this.parseLocalDate(data.data),
       dataNascimento: data.data_nascimento ? new Date(data.data_nascimento + 'T00:00:00') : undefined,
       dataArquivamento: data.data_arquivamento ? new Date(data.data_arquivamento + 'T00:00:00') : undefined,
       dataExpiracaoLink: data.data_expiracao_link ? new Date(data.data_expiracao_link) : undefined,

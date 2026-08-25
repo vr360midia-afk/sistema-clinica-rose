@@ -29,10 +29,11 @@ interface ConsultaModalProps {
   onClose: () => void;
   selectedDate?: Date;
   selectedTime?: string;
+  initialPatientId?: string;
   onSaved?: (data: Date) => void;
 }
 
-const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, onSaved }: ConsultaModalProps) => {
+const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPatientId, onSaved }: ConsultaModalProps) => {
   const { pacientes, consultas, addConsulta } = useDentalSystem();
   const { user } = useAuth();
   const { dentistas } = useDentistas();
@@ -56,19 +57,21 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, onSaved }:
     }
   });
 
-  // Atualizar a data do formulário quando selectedDate mudar
+  // Inicializar todos os campos somente ao abrir (sem sobrescrever a data
+  // escolhida pelo usuário enquanto o modal estiver em uso).
   React.useEffect(() => {
-    if (selectedDate && isOpen) {
-      form.setValue('data', selectedDate);
-    }
-  }, [selectedDate, isOpen, form]);
-
-  // Atualizar o horário do formulário quando selectedTime mudar
-  React.useEffect(() => {
-    if (selectedTime && isOpen) {
-      form.setValue('hora', selectedTime);
-    }
-  }, [selectedTime, isOpen, form]);
+    if (!isOpen) return;
+    form.reset({
+      data: selectedDate ? new Date(selectedDate) : new Date(),
+      hora: selectedTime || '09:00',
+      duracao: 60,
+      status: 'agendado',
+      procedimento: '',
+      dentista: '',
+      pacienteId: initialPatientId || '',
+      observacoes: ''
+    });
+  }, [isOpen, selectedDate, selectedTime, initialPatientId, form]);
 
   // Quando um paciente acabou de ser criado e apareceu na lista, seleciona-o
   React.useEffect(() => {
@@ -78,22 +81,6 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, onSaved }:
       setPendingPatientId(null);
     }
   }, [pendingPatientId, pacientes, form]);
-
-  // Resetar formulário quando fechar
-  React.useEffect(() => {
-    if (!isOpen) {
-      form.reset({
-        data: selectedDate || new Date(),
-        hora: selectedTime || '09:00',
-        duracao: 60,
-        status: 'agendado',
-        procedimento: '',
-        dentista: '',
-        pacienteId: '',
-        observacoes: ''
-      });
-    }
-  }, [isOpen, selectedDate, selectedTime, form]);
 
   const toMinutes = (hora: string) => {
     const [h, m] = (hora || '0:0').split(':').map(Number);
@@ -272,7 +259,10 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, onSaved }:
                           <Calendar
                             mode="single"
                             selected={field.value}
-                            onSelect={(date) => date && field.onChange(date)}
+                            onSelect={(date) => {
+                              if (!date) return;
+                              field.onChange(new Date(date.getFullYear(), date.getMonth(), date.getDate()));
+                            }}
                             locale={ptBR}
                             initialFocus
                             className={cn('p-3 pointer-events-auto')}
