@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Phone, Mail, Calendar, FileText } from 'lucide-react';
 import { openWhatsApp } from '@/lib/whatsapp';
 import { calcularIdade } from '@/utils/idade';
+import { useDentalSystem } from '@/context/DentalSystemContext';
 
 
 interface PatientPersonalInfoProps {
@@ -13,6 +14,24 @@ interface PatientPersonalInfoProps {
 
 const PatientPersonalInfo = ({ patient }: PatientPersonalInfoProps) => {
   const idade = calcularIdade(patient.dataNascimento) ?? patient.idade;
+  const { consultas } = useDentalSystem();
+  const proximasConsultas = consultas
+    .filter((consulta) => {
+      if (consulta.pacienteId !== patient.id || consulta.status === 'cancelado') return false;
+      const dataHora = new Date(consulta.data);
+      const [hora, minuto] = (consulta.hora || '00:00').split(':').map(Number);
+      dataHora.setHours(hora || 0, minuto || 0, 0, 0);
+      return dataHora.getTime() >= Date.now();
+    })
+    .sort((a, b) => {
+      const dataA = new Date(a.data);
+      const dataB = new Date(b.data);
+      const [horaA, minutoA] = (a.hora || '00:00').split(':').map(Number);
+      const [horaB, minutoB] = (b.hora || '00:00').split(':').map(Number);
+      dataA.setHours(horaA || 0, minutoA || 0, 0, 0);
+      dataB.setHours(horaB || 0, minutoB || 0, 0, 0);
+      return dataA.getTime() - dataB.getTime();
+    });
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -143,10 +162,21 @@ const PatientPersonalInfo = ({ patient }: PatientPersonalInfoProps) => {
             <CardTitle>Próximos Agendamentos</CardTitle>
           </CardHeader>
           <CardContent>
-            {patient.proximaConsulta ? (
-              <div className="flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-blue-600" />
-                <span className="text-sm">{new Date(patient.proximaConsulta).toLocaleDateString('pt-BR')}</span>
+            {proximasConsultas.length > 0 ? (
+              <div className="space-y-3">
+                {proximasConsultas.map((consulta) => (
+                  <div key={consulta.id} className="flex items-start gap-2">
+                    <Calendar className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
+                    <div className="min-w-0 text-sm">
+                      <p className="font-medium">
+                        {new Date(consulta.data).toLocaleDateString('pt-BR')} às {consulta.hora}
+                      </p>
+                      <p className="truncate text-muted-foreground">
+                        {consulta.procedimento || 'Consulta'}{consulta.dentista ? ` • ${consulta.dentista}` : ''}
+                      </p>
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">Nenhum agendamento</p>
