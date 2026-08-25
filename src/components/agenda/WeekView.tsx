@@ -37,9 +37,11 @@ const WeekView = ({ selectedDate, onDateChange, consultas, onAppointmentClick, o
   });
 
   const getConsultasForDayAndTime = (day: Date, time: string) => {
+    const slotHour = time.slice(0, 2);
     return consultas.filter(consulta => {
       const consultaDate = new Date(consulta.data);
-      return isSameDay(consultaDate, day) && consulta.hora === time;
+      const consultaHour = (consulta.hora || '').slice(0, 2);
+      return isSameDay(consultaDate, day) && consultaHour === slotHour;
     });
   };
 
@@ -126,7 +128,9 @@ const WeekView = ({ selectedDate, onDateChange, consultas, onAppointmentClick, o
                           });
                         }}
                       >
-                        <div className="font-semibold truncate text-[10px]">{consulta.patient || 'Paciente'}</div>
+                        <div className="font-semibold truncate text-[10px]">
+                          {consulta.hora} · {consulta.patient || 'Paciente'}
+                        </div>
                         <div className="truncate text-[10px]">{consulta.procedimento}</div>
                       </div>
                     ))}
