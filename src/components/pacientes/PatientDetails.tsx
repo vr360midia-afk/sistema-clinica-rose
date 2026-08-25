@@ -2,7 +2,7 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Edit2, User, FileText, ClipboardList, ListChecks, FolderOpen, History, DollarSign, Stethoscope } from 'lucide-react';
+import { ArrowLeft, CalendarPlus, Edit2, User, FileText, ClipboardList, ListChecks, FolderOpen, History, DollarSign, Stethoscope } from 'lucide-react';
 import { openWhatsApp } from '@/lib/whatsapp';
 import PatientPersonalInfo from './PatientPersonalInfo';
 import PatientMedicalRecords from './PatientMedicalRecords';
@@ -18,9 +18,10 @@ interface PatientDetailsProps {
   patient: any;
   onClose: () => void;
   onEdit: () => void;
+  onSchedule: () => void;
 }
 
-const PatientDetails = ({ patient, onClose, onEdit }: PatientDetailsProps) => {
+const PatientDetails = ({ patient, onClose, onEdit, onSchedule }: PatientDetailsProps) => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -46,10 +47,16 @@ const PatientDetails = ({ patient, onClose, onEdit }: PatientDetailsProps) => {
             </p>
           </div>
         </div>
-        <Button onClick={onEdit} className="bg-blue-600 hover:bg-blue-700">
-          <Edit2 className="h-4 w-4 mr-2" />
-          Editar
-        </Button>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <Button onClick={onSchedule}>
+            <CalendarPlus className="h-4 w-4 mr-2" />
+            Agendar consulta
+          </Button>
+          <Button onClick={onEdit} variant="outline">
+            <Edit2 className="h-4 w-4 mr-2" />
+            Editar
+          </Button>
+        </div>
       </div>
 
       <Tabs defaultValue="personal" className="space-y-6">

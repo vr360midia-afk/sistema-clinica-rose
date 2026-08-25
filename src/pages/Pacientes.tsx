@@ -11,6 +11,7 @@ import PatientForm from '@/components/pacientes/PatientForm';
 import PatientDetails from '@/components/pacientes/PatientDetails';
 import PatientArchiveModal from '@/components/pacientes/PatientArchiveModal';
 import PatientDeleteModal from '@/components/pacientes/PatientDeleteModal';
+import ConsultaModal from '@/components/agenda/ConsultaModal';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import EmptyState from '@/components/common/EmptyState';
 import { useDentalSystem } from '@/context/DentalSystemContext';
@@ -34,6 +35,7 @@ const Pacientes = () => {
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || '');
   const [editingPatient, setEditingPatient] = useState(null);
+  const [schedulingPatient, setSchedulingPatient] = useState<any>(null);
   const [activeTab, setActiveTab] = useState('ativos');
   const [anoArquivo, setAnoArquivo] = useState('todos');
   const { requireMasterPassword } = useSecurityGate();
@@ -176,6 +178,14 @@ const Pacientes = () => {
           patient={selectedPatient}
           onClose={() => setSelectedPatient(null)}
           onEdit={() => handleEditPatient(selectedPatient)}
+          onSchedule={() => setSchedulingPatient(selectedPatient)}
+        />
+        <ConsultaModal
+          isOpen={Boolean(schedulingPatient)}
+          onClose={() => setSchedulingPatient(null)}
+          selectedDate={new Date()}
+          initialPatientId={schedulingPatient?.id}
+          onSaved={() => setSchedulingPatient(null)}
         />
       </Layout>
     );
