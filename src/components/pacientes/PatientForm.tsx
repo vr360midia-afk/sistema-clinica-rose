@@ -188,7 +188,7 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="email" className="font-medium">Email *</Label>
+                  <Label htmlFor="email" className="font-medium">Email</Label>
                   <Input
                     id="email"
                     type="email"

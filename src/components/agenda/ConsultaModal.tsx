@@ -11,6 +11,7 @@ import { consultaSchema, ConsultaFormData } from '@/schemas/validations';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import { CalendarIcon, Clock, User, UserPlus, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { useAuth } from '@/context/AuthContext';
 import QuickPatientModal from './QuickPatientModal';
 import { useDentistas } from '@/hooks/useDentistas';
@@ -28,9 +29,10 @@ interface ConsultaModalProps {
   onClose: () => void;
   selectedDate?: Date;
   selectedTime?: string;
+  onSaved?: (data: Date) => void;
 }
 
-const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime }: ConsultaModalProps) => {
+const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, onSaved }: ConsultaModalProps) => {
   const { pacientes, consultas, addConsulta } = useDentalSystem();
   const { user } = useAuth();
   const { dentistas } = useDentistas();
@@ -168,6 +170,7 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime }: Consulta
         }
       }
 
+      onSaved?.(data.data);
       onClose();
       form.reset();
     } catch (error) {
@@ -183,6 +186,7 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime }: Consulta
     form.setValue('pacienteId', patientId, { shouldValidate: true, shouldDirty: true });
     setPendingPatientId(patientId);
     setIsQuickPatientModalOpen(false);
+    toast.success('Paciente selecionado! Complete o agendamento da consulta.');
   };
 
 
@@ -269,6 +273,7 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime }: Consulta
                             mode="single"
                             selected={field.value}
                             onSelect={(date) => date && field.onChange(date)}
+                            locale={ptBR}
                             initialFocus
                             className={cn('p-3 pointer-events-auto')}
                           />
