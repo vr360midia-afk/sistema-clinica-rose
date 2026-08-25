@@ -15,23 +15,27 @@ interface PatientPersonalInfoProps {
 const PatientPersonalInfo = ({ patient }: PatientPersonalInfoProps) => {
   const idade = calcularIdade(patient.dataNascimento) ?? patient.idade;
   const { consultas } = useDentalSystem();
-  const proximasConsultas = consultas
+  const getConsultaDateTime = (consulta: { data: Date; hora: string }) => {
+    const dataHora = new Date(consulta.data);
+    const [hora, minuto] = (consulta.hora || '00:00').split(':').map(Number);
+    dataHora.setHours(hora || 0, minuto || 0, 0, 0);
+    return dataHora;
+  };
+  const consultasDoPaciente = consultas.filter(
+    (consulta) => consulta.pacienteId === patient.id && consulta.status !== 'cancelado'
+  );
+  const proximasConsultas = consultasDoPaciente
+    .filter((consulta) => getConsultaDateTime(consulta).getTime() >= Date.now())
+    .sort((a, b) => getConsultaDateTime(a).getTime() - getConsultaDateTime(b).getTime());
+  const ultimaConsulta = consultasDoPaciente
     .filter((consulta) => {
-      if (consulta.pacienteId !== patient.id || consulta.status === 'cancelado') return false;
+      if (consulta.status !== 'realizado') return false;
       const dataHora = new Date(consulta.data);
       const [hora, minuto] = (consulta.hora || '00:00').split(':').map(Number);
       dataHora.setHours(hora || 0, minuto || 0, 0, 0);
-      return dataHora.getTime() >= Date.now();
+      return dataHora.getTime() < Date.now();
     })
-    .sort((a, b) => {
-      const dataA = new Date(a.data);
-      const dataB = new Date(b.data);
-      const [horaA, minutoA] = (a.hora || '00:00').split(':').map(Number);
-      const [horaB, minutoB] = (b.hora || '00:00').split(':').map(Number);
-      dataA.setHours(horaA || 0, minutoA || 0, 0, 0);
-      dataB.setHours(horaB || 0, minutoB || 0, 0, 0);
-      return dataA.getTime() - dataB.getTime();
-    });
+    .sort((a, b) => getConsultaDateTime(b).getTime() - getConsultaDateTime(a).getTime())[0];
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -189,10 +193,17 @@ const PatientPersonalInfo = ({ patient }: PatientPersonalInfoProps) => {
             <CardTitle>Última Consulta</CardTitle>
           </CardHeader>
           <CardContent>
-            {patient.ultimaConsulta ? (
-              <div className="flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">{new Date(patient.ultimaConsulta).toLocaleDateString('pt-BR')}</span>
+            {ultimaConsulta ? (
+              <div className="flex items-start gap-2">
+                <Calendar className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                <div className="min-w-0 text-sm">
+                  <p className="font-medium">
+                    {new Date(ultimaConsulta.data).toLocaleDateString('pt-BR')} às {ultimaConsulta.hora}
+                  </p>
+                  <p className="truncate text-muted-foreground">
+                    {ultimaConsulta.procedimento || 'Consulta'}
+                  </p>
+                </div>
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">Nenhuma consulta anterior</p>
