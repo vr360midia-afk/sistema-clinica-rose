@@ -54,6 +54,7 @@ const Agenda = () => {
 
   const handleDateClick = (date: Date, time?: string) => {
     setSelectedDate(date);
+    setView('day');
   };
 
   const handleDateChange = (date: Date) => {
