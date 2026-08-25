@@ -54,9 +54,7 @@ const Agenda = () => {
 
   const handleDateClick = (date: Date, time?: string) => {
     setSelectedDate(date);
-    setConsultaFormDate(date);
-    setConsultaFormTime(time);
-    setIsConsultaModalOpen(true);
+    setView('day');
   };
 
   const handleDateChange = (date: Date) => {
@@ -66,9 +64,6 @@ const Agenda = () => {
   const handleCalendarSelect = (date: Date | undefined) => {
     if (date) {
       setSelectedDate(date);
-      setConsultaFormDate(date);
-      setConsultaFormTime(undefined);
-      setIsConsultaModalOpen(true);
     }
   };
 
