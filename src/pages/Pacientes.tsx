@@ -549,6 +549,14 @@ const Pacientes = () => {
           patientName={deleteModal.patient?.nome || ''}
           isArchived={deleteModal.patient?.status === 'Arquivado'}
         />
+
+        {showProcedimentoForm && (
+          <ProcedimentoForm
+            procedimento={selectedProcedimento}
+            onSave={handleSaveProcedimento}
+            onCancel={handleCancelProcedimento}
+          />
+        )}
       </div>
     </Layout>
   );
