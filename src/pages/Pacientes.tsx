@@ -12,13 +12,16 @@ import PatientDetails from '@/components/pacientes/PatientDetails';
 import PatientArchiveModal from '@/components/pacientes/PatientArchiveModal';
 import PatientDeleteModal from '@/components/pacientes/PatientDeleteModal';
 import ConsultaModal from '@/components/agenda/ConsultaModal';
+import ProcedimentoForm from '@/components/procedimentos/ProcedimentoForm';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import EmptyState from '@/components/common/EmptyState';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import { openWhatsApp } from '@/lib/whatsapp';
 import { useSecurityGate } from '@/context/SecurityContext';
+import { useProcedimentos } from '@/hooks/useProcedimentos';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Users, Search, Plus, UserCheck, Calendar, Archive, MoreVertical, Edit2, Trash2, RotateCcw } from 'lucide-react';
+import { Users, Search, Plus, UserCheck, Calendar, Archive, MoreVertical, Edit2, Trash2, RotateCcw, Stethoscope } from 'lucide-react';
+import { Procedimento } from '@/types/procedimentos';
 
 
 const Pacientes = () => {
