@@ -233,10 +233,16 @@ const Pacientes = () => {
             <Users className="h-6 w-6 text-blue-600" />
             <h1 className="text-xl sm:text-2xl font-bold text-foreground">Pacientes</h1>
           </div>
-          <Button onClick={() => setShowForm(true)} className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto">
-            <Plus className="h-4 w-4 mr-2" />
-            Novo Paciente
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+            <Button onClick={() => setShowForm(true)} className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto">
+              <Plus className="h-4 w-4 mr-2" />
+              Novo Paciente
+            </Button>
+            <Button onClick={handleAddProcedimento} variant="outline" className="w-full sm:w-auto">
+              <Stethoscope className="h-4 w-4 mr-2" />
+              Novo Procedimento
+            </Button>
+          </div>
         </div>
 
         {/* Estatísticas */}
