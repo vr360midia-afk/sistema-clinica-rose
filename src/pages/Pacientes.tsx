@@ -136,6 +136,28 @@ const Pacientes = () => {
     await reactivatePaciente(patient.id);
   };
 
+  const handleAddProcedimento = () => {
+    setSelectedProcedimento(null);
+    setShowProcedimentoForm(true);
+  };
+
+  const handleSaveProcedimento = async (
+    procedimentoData: Omit<Procedimento, 'id' | 'criadoEm' | 'atualizadoEm'>
+  ) => {
+    setShowProcedimentoForm(false);
+    if (selectedProcedimento) {
+      await updateProcedimento(selectedProcedimento.id, procedimentoData);
+    } else {
+      await addProcedimento(procedimentoData);
+    }
+    setSelectedProcedimento(null);
+  };
+
+  const handleCancelProcedimento = () => {
+    setShowProcedimentoForm(false);
+    setSelectedProcedimento(null);
+  };
+
   const getStatusBadge = (status: string, proximaConsulta: Date | null) => {
     if (status === 'Arquivado') {
       return <Badge className="bg-muted text-foreground border-border">Arquivado</Badge>;
