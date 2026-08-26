@@ -12,13 +12,16 @@ import PatientDetails from '@/components/pacientes/PatientDetails';
 import PatientArchiveModal from '@/components/pacientes/PatientArchiveModal';
 import PatientDeleteModal from '@/components/pacientes/PatientDeleteModal';
 import ConsultaModal from '@/components/agenda/ConsultaModal';
+import ProcedimentoForm from '@/components/procedimentos/ProcedimentoForm';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import EmptyState from '@/components/common/EmptyState';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import { openWhatsApp } from '@/lib/whatsapp';
 import { useSecurityGate } from '@/context/SecurityContext';
+import { useProcedimentos } from '@/hooks/useProcedimentos';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Users, Search, Plus, UserCheck, Calendar, Archive, MoreVertical, Edit2, Trash2, RotateCcw } from 'lucide-react';
+import { Users, Search, Plus, UserCheck, Calendar, Archive, MoreVertical, Edit2, Trash2, RotateCcw, Stethoscope } from 'lucide-react';
+import { Procedimento } from '@/types/procedimentos';
 
 
 const Pacientes = () => {
@@ -29,6 +32,11 @@ const Pacientes = () => {
     archivePaciente, 
     reactivatePaciente 
   } = useDentalSystem();
+
+  const {
+    addProcedimento,
+    updateProcedimento,
+  } = useProcedimentos();
   
   const [showForm, setShowForm] = useState(false);
   const [searchParams] = useSearchParams();
@@ -43,6 +51,10 @@ const Pacientes = () => {
   // Modals
   const [archiveModal, setArchiveModal] = useState({ isOpen: false, patient: null });
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, patient: null });
+  
+  // Procedimento modal
+  const [showProcedimentoForm, setShowProcedimentoForm] = useState(false);
+  const [selectedProcedimento, setSelectedProcedimento] = useState<Procedimento | null>(null);
 
   const pacientesAtivos = pacientes.filter(p => p.status === 'Ativo' || p.status === 'Inativo');
   const pacientesArquivados = pacientes.filter(p => p.status === 'Arquivado');
@@ -124,6 +136,28 @@ const Pacientes = () => {
     await reactivatePaciente(patient.id);
   };
 
+  const handleAddProcedimento = () => {
+    setSelectedProcedimento(null);
+    setShowProcedimentoForm(true);
+  };
+
+  const handleSaveProcedimento = async (
+    procedimentoData: Omit<Procedimento, 'id' | 'criadoEm' | 'atualizadoEm'>
+  ) => {
+    setShowProcedimentoForm(false);
+    if (selectedProcedimento) {
+      await updateProcedimento(selectedProcedimento.id, procedimentoData);
+    } else {
+      await addProcedimento(procedimentoData);
+    }
+    setSelectedProcedimento(null);
+  };
+
+  const handleCancelProcedimento = () => {
+    setShowProcedimentoForm(false);
+    setSelectedProcedimento(null);
+  };
+
   const getStatusBadge = (status: string, proximaConsulta: Date | null) => {
     if (status === 'Arquivado') {
       return <Badge className="bg-muted text-foreground border-border">Arquivado</Badge>;
@@ -199,10 +233,16 @@ const Pacientes = () => {
             <Users className="h-6 w-6 text-blue-600" />
             <h1 className="text-xl sm:text-2xl font-bold text-foreground">Pacientes</h1>
           </div>
-          <Button onClick={() => setShowForm(true)} className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto">
-            <Plus className="h-4 w-4 mr-2" />
-            Novo Paciente
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+            <Button onClick={() => setShowForm(true)} className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto">
+              <Plus className="h-4 w-4 mr-2" />
+              Novo Paciente
+            </Button>
+            <Button onClick={handleAddProcedimento} variant="outline" className="w-full sm:w-auto">
+              <Stethoscope className="h-4 w-4 mr-2" />
+              Novo Procedimento
+            </Button>
+          </div>
         </div>
 
         {/* Estatísticas */}
@@ -509,6 +549,14 @@ const Pacientes = () => {
           patientName={deleteModal.patient?.nome || ''}
           isArchived={deleteModal.patient?.status === 'Arquivado'}
         />
+
+        {showProcedimentoForm && (
+          <ProcedimentoForm
+            procedimento={selectedProcedimento}
+            onSave={handleSaveProcedimento}
+            onCancel={handleCancelProcedimento}
+          />
+        )}
       </div>
     </Layout>
   );
