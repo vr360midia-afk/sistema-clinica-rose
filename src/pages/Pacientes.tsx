@@ -32,6 +32,11 @@ const Pacientes = () => {
     archivePaciente, 
     reactivatePaciente 
   } = useDentalSystem();
+
+  const {
+    addProcedimento,
+    updateProcedimento,
+  } = useProcedimentos();
   
   const [showForm, setShowForm] = useState(false);
   const [searchParams] = useSearchParams();
@@ -46,6 +51,10 @@ const Pacientes = () => {
   // Modals
   const [archiveModal, setArchiveModal] = useState({ isOpen: false, patient: null });
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, patient: null });
+  
+  // Procedimento modal
+  const [showProcedimentoForm, setShowProcedimentoForm] = useState(false);
+  const [selectedProcedimento, setSelectedProcedimento] = useState<Procedimento | null>(null);
 
   const pacientesAtivos = pacientes.filter(p => p.status === 'Ativo' || p.status === 'Inativo');
   const pacientesArquivados = pacientes.filter(p => p.status === 'Arquivado');
