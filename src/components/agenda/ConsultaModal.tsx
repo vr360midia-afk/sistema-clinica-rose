@@ -15,6 +15,7 @@ import { ptBR } from 'date-fns/locale';
 import { useAuth } from '@/context/AuthContext';
 import QuickPatientModal from './QuickPatientModal';
 import { useDentistas } from '@/hooks/useDentistas';
+import { useProcedimentos } from '@/hooks/useProcedimentos';
 import { useBloqueios, encontrarBloqueio } from '@/hooks/useBloqueios';
 import { Link } from 'react-router-dom';
 import { Calendar } from '@/components/ui/calendar';
@@ -38,6 +39,8 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
   const { user } = useAuth();
   const { dentistas } = useDentistas();
   const { bloqueios } = useBloqueios();
+  const { procedimentos } = useProcedimentos();
+  const procedimentosAtivos = procedimentos.filter((p) => p.ativo);
   const dentistasAtivos = dentistas.filter((d) => d.ativo);
   const [isQuickPatientModalOpen, setIsQuickPatientModalOpen] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(false);
@@ -350,8 +353,27 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
                   <FormItem>
                     <FormLabel>Procedimento</FormLabel>
                     <FormControl>
-                      <Input placeholder="Ex: Limpeza, Canal, Restauração..." {...field} />
+                      <Input
+                        placeholder="Selecione ou digite um procedimento..."
+                        list="lista-procedimentos"
+                        {...field}
+                        onChange={(e) => {
+                          field.onChange(e);
+                          const proc = procedimentosAtivos.find(
+                            (p) => p.nome.toLowerCase() === e.target.value.toLowerCase()
+                          );
+                          if (proc) {
+                            form.setValue('duracao', proc.duracaoMinutos || 60);
+                            if (proc.preco > 0) form.setValue('valor', proc.preco);
+                          }
+                        }}
+                      />
                     </FormControl>
+                    <datalist id="lista-procedimentos">
+                      {procedimentosAtivos.map((p) => (
+                        <option key={p.id} value={p.nome} />
+                      ))}
+                    </datalist>
                     <FormMessage />
                   </FormItem>
                 )}
