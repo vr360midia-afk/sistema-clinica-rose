@@ -9,6 +9,7 @@ import { useDentalSystem } from '@/context/DentalSystemContext';
 import PatientSelector from '@/components/anamnese/PatientSelector';
 import ProcedimentoSelector from './ProcedimentoSelector';
 import { DictationTextarea } from '@/components/common/DictationTextarea';
+import { useProcedimentos } from '@/hooks/useProcedimentos';
 
 interface ProntuarioModalProps {
   isOpen: boolean;
@@ -17,16 +18,9 @@ interface ProntuarioModalProps {
   preSelectedPatient?: string;
 }
 
-const mockProcedimentos = [
-  { id: '1', nome: 'Limpeza Dental', preco: 150.00 },
-  { id: '2', nome: 'Restauração', preco: 280.00 },
-  { id: '3', nome: 'Canal', preco: 450.00 },
-  { id: '4', nome: 'Extração', preco: 200.00 },
-  { id: '5', nome: 'Clareamento', preco: 600.00 }
-];
-
 const ProntuarioModal = ({ isOpen, onClose, onSave, preSelectedPatient }: ProntuarioModalProps) => {
-  const { addProntuario, pacientes } = useDentalSystem();
+  const { addProntuario } = useDentalSystem();
+  const { procedimentos } = useProcedimentos();
   const [selectedPatient, setSelectedPatient] = useState(preSelectedPatient || '');
   const [queixaPrincipal, setQueixaPrincipal] = useState('');
   const [historiaDoenca, setHistoriaDoenca] = useState('');
@@ -36,9 +30,18 @@ const ProntuarioModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Prontu
   const [observacoes, setObservacoes] = useState('');
   const [selectedProcedimentos, setSelectedProcedimentos] = useState<string[]>([]);
 
+  // Garante que o paciente pré-selecionado seja aplicado ao abrir
+  React.useEffect(() => {
+    if (isOpen && preSelectedPatient) {
+      setSelectedPatient(preSelectedPatient);
+    }
+  }, [isOpen, preSelectedPatient]);
+
   const calcularValorTotal = () => {
-    return selectedProcedimentos.reduce((total, procedimentoId) => {
-      const procedimento = mockProcedimentos.find(p => p.id === procedimentoId);
+    return selectedProcedimentos.reduce((total, nome) => {
+      const procedimento = procedimentos.find(
+        (p) => p.nome.toLowerCase() === nome.toLowerCase()
+      );
       return total + (procedimento?.preco || 0);
     }, 0);
   };
@@ -51,12 +54,8 @@ const ProntuarioModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Prontu
 
 
     try {
-      const patient = pacientes.find(p => p.id === selectedPatient);
       const valorTotal = calcularValorTotal();
-      const procedimentosRealizados = selectedProcedimentos.map(id => {
-        const proc = mockProcedimentos.find(p => p.id === id);
-        return proc?.nome || '';
-      }).filter(Boolean);
+      const procedimentosRealizados = [...selectedProcedimentos];
 
       const prontuarioData = {
         pacienteId: selectedPatient,
