@@ -12,6 +12,7 @@ import PatientDetails from '@/components/pacientes/PatientDetails';
 import PatientArchiveModal from '@/components/pacientes/PatientArchiveModal';
 import PatientDeleteModal from '@/components/pacientes/PatientDeleteModal';
 import ConsultaModal from '@/components/agenda/ConsultaModal';
+import ProntuarioModal from '@/components/prontuarios/ProntuarioModal';
 import ProcedimentoForm from '@/components/procedimentos/ProcedimentoForm';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import EmptyState from '@/components/common/EmptyState';
