@@ -45,6 +45,7 @@ const Pacientes = () => {
   const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || '');
   const [editingPatient, setEditingPatient] = useState(null);
   const [schedulingPatient, setSchedulingPatient] = useState<any>(null);
+  const [procedimentoPatient, setProcedimentoPatient] = useState<any>(null);
   const [activeTab, setActiveTab] = useState('ativos');
   const [anoArquivo, setAnoArquivo] = useState('todos');
   const { requireMasterPassword } = useSecurityGate();
