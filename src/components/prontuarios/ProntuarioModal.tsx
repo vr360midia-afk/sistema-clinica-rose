@@ -94,8 +94,8 @@ const ProntuarioModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Prontu
         <DialogHeader>
           <DialogTitle>Novo Prontuário</DialogTitle>
         </DialogHeader>
-        
-        <Tabs defaultValue="dados" className="w-full">
+
+        <Tabs key={preSelectedPatient ? 'proc' : 'dados'} defaultValue={preSelectedPatient ? 'procedimentos' : 'dados'} className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="dados">Dados Clínicos</TabsTrigger>
             <TabsTrigger value="procedimentos">Procedimentos</TabsTrigger>
