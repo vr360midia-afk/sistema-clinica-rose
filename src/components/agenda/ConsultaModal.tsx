@@ -353,8 +353,27 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
                   <FormItem>
                     <FormLabel>Procedimento</FormLabel>
                     <FormControl>
-                      <Input placeholder="Ex: Limpeza, Canal, Restauração..." {...field} />
+                      <Input
+                        placeholder="Selecione ou digite um procedimento..."
+                        list="lista-procedimentos"
+                        {...field}
+                        onChange={(e) => {
+                          field.onChange(e);
+                          const proc = procedimentosAtivos.find(
+                            (p) => p.nome.toLowerCase() === e.target.value.toLowerCase()
+                          );
+                          if (proc) {
+                            form.setValue('duracao', proc.duracaoMinutos || 60);
+                            if (proc.preco > 0) form.setValue('valor', proc.preco);
+                          }
+                        }}
+                      />
                     </FormControl>
+                    <datalist id="lista-procedimentos">
+                      {procedimentosAtivos.map((p) => (
+                        <option key={p.id} value={p.nome} />
+                      ))}
+                    </datalist>
                     <FormMessage />
                   </FormItem>
                 )}
