@@ -111,12 +111,7 @@ export const gerarOrcamentoPdf = async (o: OrcamentoPdf, clinica: ClinicaInfo = 
 
     <div class="rodape">Documento gerado eletronicamente em ${new Date().toLocaleString('pt-BR')}.</div>
   </div>
-  <script>window.onload = function(){ window.print(); }<\/script>
 </body></html>`;
 
-  const win = window.open('', '_blank', 'width=900,height=1000');
-  if (!win) return false;
-  win.document.write(html);
-  win.document.close();
-  return true;
+  return downloadHtmlAsPdf(html, `orcamento-${o.pacienteNome || 'paciente'}-${dataFmt.replace(/\//g, '-')}`);
 };
