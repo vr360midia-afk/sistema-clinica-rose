@@ -97,12 +97,7 @@ export const gerarDocumentoClinicoPdf = async (doc: DocumentoClinico, clinica: C
     ${assinaturaBloco}
     <div class="rodape">Documento emitido eletronicamente em ${new Date().toLocaleString('pt-BR')}.</div>
   </div>
-  <script>window.onload = function(){ window.print(); }<\/script>
 </body></html>`;
 
-  const win = window.open('', '_blank', 'width=860,height=1000');
-  if (!win) return false;
-  win.document.write(html);
-  win.document.close();
-  return true;
+  return downloadHtmlAsPdf(html, `${doc.tipo || 'documento'}-${doc.pacienteNome || ''}-${dataFmt.replace(/\//g, '-')}`);
 };
