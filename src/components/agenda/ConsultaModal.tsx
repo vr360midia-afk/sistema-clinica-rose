@@ -15,6 +15,7 @@ import { ptBR } from 'date-fns/locale';
 import { useAuth } from '@/context/AuthContext';
 import QuickPatientModal from './QuickPatientModal';
 import { useDentistas } from '@/hooks/useDentistas';
+import { useProcedimentos } from '@/hooks/useProcedimentos';
 import { useBloqueios, encontrarBloqueio } from '@/hooks/useBloqueios';
 import { Link } from 'react-router-dom';
 import { Calendar } from '@/components/ui/calendar';
@@ -38,6 +39,8 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
   const { user } = useAuth();
   const { dentistas } = useDentistas();
   const { bloqueios } = useBloqueios();
+  const { procedimentos } = useProcedimentos();
+  const procedimentosAtivos = procedimentos.filter((p) => p.ativo);
   const dentistasAtivos = dentistas.filter((d) => d.ativo);
   const [isQuickPatientModalOpen, setIsQuickPatientModalOpen] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(false);
