@@ -19,9 +19,10 @@ interface PatientDetailsProps {
   onClose: () => void;
   onEdit: () => void;
   onSchedule: () => void;
+  onAddProcedimento?: () => void;
 }
 
-const PatientDetails = ({ patient, onClose, onEdit, onSchedule }: PatientDetailsProps) => {
+const PatientDetails = ({ patient, onClose, onEdit, onSchedule, onAddProcedimento }: PatientDetailsProps) => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
