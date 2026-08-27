@@ -1,3 +1,5 @@
+import { downloadHtmlAsPdf } from './pdfDownload';
+
 interface ClinicaInfo {
   nomeClinica?: string;
   logoUrl?: string;
