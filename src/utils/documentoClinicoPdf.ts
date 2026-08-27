@@ -10,7 +10,7 @@ export interface ClinicaInfo {
   email?: string;
 }
 
-export const gerarDocumentoClinicoPdf = (doc: DocumentoClinico, clinica: ClinicaInfo = {}) => {
+export const gerarDocumentoClinicoPdf = async (doc: DocumentoClinico, clinica: ClinicaInfo = {}) => {
   const emissor = clinica.nomeClinica || 'Clínica Odontológica';
   const dataFmt = new Date(doc.criadoEm).toLocaleDateString('pt-BR');
   const isAtestado = doc.tipo === 'atestado';
