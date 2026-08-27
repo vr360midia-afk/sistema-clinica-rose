@@ -12,6 +12,8 @@ interface ProcedimentoSelectorProps {
   selectedProcedimentos: string[]; // nomes dos procedimentos
   onSelectionChange: (selected: string[]) => void;
   valorTotal: number;
+  precosLivres?: Record<string, number>;
+  onPrecoLivreChange?: (nome: string, preco: number) => void;
 }
 
 const getCategoriaColor = (categoria: string) => {
@@ -40,7 +42,7 @@ const getComplexidadeColor = (complexidade: string) => {
   return colors[complexidade] || colors.media;
 };
 
-const ProcedimentoSelector = ({ selectedProcedimentos, onSelectionChange, valorTotal }: ProcedimentoSelectorProps) => {
+const ProcedimentoSelector = ({ selectedProcedimentos, onSelectionChange, valorTotal, precosLivres = {}, onPrecoLivreChange }: ProcedimentoSelectorProps) => {
   const { procedimentos } = useProcedimentos();
   const [busca, setBusca] = useState('');
   const ativos = useMemo(() => procedimentos.filter((p) => p.ativo), [procedimentos]);
