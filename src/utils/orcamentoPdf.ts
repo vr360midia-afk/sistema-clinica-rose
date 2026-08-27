@@ -1,3 +1,5 @@
+import { downloadHtmlAsPdf } from './pdfDownload';
+
 interface ClinicaInfo {
   nomeClinica?: string;
   logoUrl?: string;
@@ -28,7 +30,7 @@ interface OrcamentoPdf {
 const money = (v: number) =>
   Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-export const gerarOrcamentoPdf = (o: OrcamentoPdf, clinica: ClinicaInfo = {}) => {
+export const gerarOrcamentoPdf = async (o: OrcamentoPdf, clinica: ClinicaInfo = {}) => {
   const emissor = clinica.nomeClinica || 'Clínica Odontológica';
   const data = o.criadoEm ? new Date(o.criadoEm) : new Date();
   const dataFmt = isNaN(data.getTime()) ? new Date().toLocaleDateString('pt-BR') : data.toLocaleDateString('pt-BR');
@@ -111,12 +113,7 @@ export const gerarOrcamentoPdf = (o: OrcamentoPdf, clinica: ClinicaInfo = {}) =>
 
     <div class="rodape">Documento gerado eletronicamente em ${new Date().toLocaleString('pt-BR')}.</div>
   </div>
-  <script>window.onload = function(){ window.print(); }<\/script>
 </body></html>`;
 
-  const win = window.open('', '_blank', 'width=900,height=1000');
-  if (!win) return false;
-  win.document.write(html);
-  win.document.close();
-  return true;
+  return downloadHtmlAsPdf(html, `orcamento-${o.pacienteNome || 'paciente'}-${dataFmt.replace(/\//g, '-')}`);
 };

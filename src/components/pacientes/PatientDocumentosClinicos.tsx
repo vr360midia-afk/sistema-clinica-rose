@@ -217,7 +217,17 @@ const PatientDocumentosClinicos = ({ patient }: Props) => {
                 </p>
               )}
               <div className="flex flex-wrap gap-2">
-                <Button size="sm" variant="outline" onClick={() => gerarDocumentoClinicoPdf(doc, clinica)}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={async () => {
+                    const t = toast.loading('Gerando PDF...');
+                    const ok = await gerarDocumentoClinicoPdf(doc, clinica);
+                    toast.dismiss(t);
+                    if (ok) toast.success('PDF baixado');
+                    else toast.error('Não foi possível gerar o PDF');
+                  }}
+                >
                   <Printer className="h-4 w-4 mr-2" /> PDF
                 </Button>
                 <Button size="sm" variant="outline" onClick={() => setAssinandoDoc(doc)}>

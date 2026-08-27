@@ -121,8 +121,9 @@ const PatientOrcamentos = ({ patient }: Props) => {
     setNovoNome('');
   };
 
-  const baixarPdf = (o: (typeof orcamentos)[number]) => {
-    const ok = gerarOrcamentoPdf(
+  const baixarPdf = async (o: (typeof orcamentos)[number]) => {
+    const t = toast.loading('Gerando PDF...');
+    const ok = await gerarOrcamentoPdf(
       {
         titulo: o.titulo,
         pacienteNome: o.pacienteNome || patient?.nome,
@@ -143,8 +144,11 @@ const PatientOrcamentos = ({ patient }: Props) => {
         email: configuracoes?.email,
       }
     );
-    if (!ok) toast.error('Permita pop-ups para gerar o PDF');
+    toast.dismiss(t);
+    if (ok) toast.success('PDF baixado');
+    else toast.error('Não foi possível gerar o PDF');
   };
+
 
   const enviarWhatsApp = (o: (typeof orcamentos)[number]) => {
     if (!patient?.telefone) {

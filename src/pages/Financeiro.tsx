@@ -50,8 +50,9 @@ const Financeiro = () => {
     return paciente?.nome || 'Paciente não encontrado';
   };
 
-  const emitirRecibo = (transacao: any) => {
-    const ok = gerarRecibo(
+  const emitirRecibo = async (transacao: any) => {
+    const t = toast.loading('Gerando recibo...');
+    const ok = await gerarRecibo(
       {
         numero: String(transacao.id).slice(0, 8).toUpperCase(),
         pacienteNome: transacao.pacienteNome || getPacienteName(transacao.pacienteId),
@@ -64,7 +65,9 @@ const Financeiro = () => {
       },
       configuracoes
     );
-    if (!ok) toast.error('Permita pop-ups para emitir o recibo');
+    toast.dismiss(t);
+    if (ok) toast.success('Recibo baixado');
+    else toast.error('Não foi possível gerar o recibo');
   };
 
 

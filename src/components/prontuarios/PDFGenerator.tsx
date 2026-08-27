@@ -1,8 +1,9 @@
 
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { FileText, Download, FileSignature } from 'lucide-react';
+import { Download, FileSignature } from 'lucide-react';
 import { toast } from 'sonner';
+import { downloadHtmlAsPdf } from '@/utils/pdfDownload';
 import SignatureProntuario from './SignatureProntuario';
 
 interface PDFGeneratorProps {
@@ -24,22 +25,12 @@ const PDFGenerator = ({
 }: PDFGeneratorProps) => {
   const [showSignatures, setShowSignatures] = useState(false);
   
-  const generatePDF = () => {
-    // Simulação da geração de PDF
-    // Em um projeto real, você usaria uma biblioteca como jsPDF ou react-pdf
-    toast.success('Gerando relatório PDF...', {
-      description: 'O download iniciará em alguns segundos'
-    });
+  const [gerando, setGerando] = useState(false);
 
-    // Simular delay de geração
-    setTimeout(() => {
-      toast.success('PDF gerado com sucesso!', {
-        description: 'Arquivo baixado para sua pasta de Downloads'
-      });
-    }, 2000);
-  };
-
-  const generateSimplePDF = () => {
+  const generateSimplePDF = async () => {
+    if (gerando) return;
+    setGerando(true);
+    const t = toast.loading('Gerando PDF...');
     // Criar um PDF simples usando dados HTML
     const printContent = `
       <html>
@@ -118,28 +109,22 @@ const PDFGenerator = ({
       </html>
     `;
 
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      printWindow.document.write(printContent);
-      printWindow.document.close();
-      printWindow.focus();
-      setTimeout(() => {
-        printWindow.print();
-        printWindow.close();
-      }, 500);
-    }
+    const ok = await downloadHtmlAsPdf(
+      printContent,
+      `prontuario-${patientData?.patientName || patientName || 'paciente'}`
+    );
+    toast.dismiss(t);
+    setGerando(false);
+    if (ok) toast.success('PDF baixado com sucesso');
+    else toast.error('Não foi possível gerar o PDF');
   };
 
   return (
     <div className="space-y-4">
       <div className="flex gap-2">
-        <Button onClick={generateSimplePDF} className="flex items-center gap-2">
-          <FileText className="h-4 w-4" />
-          Gerar PDF Simples
-        </Button>
-        <Button onClick={generatePDF} variant="outline" className="flex items-center gap-2">
+        <Button onClick={generateSimplePDF} disabled={gerando} className="flex items-center gap-2">
           <Download className="h-4 w-4" />
-          PDF Completo
+          {gerando ? 'Gerando...' : 'Baixar PDF'}
         </Button>
         <Button 
           onClick={() => setShowSignatures(!showSignatures)} 
