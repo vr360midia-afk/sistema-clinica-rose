@@ -9,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, FileText, Image, Download, Eye, Trash2, Loader2, UploadCloud, Sparkles } from 'lucide-react';
+import { Plus, FileText, FilePlus, Image, Download, Eye, Trash2, Loader2, UploadCloud, Sparkles } from 'lucide-react';
 import EmptyState from '@/components/common/EmptyState';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import { useSecurityGate } from '@/context/SecurityContext';
@@ -39,7 +39,7 @@ const isValidFile = (file: File) =>
   file.type === 'application/pdf' || file.type.startsWith('image/');
 
 const PatientDocuments = ({ patient }: PatientDocumentsProps) => {
-  const { documentos, addDocumento, updateDocumento, deleteDocumento } = useDentalSystem();
+  const { documentos, addDocumento, updateDocumento, deleteDocumento, addProntuario } = useDentalSystem();
   const { requireMasterPassword } = useSecurityGate();
   const { user } = useAuth();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -164,6 +164,65 @@ const PatientDocuments = ({ patient }: PatientDocumentsProps) => {
       toast.success('Documento excluído');
     } catch (err: any) {
       toast.error('Erro ao excluir documento', { description: err.message });
+    }
+  };
+
+  const analisarDocumento = async (documento: any) => {
+    try {
+      if (!documento?.arquivo) return;
+      if (documento.tamanho && documento.tamanho > 3 * 1024 * 1024) {
+        toast.warning('Arquivo muito grande para análise. Escolha um arquivo até 3 MB.');
+        return;
+      }
+      setAnalisando((prev) => [...prev, documento.id]);
+      await updateDocumento(documento.id, { analiseStatus: 'processando' } as any);
+
+      const { data: signed } = await supabase.storage
+        .from(BUCKET)
+        .createSignedUrl(documento.arquivo, 600);
+      if (!signed?.signedUrl) throw new Error('Falha ao gerar link do arquivo');
+
+      const { data, error } = await supabase.functions.invoke('analisar-documento', {
+        body: { fileUrl: signed.signedUrl, nome: documento.nome, tipo: documento.tipo },
+      });
+      if (error) throw error;
+
+      await updateDocumento(documento.id, {
+        analiseIa: data?.resumo || null,
+        analiseDados: data?.dados || null,
+        analiseStatus: 'concluida',
+      } as any);
+      toast.success(`Análise de IA concluída: ${documento.nome}`);
+      setAnalisando((prev) => prev.filter((id) => id !== documento.id));
+    } catch (err: any) {
+      toast.error('Não foi possível analisar o documento', { description: err.message });
+      setAnalisando((prev) => prev.filter((id) => id !== documento.id));
+    }
+  };
+
+  const salvarAnaliseNoProntuario = async (documento: any) => {
+    try {
+      const d = documento.analiseDados || {};
+      const achados = Array.isArray(d.achados) ? d.achados.join('\n') : '';
+      const exame = [d.exame_clinico, achados].filter(Boolean).join('\n\n');
+      const observ = [d.observacoes, d.texto_extraido].filter(Boolean).join('\n\n');
+
+      await addProntuario({
+        pacienteId: patient.id,
+        data: new Date(),
+        queixaPrincipal: d.queixa_principal || documento.analiseIa || '',
+        historiaDoenca: d.historia_doenca || '',
+        exameClinico: exame || documento.analiseIa || '',
+        diagnostico: d.diagnostico || '',
+        planoTratamento: Array.isArray(d.recomendacoes)
+          ? d.recomendacoes.join('\n')
+          : d.plano_tratamento || '',
+        observacoes: observ,
+        procedimentosRealizados: [],
+      });
+      toast.success('Análise salva no prontuário');
+    } catch (err: any) {
+      toast.error('Erro ao salvar no prontuário', { description: err.message });
     }
   };
 
@@ -304,6 +363,31 @@ const PatientDocuments = ({ patient }: PatientDocumentsProps) => {
                   </p>
                   {documento.tamanho && (
                     <p>Tamanho: {(documento.tamanho / 1024).toFixed(1)} KB</p>
+                  )}
+                </div>
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {!documento.analiseIa &&
+                    documento.analiseStatus !== 'processando' &&
+                    !analisando.includes(documento.id) && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void analisarDocumento(documento)}
+                      >
+                        <Sparkles className="h-3 w-3 mr-1" />
+                        Analisar com IA
+                      </Button>
+                    )}
+                  {documento.analiseIa && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void salvarAnaliseNoProntuario(documento)}
+                    >
+                      <FilePlus className="h-3 w-3 mr-1" />
+                      Salvar no prontuário
+                    </Button>
                   )}
                 </div>
 
