@@ -1,4 +1,5 @@
 import { DocumentoClinico } from '@/hooks/useDocumentosClinicos';
+import { downloadHtmlAsPdf } from './pdfDownload';
 
 export interface ClinicaInfo {
   nomeClinica?: string;
