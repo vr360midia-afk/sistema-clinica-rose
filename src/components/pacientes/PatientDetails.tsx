@@ -53,6 +53,12 @@ const PatientDetails = ({ patient, onClose, onEdit, onSchedule, onAddProcediment
             <CalendarPlus className="h-4 w-4 mr-2" />
             Agendar consulta
           </Button>
+          {onAddProcedimento && (
+            <Button onClick={onAddProcedimento} variant="secondary">
+              <Plus className="h-4 w-4 mr-2" />
+              Procedimento
+            </Button>
+          )}
           <Button onClick={onEdit} variant="outline">
             <Edit2 className="h-4 w-4 mr-2" />
             Editar
