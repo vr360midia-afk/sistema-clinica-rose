@@ -2,7 +2,7 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, CalendarPlus, Edit2, User, FileText, ClipboardList, ListChecks, FolderOpen, History, DollarSign, Stethoscope } from 'lucide-react';
+import { ArrowLeft, CalendarPlus, Edit2, Plus, User, FileText, ClipboardList, ListChecks, FolderOpen, History, DollarSign, Stethoscope } from 'lucide-react';
 import { openWhatsApp } from '@/lib/whatsapp';
 import PatientPersonalInfo from './PatientPersonalInfo';
 import PatientMedicalRecords from './PatientMedicalRecords';
@@ -19,9 +19,10 @@ interface PatientDetailsProps {
   onClose: () => void;
   onEdit: () => void;
   onSchedule: () => void;
+  onAddProcedimento?: () => void;
 }
 
-const PatientDetails = ({ patient, onClose, onEdit, onSchedule }: PatientDetailsProps) => {
+const PatientDetails = ({ patient, onClose, onEdit, onSchedule, onAddProcedimento }: PatientDetailsProps) => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -52,6 +53,12 @@ const PatientDetails = ({ patient, onClose, onEdit, onSchedule }: PatientDetails
             <CalendarPlus className="h-4 w-4 mr-2" />
             Agendar consulta
           </Button>
+          {onAddProcedimento && (
+            <Button onClick={onAddProcedimento} variant="secondary">
+              <Plus className="h-4 w-4 mr-2" />
+              Procedimento
+            </Button>
+          )}
           <Button onClick={onEdit} variant="outline">
             <Edit2 className="h-4 w-4 mr-2" />
             Editar
