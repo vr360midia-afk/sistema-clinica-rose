@@ -1,8 +1,9 @@
 
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { FileText, Download, FileSignature } from 'lucide-react';
+import { Download, FileSignature } from 'lucide-react';
 import { toast } from 'sonner';
+import { downloadHtmlAsPdf } from '@/utils/pdfDownload';
 import SignatureProntuario from './SignatureProntuario';
 
 interface PDFGeneratorProps {
