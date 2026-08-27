@@ -1,3 +1,5 @@
+import { downloadHtmlAsPdf } from './pdfDownload';
+
 interface ReciboClinica {
   nomeClinica?: string;
   logoUrl?: string;
@@ -61,7 +63,7 @@ const metodoLabel: Record<string, string> = {
   transferencia: 'Transferência',
 };
 
-export const gerarRecibo = (dados: ReciboDados, clinica: ReciboClinica = {}) => {
+export const gerarRecibo = async (dados: ReciboDados, clinica: ReciboClinica = {}) => {
   const data = new Date(dados.data);
   const dataFmt = isNaN(data.getTime()) ? new Date().toLocaleDateString('pt-BR') : data.toLocaleDateString('pt-BR');
   const valorFmt = Number(dados.valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -133,12 +135,7 @@ export const gerarRecibo = (dados: ReciboDados, clinica: ReciboClinica = {}) => 
 
     <div class="rodape">Documento emitido eletronicamente em ${new Date().toLocaleString('pt-BR')}.</div>
   </div>
-  <script>window.onload = function(){ window.print(); }<\/script>
 </body></html>`;
 
-  const win = window.open('', '_blank', 'width=860,height=1000');
-  if (!win) return false;
-  win.document.write(html);
-  win.document.close();
-  return true;
+  return downloadHtmlAsPdf(html, `recibo-${dados.numero}-${dados.pacienteNome}`);
 };
