@@ -24,22 +24,12 @@ const PDFGenerator = ({
 }: PDFGeneratorProps) => {
   const [showSignatures, setShowSignatures] = useState(false);
   
-  const generatePDF = () => {
-    // Simulação da geração de PDF
-    // Em um projeto real, você usaria uma biblioteca como jsPDF ou react-pdf
-    toast.success('Gerando relatório PDF...', {
-      description: 'O download iniciará em alguns segundos'
-    });
+  const [gerando, setGerando] = useState(false);
 
-    // Simular delay de geração
-    setTimeout(() => {
-      toast.success('PDF gerado com sucesso!', {
-        description: 'Arquivo baixado para sua pasta de Downloads'
-      });
-    }, 2000);
-  };
-
-  const generateSimplePDF = () => {
+  const generateSimplePDF = async () => {
+    if (gerando) return;
+    setGerando(true);
+    const t = toast.loading('Gerando PDF...');
     // Criar um PDF simples usando dados HTML
     const printContent = `
       <html>
