@@ -82,6 +82,7 @@ const ProntuarioModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Prontu
       setPlanoTratamento('');
       setObservacoes('');
       setSelectedProcedimentos([]);
+      setPrecosLivres({});
       
       onClose();
     } catch (error) {
@@ -166,6 +167,10 @@ const ProntuarioModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Prontu
                 selectedProcedimentos={selectedProcedimentos}
                 onSelectionChange={setSelectedProcedimentos}
                 valorTotal={calcularValorTotal()}
+                precosLivres={precosLivres}
+                onPrecoLivreChange={(nome, preco) =>
+                  setPrecosLivres((prev) => ({ ...prev, [nome]: preco }))
+                }
               />
             </div>
           </TabsContent>
