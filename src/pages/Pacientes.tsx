@@ -215,6 +215,7 @@ const Pacientes = () => {
           onClose={() => setSelectedPatient(null)}
           onEdit={() => handleEditPatient(selectedPatient)}
           onSchedule={() => setSchedulingPatient(selectedPatient)}
+          onAddProcedimento={() => setProcedimentoPatient(selectedPatient)}
         />
         <ConsultaModal
           isOpen={Boolean(schedulingPatient)}
@@ -222,6 +223,12 @@ const Pacientes = () => {
           selectedDate={new Date()}
           initialPatientId={schedulingPatient?.id}
           onSaved={() => setSchedulingPatient(null)}
+        />
+        <ProntuarioModal
+          isOpen={Boolean(procedimentoPatient)}
+          onClose={() => setProcedimentoPatient(null)}
+          preSelectedPatient={procedimentoPatient?.id}
+          onSave={() => setProcedimentoPatient(null)}
         />
       </Layout>
     );
