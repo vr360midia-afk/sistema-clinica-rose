@@ -29,6 +29,7 @@ const ProntuarioModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Prontu
   const [planoTratamento, setPlanoTratamento] = useState('');
   const [observacoes, setObservacoes] = useState('');
   const [selectedProcedimentos, setSelectedProcedimentos] = useState<string[]>([]);
+  const [precosLivres, setPrecosLivres] = useState<Record<string, number>>({});
 
   // Garante que o paciente pré-selecionado seja aplicado ao abrir
   React.useEffect(() => {
@@ -42,7 +43,7 @@ const ProntuarioModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Prontu
       const procedimento = procedimentos.find(
         (p) => p.nome.toLowerCase() === nome.toLowerCase()
       );
-      return total + (procedimento?.preco || 0);
+      return total + (procedimento?.preco ?? precosLivres[nome] ?? 0);
     }, 0);
   };
 
@@ -81,6 +82,7 @@ const ProntuarioModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Prontu
       setPlanoTratamento('');
       setObservacoes('');
       setSelectedProcedimentos([]);
+      setPrecosLivres({});
       
       onClose();
     } catch (error) {
@@ -165,6 +167,10 @@ const ProntuarioModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Prontu
                 selectedProcedimentos={selectedProcedimentos}
                 onSelectionChange={setSelectedProcedimentos}
                 valorTotal={calcularValorTotal()}
+                precosLivres={precosLivres}
+                onPrecoLivreChange={(nome, preco) =>
+                  setPrecosLivres((prev) => ({ ...prev, [nome]: preco }))
+                }
               />
             </div>
           </TabsContent>

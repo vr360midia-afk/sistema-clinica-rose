@@ -12,6 +12,8 @@ interface ProcedimentoSelectorProps {
   selectedProcedimentos: string[]; // nomes dos procedimentos
   onSelectionChange: (selected: string[]) => void;
   valorTotal: number;
+  precosLivres?: Record<string, number>;
+  onPrecoLivreChange?: (nome: string, preco: number) => void;
 }
 
 const getCategoriaColor = (categoria: string) => {
@@ -40,7 +42,7 @@ const getComplexidadeColor = (complexidade: string) => {
   return colors[complexidade] || colors.media;
 };
 
-const ProcedimentoSelector = ({ selectedProcedimentos, onSelectionChange, valorTotal }: ProcedimentoSelectorProps) => {
+const ProcedimentoSelector = ({ selectedProcedimentos, onSelectionChange, valorTotal, precosLivres = {}, onPrecoLivreChange }: ProcedimentoSelectorProps) => {
   const { procedimentos } = useProcedimentos();
   const [busca, setBusca] = useState('');
   const ativos = useMemo(() => procedimentos.filter((p) => p.ativo), [procedimentos]);
@@ -201,6 +203,18 @@ const ProcedimentoSelector = ({ selectedProcedimentos, onSelectionChange, valorT
           {livresSelecionados.map((nome) => (
             <div key={nome} className="flex items-center justify-between gap-2 rounded-md border px-3 py-2">
               <span className="text-sm flex-1">{nome}</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground">R$</span>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0,00"
+                  className="h-8 w-28"
+                  value={precosLivres[nome] ?? ''}
+                  onChange={(e) => onPrecoLivreChange?.(nome, parseFloat(e.target.value) || 0)}
+                />
+              </div>
               <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => remover(nome)}>
                 <X className="h-4 w-4" />
               </Button>
