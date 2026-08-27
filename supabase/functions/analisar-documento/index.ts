@@ -15,48 +15,74 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json().catch(() => null);
-    const imageUrl: string | undefined = body?.imageUrl;
+    const fileUrl: string | undefined = body?.fileUrl ?? body?.imageUrl;
     const nome: string = body?.nome || 'documento';
     const tipo: string = body?.tipo || 'outro';
 
-    if (!imageUrl || typeof imageUrl !== 'string') {
-      return new Response(JSON.stringify({ error: 'imageUrl é obrigatório' }), {
+    if (!fileUrl || typeof fileUrl !== 'string') {
+      return new Response(JSON.stringify({ error: 'fileUrl ou imageUrl é obrigatório' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    const prompt = `Você é assistente de uma clínica odontológica. Analise a imagem enviada (arquivo: "${nome}", tipo: "${tipo}").
+    const prompt = `Você é assistente de uma clínica odontológica. Analise o arquivo enviado (arquivo: "${nome}", tipo informado: "${tipo}").
 Responda SOMENTE com um JSON válido, sem markdown, no formato:
 {
   "resumo": "resumo clínico objetivo em português (2 a 4 frases)",
-  "tipo_detectado": "raio-x | foto intraoral | foto extraoral | exame laboratorial | receita | documento | outro",
+  "tipo_detectado": "raio-x | foto intraoral | foto extraoral | exame laboratorial | receita | atestado | documento | outro",
   "achados": ["achado relevante 1", "achado relevante 2"],
   "dentes_mencionados": ["11", "36"],
   "recomendacoes": ["sugestão de conduta 1"],
-  "texto_extraido": "texto legível encontrado na imagem, se houver"
+  "texto_extraido": "texto legível encontrado, se houver",
+  "queixa_principal": "queixa/resumo em linguagem de prontuário",
+  "historia_doenca": "história da doença relevante, se identificável",
+  "exame_clinico": "descrição dos achados do exame/imagem",
+  "diagnostico": "diagnóstico clínico ou hipótese",
+  "plano_tratamento": "plano/recomendações de tratamento",
+  "observacoes": "observações adicionais"
 }
 Não invente diagnóstico definitivo; descreva apenas o que é observável e sinalize incertezas.`;
 
-    // Baixa a imagem e envia inline (base64) — evita erros de fetch/robots.txt no provedor
-    let inlineUrl = imageUrl;
-    try {
-      const imgRes = await fetch(imageUrl);
-      if (imgRes.ok) {
-        const buf = new Uint8Array(await imgRes.arrayBuffer());
-        if (buf.byteLength > 0) {
-          const mime = imgRes.headers.get('content-type')?.split(';')[0] || 'image/jpeg';
-          let binary = '';
-          for (let i = 0; i < buf.length; i += 8192) {
-            binary += String.fromCharCode(...buf.subarray(i, i + 8192));
-          }
-          inlineUrl = `data:${mime};base64,${btoa(binary)}`;
-        }
-      } else {
-        console.error(`Falha ao baixar imagem [${imgRes.status}]`);
-      }
-    } catch (e) {
-      console.error('Erro ao baixar imagem:', e);
+    // Baixa o arquivo e envia inline (base64) — evita erros de fetch/robots.txt no provedor
+    const fileRes = await fetch(fileUrl);
+    if (!fileRes.ok) {
+      console.error(`Falha ao baixar arquivo [${fileRes.status}]`);
+      return new Response(
+        JSON.stringify({ error: 'Falha ao baixar arquivo para análise' }),
+        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
+    const buf = new Uint8Array(await fileRes.arrayBuffer());
+    if (buf.byteLength === 0) {
+      return new Response(
+        JSON.stringify({ error: 'Arquivo vazio' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
+    const mime = fileRes.headers.get('content-type')?.split(';')[0] || 'application/octet-stream';
+
+    let binary = '';
+    for (let i = 0; i < buf.length; i += 8192) {
+      binary += String.fromCharCode(...buf.subarray(i, i + 8192));
+    }
+    const b64 = btoa(binary);
+
+    let contentBlock: any;
+    if (mime.startsWith('image/')) {
+      contentBlock = { type: 'image_url', image_url: { url: `data:${mime};base64,${b64}` } };
+    } else if (mime === 'application/pdf') {
+      contentBlock = {
+        type: 'file',
+        file: { filename: nome, file_data: `data:application/pdf;base64,${b64}` },
+      };
+    } else {
+      return new Response(
+        JSON.stringify({ error: `Tipo de arquivo não suportado: ${mime}` }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
     }
 
     const res = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
@@ -73,7 +99,7 @@ Não invente diagnóstico definitivo; descreva apenas o que é observável e sin
             role: 'user',
             content: [
               { type: 'text', text: prompt },
-              { type: 'image_url', image_url: { url: inlineUrl } },
+              contentBlock,
             ],
           },
         ],
@@ -83,10 +109,10 @@ Não invente diagnóstico definitivo; descreva apenas o que é observável e sin
     if (!res.ok) {
       const details = await res.text();
       console.error(`AI gateway falhou [${res.status}]: ${details}`);
-      return new Response(JSON.stringify({ error: 'Falha na análise por IA', status: res.status, details }), {
-        status: res.status,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return new Response(
+        JSON.stringify({ error: 'Falha na análise por IA', status: res.status, details }),
+        { status: res.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
     }
 
     const json = await res.json();

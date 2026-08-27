@@ -2,13 +2,13 @@
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import PatientSelector from '@/components/anamnese/PatientSelector';
 import ProcedimentoSelector from './ProcedimentoSelector';
+import { DictationTextarea } from '@/components/common/DictationTextarea';
 
 interface ProntuarioModalProps {
   isOpen: boolean;
@@ -107,65 +107,53 @@ const ProntuarioModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Prontu
               <PatientSelector value={selectedPatient} onChange={setSelectedPatient} />
             )}
 
-            <div>
-              <Label htmlFor="queixa">Queixa Principal</Label>
-              <Textarea
-                id="queixa"
-                placeholder="Descreva a queixa principal do paciente..."
-                value={queixaPrincipal}
-                onChange={(e) => setQueixaPrincipal(e.target.value)}
-              />
-            </div>
+            <DictationTextarea
+              id="queixa"
+              label="Queixa Principal"
+              placeholder="Descreva a queixa principal do paciente..."
+              value={queixaPrincipal}
+              onChange={setQueixaPrincipal}
+            />
 
-            <div>
-              <Label htmlFor="historia">História da Doença</Label>
-              <Textarea
-                id="historia"
-                placeholder="Descreva a história da doença atual..."
-                value={historiaDoenca}
-                onChange={(e) => setHistoriaDoenca(e.target.value)}
-              />
-            </div>
+            <DictationTextarea
+              id="historia"
+              label="História da Doença"
+              placeholder="Descreva a história da doença atual..."
+              value={historiaDoenca}
+              onChange={setHistoriaDoenca}
+            />
 
-            <div>
-              <Label htmlFor="exame">Exame Clínico</Label>
-              <Textarea
-                id="exame"
-                placeholder="Descreva os achados do exame clínico..."
-                value={exameClinico}
-                onChange={(e) => setExameClinico(e.target.value)}
-              />
-            </div>
+            <DictationTextarea
+              id="exame"
+              label="Exame Clínico"
+              placeholder="Descreva os achados do exame clínico..."
+              value={exameClinico}
+              onChange={setExameClinico}
+            />
 
-            <div>
-              <Label htmlFor="diagnostico">Diagnóstico</Label>
-              <Textarea
-                id="diagnostico"
-                placeholder="Diagnóstico clínico..."
-                value={diagnostico}
-                onChange={(e) => setDiagnostico(e.target.value)}
-              />
-            </div>
+            <DictationTextarea
+              id="diagnostico"
+              label="Diagnóstico"
+              placeholder="Diagnóstico clínico..."
+              value={diagnostico}
+              onChange={setDiagnostico}
+            />
 
-            <div>
-              <Label htmlFor="plano">Plano de Tratamento</Label>
-              <Textarea
-                id="plano"
-                placeholder="Descreva o plano de tratamento..."
-                value={planoTratamento}
-                onChange={(e) => setPlanoTratamento(e.target.value)}
-              />
-            </div>
+            <DictationTextarea
+              id="plano"
+              label="Plano de Tratamento"
+              placeholder="Descreva o plano de tratamento..."
+              value={planoTratamento}
+              onChange={setPlanoTratamento}
+            />
 
-            <div>
-              <Label htmlFor="observacoes">Observações</Label>
-              <Textarea
-                id="observacoes"
-                placeholder="Observações adicionais..."
-                value={observacoes}
-                onChange={(e) => setObservacoes(e.target.value)}
-              />
-            </div>
+            <DictationTextarea
+              id="observacoes"
+              label="Observações"
+              placeholder="Observações adicionais..."
+              value={observacoes}
+              onChange={setObservacoes}
+            />
           </TabsContent>
           
           <TabsContent value="procedimentos" className="space-y-4">
