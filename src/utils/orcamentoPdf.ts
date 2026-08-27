@@ -28,7 +28,7 @@ interface OrcamentoPdf {
 const money = (v: number) =>
   Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-export const gerarOrcamentoPdf = (o: OrcamentoPdf, clinica: ClinicaInfo = {}) => {
+export const gerarOrcamentoPdf = async (o: OrcamentoPdf, clinica: ClinicaInfo = {}) => {
   const emissor = clinica.nomeClinica || 'Clínica Odontológica';
   const data = o.criadoEm ? new Date(o.criadoEm) : new Date();
   const dataFmt = isNaN(data.getTime()) ? new Date().toLocaleDateString('pt-BR') : data.toLocaleDateString('pt-BR');
