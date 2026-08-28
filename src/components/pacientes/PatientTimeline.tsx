@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Calendar, FileText, DollarSign, ClipboardList, FolderOpen, History } from 'lucide-react';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import EmptyState from '@/components/common/EmptyState';
+import { formatMoney } from '@/utils/exportCsv';
 
 interface PatientTimelineProps {
   patient: any;
@@ -64,7 +65,7 @@ const PatientTimeline = ({ patient }: PatientTimelineProps) => {
           id: `t-${t.id}`,
           data: new Date(t.data),
           tipo: 'transacao',
-          titulo: `${t.tipo === 'receita' ? 'Recebimento' : 'Despesa'} R$ ${Number(t.valor || 0).toFixed(2)}`,
+          titulo: `${t.tipo === 'receita' ? 'Recebimento' : 'Despesa'} ${formatMoney(Number(t.valor || 0))}`,
           descricao: t.descricao,
           badge: t.status,
         })

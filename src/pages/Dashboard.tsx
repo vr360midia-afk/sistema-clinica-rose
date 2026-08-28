@@ -9,6 +9,7 @@ import LembretesWhatsApp from '@/components/dashboard/LembretesWhatsApp';
 import { Users, Calendar, CreditCard, TrendingUp } from 'lucide-react';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import { useAuth } from '@/context/AuthContext';
+import { formatMoney } from '@/utils/exportCsv';
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -87,7 +88,7 @@ const Dashboard = () => {
           />
           <StatsCard
             title="Receita Mensal"
-            value={`R$ ${receitaMensal.toFixed(2)}`}
+            value={`${formatMoney(receitaMensal)}`}
             change="Mês atual"
             changeType="neutral"
             icon={CreditCard}

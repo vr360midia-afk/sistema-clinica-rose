@@ -10,6 +10,7 @@ import PatientSelector from '@/components/anamnese/PatientSelector';
 import ProcedimentoSelector from './ProcedimentoSelector';
 import { DictationTextarea } from '@/components/common/DictationTextarea';
 import { useProcedimentos } from '@/hooks/useProcedimentos';
+import { formatMoney } from '@/utils/exportCsv';
 
 interface ProntuarioModalProps {
   isOpen: boolean;
@@ -180,7 +181,7 @@ const ProntuarioModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Prontu
           <div className="text-sm text-muted-foreground">
             {selectedProcedimentos.length > 0 && (
               <span className="font-medium text-green-600">
-                Total: R$ {calcularValorTotal().toFixed(2)}
+                Total: {formatMoney(calcularValorTotal())}
               </span>
             )}
           </div>

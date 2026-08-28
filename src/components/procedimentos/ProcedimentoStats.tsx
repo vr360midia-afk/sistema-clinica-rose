@@ -23,6 +23,7 @@ import {
   Package
 } from 'lucide-react';
 import { Procedimento } from '@/types/procedimentos';
+import { formatMoney } from '@/utils/exportCsv';
 
 interface ProcedimentoStatsProps {
   procedimentos: Procedimento[];
@@ -97,7 +98,7 @@ const ProcedimentoStats = ({ procedimentos }: ProcedimentoStatsProps) => {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl sm:text-2xl font-bold">R$ {precoMedio.toFixed(2)}</div>
+            <div className="text-xl sm:text-2xl font-bold">{formatMoney(precoMedio)}</div>
             <p className="text-xs text-muted-foreground">
               Por procedimento
             </p>
@@ -124,7 +125,7 @@ const ProcedimentoStats = ({ procedimentos }: ProcedimentoStatsProps) => {
           </CardHeader>
           <CardContent>
             <div className="text-xl sm:text-2xl font-bold">
-              R$ {(precoMedio * totalProcedimentos).toFixed(2)}
+              {formatMoney((precoMedio * totalProcedimentos))}
             </div>
             <p className="text-xs text-muted-foreground">
               Todos os procedimentos
@@ -211,10 +212,10 @@ const ProcedimentoStats = ({ procedimentos }: ProcedimentoStatsProps) => {
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="font-bold text-lg">R$ {proc.preco.toFixed(2)}</p>
+                  <p className="font-bold text-lg">{formatMoney(proc.preco)}</p>
                   {proc.precoConvenio && (
                     <p className="text-sm text-muted-foreground">
-                      Convênio: R$ {proc.precoConvenio.toFixed(2)}
+                      Convênio: {formatMoney(proc.precoConvenio)}
                     </p>
                   )}
                 </div>

@@ -13,12 +13,13 @@ import { useAuth } from '@/context/AuthContext';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { openWhatsApp, buildExtratoMessage } from '@/lib/whatsapp';
 import { toast } from 'sonner';
+import { formatMoney } from '@/utils/exportCsv';
 
 interface PatientFinancialProps {
   patient: any;
 }
 
-const brl = (v: number) => `R$ ${Number(v || 0).toFixed(2)}`;
+const brl = (v: number) => `${formatMoney(Number(v || 0))}`;
 
 const PatientFinancial = ({ patient }: PatientFinancialProps) => {
   const { consultas, prontuarios, transacoes, deleteTransacao } = useDentalSystem();
