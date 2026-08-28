@@ -42,7 +42,7 @@ const Financeiro = () => {
   const totalReceived = transacoes.filter(t => t.status === 'pago' && t.tipo === 'receita').reduce((sum, t) => sum + t.valor, 0);
   const totalPending = transacoes.filter(t => t.status === 'pendente' && t.tipo === 'receita').reduce((sum, t) => sum + t.valor, 0);
   const totalParcerias = transacoes
-    .filter(t => t.tipo === 'despesa' && (t.categoria === 'parceria' || !!t.parceiroId))
+    .filter(t => t.tipo === 'despesa')
     .reduce((sum, t) => sum + (t.valor || 0), 0);
 
   const getPacienteName = (pacienteId: string) => {
