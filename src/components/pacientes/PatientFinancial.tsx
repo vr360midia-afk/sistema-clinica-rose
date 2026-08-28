@@ -238,6 +238,11 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
               <div className="min-w-0">
                 <p className="text-xs text-muted-foreground">Em aberto</p>
                 <p className="text-base sm:text-xl font-bold text-amber-500 truncate">{brl(resumo.pendente)}</p>
+                {resumo.saldoOrcamentos > 0 && (
+                  <p className="text-[11px] text-muted-foreground truncate">
+                    Orçamento aprovado: {brl(resumo.saldoOrcamentos)}
+                  </p>
+                )}
               </div>
               <DollarSign className="h-5 w-5 text-amber-500 shrink-0" />
             </div>
