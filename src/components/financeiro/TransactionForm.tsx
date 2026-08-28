@@ -29,6 +29,8 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
   const { procedimentos } = useProcedimentos();
   const { parceiros } = useParceiros();
   const isEdit = !!transacao?.id;
+  const anoAtual = new Date().getFullYear();
+
 
   const [formData, setFormData] = useState({
     pacienteId: '',
@@ -185,44 +187,38 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
           </div>
 
           <div>
-            <Label htmlFor="procedimento">Procedimento cadastrado</Label>
-            <Select
-              value=""
-              onValueChange={(value) => {
-                if (!value) return;
-                const proc = procedimentos.find((p) => p.id === value);
-                if (proc) {
+            <Label htmlFor="procedimento">Procedimento cadastrado ou texto livre</Label>
+            <div className="relative">
+              <Stethoscope className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                id="procedimento"
+                list="procedimentos-financeiro"
+                className="pl-8"
+                placeholder="Selecione ou escreva algo..."
+                value={formData.descricao}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  const proc = procedimentos.find((p) => p.nome === value);
                   setFormData((prev) => ({
                     ...prev,
-                    descricao: proc.nome,
-                    valor: String(proc.preco || ''),
+                    descricao: value,
+                    valor: proc ? String(proc.preco || '') : prev.valor,
                   }));
-                }
-              }}
-            >
-              <SelectTrigger>
-                <div className="flex items-center gap-2">
-                  <Stethoscope className="h-4 w-4 text-muted-foreground" />
-                  <SelectValue placeholder="Selecione um procedimento" />
-                </div>
-              </SelectTrigger>
-              <SelectContent>
-                {procedimentos.length === 0 && (
-                  <SelectItem value="__empty__" disabled>
-                    Nenhum procedimento cadastrado
-                  </SelectItem>
-                )}
+                }}
+              />
+              <datalist id="procedimentos-financeiro">
                 {procedimentos.map((proc) => (
-                  <SelectItem key={proc.id} value={proc.id}>
-                    {proc.nome} — {Number(proc.preco || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                  </SelectItem>
+                  <option key={proc.id} value={proc.nome}>
+                    {Number(proc.preco || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </option>
                 ))}
-              </SelectContent>
-            </Select>
+              </datalist>
+            </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Selecionar preenche a descrição e o valor automaticamente.
+              Escolher um procedimento preenche a descrição e o valor. Você também pode digitar qualquer texto.
             </p>
           </div>
+
 
           <div>
             <Label htmlFor="parceiro">Parceiro (opcional)</Label>
@@ -396,12 +392,17 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
                     {format(formData.data, 'dd/MM/yyyy', { locale: ptBR })}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
+                <PopoverContent className="w-auto p-0" align="start">
                   <Calendar
                     mode="single"
                     selected={formData.data}
-                    onSelect={(date) => setFormData(prev => ({ ...prev, data: date || new Date() }))}
+                    defaultMonth={formData.data}
+                    onSelect={(date) => setFormData(prev => ({ ...prev, data: date || prev.data }))}
                     locale={ptBR}
+                    captionLayout="dropdown-buttons"
+                    fromYear={anoAtual - 10}
+                    toYear={anoAtual + 10}
+                    className="p-3 pointer-events-auto"
                   />
                 </PopoverContent>
               </Popover>
@@ -416,17 +417,23 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
                     {formData.vencimento ? format(formData.vencimento, 'dd/MM/yyyy', { locale: ptBR }) : 'Selecionar'}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
+                <PopoverContent className="w-auto p-0" align="start">
                   <Calendar
                     mode="single"
                     selected={formData.vencimento || undefined}
+                    defaultMonth={formData.vencimento || formData.data}
                     onSelect={(date) => setFormData(prev => ({ ...prev, vencimento: date || null }))}
                     locale={ptBR}
+                    captionLayout="dropdown-buttons"
+                    fromYear={anoAtual - 10}
+                    toYear={anoAtual + 10}
+                    className="p-3 pointer-events-auto"
                   />
                 </PopoverContent>
               </Popover>
             </div>
           </div>
+
 
           <div>
             <Label htmlFor="observacoes">Observações</Label>
