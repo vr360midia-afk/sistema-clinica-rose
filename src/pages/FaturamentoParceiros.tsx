@@ -63,8 +63,8 @@ const FaturamentoParceiros = () => {
       const key = t.parceiroId || t.parceiroNome || 'desconhecido';
       const nome = t.parceiroNome || 'Parceiro removido';
       const cur = map.get(key) || { nome, bruto: 0, repasse: 0, qtd: 0 };
-      cur.bruto += Number(t.valor || 0);
-      cur.repasse += Number(t.valorParceiro || 0);
+      cur.bruto += brutoDe(t);
+      cur.repasse += repasseDe(t);
       cur.qtd += 1;
       map.set(key, cur);
     });
@@ -77,8 +77,8 @@ const FaturamentoParceiros = () => {
       const d = new Date(t.data);
       if (isNaN(d.getTime())) return;
       const idx = d.getMonth();
-      base[idx].Bruto += Number(t.valor || 0);
-      base[idx].Repasse += Number(t.valorParceiro || 0);
+      base[idx].Bruto += brutoDe(t);
+      base[idx].Repasse += repasseDe(t);
     });
     return base;
   }, [comParceiro]);
