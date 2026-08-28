@@ -30,6 +30,7 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
   const { pacientes, transacoes, addTransacao, updateTransacao, deleteTransacao } = useDentalSystem();
   const { procedimentos } = useProcedimentos();
   const { parceiros } = useParceiros();
+  const { orcamentos } = useOrcamentos();
   const isEdit = !!transacao?.id;
   const anoAtual = new Date().getFullYear();
 
