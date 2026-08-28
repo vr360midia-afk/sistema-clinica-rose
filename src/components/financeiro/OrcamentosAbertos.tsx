@@ -10,7 +10,7 @@ import { calcularSaldoOrcamento } from '@/utils/orcamentoSaldo';
 import { formatMoney } from '@/utils/exportCsv';
 
 interface Props {
-  onLancarPagamento?: (orcamentoId: string) => void;
+  onLancarPagamento?: (prefill: any) => void;
 }
 
 const OrcamentosAbertos = ({ onLancarPagamento }: Props) => {
@@ -64,7 +64,17 @@ const OrcamentosAbertos = ({ onLancarPagamento }: Props) => {
               <Progress value={saldo.percentual} className="h-2" />
               {onLancarPagamento && (
                 <div className="flex justify-end">
-                  <Button size="sm" variant="outline" className="gap-1" onClick={() => onLancarPagamento(orcamento.id)}>
+                  <Button size="sm" variant="outline" className="gap-1" onClick={() =>
+                      onLancarPagamento({
+                        orcamentoId: orcamento.id,
+                        pacienteId: orcamento.pacienteId || '',
+                        pacienteNome: orcamento.pacienteNome,
+                        descricao: orcamento.titulo,
+                        valor: saldo.saldo,
+                        tipo: 'receita',
+                        status: 'pago',
+                      })
+                    }>
                     <Plus className="h-3.5 w-3.5" />
                     Lançar pagamento
                   </Button>

@@ -10,6 +10,7 @@ import { registrarAuditoria } from '@/hooks/useAuditLog';
 import { useSecurityGate } from '@/context/SecurityContext';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import Inadimplencia from '@/components/financeiro/Inadimplencia';
+import OrcamentosAbertos from '@/components/financeiro/OrcamentosAbertos';
 import { gerarRecibo } from '@/utils/recibo';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { toast } from 'sonner';
@@ -141,6 +142,13 @@ const Financeiro = () => {
             </CardContent>
           </Card>
         </div>
+
+        <OrcamentosAbertos
+          onLancarPagamento={(prefill) => {
+            setEditingTransacao(prefill);
+            setShowTransactionForm(true);
+          }}
+        />
 
         <Inadimplencia />
 
