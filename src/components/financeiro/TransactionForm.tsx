@@ -8,12 +8,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, Stethoscope, Handshake } from 'lucide-react';
+import { CalendarIcon, Stethoscope, Handshake, FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import { useProcedimentos } from '@/hooks/useProcedimentos';
 import { useParceiros } from '@/hooks/useParceiros';
+import { useOrcamentos } from '@/hooks/useOrcamentos';
+import { calcularSaldoOrcamento } from '@/utils/orcamentoSaldo';
 import { TipoTransacao, StatusTransacao, MetodoPagamento } from '@/types/shared';
 import { toast } from 'sonner';
 
@@ -28,6 +30,7 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
   const { pacientes, transacoes, addTransacao, updateTransacao, deleteTransacao } = useDentalSystem();
   const { procedimentos } = useProcedimentos();
   const { parceiros } = useParceiros();
+  const { orcamentos } = useOrcamentos();
   const isEdit = !!transacao?.id;
   const anoAtual = new Date().getFullYear();
 
@@ -45,7 +48,8 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
     descricao: '',
     observacoes: '',
     parceiroId: '',
-    valorParceiro: ''
+    valorParceiro: '',
+    orcamentoId: ''
   });
 
   const emptyForm = {
@@ -61,7 +65,8 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
     descricao: '',
     observacoes: '',
     parceiroId: '',
-    valorParceiro: ''
+    valorParceiro: '',
+    orcamentoId: ''
   };
 
   useEffect(() => {
@@ -80,7 +85,8 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
         descricao: transacao.descricao || '',
         observacoes: transacao.observacoes || '',
         parceiroId: transacao.parceiroId || '',
-        valorParceiro: transacao.valorParceiro ? String(transacao.valorParceiro) : ''
+        valorParceiro: transacao.valorParceiro ? String(transacao.valorParceiro) : '',
+        orcamentoId: transacao.orcamentoId || ''
       });
     } else {
       setFormData(emptyForm);
@@ -99,6 +105,17 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
   const valorParceiro = parseFloat(formData.valorParceiro) || 0;
   const money = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
+  const orcamentosDisponiveis = orcamentos.filter((o) => {
+    if (o.status !== 'aprovado') return false;
+    if (o.id === formData.orcamentoId) return true;
+    if (formData.pacienteId && o.pacienteId && o.pacienteId !== formData.pacienteId) return false;
+    return calcularSaldoOrcamento(o, transacoes as any[]).saldo > 0;
+  });
+  const orcamentoSelecionado = orcamentos.find((o) => o.id === formData.orcamentoId);
+  const saldoSelecionado = orcamentoSelecionado
+    ? calcularSaldoOrcamento(orcamentoSelecionado, transacoes as any[])
+    : { total: 0, pago: 0, saldo: 0, percentual: 0 };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -108,7 +125,7 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
     }
 
     try {
-      const { taxaCartaoPercentual, parcelas: _p, valorParceiro: _vp, ...rest } = formData;
+      const { taxaCartaoPercentual, parcelas: _p, valorParceiro: _vp, orcamentoId: _oid, ...rest } = formData;
       const transactionData = {
         ...rest,
         valor: valorBruto,
@@ -121,6 +138,7 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
         parceiroId: formData.parceiroId || undefined,
         parceiroNome: parceiro?.nome,
         valorParceiro: parceiro ? valorParceiro : undefined,
+        orcamentoId: formData.orcamentoId || undefined,
       };
 
       if (isEdit) {
@@ -216,6 +234,62 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
               </SelectContent>
             </Select>
           </div>
+
+          {orcamentosDisponiveis.length > 0 && (
+            <div>
+              <Label htmlFor="orcamento">Orçamento aprovado (opcional)</Label>
+              <Select
+                value={formData.orcamentoId || 'none'}
+                onValueChange={(value) => {
+                  if (value === 'none') {
+                    setFormData((prev) => ({ ...prev, orcamentoId: '' }));
+                    return;
+                  }
+                  const orc = orcamentosDisponiveis.find((o) => o.id === value);
+                  if (!orc) return;
+                  const s = calcularSaldoOrcamento(orc, transacoes as any[]);
+                  setFormData((prev) => ({
+                    ...prev,
+                    orcamentoId: value,
+                    pacienteId: orc.pacienteId || prev.pacienteId,
+                    descricao: prev.descricao || orc.titulo,
+                    valor: s.saldo > 0 ? String(s.saldo.toFixed(2)) : prev.valor,
+                    tipo: 'receita',
+                  }));
+                }}
+              >
+                <SelectTrigger>
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-muted-foreground" />
+                    <SelectValue placeholder="Sem orçamento" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sem orçamento</SelectItem>
+                  {orcamentosDisponiveis.map((o) => {
+                    const s = calcularSaldoOrcamento(o, transacoes as any[]);
+                    return (
+                      <SelectItem key={o.id} value={o.id}>
+                        {o.titulo}{o.pacienteNome ? ` — ${o.pacienteNome}` : ''} — resta {money(s.saldo)}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+              {orcamentoSelecionado && (
+                <div className="mt-2 rounded-lg border p-2 text-xs space-y-0.5">
+                  <p>Total do orçamento: {money(saldoSelecionado.total)}</p>
+                  <p>Já pago: {money(saldoSelecionado.pago)}</p>
+                  <p className="font-medium">
+                    Saldo em aberto após este lançamento:{' '}
+                    {money(Math.max(0, saldoSelecionado.saldo - (formData.status === 'pago' ? valorBruto : 0)))}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+
 
           <div>
             <Label htmlFor="procedimento">Procedimento cadastrado ou texto livre</Label>

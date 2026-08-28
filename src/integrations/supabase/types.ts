@@ -1336,6 +1336,7 @@ export type Database = {
           id: string
           metodo_pagamento: string | null
           observacoes: string | null
+          orcamento_id: string | null
           paciente_id: string | null
           paciente_nome: string | null
           parceiro_id: string | null
@@ -1362,6 +1363,7 @@ export type Database = {
           id?: string
           metodo_pagamento?: string | null
           observacoes?: string | null
+          orcamento_id?: string | null
           paciente_id?: string | null
           paciente_nome?: string | null
           parceiro_id?: string | null
@@ -1388,6 +1390,7 @@ export type Database = {
           id?: string
           metodo_pagamento?: string | null
           observacoes?: string | null
+          orcamento_id?: string | null
           paciente_id?: string | null
           paciente_nome?: string | null
           parceiro_id?: string | null
@@ -1405,6 +1408,13 @@ export type Database = {
           vencimento?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "transacoes_orcamento_id_fkey"
+            columns: ["orcamento_id"]
+            isOneToOne: false
+            referencedRelation: "orcamentos"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "transacoes_paciente_id_fkey"
             columns: ["paciente_id"]
