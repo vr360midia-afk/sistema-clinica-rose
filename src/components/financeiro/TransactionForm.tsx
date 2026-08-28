@@ -224,6 +224,62 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
             </Select>
           </div>
 
+          {orcamentosDisponiveis.length > 0 && (
+            <div>
+              <Label htmlFor="orcamento">Orçamento aprovado (opcional)</Label>
+              <Select
+                value={formData.orcamentoId || 'none'}
+                onValueChange={(value) => {
+                  if (value === 'none') {
+                    setFormData((prev) => ({ ...prev, orcamentoId: '' }));
+                    return;
+                  }
+                  const orc = orcamentosDisponiveis.find((o) => o.id === value);
+                  if (!orc) return;
+                  const s = calcularSaldoOrcamento(orc, transacoes as any[]);
+                  setFormData((prev) => ({
+                    ...prev,
+                    orcamentoId: value,
+                    pacienteId: orc.pacienteId || prev.pacienteId,
+                    descricao: prev.descricao || orc.titulo,
+                    valor: s.saldo > 0 ? String(s.saldo.toFixed(2)) : prev.valor,
+                    tipo: 'receita',
+                  }));
+                }}
+              >
+                <SelectTrigger>
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-muted-foreground" />
+                    <SelectValue placeholder="Sem orçamento" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sem orçamento</SelectItem>
+                  {orcamentosDisponiveis.map((o) => {
+                    const s = calcularSaldoOrcamento(o, transacoes as any[]);
+                    return (
+                      <SelectItem key={o.id} value={o.id}>
+                        {o.titulo}{o.pacienteNome ? ` — ${o.pacienteNome}` : ''} — resta {money(s.saldo)}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+              {orcamentoSelecionado && (
+                <div className="mt-2 rounded-lg border p-2 text-xs space-y-0.5">
+                  <p>Total do orçamento: {money(saldoSelecionado.total)}</p>
+                  <p>Já pago: {money(saldoSelecionado.pago)}</p>
+                  <p className="font-medium">
+                    Saldo em aberto após este lançamento:{' '}
+                    {money(Math.max(0, saldoSelecionado.saldo - (formData.status === 'pago' ? valorBruto : 0)))}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+
+
           <div>
             <Label htmlFor="procedimento">Procedimento cadastrado ou texto livre</Label>
             <div className="relative">
