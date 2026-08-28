@@ -14,6 +14,8 @@ import { ptBR } from 'date-fns/locale';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import { useProcedimentos } from '@/hooks/useProcedimentos';
 import { useParceiros } from '@/hooks/useParceiros';
+import { useOrcamentos } from '@/hooks/useOrcamentos';
+import { calcularSaldoOrcamento } from '@/utils/orcamentoSaldo';
 import { TipoTransacao, StatusTransacao, MetodoPagamento } from '@/types/shared';
 import { toast } from 'sonner';
 
