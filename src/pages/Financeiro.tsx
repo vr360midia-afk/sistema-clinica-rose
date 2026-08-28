@@ -39,11 +39,14 @@ const Financeiro = () => {
     }
   };
 
-  const totalReceived = transacoes.filter(t => t.status === 'pago' && t.tipo === 'receita').reduce((sum, t) => sum + t.valor, 0);
-  const totalPending = transacoes.filter(t => t.status === 'pendente' && t.tipo === 'receita').reduce((sum, t) => sum + t.valor, 0);
-  const totalParcerias = transacoes
-    .filter(t => t.tipo === 'despesa')
-    .reduce((sum, t) => sum + (t.valor || 0), 0);
+  const totalReceived = transacoes.filter(t => t.status === 'pago' && t.tipo === 'receita').reduce((sum, t) => sum + Number(t.valor || 0), 0);
+  const totalPending = transacoes.filter(t => t.status === 'pendente' && t.tipo === 'receita').reduce((sum, t) => sum + Number(t.valor || 0), 0);
+  const despesas = transacoes.filter(t => t.tipo === 'despesa');
+  const totalDespesas = despesas.reduce((sum, t) => sum + Number(t.valor || 0), 0);
+  const totalRepasses = despesas
+    .filter(t => t.parceiroId || t.parceiroNome || t.categoria === 'parceria')
+    .reduce((sum, t) => sum + Number(t.valor || 0), 0);
+  const saldoLiquido = totalReceived - totalDespesas;
 
   const getPacienteName = (pacienteId: string) => {
     const paciente = pacientes.find(p => p.id === pacienteId);
