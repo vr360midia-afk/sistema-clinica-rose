@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
 import { useDentalSystem } from '@/context/dental-system-context';
 import { useOrcamentos } from '@/hooks/useOrcamentos';
+import { useManutencaoLentes } from '@/hooks/useManutencaoLentes';
 
-export type NotificacaoTipo = 'aniversario' | 'orcamento' | 'inadimplencia';
+export type NotificacaoTipo = 'aniversario' | 'orcamento' | 'inadimplencia' | 'manutencao';
 
 export interface Notificacao {
   id: string;
@@ -18,6 +19,7 @@ const diffDias = (a: Date, b: Date) => Math.round((startOfDay(a).getTime() - sta
 export const useNotificacoes = () => {
   const { pacientes, transacoes } = useDentalSystem();
   const { orcamentos } = useOrcamentos();
+  const { pendentes: manutencoes } = useManutencaoLentes(30);
 
   const notificacoes = useMemo<Notificacao[]>(() => {
     const hoje = new Date();
