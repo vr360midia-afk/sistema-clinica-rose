@@ -9,6 +9,7 @@ export interface ConfiguracoesGerais {
   cnpj: string;
   endereco: string;
   telefone: string;
+  whatsappNumero: string;
   email: string;
   emailNotificacoes: boolean;
   whatsappLembretes: boolean;
@@ -24,6 +25,7 @@ export const defaultConfiguracoes: ConfiguracoesGerais = {
   cnpj: '',
   endereco: '',
   telefone: '',
+  whatsappNumero: '',
   email: '',
   emailNotificacoes: true,
   whatsappLembretes: true,
@@ -58,6 +60,7 @@ export const useConfiguracoes = () => {
         cnpj: data.cnpj || '',
         endereco: data.endereco || '',
         telefone: data.telefone || '',
+        whatsappNumero: (data as any).whatsapp_numero || '',
         email: data.email || '',
         emailNotificacoes: data.email_notificacoes,
         whatsappLembretes: data.whatsapp_lembretes,
@@ -87,6 +90,7 @@ export const useConfiguracoes = () => {
           cnpj: values.cnpj,
           endereco: values.endereco,
           telefone: values.telefone,
+          whatsapp_numero: values.whatsappNumero || null,
           email: values.email,
           email_notificacoes: values.emailNotificacoes,
           whatsapp_lembretes: values.whatsappLembretes,
