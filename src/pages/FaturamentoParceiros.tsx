@@ -43,8 +43,15 @@ const FaturamentoParceiros = () => {
     [transacoes, ano, parceiroFiltro]
   );
 
+  // Bruto = apenas receitas. Repasse = valor de repasse informado na receita
+  // + despesas de parceria avulsas (que não vieram de uma receita, portanto sem valorParceiro).
   const brutoDe = (t: any) => (t.tipo === 'receita' ? Number(t.valor || 0) : 0);
-  const repasseDe = (t: any) => (t.tipo === 'despesa' ? Number(t.valor || 0) : 0);
+  const repasseDe = (t: any) =>
+    t.tipo === 'receita'
+      ? Number(t.valorParceiro || 0)
+      : Number(t.valorParceiro || 0) > 0
+        ? 0
+        : Number(t.valor || 0);
 
   const resumo = useMemo(() => {
     const totalBruto = comParceiro.reduce((s, t: any) => s + brutoDe(t), 0);
