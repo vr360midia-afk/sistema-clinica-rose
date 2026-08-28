@@ -13,6 +13,7 @@ import Inadimplencia from '@/components/financeiro/Inadimplencia';
 import { gerarRecibo } from '@/utils/recibo';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { toast } from 'sonner';
+import { formatMoney } from '@/utils/exportCsv';
 
 const Financeiro = () => {
   const { transacoes, pacientes, deleteTransacao } = useDentalSystem();
@@ -95,7 +96,7 @@ const Financeiro = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Total Recebido</p>
-                  <p className="text-xl sm:text-2xl font-bold text-green-600">R$ {totalReceived.toFixed(2)}</p>
+                  <p className="text-xl sm:text-2xl font-bold text-green-600">{formatMoney(totalReceived)}</p>
                 </div>
                 <TrendingUp className="h-8 w-8 text-green-600" />
               </div>
@@ -107,7 +108,7 @@ const Financeiro = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">A Receber</p>
-                  <p className="text-xl sm:text-2xl font-bold text-yellow-600">R$ {totalPending.toFixed(2)}</p>
+                  <p className="text-xl sm:text-2xl font-bold text-yellow-600">{formatMoney(totalPending)}</p>
                 </div>
                 <TrendingDown className="h-8 w-8 text-yellow-600" />
               </div>
@@ -119,8 +120,8 @@ const Financeiro = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Despesas / Parcerias</p>
-                  <p className="text-xl sm:text-2xl font-bold text-red-500">R$ {totalDespesas.toFixed(2)}</p>
-                  <p className="text-[11px] text-muted-foreground">Repasses a parceiros: R$ {totalRepasses.toFixed(2)}</p>
+                  <p className="text-xl sm:text-2xl font-bold text-red-500">{formatMoney(totalDespesas)}</p>
+                  <p className="text-[11px] text-muted-foreground">Repasses a parceiros: {formatMoney(totalRepasses)}</p>
                 </div>
                 <Handshake className="h-8 w-8 text-red-500" />
               </div>
@@ -132,8 +133,8 @@ const Financeiro = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Saldo Líquido (recebido - despesas)</p>
-                  <p className={`text-xl sm:text-2xl font-bold ${saldoLiquido >= 0 ? 'text-green-600' : 'text-red-500'}`}>R$ {saldoLiquido.toFixed(2)}</p>
-                  <p className="text-[11px] text-muted-foreground">Previsto c/ a receber: R$ {(saldoLiquido + totalPending).toFixed(2)}</p>
+                  <p className={`text-xl sm:text-2xl font-bold ${saldoLiquido >= 0 ? 'text-green-600' : 'text-red-500'}`}>{formatMoney(saldoLiquido)}</p>
+                  <p className="text-[11px] text-muted-foreground">Previsto c/ a receber: {formatMoney((saldoLiquido + totalPending))}</p>
                 </div>
                 <DollarSign className="h-8 w-8 text-blue-600" />
               </div>
@@ -177,7 +178,7 @@ const Financeiro = () => {
                         </div>
                       </div>
                       <div className="text-right space-y-1">
-                        <div className="font-semibold">R$ {transacao.valor.toFixed(2)}</div>
+                        <div className="font-semibold">{formatMoney(transacao.valor)}</div>
                         <Badge 
                           className={transacao.status === 'pago' 
                             ? 'bg-green-100 text-green-800' 

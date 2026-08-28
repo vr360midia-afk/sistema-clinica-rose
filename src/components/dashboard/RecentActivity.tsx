@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Activity, User, Calendar, CreditCard, FileText } from 'lucide-react';
 import { useDentalSystem } from '@/context/DentalSystemContext';
+import { formatMoney } from '@/utils/exportCsv';
 
 const RecentActivity = () => {
   const { pacientes, consultas, transacoes, prontuarios } = useDentalSystem();
@@ -63,7 +64,7 @@ const RecentActivity = () => {
           id: `transaction-${transacao.id}`,
           type: 'transaction',
           title: transacao.tipo === 'receita' ? 'Pagamento recebido' : 'Despesa registrada',
-          description: `${paciente?.nome || 'N/A'} - R$ ${transacao.valor.toFixed(2)}`,
+          description: `${paciente?.nome || 'N/A'} - ${formatMoney(transacao.valor)}`,
           time: new Date(transacao.criadoEm),
           icon: <CreditCard className="h-4 w-4" />,
           color: transacao.tipo === 'receita' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'

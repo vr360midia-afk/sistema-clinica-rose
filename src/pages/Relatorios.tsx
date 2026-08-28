@@ -108,7 +108,7 @@ const Relatorios = () => {
     return [
       { 
         titulo: 'Receita Total', 
-        valor: `R$ ${receitaTotal.toFixed(2)}`, 
+        valor: `${formatMoney(receitaTotal)}`, 
         variacao: '+0%', 
         icon: DollarSign, 
         cor: 'text-green-600' 
@@ -402,11 +402,11 @@ const Relatorios = () => {
               <div className="text-sm pt-2 border-t border-border space-y-1">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Valor aprovado</span>
-                  <span className="font-medium">R$ {indicadores.valorAprovado.toFixed(2)}</span>
+                  <span className="font-medium">{formatMoney(indicadores.valorAprovado)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Em aberto</span>
-                  <span className="font-medium">R$ {indicadores.valorEmAberto.toFixed(2)}</span>
+                  <span className="font-medium">{formatMoney(indicadores.valorEmAberto)}</span>
                 </div>
               </div>
             </CardContent>
@@ -448,7 +448,7 @@ const Relatorios = () => {
                 {indicadores.ticketDentista.slice(0, 4).map((d: any) => (
                   <div key={d.chave} className="flex justify-between text-sm">
                     <span className="text-muted-foreground truncate">{d.chave} ({d.qtd})</span>
-                    <span className="font-medium">R$ {d.ticket.toFixed(2)}</span>
+                    <span className="font-medium">{formatMoney(d.ticket)}</span>
                   </div>
                 ))}
               </div>
@@ -460,7 +460,7 @@ const Relatorios = () => {
                 {indicadores.ticketParceiro.slice(0, 4).map((d: any) => (
                   <div key={d.chave} className="flex justify-between text-sm">
                     <span className="text-muted-foreground truncate">{d.chave} ({d.qtd})</span>
-                    <span className="font-medium">R$ {d.ticket.toFixed(2)}</span>
+                    <span className="font-medium">{formatMoney(d.ticket)}</span>
                   </div>
                 ))}
               </div>

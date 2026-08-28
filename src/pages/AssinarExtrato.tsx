@@ -7,10 +7,11 @@ import DigitalSignature, { SignatureData } from '@/components/signature/DigitalS
 import { supabase } from '@/integrations/supabase/client';
 import { CheckCircle, AlertCircle, Clock, Loader2, FileSignature } from 'lucide-react';
 import { toast } from 'sonner';
+import { formatMoney } from '@/utils/exportCsv';
 
 type Status = 'loading' | 'valid' | 'invalid' | 'expired' | 'completed';
 
-const brl = (v: number) => `R$ ${Number(v || 0).toFixed(2)}`;
+const brl = (v: number) => `${formatMoney(Number(v || 0))}`;
 
 const Shell = ({ children }: { children: React.ReactNode }) => (
   <div className="min-h-screen bg-muted flex items-center justify-center p-4">{children}</div>

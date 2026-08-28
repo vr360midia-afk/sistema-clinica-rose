@@ -14,6 +14,7 @@ import {
   Copy
 } from 'lucide-react';
 import { Procedimento } from '@/types/procedimentos';
+import { formatMoney } from '@/utils/exportCsv';
 
 interface ProcedimentosListProps {
   procedimentos: Procedimento[];
@@ -96,7 +97,7 @@ const ProcedimentosList = ({ procedimentos, onEdit, onDelete, onDuplicate }: Pro
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div className="flex items-center gap-2">
                   <DollarSign className="h-4 w-4 text-green-600" />
-                  <span className="font-medium">R$ {procedimento.preco.toFixed(2)}</span>
+                  <span className="font-medium">{formatMoney(procedimento.preco)}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-blue-600" />
@@ -106,7 +107,7 @@ const ProcedimentosList = ({ procedimentos, onEdit, onDelete, onDuplicate }: Pro
 
               {procedimento.precoConvenio > 0 && (
                 <div className="text-sm text-muted-foreground">
-                  <span>Convênio: R$ {procedimento.precoConvenio.toFixed(2)}</span>
+                  <span>Convênio: {formatMoney(procedimento.precoConvenio)}</span>
                 </div>
               )}
 

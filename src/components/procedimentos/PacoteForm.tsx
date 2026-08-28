@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Procedimento } from '@/types/procedimentos';
 import { Pacote } from '@/hooks/useProcedimentos';
+import { formatMoney } from '@/utils/exportCsv';
 
 interface PacoteFormProps {
   procedimentos: Procedimento[];
@@ -69,7 +70,7 @@ const PacoteForm = ({ procedimentos, onSave, onCancel }: PacoteFormProps) => {
                   <label key={p.id} className="flex items-center gap-2 text-sm cursor-pointer">
                     <Checkbox checked={selecionados.includes(p.id)} onCheckedChange={() => toggle(p.id)} />
                     <span className="flex-1 truncate">{p.nome}</span>
-                    <span className="text-muted-foreground">R$ {p.preco.toFixed(2)}</span>
+                    <span className="text-muted-foreground">{formatMoney(p.preco)}</span>
                   </label>
                 ))}
               </div>
@@ -89,8 +90,8 @@ const PacoteForm = ({ procedimentos, onSave, onCancel }: PacoteFormProps) => {
           </div>
 
           <div className="flex justify-between text-sm bg-muted rounded-md p-3">
-            <span>Valor bruto: R$ {bruto.toFixed(2)}</span>
-            <span className="font-semibold text-green-700">Total: R$ {precoFinal.toFixed(2)}</span>
+            <span>Valor bruto: {formatMoney(bruto)}</span>
+            <span className="font-semibold text-green-700">Total: {formatMoney(precoFinal)}</span>
           </div>
 
           <div className="flex justify-end gap-2">

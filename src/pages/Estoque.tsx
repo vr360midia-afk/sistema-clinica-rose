@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Edit, Trash2, Package, AlertTriangle } from 'lucide-react';
 import Layout from '@/components/layout/Layout';
+import { formatMoney } from '@/utils/exportCsv';
 
 interface Produto {
   id: string;
@@ -270,7 +271,7 @@ const Estoque = () => {
                         )}
                       </div>
                       <p className="text-sm text-muted-foreground">
-                        Mín: {produto.minimo} | R$ {produto.preco.toFixed(2)}
+                        Mín: {produto.minimo} | {formatMoney(produto.preco)}
                       </p>
                     </div>
                     

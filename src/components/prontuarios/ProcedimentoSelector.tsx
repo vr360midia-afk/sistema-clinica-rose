@@ -7,6 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useProcedimentos } from '@/hooks/useProcedimentos';
 import { Clock, DollarSign, Plus, Search, Stethoscope, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { formatMoney } from '@/utils/exportCsv';
 
 interface ProcedimentoSelectorProps {
   selectedProcedimentos: string[]; // nomes dos procedimentos
@@ -172,7 +173,7 @@ const ProcedimentoSelector = ({ selectedProcedimentos, onSelectionChange, valorT
                       <div className="flex items-center justify-between text-sm">
                         <div className="flex items-center gap-1.5 text-green-600">
                           <DollarSign className="h-4 w-4" />
-                          <span className="font-semibold">R$ {procedimento.preco.toFixed(2)}</span>
+                          <span className="font-semibold">{formatMoney(procedimento.preco)}</span>
                         </div>
                         <div className="flex items-center gap-1.5 text-muted-foreground">
                           <Clock className="h-4 w-4 text-blue-600" />
@@ -182,7 +183,7 @@ const ProcedimentoSelector = ({ selectedProcedimentos, onSelectionChange, valorT
 
                       {procedimento.precoConvenio != null && procedimento.precoConvenio > 0 && (
                         <p className="text-xs text-muted-foreground">
-                          Convênio: R$ {procedimento.precoConvenio.toFixed(2)}
+                          Convênio: {formatMoney(procedimento.precoConvenio)}
                         </p>
                       )}
                     </div>
@@ -232,7 +233,7 @@ const ProcedimentoSelector = ({ selectedProcedimentos, onSelectionChange, valorT
                 {selectedProcedimentos.length} procedimento(s) selecionado(s)
               </span>
               <span className="text-lg font-bold text-green-700 dark:text-green-400">
-                Total: R$ {valorTotal.toFixed(2)}
+                Total: {formatMoney(valorTotal)}
               </span>
             </div>
           </CardContent>

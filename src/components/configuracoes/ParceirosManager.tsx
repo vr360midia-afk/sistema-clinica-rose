@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Handshake, Plus, Trash2, Loader2, Pencil } from 'lucide-react';
 import { useParceiros, type Parceiro, type TipoRepasse } from '@/hooks/useParceiros';
+import { formatMoney } from '@/utils/exportCsv';
 
 const emptyForm = {
   nome: '',
@@ -163,7 +164,7 @@ const ParceirosManager = () => {
                   {[p.especialidade, p.telefone].filter(Boolean).join(' • ') || 'Sem dados adicionais'}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Repasse: {p.tipoRepasse === 'percentual' ? `${p.valorRepasse}%` : `R$ ${Number(p.valorRepasse || 0).toFixed(2)}`}
+                  Repasse: {p.tipoRepasse === 'percentual' ? `${p.valorRepasse}%` : `${formatMoney(Number(p.valorRepasse || 0))}`}
                 </p>
               </div>
               <div className="flex gap-1 flex-shrink-0">

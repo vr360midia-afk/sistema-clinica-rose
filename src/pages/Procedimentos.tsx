@@ -12,6 +12,7 @@ import ProcedimentoStats from '@/components/procedimentos/ProcedimentoStats';
 import PacoteForm from '@/components/procedimentos/PacoteForm';
 import { Procedimento } from '@/types/procedimentos';
 import { useProcedimentos } from '@/hooks/useProcedimentos';
+import { formatMoney } from '@/utils/exportCsv';
 
 const Procedimentos = () => {
   const [showForm, setShowForm] = useState(false);
@@ -193,9 +194,9 @@ const Procedimentos = () => {
                             <div className="flex justify-between items-center pt-2 border-t">
                               <div className="text-sm">
                                 {bruto > pacote.precoTotal && (
-                                  <span className="line-through text-muted-foreground mr-2">R$ {bruto.toFixed(2)}</span>
+                                  <span className="line-through text-muted-foreground mr-2">{formatMoney(bruto)}</span>
                                 )}
-                                <span className="font-semibold text-green-700">R$ {pacote.precoTotal.toFixed(2)}</span>
+                                <span className="font-semibold text-green-700">{formatMoney(pacote.precoTotal)}</span>
                                 {pacote.desconto > 0 && (
                                   <span className="text-xs text-muted-foreground ml-2">-{pacote.desconto}%</span>
                                 )}
