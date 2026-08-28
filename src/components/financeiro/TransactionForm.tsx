@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, Stethoscope, Handshake } from 'lucide-react';
+import { CalendarIcon, Stethoscope, Handshake, FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useDentalSystem } from '@/context/DentalSystemContext';
@@ -104,6 +104,17 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
   const parceiro = parceiros.find((p) => p.id === formData.parceiroId);
   const valorParceiro = parseFloat(formData.valorParceiro) || 0;
   const money = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+  const orcamentosDisponiveis = orcamentos.filter((o) => {
+    if (o.status !== 'aprovado') return false;
+    if (o.id === formData.orcamentoId) return true;
+    if (formData.pacienteId && o.pacienteId && o.pacienteId !== formData.pacienteId) return false;
+    return calcularSaldoOrcamento(o, transacoes as any[]).saldo > 0;
+  });
+  const orcamentoSelecionado = orcamentos.find((o) => o.id === formData.orcamentoId);
+  const saldoSelecionado = orcamentoSelecionado
+    ? calcularSaldoOrcamento(orcamentoSelecionado, transacoes as any[])
+    : { total: 0, pago: 0, saldo: 0, percentual: 0 };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
