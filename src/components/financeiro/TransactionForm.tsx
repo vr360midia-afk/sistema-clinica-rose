@@ -96,14 +96,7 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
   const valorLiquido = valorBruto - taxaValor;
   const valorParcela = parcelas > 0 ? valorBruto / parcelas : valorBruto;
   const parceiro = parceiros.find((p) => p.id === formData.parceiroId);
-  const valorParceiroSugerido = parceiro
-    ? parceiro.tipoRepasse === 'percentual'
-      ? (valorBruto * (parceiro.valorRepasse || 0)) / 100
-      : parceiro.valorRepasse || 0
-    : 0;
-  const valorParceiro = formData.valorParceiro !== ''
-    ? parseFloat(formData.valorParceiro) || 0
-    : valorParceiroSugerido;
+  const valorParceiro = parseFloat(formData.valorParceiro) || 0;
   const money = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -274,13 +267,13 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
 
           {parceiro && (
             <div className="space-y-2 rounded-lg border p-3">
-              <Label htmlFor="valorParceiro">Valor pago ao parceiro (R$)</Label>
+              <Label htmlFor="valorParceiro">Valor pago ao parceiro (R$) *</Label>
               <Input
                 id="valorParceiro"
                 type="number"
                 step="0.01"
                 min="0"
-                placeholder={valorParceiroSugerido.toFixed(2)}
+                placeholder="0,00"
                 value={formData.valorParceiro}
                 onChange={(e) => setFormData((prev) => ({ ...prev, valorParceiro: e.target.value }))}
               />
