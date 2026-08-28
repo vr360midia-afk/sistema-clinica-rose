@@ -48,7 +48,8 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
     descricao: '',
     observacoes: '',
     parceiroId: '',
-    valorParceiro: ''
+    valorParceiro: '',
+    orcamentoId: ''
   });
 
   const emptyForm = {
@@ -64,7 +65,8 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
     descricao: '',
     observacoes: '',
     parceiroId: '',
-    valorParceiro: ''
+    valorParceiro: '',
+    orcamentoId: ''
   };
 
   useEffect(() => {
@@ -83,7 +85,8 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
         descricao: transacao.descricao || '',
         observacoes: transacao.observacoes || '',
         parceiroId: transacao.parceiroId || '',
-        valorParceiro: transacao.valorParceiro ? String(transacao.valorParceiro) : ''
+        valorParceiro: transacao.valorParceiro ? String(transacao.valorParceiro) : '',
+        orcamentoId: transacao.orcamentoId || ''
       });
     } else {
       setFormData(emptyForm);
@@ -111,7 +114,7 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
     }
 
     try {
-      const { taxaCartaoPercentual, parcelas: _p, valorParceiro: _vp, ...rest } = formData;
+      const { taxaCartaoPercentual, parcelas: _p, valorParceiro: _vp, orcamentoId: _oid, ...rest } = formData;
       const transactionData = {
         ...rest,
         valor: valorBruto,
@@ -124,6 +127,7 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
         parceiroId: formData.parceiroId || undefined,
         parceiroNome: parceiro?.nome,
         valorParceiro: parceiro ? valorParceiro : undefined,
+        orcamentoId: formData.orcamentoId || undefined,
       };
 
       if (isEdit) {
