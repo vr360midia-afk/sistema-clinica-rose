@@ -659,6 +659,14 @@ const Pacientes = () => {
             onCancel={handleCancelProcedimento}
           />
         )}
+
+        <ConsultaModal
+          isOpen={Boolean(schedulingPatient)}
+          onClose={() => setSchedulingPatient(null)}
+          selectedDate={new Date()}
+          initialPatientId={schedulingPatient?.id}
+          onSaved={() => setSchedulingPatient(null)}
+        />
       </div>
     </Layout>
   );
