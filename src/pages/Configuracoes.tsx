@@ -252,6 +252,18 @@ const Configuracoes = () => {
                     />
                   </div>
                   <div>
+                    <Label htmlFor="whatsappNumero">WhatsApp da clínica (API)</Label>
+                    <Input
+                      id="whatsappNumero"
+                      placeholder="+55 11 99999-9999"
+                      value={configuracoes.whatsappNumero}
+                      onChange={(e) => setConfiguracoes({...configuracoes, whatsappNumero: e.target.value})}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Número conectado ao WhatsApp Business API, usado para enviar e receber mensagens.
+                    </p>
+                  </div>
+                  <div>
                     <Label htmlFor="email">Email</Label>
                     <Input
                       id="email"

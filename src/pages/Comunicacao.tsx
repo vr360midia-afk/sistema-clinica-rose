@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import InstagramPostCreator from '@/components/comunicacao/InstagramPostCreator';
 import WhatsAppManager from '@/components/comunicacao/WhatsAppManager';
+import WhatsAppConversas from '@/components/comunicacao/WhatsAppConversas';
 import PlatformLogin from '@/components/comunicacao/PlatformLogin';
 
 const Comunicacao = () => {
@@ -99,10 +100,14 @@ const Comunicacao = () => {
 
         {/* Tabs Principais */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5 h-auto">
             <TabsTrigger value="instagram" className="flex items-center gap-2">
               <Instagram className="h-4 w-4" />
               Instagram
+            </TabsTrigger>
+            <TabsTrigger value="conversas" className="flex items-center gap-2">
+              <MessageCircle className="h-4 w-4" />
+              Conversas
             </TabsTrigger>
             <TabsTrigger value="whatsapp" className="flex items-center gap-2">
               <MessageCircle className="h-4 w-4" />
@@ -122,9 +127,14 @@ const Comunicacao = () => {
             <InstagramPostCreator />
           </TabsContent>
 
+          <TabsContent value="conversas">
+            <WhatsAppConversas />
+          </TabsContent>
+
           <TabsContent value="whatsapp">
             <WhatsAppManager />
           </TabsContent>
+
 
           <TabsContent value="platforms">
             <PlatformLogin />
