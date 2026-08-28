@@ -112,6 +112,7 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
       const transactionData = {
         ...rest,
         valor: valorBruto,
+        categoria: formData.tipo === 'despesa' && parceiro ? 'parceria' : (rest as any).categoria,
         taxaCartaoPercentual: taxaPerc,
         taxaCartaoValor: taxaValor,
         parcelas,
