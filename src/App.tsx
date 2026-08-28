@@ -12,6 +12,7 @@ import Dashboard from '@/pages/Dashboard';
 import Pacientes from '@/pages/Pacientes';
 import Agenda from '@/pages/Agenda';
 import Financeiro from '@/pages/Financeiro';
+import FaturamentoParceiros from '@/pages/FaturamentoParceiros';
 import Prontuarios from '@/pages/Prontuarios';
 import Relatorios from '@/pages/Relatorios';
 import Configuracoes from '@/pages/Configuracoes';
@@ -41,7 +42,8 @@ function App() {
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/pacientes" element={<ProtectedRoute><Pacientes /></ProtectedRoute>} />
               <Route path="/agenda" element={<ProtectedRoute><Agenda /></ProtectedRoute>} />
-              <Route path="/financeiro" element={<ProtectedRoute><RoleRoute allow={['admin']}><Financeiro /></RoleRoute></ProtectedRoute>} />
+<Route path="/financeiro" element={<ProtectedRoute><RoleRoute allow={['admin']}><Financeiro /></RoleRoute></ProtectedRoute>} />
+              <Route path="/faturamento-parceiros" element={<ProtectedRoute><RoleRoute allow={['admin']}><FaturamentoParceiros /></RoleRoute></ProtectedRoute>} />
               <Route path="/prontuarios" element={<ProtectedRoute><Prontuarios /></ProtectedRoute>} />
               <Route path="/relatorios" element={<ProtectedRoute><RoleRoute allow={['admin']}><Relatorios /></RoleRoute></ProtectedRoute>} />
               <Route path="/configuracoes" element={<ProtectedRoute><RoleRoute allow={['admin']}><Configuracoes /></RoleRoute></ProtectedRoute>} />

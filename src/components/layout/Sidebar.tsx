@@ -42,6 +42,7 @@ const navigation: NavItem[] = [
   { name: 'Prontuários', href: '/prontuarios', icon: Clipboard },
   { name: 'Procedimentos', href: '/procedimentos', icon: Wrench },
   { name: 'Financeiro', href: '/financeiro', icon: DollarSign, allow: ['admin'] },
+  { name: 'Parceiros (Fat.)', href: '/faturamento-parceiros', icon: Handshake, allow: ['admin'] },
   { name: 'Comunicação', href: '/comunicacao', icon: MessageSquare },
   { name: 'Estoque', href: '/estoque', icon: Package },
   { name: 'Relatórios', href: '/relatorios', icon: BarChart3, allow: ['admin'] },
