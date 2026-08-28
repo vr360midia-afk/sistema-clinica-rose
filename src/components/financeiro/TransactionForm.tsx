@@ -25,7 +25,7 @@ interface TransactionFormProps {
 }
 
 const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionFormProps) => {
-  const { pacientes, addTransacao, updateTransacao } = useDentalSystem();
+  const { pacientes, transacoes, addTransacao, updateTransacao, deleteTransacao } = useDentalSystem();
   const { procedimentos } = useProcedimentos();
   const { parceiros } = useParceiros();
   const isEdit = !!transacao?.id;
