@@ -18,7 +18,8 @@ import {
   Shield,
   X,
   StickyNote,
-  Trash2
+  Trash2,
+  Handshake
 } from 'lucide-react';
 
 interface SidebarProps {
