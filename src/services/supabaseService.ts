@@ -173,6 +173,7 @@ class SupabaseService {
       parceiroId: 'parceiro_id',
       parceiroNome: 'parceiro_nome',
       valorParceiro: 'valor_parceiro',
+      orcamentoId: 'orcamento_id',
       queixaPrincipal: 'queixa_principal',
       historiaDoenca: 'historia_doenca',
       exameClinico: 'exame_clinico',
