@@ -78,8 +78,21 @@ export const useNotificacoes = () => {
       }
     });
 
+    // Manutenção de lentes em resina (a cada 6 meses)
+    manutencoes.forEach((m) => {
+      lista.push({
+        id: `manut-${m.pacienteId}`,
+        tipo: 'manutencao',
+        titulo: m.vencida
+          ? `Manutenção de lentes atrasada: ${m.pacienteNome}`
+          : `Manutenção de lentes em ${m.diasRestantes} dia(s): ${m.pacienteNome}`,
+        descricao: `Último procedimento em ${m.ultimaData.toLocaleDateString('pt-BR')} — agendar revisão`,
+        link: '/pacientes',
+      });
+    });
+
     return lista;
-  }, [pacientes, transacoes, orcamentos]);
+  }, [pacientes, transacoes, orcamentos, manutencoes]);
 
   return { notificacoes, total: notificacoes.length };
 };
