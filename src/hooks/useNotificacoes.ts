@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
 import { useDentalSystem } from '@/context/dental-system-context';
 import { useOrcamentos } from '@/hooks/useOrcamentos';
+import { useManutencaoLentes } from '@/hooks/useManutencaoLentes';
 
-export type NotificacaoTipo = 'aniversario' | 'orcamento' | 'inadimplencia';
+export type NotificacaoTipo = 'aniversario' | 'orcamento' | 'inadimplencia' | 'manutencao';
 
 export interface Notificacao {
   id: string;
@@ -18,6 +19,7 @@ const diffDias = (a: Date, b: Date) => Math.round((startOfDay(a).getTime() - sta
 export const useNotificacoes = () => {
   const { pacientes, transacoes } = useDentalSystem();
   const { orcamentos } = useOrcamentos();
+  const { pendentes: manutencoes } = useManutencaoLentes(30);
 
   const notificacoes = useMemo<Notificacao[]>(() => {
     const hoje = new Date();
@@ -76,8 +78,21 @@ export const useNotificacoes = () => {
       }
     });
 
+    // Manutenção de lentes em resina (a cada 6 meses)
+    manutencoes.forEach((m) => {
+      lista.push({
+        id: `manut-${m.pacienteId}`,
+        tipo: 'manutencao',
+        titulo: m.vencida
+          ? `Manutenção de lentes atrasada: ${m.pacienteNome}`
+          : `Manutenção de lentes em ${m.diasRestantes} dia(s): ${m.pacienteNome}`,
+        descricao: `Último procedimento em ${m.ultimaData.toLocaleDateString('pt-BR')} — agendar revisão`,
+        link: '/pacientes',
+      });
+    });
+
     return lista;
-  }, [pacientes, transacoes, orcamentos]);
+  }, [pacientes, transacoes, orcamentos, manutencoes]);
 
   return { notificacoes, total: notificacoes.length };
 };

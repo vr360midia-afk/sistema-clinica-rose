@@ -11,6 +11,8 @@ import PatientForm from '@/components/pacientes/PatientForm';
 import PatientDetails from '@/components/pacientes/PatientDetails';
 import PatientArchiveModal from '@/components/pacientes/PatientArchiveModal';
 import PatientDeleteModal from '@/components/pacientes/PatientDeleteModal';
+import AniversariantesMes from '@/components/pacientes/AniversariantesMes';
+import ManutencaoLentesCard from '@/components/pacientes/ManutencaoLentesCard';
 import ConsultaModal from '@/components/agenda/ConsultaModal';
 import ProntuarioModal from '@/components/prontuarios/ProntuarioModal';
 import ProcedimentoForm from '@/components/procedimentos/ProcedimentoForm';
@@ -48,6 +50,9 @@ const Pacientes = () => {
   const [procedimentoPatient, setProcedimentoPatient] = useState<any>(null);
   const [activeTab, setActiveTab] = useState('ativos');
   const [anoArquivo, setAnoArquivo] = useState('todos');
+  const [tipoData, setTipoData] = useState<'cadastro' | 'atendimento'>('cadastro');
+  const [mesFiltro, setMesFiltro] = useState('todos');
+  const [anoFiltro, setAnoFiltro] = useState('todos');
   const { requireMasterPassword } = useSecurityGate();
   
   // Modals
@@ -77,12 +82,44 @@ const Pacientes = () => {
 
   const currentPacientes = activeTab === 'ativos' ? pacientesAtivos : arquivadosFiltradosPorAno;
 
+  const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+  const getDataReferencia = (paciente: any): Date | null => {
+    const valor = tipoData === 'cadastro' ? paciente.criadoEm : paciente.ultimaConsulta;
+    if (!valor) return null;
+    const d = new Date(valor);
+    return isNaN(d.getTime()) ? null : d;
+  };
+
+  const anosDisponiveis = Array.from(
+    new Set(
+      pacientes
+        .map(p => {
+          const v = tipoData === 'cadastro' ? (p as any).criadoEm : p.ultimaConsulta;
+          if (!v) return null;
+          const d = new Date(v);
+          return isNaN(d.getTime()) ? null : String(d.getFullYear());
+        })
+        .filter(Boolean) as string[]
+    )
+  ).sort((a, b) => Number(b) - Number(a));
+
   const termo = searchTerm.toLowerCase();
-  const filteredPacientes = currentPacientes.filter(paciente =>
-    (paciente.nome || '').toLowerCase().includes(termo) ||
-    (paciente.email || '').toLowerCase().includes(termo) ||
-    (paciente.telefone || '').includes(searchTerm)
-  );
+  const filteredPacientes = currentPacientes.filter(paciente => {
+    const buscaOk =
+      (paciente.nome || '').toLowerCase().includes(termo) ||
+      (paciente.email || '').toLowerCase().includes(termo) ||
+      (paciente.telefone || '').includes(searchTerm);
+    if (!buscaOk) return false;
+
+    if (mesFiltro === 'todos' && anoFiltro === 'todos') return true;
+
+    const data = getDataReferencia(paciente);
+    if (!data) return false;
+    if (mesFiltro !== 'todos' && data.getMonth() !== Number(mesFiltro)) return false;
+    if (anoFiltro !== 'todos' && data.getFullYear() !== Number(anoFiltro)) return false;
+    return true;
+  });
 
 
   const handleEditPatient = (patient: any) => {
@@ -305,6 +342,15 @@ const Pacientes = () => {
           </Card>
         </div>
 
+        {/* Aniversariantes e manutenção */}
+        <AniversariantesMes pacientes={pacientes} onSelectPatient={setSelectedPatient} />
+        <ManutencaoLentesCard
+          onSchedule={(pacienteId) => {
+            const p = pacientes.find((x) => x.id === pacienteId);
+            if (p) setSchedulingPatient(p);
+          }}
+        />
+
         {/* Abas e Busca */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
@@ -333,6 +379,53 @@ const Pacientes = () => {
               </CardContent>
             </Card>
           </div>
+
+          {/* Filtro por data */}
+          <div className="flex flex-col sm:flex-row gap-2 mt-3">
+            <Select value={tipoData} onValueChange={(v) => setTipoData(v as 'cadastro' | 'atendimento')}>
+              <SelectTrigger className="w-full sm:w-52">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="cadastro">Data de cadastro</SelectItem>
+                <SelectItem value="atendimento">Data do último atendimento</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={mesFiltro} onValueChange={setMesFiltro}>
+              <SelectTrigger className="w-full sm:w-44">
+                <SelectValue placeholder="Mês" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos os meses</SelectItem>
+                {MESES.map((m, i) => (
+                  <SelectItem key={m} value={String(i)}>{m}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={anoFiltro} onValueChange={setAnoFiltro}>
+              <SelectTrigger className="w-full sm:w-36">
+                <SelectValue placeholder="Ano" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos os anos</SelectItem>
+                {anosDisponiveis.map((ano) => (
+                  <SelectItem key={ano} value={ano}>{ano}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {(mesFiltro !== 'todos' || anoFiltro !== 'todos') && (
+              <Button
+                variant="ghost"
+                onClick={() => { setMesFiltro('todos'); setAnoFiltro('todos'); }}
+              >
+                Limpar filtro
+              </Button>
+            )}
+          </div>
+
 
           <TabsContent value="ativos">
             <Card>
@@ -566,6 +659,14 @@ const Pacientes = () => {
             onCancel={handleCancelProcedimento}
           />
         )}
+
+        <ConsultaModal
+          isOpen={Boolean(schedulingPatient)}
+          onClose={() => setSchedulingPatient(null)}
+          selectedDate={new Date()}
+          initialPatientId={schedulingPatient?.id}
+          onSaved={() => setSchedulingPatient(null)}
+        />
       </div>
     </Layout>
   );
