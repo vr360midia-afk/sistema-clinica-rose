@@ -29,6 +29,8 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
   const { procedimentos } = useProcedimentos();
   const { parceiros } = useParceiros();
   const isEdit = !!transacao?.id;
+  const anoAtual = new Date().getFullYear();
+
 
   const [formData, setFormData] = useState({
     pacienteId: '',
