@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ClipboardList, Plus, Trash2, MessageCircle, Check, X, Handshake, FileText } from 'lucide-react';
+import { ClipboardList, Plus, Trash2, MessageCircle, Check, X, Handshake, FileText, Pencil } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { useOrcamentos, OrcamentoItem } from '@/hooks/useOrcamentos';
 import { useProcedimentos } from '@/hooks/useProcedimentos';
@@ -29,12 +29,14 @@ const PatientOrcamentos = ({ patient }: Props) => {
   const { configuracoes } = useConfiguracoes();
 
   const [open, setOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [titulo, setTitulo] = useState('Plano de tratamento');
   const [itens, setItens] = useState<OrcamentoItem[]>([]);
   const [desconto, setDesconto] = useState(0);
   const [observacoes, setObservacoes] = useState('');
   const [formasPagamento, setFormasPagamento] = useState('');
   const [selectKey, setSelectKey] = useState(0);
+  const [statusEdicao, setStatusEdicao] = useState<'rascunho' | 'enviado' | 'aprovado' | 'recusado'>('rascunho');
 
 
   // Parceria
@@ -90,12 +92,42 @@ const PatientOrcamentos = ({ patient }: Props) => {
     void lista;
   };
 
+  const abrirNovo = () => {
+    setEditingId(null);
+    setStatusEdicao('rascunho');
+    setTitulo('Plano de tratamento');
+    setItens([]);
+    setDesconto(0);
+    setObservacoes('');
+    setFormasPagamento('');
+    setParceriaAtiva(false);
+    setParceiroId('');
+    setValorRepasse(0);
+    setOpen(true);
+  };
+
+  const abrirEdicao = (o: (typeof orcamentos)[number]) => {
+    setEditingId(o.id);
+    setStatusEdicao(o.status);
+    setTitulo(o.titulo);
+    setItens(o.itens.map((i) => ({ ...i })));
+    setDesconto(o.desconto || 0);
+    setObservacoes(o.observacoes || '');
+    setFormasPagamento(o.formasPagamento || '');
+    setParceriaAtiva(!!o.parceiroId || !!o.parceiroNome);
+    setParceiroId(o.parceiroId || '');
+    setTipoRepasse((o.parceiroTipoRepasse as TipoRepasse) || 'percentual');
+    setValorRepasse(o.parceiroValorRepasse || 0);
+    setOpen(true);
+  };
+
   const handleSave = async () => {
     if (itens.length === 0) {
       toast.error('Adicione pelo menos um procedimento');
       return;
     }
     await saveOrcamento({
+      id: editingId || undefined,
       titulo,
       itens,
       desconto,
@@ -103,13 +135,16 @@ const PatientOrcamentos = ({ patient }: Props) => {
       formasPagamento,
       pacienteId: patient.id,
       pacienteNome: patient.nome,
-      status: 'rascunho',
+      status: statusEdicao,
       parceiroId: parceriaAtiva ? parceiroId || null : null,
       parceiroNome: parceriaAtiva ? parceiroSelecionado?.nome || novoNome || null : null,
       parceiroTipoRepasse: parceriaAtiva ? tipoRepasse : null,
       parceiroValorRepasse: parceriaAtiva ? valorRepasse || 0 : 0,
     });
     setOpen(false);
+    setEditingId(null);
+    setStatusEdicao('rascunho');
+    setTitulo('Plano de tratamento');
     setItens([]);
     setDesconto(0);
     setObservacoes('');
@@ -177,7 +212,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
           <ClipboardList className="h-5 w-5 text-primary" />
           Orçamentos e planos de tratamento
         </CardTitle>
-        <Button size="sm" onClick={() => setOpen(true)}>
+        <Button size="sm" onClick={abrirNovo}>
           <Plus className="h-4 w-4 mr-1" /> Novo
         </Button>
       </CardHeader>
@@ -242,6 +277,9 @@ const PatientOrcamentos = ({ patient }: Props) => {
               </div>
 
               <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="outline" onClick={() => abrirEdicao(o)}>
+                  <Pencil className="h-4 w-4 mr-1" /> Editar
+                </Button>
                 <Button size="sm" variant="outline" onClick={() => baixarPdf(o)}>
                   <FileText className="h-4 w-4 mr-1" /> PDF
                 </Button>
@@ -267,7 +305,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Novo orçamento</DialogTitle>
+            <DialogTitle>{editingId ? 'Editar orçamento' : 'Novo orçamento'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-1.5">
