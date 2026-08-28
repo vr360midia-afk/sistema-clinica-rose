@@ -43,9 +43,12 @@ const FaturamentoParceiros = () => {
     [transacoes, ano, parceiroFiltro]
   );
 
+  const brutoDe = (t: any) => (t.tipo === 'receita' ? Number(t.valor || 0) : 0);
+  const repasseDe = (t: any) => (t.tipo === 'despesa' ? Number(t.valor || 0) : 0);
+
   const resumo = useMemo(() => {
-    const totalBruto = comParceiro.reduce((s, t: any) => s + Number(t.valor || 0), 0);
-    const totalRepasse = comParceiro.reduce((s, t: any) => s + Number(t.valorParceiro || 0), 0);
+    const totalBruto = comParceiro.reduce((s, t: any) => s + brutoDe(t), 0);
+    const totalRepasse = comParceiro.reduce((s, t: any) => s + repasseDe(t), 0);
     return {
       totalBruto,
       totalRepasse,
