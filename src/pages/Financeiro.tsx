@@ -119,7 +119,8 @@ const Financeiro = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Despesas / Parcerias</p>
-                  <p className="text-xl sm:text-2xl font-bold text-red-500">R$ {totalParcerias.toFixed(2)}</p>
+                  <p className="text-xl sm:text-2xl font-bold text-red-500">R$ {totalDespesas.toFixed(2)}</p>
+                  <p className="text-[11px] text-muted-foreground">Repasses a parceiros: R$ {totalRepasses.toFixed(2)}</p>
                 </div>
                 <Handshake className="h-8 w-8 text-red-500" />
               </div>
@@ -130,8 +131,9 @@ const Financeiro = () => {
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Total Geral</p>
-                  <p className="text-xl sm:text-2xl font-bold">R$ {(totalReceived + totalPending).toFixed(2)}</p>
+                  <p className="text-sm text-muted-foreground">Saldo Líquido (recebido - despesas)</p>
+                  <p className={`text-xl sm:text-2xl font-bold ${saldoLiquido >= 0 ? 'text-green-600' : 'text-red-500'}`}>R$ {saldoLiquido.toFixed(2)}</p>
+                  <p className="text-[11px] text-muted-foreground">Previsto c/ a receber: R$ {(saldoLiquido + totalPending).toFixed(2)}</p>
                 </div>
                 <DollarSign className="h-8 w-8 text-blue-600" />
               </div>
