@@ -390,12 +390,17 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
                     {format(formData.data, 'dd/MM/yyyy', { locale: ptBR })}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
+                <PopoverContent className="w-auto p-0" align="start">
                   <Calendar
                     mode="single"
                     selected={formData.data}
-                    onSelect={(date) => setFormData(prev => ({ ...prev, data: date || new Date() }))}
+                    defaultMonth={formData.data}
+                    onSelect={(date) => setFormData(prev => ({ ...prev, data: date || prev.data }))}
                     locale={ptBR}
+                    captionLayout="dropdown-buttons"
+                    fromYear={anoAtual - 10}
+                    toYear={anoAtual + 10}
+                    className="p-3 pointer-events-auto"
                   />
                 </PopoverContent>
               </Popover>
@@ -410,17 +415,23 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
                     {formData.vencimento ? format(formData.vencimento, 'dd/MM/yyyy', { locale: ptBR }) : 'Selecionar'}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
+                <PopoverContent className="w-auto p-0" align="start">
                   <Calendar
                     mode="single"
                     selected={formData.vencimento || undefined}
+                    defaultMonth={formData.vencimento || formData.data}
                     onSelect={(date) => setFormData(prev => ({ ...prev, vencimento: date || null }))}
                     locale={ptBR}
+                    captionLayout="dropdown-buttons"
+                    fromYear={anoAtual - 10}
+                    toYear={anoAtual + 10}
+                    className="p-3 pointer-events-auto"
                   />
                 </PopoverContent>
               </Popover>
             </div>
           </div>
+
 
           <div>
             <Label htmlFor="observacoes">Observações</Label>
