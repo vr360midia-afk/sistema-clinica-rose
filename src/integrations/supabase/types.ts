@@ -298,6 +298,7 @@ export type Database = {
           telefone: string | null
           user_id: string
           whatsapp_lembretes: boolean
+          whatsapp_numero: string | null
         }
         Insert: {
           atualizado_em?: string
@@ -316,6 +317,7 @@ export type Database = {
           telefone?: string | null
           user_id: string
           whatsapp_lembretes?: boolean
+          whatsapp_numero?: string | null
         }
         Update: {
           atualizado_em?: string
@@ -334,6 +336,7 @@ export type Database = {
           telefone?: string | null
           user_id?: string
           whatsapp_lembretes?: boolean
+          whatsapp_numero?: string | null
         }
         Relationships: []
       }
@@ -1431,6 +1434,56 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      whatsapp_mensagens: {
+        Row: {
+          corpo: string | null
+          criado_em: string
+          direcao: string
+          id: string
+          media_url: string | null
+          message_sid: string | null
+          nome_contato: string | null
+          paciente_id: string | null
+          status: string
+          telefone: string
+          user_id: string
+        }
+        Insert: {
+          corpo?: string | null
+          criado_em?: string
+          direcao?: string
+          id?: string
+          media_url?: string | null
+          message_sid?: string | null
+          nome_contato?: string | null
+          paciente_id?: string | null
+          status?: string
+          telefone: string
+          user_id: string
+        }
+        Update: {
+          corpo?: string | null
+          criado_em?: string
+          direcao?: string
+          id?: string
+          media_url?: string | null
+          message_sid?: string | null
+          nome_contato?: string | null
+          paciente_id?: string | null
+          status?: string
+          telefone?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_mensagens_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
