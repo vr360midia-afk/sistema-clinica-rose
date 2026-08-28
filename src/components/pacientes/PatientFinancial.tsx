@@ -14,6 +14,8 @@ import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { openWhatsApp, buildExtratoMessage } from '@/lib/whatsapp';
 import { toast } from 'sonner';
 import { formatMoney } from '@/utils/exportCsv';
+import { useOrcamentos } from '@/hooks/useOrcamentos';
+import { calcularSaldoOrcamento } from '@/utils/orcamentoSaldo';
 
 interface PatientFinancialProps {
   patient: any;
@@ -23,6 +25,7 @@ const brl = (v: number) => `${formatMoney(Number(v || 0))}`;
 
 const PatientFinancial = ({ patient }: PatientFinancialProps) => {
   const { consultas, prontuarios, transacoes, deleteTransacao } = useDentalSystem();
+  const { orcamentos } = useOrcamentos(patient?.id);
   const { requireMasterPassword } = useSecurityGate();
   const { user } = useAuth();
   const { configuracoes } = useConfiguracoes();
@@ -78,7 +81,14 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
     const vencido = receitas
       .filter((t) => t.status === 'vencido' || (t.status === 'pendente' && t.vencimento && new Date(t.vencimento) < new Date()))
       .reduce((s, t) => s + Number(t.valor || 0), 0);
-    const total = pago + pendente;
+    // Orçamentos aprovados: saldo ainda não pago entra como "em aberto"
+    const aprovados = (orcamentos || []).filter((o) => o.status === 'aprovado');
+    const saldoOrcamentos = aprovados.reduce(
+      (s, o) => s + calcularSaldoOrcamento(o, trans as any[]).saldo,
+      0
+    );
+    const pendenteTotal = pendente + saldoOrcamentos;
+    const total = pago + pendenteTotal;
     const previstoValor = previstos.reduce((s, p) => s + p.valor, 0);
 
     const etapasMap = new Map<string, any>();
@@ -118,10 +128,10 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
       realizados,
       previstos,
       etapas,
-      resumo: { pago, pendente, vencido, total, previstoValor },
+      resumo: { pago, pendente: pendenteTotal, vencido, total, previstoValor, saldoOrcamentos, totalOrcamentos: aprovados.reduce((s, o) => s + Number(o.total || 0), 0) },
       lancamentos: receitas.sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime()),
     };
-  }, [consultas, prontuarios, transacoes, patient.id]);
+  }, [consultas, prontuarios, transacoes, orcamentos, patient.id]);
 
   const percentPago = resumo.total > 0 ? Math.round((resumo.pago / resumo.total) * 100) : 0;
 
