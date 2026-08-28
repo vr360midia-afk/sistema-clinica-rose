@@ -125,6 +125,43 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
 
       if (isEdit) {
         await updateTransacao(transacao.id, transactionData);
+
+        // Mantém a despesa de repasse do parceiro sincronizada com a receita editada
+        if (formData.tipo === 'receita') {
+          const descAntiga = transacao.descricao || '';
+          const repasseExistente = (transacoes as any[]).find(
+            (t) =>
+              t.tipo === 'despesa' &&
+              t.categoria === 'parceria' &&
+              typeof t.descricao === 'string' &&
+              t.descricao.startsWith('Repasse parceiro ') &&
+              (t.descricao.endsWith(`— ${descAntiga}`) || t.descricao.endsWith(`— ${formData.descricao}`))
+          );
+
+          if (parceiro && valorParceiro > 0) {
+            const repasseData = {
+              pacienteId: formData.pacienteId,
+              tipo: 'despesa' as TipoTransacao,
+              status: formData.status,
+              categoria: 'parceria',
+              metodoPagamento: formData.metodoPagamento,
+              data: formData.data,
+              descricao: `Repasse parceiro ${parceiro.nome} — ${formData.descricao}`,
+              valor: valorParceiro,
+              parceiroId: parceiro.id,
+              parceiroNome: parceiro.nome,
+              valorParceiro,
+            };
+            if (repasseExistente) {
+              await updateTransacao(repasseExistente.id, repasseData as any);
+            } else {
+              await addTransacao(repasseData as any);
+            }
+          } else if (repasseExistente) {
+            await deleteTransacao(repasseExistente.id);
+          }
+        }
+
         toast.success('Transação atualizada');
       } else {
         await addTransacao(transactionData);
