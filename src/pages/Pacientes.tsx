@@ -340,6 +340,15 @@ const Pacientes = () => {
           </Card>
         </div>
 
+        {/* Aniversariantes e manutenção */}
+        <AniversariantesMes pacientes={pacientes} onSelectPatient={setSelectedPatient} />
+        <ManutencaoLentesCard
+          onSchedule={(pacienteId) => {
+            const p = pacientes.find((x) => x.id === pacienteId);
+            if (p) setSchedulingPatient(p);
+          }}
+        />
+
         {/* Abas e Busca */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
@@ -368,6 +377,53 @@ const Pacientes = () => {
               </CardContent>
             </Card>
           </div>
+
+          {/* Filtro por data */}
+          <div className="flex flex-col sm:flex-row gap-2 mt-3">
+            <Select value={tipoData} onValueChange={(v) => setTipoData(v as 'cadastro' | 'atendimento')}>
+              <SelectTrigger className="w-full sm:w-52">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="cadastro">Data de cadastro</SelectItem>
+                <SelectItem value="atendimento">Data do último atendimento</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={mesFiltro} onValueChange={setMesFiltro}>
+              <SelectTrigger className="w-full sm:w-44">
+                <SelectValue placeholder="Mês" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos os meses</SelectItem>
+                {MESES.map((m, i) => (
+                  <SelectItem key={m} value={String(i)}>{m}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={anoFiltro} onValueChange={setAnoFiltro}>
+              <SelectTrigger className="w-full sm:w-36">
+                <SelectValue placeholder="Ano" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos os anos</SelectItem>
+                {anosDisponiveis.map((ano) => (
+                  <SelectItem key={ano} value={ano}>{ano}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {(mesFiltro !== 'todos' || anoFiltro !== 'todos') && (
+              <Button
+                variant="ghost"
+                onClick={() => { setMesFiltro('todos'); setAnoFiltro('todos'); }}
+              >
+                Limpar filtro
+              </Button>
+            )}
+          </div>
+
 
           <TabsContent value="ativos">
             <Card>
