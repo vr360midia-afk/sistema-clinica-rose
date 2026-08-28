@@ -11,6 +11,8 @@ import PatientForm from '@/components/pacientes/PatientForm';
 import PatientDetails from '@/components/pacientes/PatientDetails';
 import PatientArchiveModal from '@/components/pacientes/PatientArchiveModal';
 import PatientDeleteModal from '@/components/pacientes/PatientDeleteModal';
+import AniversariantesMes from '@/components/pacientes/AniversariantesMes';
+import ManutencaoLentesCard from '@/components/pacientes/ManutencaoLentesCard';
 import ConsultaModal from '@/components/agenda/ConsultaModal';
 import ProntuarioModal from '@/components/prontuarios/ProntuarioModal';
 import ProcedimentoForm from '@/components/procedimentos/ProcedimentoForm';
