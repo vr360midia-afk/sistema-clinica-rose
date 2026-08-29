@@ -158,6 +158,19 @@ const Financeiro = () => {
               </div>
             </CardContent>
           </Card>
+
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Projeção de Faturamento</p>
+                  <p className="text-xl sm:text-2xl font-bold text-purple-500">{formatMoney(totalProjecao)}</p>
+                  <p className="text-[11px] text-muted-foreground">{orcamentosPendentes.length} orçamento(s) aguardando aprovação</p>
+                </div>
+                <Target className="h-8 w-8 text-purple-500" />
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         <OrcamentosAbertos
