@@ -13,6 +13,8 @@ import Inadimplencia from '@/components/financeiro/Inadimplencia';
 import OrcamentosAbertos from '@/components/financeiro/OrcamentosAbertos';
 import { gerarRecibo } from '@/utils/recibo';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
+import { useOrcamentos } from '@/hooks/useOrcamentos';
+import { calcularSaldosOrcamentos } from '@/utils/orcamentoSaldo';
 import { toast } from 'sonner';
 import { formatMoney } from '@/utils/exportCsv';
 
@@ -20,6 +22,7 @@ const Financeiro = () => {
   const { transacoes, pacientes, deleteTransacao } = useDentalSystem();
   const { requireMasterPassword } = useSecurityGate();
   const { configuracoes } = useConfiguracoes();
+  const { orcamentos } = useOrcamentos();
   const [showTransactionForm, setShowTransactionForm] = useState(false);
   const [editingTransacao, setEditingTransacao] = useState<any | null>(null);
 
@@ -49,6 +52,13 @@ const Financeiro = () => {
     .filter(t => t.parceiroId || t.parceiroNome || t.categoria === 'parceria')
     .reduce((sum, t) => sum + Number(t.valor || 0), 0);
   const saldoLiquido = totalReceived - totalDespesas;
+
+  // Saldo em aberto de orçamentos aprovados (já desconta o que foi pago)
+  const saldosOrcamentos = calcularSaldosOrcamentos(orcamentos, transacoes);
+  const totalOrcamentosAberto = orcamentos
+    .filter((o) => o.status === 'aprovado')
+    .reduce((sum, o) => sum + (saldosOrcamentos.get(o.id)?.saldo || 0), 0);
+  const totalAReceber = totalPending + totalOrcamentosAberto;
 
   const getPacienteName = (pacienteId: string) => {
     const paciente = pacientes.find(p => p.id === pacienteId);
@@ -109,7 +119,10 @@ const Financeiro = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">A Receber</p>
-                  <p className="text-xl sm:text-2xl font-bold text-yellow-600">{formatMoney(totalPending)}</p>
+                  <p className="text-xl sm:text-2xl font-bold text-yellow-600">{formatMoney(totalAReceber)}</p>
+                  {totalOrcamentosAberto > 0 && (
+                    <p className="text-[11px] text-muted-foreground">Orçamentos aprovados: {formatMoney(totalOrcamentosAberto)}</p>
+                  )}
                 </div>
                 <TrendingDown className="h-8 w-8 text-yellow-600" />
               </div>
@@ -135,7 +148,7 @@ const Financeiro = () => {
                 <div>
                   <p className="text-sm text-muted-foreground">Saldo Líquido (recebido - despesas)</p>
                   <p className={`text-xl sm:text-2xl font-bold ${saldoLiquido >= 0 ? 'text-green-600' : 'text-red-500'}`}>{formatMoney(saldoLiquido)}</p>
-                  <p className="text-[11px] text-muted-foreground">Previsto c/ a receber: {formatMoney((saldoLiquido + totalPending))}</p>
+                  <p className="text-[11px] text-muted-foreground">Previsto c/ a receber: {formatMoney((saldoLiquido + totalAReceber))}</p>
                 </div>
                 <DollarSign className="h-8 w-8 text-blue-600" />
               </div>
