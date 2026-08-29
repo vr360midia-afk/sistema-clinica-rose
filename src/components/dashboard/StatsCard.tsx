@@ -20,16 +20,16 @@ const StatsCard = ({ title, value, change, changeType, icon: Icon, iconBg }: Sta
   };
 
   return (
-    <Card>
-      <CardContent className="p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-muted-foreground">{title}</p>
-            <p className="text-xl sm:text-2xl font-bold text-foreground">{value}</p>
-            <p className={`text-sm ${changeColor[changeType]}`}>{change}</p>
+    <Card className="transition-colors hover:border-primary/30">
+      <CardContent className="p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0 space-y-1">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{title}</p>
+            <p className="text-2xl font-bold tracking-tight text-foreground tabular-nums truncate">{value}</p>
+            <p className={`text-xs ${changeColor[changeType]}`}>{change}</p>
           </div>
-          <div className={`p-3 rounded-full ${iconBg}`}>
-            <Icon className="h-6 w-6 text-white" />
+          <div className={`p-2.5 rounded-xl shrink-0 ${iconBg} bg-opacity-15`}>
+            <Icon className="h-5 w-5 text-foreground" />
           </div>
         </div>
       </CardContent>

@@ -57,8 +57,18 @@ const Dashboard = () => {
     <Layout>
       <div className="space-y-6">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-foreground mb-2">Dashboard Odontológico</h1>
-          <p className="text-muted-foreground">Bem-vindo de volta! Seus dados estão sincronizados na nuvem.</p>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground mb-1">
+            {(() => {
+              const hora = today.getHours();
+              const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite';
+              const nome = (user.user_metadata as any)?.nome?.split(' ')[0];
+              return nome ? `${saudacao}, ${nome}` : `${saudacao}!`;
+            })()}
+          </h1>
+          <p className="text-sm text-muted-foreground capitalize">
+            {today.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
+            {' · '}Seus dados estão sincronizados na nuvem.
+          </p>
         </div>
 
         {/* Stats Cards */}
