@@ -4,7 +4,7 @@ import Layout from '@/components/layout/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { DollarSign, TrendingUp, TrendingDown, Plus, CreditCard, Receipt, Pencil, Trash2, Handshake } from 'lucide-react';
+import { DollarSign, TrendingUp, TrendingDown, Plus, CreditCard, Receipt, Pencil, Trash2, Handshake, Target } from 'lucide-react';
 import TransactionForm from '@/components/financeiro/TransactionForm';
 import { registrarAuditoria } from '@/hooks/useAuditLog';
 import { useSecurityGate } from '@/context/SecurityContext';
@@ -60,6 +60,10 @@ const Financeiro = () => {
     .reduce((sum, o) => sum + (saldosOrcamentos.get(o.id)?.saldo || 0), 0);
   const totalAReceber = totalPending + totalOrcamentosAberto;
 
+  // Projeção de faturamento: orçamentos ainda não aprovados (rascunho/enviado)
+  const orcamentosPendentes = orcamentos.filter((o) => o.status !== 'aprovado' && o.status !== 'recusado');
+  const totalProjecao = orcamentosPendentes.reduce((sum, o) => sum + Number(o.total || 0), 0);
+
   const getPacienteName = (pacienteId: string) => {
     const paciente = pacientes.find(p => p.id === pacienteId);
     return paciente?.nome || 'Paciente não encontrado';
@@ -101,7 +105,7 @@ const Financeiro = () => {
         </div>
 
         {/* Cards de Resumo */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
@@ -151,6 +155,19 @@ const Financeiro = () => {
                   <p className="text-[11px] text-muted-foreground">Previsto c/ a receber: {formatMoney((saldoLiquido + totalAReceber))}</p>
                 </div>
                 <DollarSign className="h-8 w-8 text-blue-600" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Projeção de Faturamento</p>
+                  <p className="text-xl sm:text-2xl font-bold text-purple-500">{formatMoney(totalProjecao)}</p>
+                  <p className="text-[11px] text-muted-foreground">{orcamentosPendentes.length} orçamento(s) aguardando aprovação</p>
+                </div>
+                <Target className="h-8 w-8 text-purple-500" />
               </div>
             </CardContent>
           </Card>
