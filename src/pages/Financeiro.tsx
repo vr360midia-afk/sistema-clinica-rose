@@ -105,7 +105,7 @@ const Financeiro = () => {
         </div>
 
         {/* Cards de Resumo */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
