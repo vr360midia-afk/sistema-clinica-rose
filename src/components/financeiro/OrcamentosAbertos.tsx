@@ -19,7 +19,7 @@ const OrcamentosAbertos = ({ onLancarPagamento }: Props) => {
 
   const aprovados = orcamentos
     .filter((o) => o.status === 'aprovado')
-    .map((o) => ({ orcamento: o, saldo: calcularSaldoOrcamento(o, transacoes as any[]) }));
+    .map((o) => ({ orcamento: o, saldo: calcularSaldoOrcamento(o, transacoes as any[], orcamentos as any[]) }));
 
   const emAberto = aprovados.filter((a) => a.saldo.saldo > 0.009);
   const totalAberto = emAberto.reduce((s, a) => s + a.saldo.saldo, 0);

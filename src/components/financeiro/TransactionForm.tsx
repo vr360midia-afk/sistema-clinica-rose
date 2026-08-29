@@ -109,11 +109,11 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
     if (o.status !== 'aprovado') return false;
     if (o.id === formData.orcamentoId) return true;
     if (formData.pacienteId && o.pacienteId && o.pacienteId !== formData.pacienteId) return false;
-    return calcularSaldoOrcamento(o, transacoes as any[]).saldo > 0;
+    return calcularSaldoOrcamento(o, transacoes as any[], orcamentos as any[]).saldo > 0;
   });
   const orcamentoSelecionado = orcamentos.find((o) => o.id === formData.orcamentoId);
   const saldoSelecionado = orcamentoSelecionado
-    ? calcularSaldoOrcamento(orcamentoSelecionado, transacoes as any[])
+    ? calcularSaldoOrcamento(orcamentoSelecionado, transacoes as any[], orcamentos as any[])
     : { total: 0, pago: 0, saldo: 0, percentual: 0 };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -247,7 +247,7 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
                   }
                   const orc = orcamentosDisponiveis.find((o) => o.id === value);
                   if (!orc) return;
-                  const s = calcularSaldoOrcamento(orc, transacoes as any[]);
+                  const s = calcularSaldoOrcamento(orc, transacoes as any[], orcamentos as any[]);
                   setFormData((prev) => ({
                     ...prev,
                     orcamentoId: value,
@@ -267,7 +267,7 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
                 <SelectContent>
                   <SelectItem value="none">Sem orçamento</SelectItem>
                   {orcamentosDisponiveis.map((o) => {
-                    const s = calcularSaldoOrcamento(o, transacoes as any[]);
+                    const s = calcularSaldoOrcamento(o, transacoes as any[], orcamentos as any[]);
                     return (
                       <SelectItem key={o.id} value={o.id}>
                         {o.titulo}{o.pacienteNome ? ` — ${o.pacienteNome}` : ''} — resta {money(s.saldo)}
