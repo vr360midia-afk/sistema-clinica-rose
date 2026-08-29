@@ -90,9 +90,16 @@ Deno.serve(async (req) => {
     const texto = body
       .toLowerCase()
       .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '');
-    const confirma = ['sim', 's', 'confirmar', 'confirmo'].includes(texto);
-    const recusa = ['nao', 'n', 'cancelar', 'cancelo'].includes(texto);
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9 ]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const palavras = texto.split(' ');
+    const positivas = ['sim', 's', 'confirmo', 'confirmar', 'confirmado', 'confirmada', 'ok', 'okay', 'pode', 'claro', 'vou', 'estarei', 'presente', 'certo', 'combinado'];
+    const negativas = ['nao', 'n', 'cancelar', 'cancelo', 'cancelado', 'desmarca', 'desmarcar', 'remarcar', 'impossivel'];
+    const temNegativa = palavras.some((p) => negativas.includes(p));
+    const confirma = !temNegativa && palavras.some((p) => positivas.includes(p));
+    const recusa = temNegativa;
 
     if (paciente && (confirma || recusa)) {
       const hoje = new Date().toISOString().slice(0, 10);
