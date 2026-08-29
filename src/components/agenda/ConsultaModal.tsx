@@ -84,7 +84,10 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
       pacienteId: initialPatientId || '',
       observacoes: ''
     });
+    setPeriodoSelecionado(null);
   }, [isOpen, selectedDate, selectedTime, initialPatientId, form]);
+
+
 
   // Quando um paciente acabou de ser criado e apareceu na lista, seleciona-o
   React.useEffect(() => {
