@@ -13,6 +13,7 @@ import { useOrcamentos, OrcamentoItem } from '@/hooks/useOrcamentos';
 import { useProcedimentos } from '@/hooks/useProcedimentos';
 import { useParceiros, TipoRepasse } from '@/hooks/useParceiros';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
+import { useDentistas } from '@/hooks/useDentistas';
 import { gerarOrcamentoPdf } from '@/utils/orcamentoPdf';
 import { openWhatsApp } from '@/lib/whatsapp';
 import { formatMoney } from '@/utils/exportCsv';
@@ -27,6 +28,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
   const { procedimentos } = useProcedimentos();
   const { parceiros, addParceiro, refetch: refetchParceiros } = useParceiros();
   const { configuracoes } = useConfiguracoes();
+  const { dentistas } = useDentistas();
 
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
