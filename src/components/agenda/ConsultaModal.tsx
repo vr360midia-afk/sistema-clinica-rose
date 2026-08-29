@@ -168,7 +168,11 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
         confirmacaoStatus: 'pendente' as const,
         userId: user.id
       };
-      await addConsulta(consultaData);
+      if (editingConsulta?.id) {
+        await updateConsulta(editingConsulta.id, consultaData);
+      } else {
+        await addConsulta(consultaData);
+      }
 
       // Período completo: bloquear a agenda no intervalo
       const periodo = PERIODOS.find((p) => p.value === periodoSelecionado);
