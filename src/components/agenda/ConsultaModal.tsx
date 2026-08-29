@@ -123,7 +123,8 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
     const inicio = toMinutes(data.hora);
     const fim = inicio + (data.duracao || 60);
     return consultas.find((c) => {
-      if (c.status === 'cancelado') return false;
+      if (editingConsulta && c.id === editingConsulta.id) return false;
+      if (c.status === 'cancelado' || c.status === 'remarcado') return false;
       if (!c.dentista || !data.dentista) return false;
       if (c.dentista !== data.dentista) return false;
       const cData = new Date(c.data);
