@@ -148,7 +148,7 @@ const Financeiro = () => {
                 <div>
                   <p className="text-sm text-muted-foreground">Saldo Líquido (recebido - despesas)</p>
                   <p className={`text-xl sm:text-2xl font-bold ${saldoLiquido >= 0 ? 'text-green-600' : 'text-red-500'}`}>{formatMoney(saldoLiquido)}</p>
-                  <p className="text-[11px] text-muted-foreground">Previsto c/ a receber: {formatMoney((saldoLiquido + totalPending))}</p>
+                  <p className="text-[11px] text-muted-foreground">Previsto c/ a receber: {formatMoney((saldoLiquido + totalAReceber))}</p>
                 </div>
                 <DollarSign className="h-8 w-8 text-blue-600" />
               </div>
