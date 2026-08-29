@@ -4,7 +4,7 @@ import Layout from '@/components/layout/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { DollarSign, TrendingUp, TrendingDown, Plus, CreditCard, Receipt, Pencil, Trash2, Handshake } from 'lucide-react';
+import { DollarSign, TrendingUp, TrendingDown, Plus, CreditCard, Receipt, Pencil, Trash2, Handshake, Target } from 'lucide-react';
 import TransactionForm from '@/components/financeiro/TransactionForm';
 import { registrarAuditoria } from '@/hooks/useAuditLog';
 import { useSecurityGate } from '@/context/SecurityContext';
@@ -59,6 +59,10 @@ const Financeiro = () => {
     .filter((o) => o.status === 'aprovado')
     .reduce((sum, o) => sum + (saldosOrcamentos.get(o.id)?.saldo || 0), 0);
   const totalAReceber = totalPending + totalOrcamentosAberto;
+
+  // Projeção de faturamento: orçamentos ainda não aprovados (rascunho/enviado)
+  const orcamentosPendentes = orcamentos.filter((o) => o.status !== 'aprovado' && o.status !== 'recusado');
+  const totalProjecao = orcamentosPendentes.reduce((sum, o) => sum + Number(o.total || 0), 0);
 
   const getPacienteName = (pacienteId: string) => {
     const paciente = pacientes.find(p => p.id === pacienteId);
