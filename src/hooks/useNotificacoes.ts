@@ -3,7 +3,7 @@ import { useDentalSystem } from '@/context/dental-system-context';
 import { useOrcamentos } from '@/hooks/useOrcamentos';
 import { useManutencaoLentes } from '@/hooks/useManutencaoLentes';
 
-export type NotificacaoTipo = 'aniversario' | 'orcamento' | 'inadimplencia' | 'manutencao';
+export type NotificacaoTipo = 'aniversario' | 'orcamento' | 'inadimplencia' | 'manutencao' | 'confirmacao';
 
 export interface Notificacao {
   id: string;
@@ -17,7 +17,7 @@ const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDat
 const diffDias = (a: Date, b: Date) => Math.round((startOfDay(a).getTime() - startOfDay(b).getTime()) / 86400000);
 
 export const useNotificacoes = () => {
-  const { pacientes, transacoes } = useDentalSystem();
+  const { pacientes, transacoes, consultas } = useDentalSystem();
   const { orcamentos } = useOrcamentos();
   const { pendentes: manutencoes } = useManutencaoLentes(30);
 
@@ -91,8 +91,28 @@ export const useNotificacoes = () => {
       });
     });
 
+    // Confirmações automáticas via WhatsApp (últimas 48h)
+    consultas.forEach((c: any) => {
+      if (c.confirmacaoStatus !== 'confirmado' || !c.confirmadoEm) return;
+      const conf = new Date(c.confirmadoEm);
+      if (isNaN(conf.getTime())) return;
+      const horas = (hoje.getTime() - conf.getTime()) / 3600000;
+      if (horas < 0 || horas > 48) return;
+      const paciente = pacientes.find((p: any) => p.id === c.pacienteId);
+      const dataConsulta = c.data ? new Date(c.data) : null;
+      lista.push({
+        id: `conf-${c.id}`,
+        tipo: 'confirmacao',
+        titulo: `${paciente?.nome || 'Paciente'} confirmou presença`,
+        descricao: dataConsulta && !isNaN(dataConsulta.getTime())
+          ? `Consulta em ${dataConsulta.toLocaleDateString('pt-BR')}${c.hora ? ` às ${c.hora}` : ''}`
+          : 'Consulta confirmada pelo WhatsApp',
+        link: '/agenda',
+      });
+    });
+
     return lista;
-  }, [pacientes, transacoes, orcamentos, manutencoes]);
+  }, [pacientes, transacoes, consultas, orcamentos, manutencoes]);
 
   return { notificacoes, total: notificacoes.length };
 };
