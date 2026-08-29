@@ -60,7 +60,7 @@ export interface Consulta extends BaseEntity {
 
 export type ConfirmacaoStatus = 'pendente' | 'confirmado' | 'recusado';
 
-export type StatusConsulta = 'agendado' | 'confirmado' | 'realizado' | 'cancelado' | 'faltou';
+export type StatusConsulta = 'agendado' | 'confirmado' | 'realizado' | 'cancelado' | 'faltou' | 'remarcado';
 
 export interface Transacao extends BaseEntity {
   pacienteId: string;

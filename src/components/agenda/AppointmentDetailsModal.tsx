@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { User, Clock, Phone, Calendar, FileText, Edit, Trash2, CheckCircle, XCircle, MessageCircle } from 'lucide-react';
+import { User, Clock, Phone, Calendar, FileText, Edit, Trash2, CheckCircle, XCircle, MessageCircle, CalendarClock } from 'lucide-react';
 import { ConfirmacaoStatus } from '@/types/shared';
 import { buildConfirmacaoPacienteMessage, openWhatsApp } from '@/lib/whatsapp';
 import { toast } from 'sonner';
@@ -37,6 +37,7 @@ interface AppointmentDetailsModalProps {
   onDelete?: (appointmentId: string) => void;
   onStatusChange?: (appointmentId: string, newStatus: StatusConsulta) => void;
   onConfirmacaoChange?: (appointmentId: string, novo: ConfirmacaoStatus) => void;
+  onReschedule?: (appointment: any) => void;
 }
 
 const AppointmentDetailsModal = ({ 
@@ -46,7 +47,8 @@ const AppointmentDetailsModal = ({
   onEdit, 
   onDelete, 
   onStatusChange,
-  onConfirmacaoChange
+  onConfirmacaoChange,
+  onReschedule
 }: AppointmentDetailsModalProps) => {
   if (!appointment) return null;
 
@@ -79,6 +81,7 @@ const AppointmentDetailsModal = ({
       case 'realizado': return 'bg-muted text-foreground';
       case 'cancelado': return 'bg-red-100 text-red-800';
       case 'faltou': return 'bg-yellow-100 text-yellow-800';
+      case 'remarcado': return 'bg-purple-100 text-purple-800';
       default: return 'bg-muted text-foreground';
     }
   };
@@ -90,6 +93,7 @@ const AppointmentDetailsModal = ({
       case 'realizado': return 'Realizado';
       case 'cancelado': return 'Cancelado';
       case 'faltou': return 'Faltou';
+      case 'remarcado': return 'Remarcado';
       default: return status;
     }
   };
@@ -116,7 +120,7 @@ const AppointmentDetailsModal = ({
               </Badge>
             </div>
             
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {onEdit && (
                 <Button
                   variant="outline"
@@ -128,7 +132,7 @@ const AppointmentDetailsModal = ({
                   Editar
                 </Button>
               )}
-              
+
               {onStatusChange && appointment.status === 'agendado' && (
                 <Button
                   variant="outline"
@@ -140,8 +144,32 @@ const AppointmentDetailsModal = ({
                   Confirmar
                 </Button>
               )}
-              
-              {onStatusChange && appointment.status !== 'cancelado' && (
+
+              {onStatusChange && (appointment.status === 'agendado' || appointment.status === 'confirmado') && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onStatusChange(appointment.id, 'realizado')}
+                  className="gap-2 text-green-600 hover:text-green-700"
+                >
+                  <CheckCircle className="h-4 w-4" />
+                  Consulta Realizada
+                </Button>
+              )}
+
+              {onReschedule && (appointment.status === 'agendado' || appointment.status === 'confirmado' || appointment.status === 'faltou') && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onReschedule(appointment)}
+                  className="gap-2 text-purple-600 hover:text-purple-700"
+                >
+                  <CalendarClock className="h-4 w-4" />
+                  Remarcar
+                </Button>
+              )}
+
+              {onStatusChange && appointment.status !== 'cancelado' && appointment.status !== 'realizado' && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -149,7 +177,7 @@ const AppointmentDetailsModal = ({
                   className="gap-2 text-red-600 hover:text-red-700"
                 >
                   <XCircle className="h-4 w-4" />
-                  Cancelar
+                  Cancelou a consulta
                 </Button>
               )}
             </div>

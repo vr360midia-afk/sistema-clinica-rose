@@ -39,11 +39,12 @@ interface ConsultaModalProps {
   selectedDate?: Date;
   selectedTime?: string;
   initialPatientId?: string;
+  editingConsulta?: any;
   onSaved?: (data: Date) => void;
 }
 
-const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPatientId, onSaved }: ConsultaModalProps) => {
-  const { pacientes, consultas, addConsulta } = useDentalSystem();
+const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPatientId, editingConsulta, onSaved }: ConsultaModalProps) => {
+  const { pacientes, consultas, addConsulta, updateConsulta } = useDentalSystem();
   const { user } = useAuth();
   const { dentistas } = useDentistas();
   const { bloqueios, addBloqueio } = useBloqueios();
@@ -74,18 +75,32 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
   // escolhida pelo usuário enquanto o modal estiver em uso).
   React.useEffect(() => {
     if (!isOpen) return;
-    form.reset({
-      data: selectedDate ? new Date(selectedDate) : new Date(),
-      hora: selectedTime || '09:00',
-      duracao: 60,
-      status: 'agendado',
-      procedimento: '',
-      dentista: '',
-      pacienteId: initialPatientId || '',
-      observacoes: ''
-    });
+    if (editingConsulta) {
+      form.reset({
+        data: editingConsulta.data ? new Date(editingConsulta.data) : (selectedDate ? new Date(selectedDate) : new Date()),
+        hora: editingConsulta.hora || selectedTime || '09:00',
+        duracao: Number(editingConsulta.duracao) || 60,
+        status: 'agendado',
+        procedimento: editingConsulta.procedimento || '',
+        dentista: editingConsulta.dentista || '',
+        pacienteId: editingConsulta.pacienteId || initialPatientId || '',
+        observacoes: editingConsulta.observacoes || '',
+        valor: editingConsulta.valor,
+      });
+    } else {
+      form.reset({
+        data: selectedDate ? new Date(selectedDate) : new Date(),
+        hora: selectedTime || '09:00',
+        duracao: 60,
+        status: 'agendado',
+        procedimento: '',
+        dentista: '',
+        pacienteId: initialPatientId || '',
+        observacoes: ''
+      });
+    }
     setPeriodoSelecionado(null);
-  }, [isOpen, selectedDate, selectedTime, initialPatientId, form]);
+  }, [isOpen, selectedDate, selectedTime, initialPatientId, editingConsulta, form]);
 
 
 
@@ -108,7 +123,8 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
     const inicio = toMinutes(data.hora);
     const fim = inicio + (data.duracao || 60);
     return consultas.find((c) => {
-      if (c.status === 'cancelado') return false;
+      if (editingConsulta && c.id === editingConsulta.id) return false;
+      if (c.status === 'cancelado' || c.status === 'remarcado') return false;
       if (!c.dentista || !data.dentista) return false;
       if (c.dentista !== data.dentista) return false;
       const cData = new Date(c.data);
@@ -152,7 +168,11 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
         confirmacaoStatus: 'pendente' as const,
         userId: user.id
       };
-      await addConsulta(consultaData);
+      if (editingConsulta?.id) {
+        await updateConsulta(editingConsulta.id, consultaData);
+      } else {
+        await addConsulta(consultaData);
+      }
 
       // Período completo: bloquear a agenda no intervalo
       const periodo = PERIODOS.find((p) => p.value === periodoSelecionado);
@@ -218,7 +238,7 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CalendarIcon className="h-5 w-5" />
-              Nova Consulta
+              {editingConsulta ? 'Remarcar Consulta' : 'Nova Consulta'}
             </DialogTitle>
           </DialogHeader>
 
@@ -494,7 +514,7 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
                 </Button>
                 <Button type="submit" disabled={isLoading} className="w-full sm:w-auto">
                   {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Agendar Consulta
+                  {editingConsulta ? 'Salvar Remarcação' : 'Agendar Consulta'}
                 </Button>
               </div>
             </form>

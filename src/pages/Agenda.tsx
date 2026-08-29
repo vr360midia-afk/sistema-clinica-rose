@@ -25,6 +25,7 @@ const Agenda = () => {
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [consultaFormDate, setConsultaFormDate] = useState<Date | undefined>(undefined);
   const [consultaFormTime, setConsultaFormTime] = useState<string | undefined>(undefined);
+  const [consultaEmEdicao, setConsultaEmEdicao] = useState<any>(null);
 
   const {
     view,
@@ -47,8 +48,20 @@ const Agenda = () => {
   };
 
   const handleNewAppointment = () => {
+    setConsultaEmEdicao(null);
     setConsultaFormDate(selectedDate);
     setConsultaFormTime(undefined);
+    setIsConsultaModalOpen(true);
+  };
+
+  const handleReschedule = (appointment: any) => {
+    setIsDetailsModalOpen(false);
+    // Busca a consulta completa (com pacienteId, observações, valor) pelo id
+    const completa = transformedConsultas.find((c: any) => c.id === appointment.id) || appointment;
+    setConsultaEmEdicao(completa);
+    const data = completa.data ? new Date(completa.data) : selectedDate;
+    setConsultaFormDate(data);
+    setConsultaFormTime(completa.hora || appointment.time);
     setIsConsultaModalOpen(true);
   };
 
@@ -247,9 +260,11 @@ const Agenda = () => {
             setIsConsultaModalOpen(false);
             setConsultaFormDate(undefined);
             setConsultaFormTime(undefined);
+            setConsultaEmEdicao(null);
           }}
           selectedDate={consultaFormDate}
           selectedTime={consultaFormTime}
+          editingConsulta={consultaEmEdicao}
           onSaved={(data) => {
             setSelectedDate(data);
             setView('day');
@@ -264,6 +279,7 @@ const Agenda = () => {
           onDelete={handleDeleteAppointment}
           onStatusChange={handleStatusChange}
           onConfirmacaoChange={handleConfirmacaoChange}
+          onReschedule={handleReschedule}
         />
       </div>
     </Layout>
