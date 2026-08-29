@@ -244,12 +244,6 @@ const Agenda = () => {
         </div>
 
         {/* Modals */}
-        <PatientSummaryModal
-          isOpen={isPatientModalOpen}
-          onClose={() => setIsPatientModalOpen(false)}
-          appointment={selectedAppointment}
-        />
-
         <ConsultaModal
           isOpen={isConsultaModalOpen}
           onClose={() => {
