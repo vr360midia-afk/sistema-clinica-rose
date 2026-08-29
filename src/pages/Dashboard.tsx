@@ -6,7 +6,7 @@ import ConfirmacoesPendentes from '@/components/dashboard/ConfirmacoesPendentes'
 import AppointmentsList from '@/components/dashboard/AppointmentsList';
 import RecentActivity from '@/components/dashboard/RecentActivity';
 import LembretesWhatsApp from '@/components/dashboard/LembretesWhatsApp';
-import { Users, Calendar, CreditCard, TrendingUp } from 'lucide-react';
+import { Users, Calendar, CreditCard } from 'lucide-react';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import { useAuth } from '@/context/AuthContext';
 import { formatMoney } from '@/utils/exportCsv';
@@ -52,13 +52,6 @@ const Dashboard = () => {
     })
     .reduce((sum, t) => sum + t.valor, 0);
 
-  // Taxa de ocupação (consultas realizadas vs agendadas no mês)
-  const consultasMes = consultas.filter(c => {
-    const consultaDate = new Date(c.data);
-    return consultaDate.getMonth() === currentMonth && consultaDate.getFullYear() === currentYear;
-  });
-  const consultasRealizadas = consultasMes.filter(c => c.status === 'realizado').length;
-  const taxaOcupacao = consultasMes.length > 0 ? Math.round((consultasRealizadas / consultasMes.length) * 100) : 0;
 
   return (
     <Layout>
@@ -69,7 +62,7 @@ const Dashboard = () => {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
           <StatsCard
             title="Pacientes Ativos"
             value={pacientesAtivos.toString()}
@@ -93,14 +86,6 @@ const Dashboard = () => {
             changeType="neutral"
             icon={CreditCard}
             iconBg="bg-purple-500"
-          />
-          <StatsCard
-            title="Taxa de Ocupação"
-            value={`${taxaOcupacao}%`}
-            change="Mês atual"
-            changeType={taxaOcupacao >= 70 ? "positive" : taxaOcupacao >= 50 ? "neutral" : "negative"}
-            icon={TrendingUp}
-            iconBg="bg-orange-500"
           />
         </div>
 
