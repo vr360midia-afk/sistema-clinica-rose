@@ -24,6 +24,8 @@ export const useAgendaViews = (selectedDate: Date) => {
         status: consulta.status,
         confirmacaoStatus: consulta.confirmacaoStatus || 'pendente',
         dentista: consulta.dentista,
+        observacoes: consulta.observacoes,
+        valor: consulta.valor,
         patient: paciente?.nome || 'Paciente não encontrado',
         patientData: paciente ? {
           phone: paciente.telefone || '',
@@ -59,8 +61,17 @@ export const useAgendaViews = (selectedDate: Date) => {
   const handleStatusChange = async (appointmentId: string, newStatus: any) => {
     try {
       await updateConsulta(appointmentId, { status: newStatus });
+      const labels: Record<string, string> = {
+        confirmado: 'Consulta confirmada',
+        realizado: 'Consulta marcada como realizada',
+        cancelado: 'Consulta cancelada',
+        remarcado: 'Consulta marcada para remarcar',
+        faltou: 'Paciente faltou',
+      };
+      toast.success(labels[newStatus] || 'Status atualizado');
     } catch (error) {
       console.error('Erro ao atualizar status da consulta:', error);
+      toast.error('Erro ao atualizar status');
     }
   };
 
