@@ -1,1 +1,0 @@
-ALTER TABLE public.assinaturas ADD COLUMN paciente_id text;

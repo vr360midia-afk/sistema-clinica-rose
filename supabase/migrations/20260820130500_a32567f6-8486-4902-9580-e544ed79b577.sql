@@ -1,1 +1,0 @@
-ALTER TABLE public.orcamentos ADD COLUMN IF NOT EXISTS formas_pagamento text;
