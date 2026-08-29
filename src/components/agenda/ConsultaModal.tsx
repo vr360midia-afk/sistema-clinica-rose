@@ -16,7 +16,7 @@ import { useAuth } from '@/context/AuthContext';
 import QuickPatientModal from './QuickPatientModal';
 import { useDentistas } from '@/hooks/useDentistas';
 import { useProcedimentos } from '@/hooks/useProcedimentos';
-import { useBloqueios, encontrarBloqueio } from '@/hooks/useBloqueios';
+import { useBloqueios, encontrarBloqueio, toISODate } from '@/hooks/useBloqueios';
 import { Link } from 'react-router-dom';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -24,6 +24,14 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { buildConsultaMessage, openWhatsApp } from '@/lib/whatsapp';
 
+
+// Períodos completos: ocupam e bloqueiam a agenda no intervalo inteiro
+const PERIODOS = [
+  { value: 'manha', label: 'Manhã inteira (08:00 - 12:00)', horaInicio: '08:00', horaFim: '12:00', duracao: 240 },
+  { value: 'tarde', label: 'Tarde inteira (13:00 - 18:00)', horaInicio: '13:00', horaFim: '18:00', duracao: 300 },
+  { value: 'noite', label: 'Noite inteira (18:00 - 22:00)', horaInicio: '18:00', horaFim: '22:00', duracao: 240 },
+  { value: 'dia', label: 'Dia inteiro (08:00 - 22:00)', horaInicio: '08:00', horaFim: '22:00', duracao: 840 },
+] as const;
 
 interface ConsultaModalProps {
   isOpen: boolean;
@@ -38,13 +46,15 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
   const { pacientes, consultas, addConsulta } = useDentalSystem();
   const { user } = useAuth();
   const { dentistas } = useDentistas();
-  const { bloqueios } = useBloqueios();
+  const { bloqueios, addBloqueio } = useBloqueios();
   const { procedimentos } = useProcedimentos();
   const procedimentosAtivos = procedimentos.filter((p) => p.ativo);
   const dentistasAtivos = dentistas.filter((d) => d.ativo);
   const [isQuickPatientModalOpen, setIsQuickPatientModalOpen] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(false);
   const [pendingPatientId, setPendingPatientId] = React.useState<string | null>(null);
+  const [periodoSelecionado, setPeriodoSelecionado] = React.useState<string | null>(null);
+
 
   const form = useForm<ConsultaFormData>({
     resolver: zodResolver(consultaSchema),
@@ -74,7 +84,10 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
       pacienteId: initialPatientId || '',
       observacoes: ''
     });
+    setPeriodoSelecionado(null);
   }, [isOpen, selectedDate, selectedTime, initialPatientId, form]);
+
+
 
   // Quando um paciente acabou de ser criado e apareceu na lista, seleciona-o
   React.useEffect(() => {
@@ -140,6 +153,24 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
         userId: user.id
       };
       await addConsulta(consultaData);
+
+      // Período completo: bloquear a agenda no intervalo
+      const periodo = PERIODOS.find((p) => p.value === periodoSelecionado);
+      if (periodo) {
+        const dia = toISODate(data.data);
+        const pacienteNome = pacientes.find((p) => p.id === data.pacienteId)?.nome || 'Paciente';
+        await addBloqueio({
+          titulo: `${periodo.label.split(' (')[0]} reservada - ${pacienteNome}`,
+          dentista: data.dentista || null,
+          dataInicio: dia,
+          dataFim: dia,
+          horaInicio: periodo.horaInicio,
+          horaFim: periodo.horaFim,
+          diaInteiro: false,
+          observacoes: data.procedimento || null,
+        });
+      }
+
 
       // Avisar a dentista pelo WhatsApp
       const dentista = dentistasAtivos.find((d) => d.nome === data.dentista);
@@ -301,8 +332,21 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
                   name="duracao"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Duração (min)</FormLabel>
-                      <Select onValueChange={(val) => field.onChange(Number(val))} value={field.value?.toString()}>
+                      <FormLabel>Duração / Período</FormLabel>
+                      <Select
+                        onValueChange={(val) => {
+                          const periodo = PERIODOS.find((p) => p.value === val);
+                          if (periodo) {
+                            setPeriodoSelecionado(periodo.value);
+                            form.setValue('hora', periodo.horaInicio, { shouldValidate: true });
+                            field.onChange(periodo.duracao);
+                          } else {
+                            setPeriodoSelecionado(null);
+                            field.onChange(Number(val));
+                          }
+                        }}
+                        value={periodoSelecionado ?? field.value?.toString()}
+                      >
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue />
@@ -313,12 +357,24 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
                           <SelectItem value="60">60 min</SelectItem>
                           <SelectItem value="90">90 min</SelectItem>
                           <SelectItem value="120">120 min</SelectItem>
+                          <SelectItem value="180">180 min</SelectItem>
+                          {PERIODOS.map((p) => (
+                            <SelectItem key={p.value} value={p.value}>
+                              {p.label}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
+                      {periodoSelecionado && (
+                        <p className="text-xs text-muted-foreground">
+                          A agenda será bloqueada nesse período (ex.: casos de lentes).
+                        </p>
+                      )}
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+
 
                 <FormField
                   control={form.control}
