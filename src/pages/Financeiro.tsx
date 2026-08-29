@@ -119,7 +119,10 @@ const Financeiro = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">A Receber</p>
-                  <p className="text-xl sm:text-2xl font-bold text-yellow-600">{formatMoney(totalPending)}</p>
+                  <p className="text-xl sm:text-2xl font-bold text-yellow-600">{formatMoney(totalAReceber)}</p>
+                  {totalOrcamentosAberto > 0 && (
+                    <p className="text-[11px] text-muted-foreground">Orçamentos aprovados: {formatMoney(totalOrcamentosAberto)}</p>
+                  )}
                 </div>
                 <TrendingDown className="h-8 w-8 text-yellow-600" />
               </div>
