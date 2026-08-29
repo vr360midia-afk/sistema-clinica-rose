@@ -13,6 +13,8 @@ import Inadimplencia from '@/components/financeiro/Inadimplencia';
 import OrcamentosAbertos from '@/components/financeiro/OrcamentosAbertos';
 import { gerarRecibo } from '@/utils/recibo';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
+import { useOrcamentos } from '@/hooks/useOrcamentos';
+import { calcularSaldosOrcamentos } from '@/utils/orcamentoSaldo';
 import { toast } from 'sonner';
 import { formatMoney } from '@/utils/exportCsv';
 
@@ -20,6 +22,7 @@ const Financeiro = () => {
   const { transacoes, pacientes, deleteTransacao } = useDentalSystem();
   const { requireMasterPassword } = useSecurityGate();
   const { configuracoes } = useConfiguracoes();
+  const { orcamentos } = useOrcamentos();
   const [showTransactionForm, setShowTransactionForm] = useState(false);
   const [editingTransacao, setEditingTransacao] = useState<any | null>(null);
 
