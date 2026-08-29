@@ -13,6 +13,7 @@ import { useOrcamentos, OrcamentoItem } from '@/hooks/useOrcamentos';
 import { useProcedimentos } from '@/hooks/useProcedimentos';
 import { useParceiros, TipoRepasse } from '@/hooks/useParceiros';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
+import { useDentistas } from '@/hooks/useDentistas';
 import { gerarOrcamentoPdf } from '@/utils/orcamentoPdf';
 import { openWhatsApp } from '@/lib/whatsapp';
 import { formatMoney } from '@/utils/exportCsv';
@@ -27,6 +28,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
   const { procedimentos } = useProcedimentos();
   const { parceiros, addParceiro, refetch: refetchParceiros } = useParceiros();
   const { configuracoes } = useConfiguracoes();
+  const { dentistas } = useDentistas();
 
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -158,10 +160,14 @@ const PatientOrcamentos = ({ patient }: Props) => {
 
   const baixarPdf = async (o: (typeof orcamentos)[number]) => {
     const t = toast.loading('Gerando PDF...');
+    const dentistaResponsavel = dentistas.find((d) => d.ativo) || dentistas[0];
     const ok = await gerarOrcamentoPdf(
       {
         titulo: o.titulo,
         pacienteNome: o.pacienteNome || patient?.nome,
+        pacienteCpf: patient?.cpf || null,
+        dentistaNome: dentistaResponsavel?.nome || null,
+        dentistaCro: dentistaResponsavel?.cro || null,
         itens: o.itens,
         desconto: o.desconto,
         total: o.total,
