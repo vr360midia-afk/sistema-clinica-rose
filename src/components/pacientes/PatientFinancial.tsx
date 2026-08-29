@@ -81,13 +81,14 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
       .filter((t) => t.status === 'vencido' || (t.status === 'pendente' && t.vencimento && new Date(t.vencimento) < new Date()))
       .reduce((s, t) => s + Number(t.valor || 0), 0);
     // Orçamentos aprovados: saldo ainda não pago entra como "em aberto".
-    // Todos os recebimentos do paciente (vinculados ou não) abatem o total aprovado,
-    // evitando somar duas vezes o mesmo tratamento.
+    // O cálculo é centralizado em calcularSaldosOrcamentos, que abate também os
+    // pagamentos do paciente sem vínculo direto — evitando contar duas vezes.
     const aprovados = (orcamentos || []).filter((o) => o.status === 'aprovado');
-    const totalAprovados = aprovados.reduce((s, o) => s + Number(o.total || 0), 0);
-    const saldoOrcamentos = Math.max(0, totalAprovados - pago - pendente);
+    const saldosMap = calcularSaldosOrcamentos(orcamentos || [], trans as any[]);
+    const saldoOrcamentos = aprovados.reduce((s, o) => s + (saldosMap.get(o.id)?.saldo || 0), 0);
     const pendenteTotal = pendente + saldoOrcamentos;
     const total = pago + pendenteTotal;
+
 
     const previstoValor = previstos.reduce((s, p) => s + p.valor, 0);
 
