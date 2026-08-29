@@ -160,10 +160,14 @@ const PatientOrcamentos = ({ patient }: Props) => {
 
   const baixarPdf = async (o: (typeof orcamentos)[number]) => {
     const t = toast.loading('Gerando PDF...');
+    const dentistaResponsavel = dentistas.find((d) => d.ativo) || dentistas[0];
     const ok = await gerarOrcamentoPdf(
       {
         titulo: o.titulo,
         pacienteNome: o.pacienteNome || patient?.nome,
+        pacienteCpf: patient?.cpf || null,
+        dentistaNome: dentistaResponsavel?.nome || null,
+        dentistaCro: dentistaResponsavel?.cro || null,
         itens: o.itens,
         desconto: o.desconto,
         total: o.total,
