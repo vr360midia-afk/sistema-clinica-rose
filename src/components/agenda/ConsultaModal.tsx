@@ -301,8 +301,21 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
                   name="duracao"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Duração (min)</FormLabel>
-                      <Select onValueChange={(val) => field.onChange(Number(val))} value={field.value?.toString()}>
+                      <FormLabel>Duração / Período</FormLabel>
+                      <Select
+                        onValueChange={(val) => {
+                          const periodo = PERIODOS.find((p) => p.value === val);
+                          if (periodo) {
+                            setPeriodoSelecionado(periodo.value);
+                            form.setValue('hora', periodo.horaInicio, { shouldValidate: true });
+                            field.onChange(periodo.duracao);
+                          } else {
+                            setPeriodoSelecionado(null);
+                            field.onChange(Number(val));
+                          }
+                        }}
+                        value={periodoSelecionado ?? field.value?.toString()}
+                      >
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue />
@@ -313,12 +326,24 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
                           <SelectItem value="60">60 min</SelectItem>
                           <SelectItem value="90">90 min</SelectItem>
                           <SelectItem value="120">120 min</SelectItem>
+                          <SelectItem value="180">180 min</SelectItem>
+                          {PERIODOS.map((p) => (
+                            <SelectItem key={p.value} value={p.value}>
+                              {p.label}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
+                      {periodoSelecionado && (
+                        <p className="text-xs text-muted-foreground">
+                          A agenda será bloqueada nesse período (ex.: casos de lentes).
+                        </p>
+                      )}
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+
 
                 <FormField
                   control={form.control}
