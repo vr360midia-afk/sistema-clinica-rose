@@ -28,8 +28,8 @@ const StatsCard = ({ title, value, change, changeType, icon: Icon, iconBg }: Sta
             <p className="text-2xl font-bold tracking-tight text-foreground tabular-nums truncate">{value}</p>
             <p className={`text-xs ${changeColor[changeType]}`}>{change}</p>
           </div>
-          <div className={`p-2.5 rounded-xl shrink-0 ${iconBg} bg-opacity-15`}>
-            <Icon className="h-5 w-5 text-foreground" />
+          <div className={`p-2.5 rounded-xl shrink-0 ${iconBg}`}>
+            <Icon className="h-5 w-5" />
           </div>
         </div>
       </CardContent>

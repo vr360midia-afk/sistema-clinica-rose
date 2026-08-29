@@ -79,7 +79,7 @@ const Dashboard = () => {
             change={`${pacientes.length} total`}
             changeType="neutral"
             icon={Users}
-            iconBg="bg-blue-500"
+            iconBg="bg-blue-500/15 text-blue-400"
           />
           <StatsCard
             title="Consultas Hoje"
@@ -87,7 +87,7 @@ const Dashboard = () => {
             change={consultasPendentes > 0 ? `${consultasPendentes} pendentes` : 'Nenhuma pendente'}
             changeType="neutral"
             icon={Calendar}
-            iconBg="bg-green-500"
+            iconBg="bg-green-500/15 text-green-400"
           />
           <StatsCard
             title="Receita Mensal"
@@ -95,7 +95,7 @@ const Dashboard = () => {
             change="Mês atual"
             changeType="neutral"
             icon={CreditCard}
-            iconBg="bg-purple-500"
+            iconBg="bg-purple-500/15 text-purple-400"
           />
         </div>
 
