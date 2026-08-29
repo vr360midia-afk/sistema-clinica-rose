@@ -120,7 +120,7 @@ const AppointmentDetailsModal = ({
               </Badge>
             </div>
             
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {onEdit && (
                 <Button
                   variant="outline"
@@ -132,7 +132,7 @@ const AppointmentDetailsModal = ({
                   Editar
                 </Button>
               )}
-              
+
               {onStatusChange && appointment.status === 'agendado' && (
                 <Button
                   variant="outline"
@@ -144,8 +144,32 @@ const AppointmentDetailsModal = ({
                   Confirmar
                 </Button>
               )}
-              
-              {onStatusChange && appointment.status !== 'cancelado' && (
+
+              {onStatusChange && (appointment.status === 'agendado' || appointment.status === 'confirmado') && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onStatusChange(appointment.id, 'realizado')}
+                  className="gap-2 text-green-600 hover:text-green-700"
+                >
+                  <CheckCircle className="h-4 w-4" />
+                  Consulta Realizada
+                </Button>
+              )}
+
+              {onReschedule && (appointment.status === 'agendado' || appointment.status === 'confirmado' || appointment.status === 'faltou') && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onReschedule(appointment)}
+                  className="gap-2 text-purple-600 hover:text-purple-700"
+                >
+                  <CalendarClock className="h-4 w-4" />
+                  Remarcar
+                </Button>
+              )}
+
+              {onStatusChange && appointment.status !== 'cancelado' && appointment.status !== 'realizado' && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -153,7 +177,7 @@ const AppointmentDetailsModal = ({
                   className="gap-2 text-red-600 hover:text-red-700"
                 >
                   <XCircle className="h-4 w-4" />
-                  Cancelar
+                  Cancelou a consulta
                 </Button>
               )}
             </div>
