@@ -3,7 +3,7 @@ import { useDentalSystem } from '@/context/dental-system-context';
 import { useOrcamentos } from '@/hooks/useOrcamentos';
 import { useManutencaoLentes } from '@/hooks/useManutencaoLentes';
 
-export type NotificacaoTipo = 'aniversario' | 'orcamento' | 'inadimplencia' | 'manutencao';
+export type NotificacaoTipo = 'aniversario' | 'orcamento' | 'inadimplencia' | 'manutencao' | 'confirmacao';
 
 export interface Notificacao {
   id: string;

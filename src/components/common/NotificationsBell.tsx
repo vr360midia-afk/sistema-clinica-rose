@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, Cake, FileText, AlertTriangle, Sparkles } from 'lucide-react';
+import { Bell, Cake, FileText, AlertTriangle, Sparkles, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -10,6 +10,7 @@ const iconFor = (tipo: NotificacaoTipo) => {
   if (tipo === 'aniversario') return <Cake className="h-4 w-4 text-pink-500" />;
   if (tipo === 'orcamento') return <FileText className="h-4 w-4 text-amber-500" />;
   if (tipo === 'manutencao') return <Sparkles className="h-4 w-4 text-amber-500" />;
+  if (tipo === 'confirmacao') return <CheckCircle2 className="h-4 w-4 text-green-500" />;
   return <AlertTriangle className="h-4 w-4 text-red-500" />;
 };
 
