@@ -15,7 +15,6 @@ import { openWhatsApp, buildExtratoMessage } from '@/lib/whatsapp';
 import { toast } from 'sonner';
 import { formatMoney } from '@/utils/exportCsv';
 import { useOrcamentos } from '@/hooks/useOrcamentos';
-import { calcularSaldoOrcamento } from '@/utils/orcamentoSaldo';
 
 interface PatientFinancialProps {
   patient: any;
