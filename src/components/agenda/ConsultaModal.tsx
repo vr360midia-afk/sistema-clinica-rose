@@ -154,6 +154,24 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
       };
       await addConsulta(consultaData);
 
+      // Período completo: bloquear a agenda no intervalo
+      const periodo = PERIODOS.find((p) => p.value === periodoSelecionado);
+      if (periodo) {
+        const dia = toISODate(data.data);
+        const pacienteNome = pacientes.find((p) => p.id === data.pacienteId)?.nome || 'Paciente';
+        await addBloqueio({
+          titulo: `${periodo.label.split(' (')[0]} reservada - ${pacienteNome}`,
+          dentista: data.dentista || null,
+          dataInicio: dia,
+          dataFim: dia,
+          horaInicio: periodo.horaInicio,
+          horaFim: periodo.horaFim,
+          diaInteiro: false,
+          observacoes: data.procedimento || null,
+        });
+      }
+
+
       // Avisar a dentista pelo WhatsApp
       const dentista = dentistasAtivos.find((d) => d.nome === data.dentista);
       const paciente = pacientes.find((p) => p.id === data.pacienteId);
