@@ -25,6 +25,7 @@ const Agenda = () => {
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [consultaFormDate, setConsultaFormDate] = useState<Date | undefined>(undefined);
   const [consultaFormTime, setConsultaFormTime] = useState<string | undefined>(undefined);
+  const [consultaEmEdicao, setConsultaEmEdicao] = useState<any>(null);
 
   const {
     view,
@@ -47,8 +48,18 @@ const Agenda = () => {
   };
 
   const handleNewAppointment = () => {
+    setConsultaEmEdicao(null);
     setConsultaFormDate(selectedDate);
     setConsultaFormTime(undefined);
+    setIsConsultaModalOpen(true);
+  };
+
+  const handleReschedule = (appointment: any) => {
+    setIsDetailsModalOpen(false);
+    setConsultaEmEdicao(appointment);
+    const data = appointment.date ? new Date(appointment.date) : selectedDate;
+    setConsultaFormDate(data);
+    setConsultaFormTime(appointment.time);
     setIsConsultaModalOpen(true);
   };
 
