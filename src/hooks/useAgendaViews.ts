@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { toast } from 'sonner';
 import { format, isSameDay } from 'date-fns';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import { calcularIdade } from '@/utils/idade';

@@ -56,10 +56,12 @@ const Agenda = () => {
 
   const handleReschedule = (appointment: any) => {
     setIsDetailsModalOpen(false);
-    setConsultaEmEdicao(appointment);
-    const data = appointment.date ? new Date(appointment.date) : selectedDate;
+    // Busca a consulta completa (com pacienteId, observações, valor) pelo id
+    const completa = transformedConsultas.find((c: any) => c.id === appointment.id) || appointment;
+    setConsultaEmEdicao(completa);
+    const data = completa.data ? new Date(completa.data) : selectedDate;
     setConsultaFormDate(data);
-    setConsultaFormTime(appointment.time);
+    setConsultaFormTime(completa.hora || appointment.time);
     setIsConsultaModalOpen(true);
   };
 
