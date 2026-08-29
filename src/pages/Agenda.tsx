@@ -275,7 +275,7 @@ const Agenda = () => {
           isOpen={isDetailsModalOpen}
           onClose={() => setIsDetailsModalOpen(false)}
           appointment={selectedAppointment}
-          onEdit={handlePatientSummaryClick}
+          onEdit={handleReschedule}
           onDelete={handleDeleteAppointment}
           onStatusChange={handleStatusChange}
           onConfirmacaoChange={handleConfirmacaoChange}
