@@ -287,12 +287,16 @@ const PatientOrcamentos = ({ patient }: Props) => {
                   <MessageCircle className="h-4 w-4 mr-1" /> Enviar
                 </Button>
 
-                <Button size="sm" variant="outline" onClick={() => updateStatus(o.id, 'aprovado')}>
-                  <Check className="h-4 w-4 mr-1" /> Aprovar
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => updateStatus(o.id, 'recusado')}>
-                  <X className="h-4 w-4 mr-1" /> Recusar
-                </Button>
+                {o.status !== 'aprovado' && o.status !== 'recusado' && (
+                  <>
+                    <Button size="sm" variant="outline" onClick={() => updateStatus(o.id, 'aprovado')}>
+                      <Check className="h-4 w-4 mr-1" /> Aprovar
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => updateStatus(o.id, 'recusado')}>
+                      <X className="h-4 w-4 mr-1" /> Recusar
+                    </Button>
+                  </>
+                )}
                 <Button size="sm" variant="ghost" onClick={() => deleteOrcamento(o.id)}>
                   <Trash2 className="h-4 w-4 text-destructive" />
                 </Button>
