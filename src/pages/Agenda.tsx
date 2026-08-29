@@ -42,10 +42,6 @@ const Agenda = () => {
     setIsDetailsModalOpen(true);
   };
 
-  const handlePatientSummaryClick = (appointment: any) => {
-    setSelectedAppointment(appointment);
-    setIsPatientModalOpen(true);
-  };
 
   const handleNewAppointment = () => {
     setConsultaEmEdicao(null);
