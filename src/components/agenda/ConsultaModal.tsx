@@ -25,6 +25,14 @@ import { toast } from 'sonner';
 import { buildConsultaMessage, openWhatsApp } from '@/lib/whatsapp';
 
 
+// Períodos completos: ocupam e bloqueiam a agenda no intervalo inteiro
+const PERIODOS = [
+  { value: 'manha', label: 'Manhã inteira (08:00 - 12:00)', horaInicio: '08:00', horaFim: '12:00', duracao: 240 },
+  { value: 'tarde', label: 'Tarde inteira (13:00 - 18:00)', horaInicio: '13:00', horaFim: '18:00', duracao: 300 },
+  { value: 'noite', label: 'Noite inteira (18:00 - 22:00)', horaInicio: '18:00', horaFim: '22:00', duracao: 240 },
+  { value: 'dia', label: 'Dia inteiro (08:00 - 22:00)', horaInicio: '08:00', horaFim: '22:00', duracao: 840 },
+] as const;
+
 interface ConsultaModalProps {
   isOpen: boolean;
   onClose: () => void;
