@@ -46,13 +46,15 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
   const { pacientes, consultas, addConsulta } = useDentalSystem();
   const { user } = useAuth();
   const { dentistas } = useDentistas();
-  const { bloqueios } = useBloqueios();
+  const { bloqueios, addBloqueio } = useBloqueios();
   const { procedimentos } = useProcedimentos();
   const procedimentosAtivos = procedimentos.filter((p) => p.ativo);
   const dentistasAtivos = dentistas.filter((d) => d.ativo);
   const [isQuickPatientModalOpen, setIsQuickPatientModalOpen] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(false);
   const [pendingPatientId, setPendingPatientId] = React.useState<string | null>(null);
+  const [periodoSelecionado, setPeriodoSelecionado] = React.useState<string | null>(null);
+
 
   const form = useForm<ConsultaFormData>({
     resolver: zodResolver(consultaSchema),
