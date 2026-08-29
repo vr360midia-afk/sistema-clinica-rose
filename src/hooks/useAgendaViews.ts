@@ -11,6 +11,15 @@ export const useAgendaViews = (selectedDate: Date) => {
   const [view, setView] = useState<ViewType>('week'); // Mudança aqui: padrão é 'week'
 
   // Transformar consultas para o formato esperado pelos componentes
+  // Converte string 'YYYY-MM-DD' para Date local (evita deslocamento de fuso)
+  const parseLocalDate = (value: any): Date => {
+    if (value instanceof Date) return value;
+    const str = String(value || '');
+    const m = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    return new Date(str);
+  };
+
   const transformedConsultas = useMemo(() => {
     return consultas.map(consulta => {
       const paciente = pacientes.find(p => p.id === consulta.pacienteId);
@@ -18,7 +27,7 @@ export const useAgendaViews = (selectedDate: Date) => {
       return {
         id: consulta.id,
         pacienteId: consulta.pacienteId,
-        data: new Date(consulta.data),
+        data: parseLocalDate(consulta.data),
         hora: consulta.hora,
         duracao: consulta.duracao,
         procedimento: consulta.procedimento,

@@ -7,7 +7,7 @@ import { CalendarDays, Plus } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useDentalSystem } from '@/context/DentalSystemContext';
-import PatientSummaryModal from '@/components/agenda/PatientSummaryModal';
+
 import ConsultaModal from '@/components/agenda/ConsultaModal';
 import DayView from '@/components/agenda/DayView';
 import WeekView from '@/components/agenda/WeekView';
@@ -20,7 +20,6 @@ import { toast } from 'sonner';
 const Agenda = () => {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
-  const [isPatientModalOpen, setIsPatientModalOpen] = useState(false);
   const [isConsultaModalOpen, setIsConsultaModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [consultaFormDate, setConsultaFormDate] = useState<Date | undefined>(undefined);
@@ -42,10 +41,6 @@ const Agenda = () => {
     setIsDetailsModalOpen(true);
   };
 
-  const handlePatientSummaryClick = (appointment: any) => {
-    setSelectedAppointment(appointment);
-    setIsPatientModalOpen(true);
-  };
 
   const handleNewAppointment = () => {
     setConsultaEmEdicao(null);
@@ -248,12 +243,6 @@ const Agenda = () => {
         </div>
 
         {/* Modals */}
-        <PatientSummaryModal
-          isOpen={isPatientModalOpen}
-          onClose={() => setIsPatientModalOpen(false)}
-          appointment={selectedAppointment}
-        />
-
         <ConsultaModal
           isOpen={isConsultaModalOpen}
           onClose={() => {
@@ -275,7 +264,7 @@ const Agenda = () => {
           isOpen={isDetailsModalOpen}
           onClose={() => setIsDetailsModalOpen(false)}
           appointment={selectedAppointment}
-          onEdit={handlePatientSummaryClick}
+          onEdit={handleReschedule}
           onDelete={handleDeleteAppointment}
           onStatusChange={handleStatusChange}
           onConfirmacaoChange={handleConfirmacaoChange}
