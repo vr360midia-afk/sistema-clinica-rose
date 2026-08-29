@@ -238,7 +238,7 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CalendarIcon className="h-5 w-5" />
-              Nova Consulta
+              {editingConsulta ? 'Remarcar Consulta' : 'Nova Consulta'}
             </DialogTitle>
           </DialogHeader>
 
