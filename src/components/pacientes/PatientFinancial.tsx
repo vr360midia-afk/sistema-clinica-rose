@@ -81,14 +81,15 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
     const vencido = receitas
       .filter((t) => t.status === 'vencido' || (t.status === 'pendente' && t.vencimento && new Date(t.vencimento) < new Date()))
       .reduce((s, t) => s + Number(t.valor || 0), 0);
-    // Orçamentos aprovados: saldo ainda não pago entra como "em aberto"
+    // Orçamentos aprovados: saldo ainda não pago entra como "em aberto".
+    // Todos os recebimentos do paciente (vinculados ou não) abatem o total aprovado,
+    // evitando somar duas vezes o mesmo tratamento.
     const aprovados = (orcamentos || []).filter((o) => o.status === 'aprovado');
-    const saldoOrcamentos = aprovados.reduce(
-      (s, o) => s + calcularSaldoOrcamento(o, trans as any[]).saldo,
-      0
-    );
+    const totalAprovados = aprovados.reduce((s, o) => s + Number(o.total || 0), 0);
+    const saldoOrcamentos = Math.max(0, totalAprovados - pago - pendente);
     const pendenteTotal = pendente + saldoOrcamentos;
     const total = pago + pendenteTotal;
+
     const previstoValor = previstos.reduce((s, p) => s + p.valor, 0);
 
     const etapasMap = new Map<string, any>();
