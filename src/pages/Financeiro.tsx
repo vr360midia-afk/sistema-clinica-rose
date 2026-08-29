@@ -53,6 +53,13 @@ const Financeiro = () => {
     .reduce((sum, t) => sum + Number(t.valor || 0), 0);
   const saldoLiquido = totalReceived - totalDespesas;
 
+  // Saldo em aberto de orçamentos aprovados (já desconta o que foi pago)
+  const saldosOrcamentos = calcularSaldosOrcamentos(orcamentos, transacoes);
+  const totalOrcamentosAberto = orcamentos
+    .filter((o) => o.status === 'aprovado')
+    .reduce((sum, o) => sum + (saldosOrcamentos.get(o.id)?.saldo || 0), 0);
+  const totalAReceber = totalPending + totalOrcamentosAberto;
+
   const getPacienteName = (pacienteId: string) => {
     const paciente = pacientes.find(p => p.id === pacienteId);
     return paciente?.nome || 'Paciente não encontrado';
