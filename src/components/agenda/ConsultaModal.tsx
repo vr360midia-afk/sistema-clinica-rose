@@ -75,18 +75,32 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
   // escolhida pelo usuário enquanto o modal estiver em uso).
   React.useEffect(() => {
     if (!isOpen) return;
-    form.reset({
-      data: selectedDate ? new Date(selectedDate) : new Date(),
-      hora: selectedTime || '09:00',
-      duracao: 60,
-      status: 'agendado',
-      procedimento: '',
-      dentista: '',
-      pacienteId: initialPatientId || '',
-      observacoes: ''
-    });
+    if (editingConsulta) {
+      form.reset({
+        data: editingConsulta.data ? new Date(editingConsulta.data) : (selectedDate ? new Date(selectedDate) : new Date()),
+        hora: editingConsulta.hora || selectedTime || '09:00',
+        duracao: Number(editingConsulta.duracao) || 60,
+        status: 'agendado',
+        procedimento: editingConsulta.procedimento || '',
+        dentista: editingConsulta.dentista || '',
+        pacienteId: editingConsulta.pacienteId || initialPatientId || '',
+        observacoes: editingConsulta.observacoes || '',
+        valor: editingConsulta.valor,
+      });
+    } else {
+      form.reset({
+        data: selectedDate ? new Date(selectedDate) : new Date(),
+        hora: selectedTime || '09:00',
+        duracao: 60,
+        status: 'agendado',
+        procedimento: '',
+        dentista: '',
+        pacienteId: initialPatientId || '',
+        observacoes: ''
+      });
+    }
     setPeriodoSelecionado(null);
-  }, [isOpen, selectedDate, selectedTime, initialPatientId, form]);
+  }, [isOpen, selectedDate, selectedTime, initialPatientId, editingConsulta, form]);
 
 
 
