@@ -16,7 +16,7 @@ import { useAuth } from '@/context/AuthContext';
 import QuickPatientModal from './QuickPatientModal';
 import { useDentistas } from '@/hooks/useDentistas';
 import { useProcedimentos } from '@/hooks/useProcedimentos';
-import { useBloqueios, encontrarBloqueio } from '@/hooks/useBloqueios';
+import { useBloqueios, encontrarBloqueio, toISODate } from '@/hooks/useBloqueios';
 import { Link } from 'react-router-dom';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
