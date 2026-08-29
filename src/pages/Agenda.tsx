@@ -260,9 +260,11 @@ const Agenda = () => {
             setIsConsultaModalOpen(false);
             setConsultaFormDate(undefined);
             setConsultaFormTime(undefined);
+            setConsultaEmEdicao(null);
           }}
           selectedDate={consultaFormDate}
           selectedTime={consultaFormTime}
+          editingConsulta={consultaEmEdicao}
           onSaved={(data) => {
             setSelectedDate(data);
             setView('day');
@@ -277,6 +279,7 @@ const Agenda = () => {
           onDelete={handleDeleteAppointment}
           onStatusChange={handleStatusChange}
           onConfirmacaoChange={handleConfirmacaoChange}
+          onReschedule={handleReschedule}
         />
       </div>
     </Layout>
