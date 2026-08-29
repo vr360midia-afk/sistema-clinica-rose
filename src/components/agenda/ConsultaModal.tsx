@@ -39,11 +39,12 @@ interface ConsultaModalProps {
   selectedDate?: Date;
   selectedTime?: string;
   initialPatientId?: string;
+  editingConsulta?: any;
   onSaved?: (data: Date) => void;
 }
 
-const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPatientId, onSaved }: ConsultaModalProps) => {
-  const { pacientes, consultas, addConsulta } = useDentalSystem();
+const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPatientId, editingConsulta, onSaved }: ConsultaModalProps) => {
+  const { pacientes, consultas, addConsulta, updateConsulta } = useDentalSystem();
   const { user } = useAuth();
   const { dentistas } = useDentistas();
   const { bloqueios, addBloqueio } = useBloqueios();
