@@ -86,7 +86,7 @@ const Configuracoes = () => {
       if (resultado.erros.length > 0) {
         toast({
           title: 'Restauração concluída parcialmente (100%)',
-          description: `${resultado.inseridos} registros e ${resultado.arquivos} arquivo(s) importados. Falha em: ${resultado.erros.map(({ tabela }) => tabela).join(', ')}.`,
+          description: `${resultado.inseridos} registros e ${resultado.arquivos} arquivo(s) importados. Falha em: ${resultado.erros.map(({ tabela, mensagem }) => `${tabela} (${mensagem})`).join(', ')}.`,
           variant: 'destructive',
         });
       } else {
