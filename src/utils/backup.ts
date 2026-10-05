@@ -242,6 +242,19 @@ const remapearCaminhoArquivo = (
   return partes.join('/');
 };
 
+const toSnakeCase = (str: string) => str.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+
+const converteObjetoParaSnakeCase = (obj: any): any => {
+  if (typeof obj !== 'object' || obj === null || Array.isArray(obj)) return obj;
+  const novoObj: any = {};
+  for (const [key, value] of Object.entries(obj)) {
+    // Preserve already snake_case keys or convert camelCase to snake_case
+    const novaChave = toSnakeCase(key);
+    novoObj[novaChave] = value;
+  }
+  return novoObj;
+};
+
 /**
  * Restaura um backup na conta logada (pode ser outro usuário).
  * Os registros são reatribuídos ao usuário atual e mesclados por id (upsert).
@@ -285,7 +298,8 @@ export const restaurarBackup = async (
     // Permissões pertencem à conta de destino e nunca devem ser copiadas de outro usuário.
     if (crossAccount && tabela === 'user_roles') continue;
 
-    const linhas = registros.map((r) => {
+    const linhas = registros.map((r_original) => {
+      const r = converteObjetoParaSnakeCase(r_original);
       const linha = { ...r, user_id: userId };
 
       // Registros únicos por conta: o conflito correto é o user_id, não o id de origem.
