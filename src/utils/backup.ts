@@ -250,7 +250,7 @@ const converteObjetoParaSnakeCase = (obj: any): any => {
   for (const [key, value] of Object.entries(obj)) {
     // Preserve already snake_case keys or convert camelCase to snake_case
     const novaChave = toSnakeCase(key);
-    novoObj[novaChave] = value;
+    novoObj[novaChave] = value === '' ? null : value;
   }
   return novoObj;
 };
