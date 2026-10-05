@@ -5,8 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Calendar, Clock, User, Phone } from 'lucide-react';
 import { useDentalSystem } from '@/context/DentalSystemContext';
+import { useNavigate } from 'react-router-dom';
 
 const AppointmentsList = () => {
+  const navigate = useNavigate();
   const { consultas, pacientes } = useDentalSystem();
 
   // Filtrar consultas de hoje
@@ -118,7 +120,7 @@ const AppointmentsList = () => {
                     </>
                   )}
                   {consulta.status === 'confirmado' && (
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" onClick={() => navigate("/pacientes?id=" + consulta.pacienteId)}>
                       Iniciar
                     </Button>
                   )}
@@ -133,3 +135,6 @@ const AppointmentsList = () => {
 };
 
 export default AppointmentsList;
+
+
+

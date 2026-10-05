@@ -42,7 +42,7 @@ const Pacientes = () => {
   } = useProcedimentos();
   
   const [showForm, setShowForm] = useState(false);
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || '');
   const [editingPatient, setEditingPatient] = useState(null);
@@ -62,6 +62,16 @@ const Pacientes = () => {
   // Procedimento modal
   const [showProcedimentoForm, setShowProcedimentoForm] = useState(false);
   const [selectedProcedimento, setSelectedProcedimento] = useState<Procedimento | null>(null);
+
+    React.useEffect(() => {
+    const id = searchParams.get('id');
+    if (id && pacientes.length > 0) {
+      const patient = pacientes.find(p => p.id === id);
+      if (patient) {
+        setSelectedPatient((prev) => prev?.id === id ? prev : patient);
+      }
+    }
+  }, [searchParams, pacientes]);
 
   const pacientesAtivos = pacientes.filter(p => p.status === 'Ativo' || p.status === 'Inativo');
   const pacientesArquivados = pacientes.filter(p => p.status === 'Arquivado');
@@ -121,6 +131,14 @@ const Pacientes = () => {
     return true;
   });
 
+
+  const handleClosePatientDetails = () => {
+    setSelectedPatient(null);
+    if (searchParams.get('id')) {
+      searchParams.delete('id');
+      setSearchParams(searchParams);
+    }
+  };
 
   const handleEditPatient = (patient: any) => {
     console.log('Editing patient:', patient);
@@ -249,7 +267,7 @@ const Pacientes = () => {
       <Layout>
         <PatientDetails
           patient={selectedPatient}
-          onClose={() => setSelectedPatient(null)}
+          onClose={handleClosePatientDetails}
           onEdit={() => handleEditPatient(selectedPatient)}
           onSchedule={() => setSchedulingPatient(selectedPatient)}
           onAddProcedimento={() => setProcedimentoPatient(selectedPatient)}
@@ -673,3 +691,7 @@ const Pacientes = () => {
 };
 
 export default Pacientes;
+
+
+
+
