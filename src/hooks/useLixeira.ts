@@ -27,7 +27,7 @@ export const ENTIDADE_LABELS: Record<string, string> = {
 };
 
 export const useLixeira = () => {
-  const { user } = useAuth();
+  const { user, clinicaId } = useAuth();
   const [itens, setItens] = useState<ItemLixeira[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -42,13 +42,13 @@ export const useLixeira = () => {
     await (supabase as any)
       .from('lixeira')
       .delete()
-      .eq('user_id', user.id)
+      .eq('user_id', clinicaId)
       .lt('expira_em', new Date().toISOString());
 
     const { data, error } = await (supabase as any)
       .from('lixeira')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', clinicaId)
       .order('excluido_em', { ascending: false });
 
     if (error) console.error('Erro ao carregar lixeira:', error);
@@ -87,7 +87,7 @@ export const useLixeira = () => {
 
   const esvaziar = useCallback(async () => {
     if (!user) return;
-    const { error } = await (supabase as any).from('lixeira').delete().eq('user_id', user.id);
+    const { error } = await (supabase as any).from('lixeira').delete().eq('user_id', clinicaId);
     if (error) {
       console.error(error);
       toast.error('Não foi possível esvaziar a lixeira.');
@@ -104,3 +104,4 @@ export const diasRestantes = (expiraEm: string) => {
   const ms = new Date(expiraEm).getTime() - Date.now();
   return Math.max(0, Math.ceil(ms / (1000 * 60 * 60 * 24)));
 };
+

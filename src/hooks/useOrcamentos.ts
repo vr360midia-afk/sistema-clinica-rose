@@ -50,7 +50,7 @@ const rowToOrcamento = (row: any): Orcamento => ({
 });
 
 export const useOrcamentos = (pacienteId?: string) => {
-  const { user } = useAuth();
+  const { user, clinicaId } = useAuth();
   const [orcamentos, setOrcamentos] = useState<Orcamento[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -78,7 +78,7 @@ export const useOrcamentos = (pacienteId?: string) => {
     const subtotal = o.itens.reduce((s, i) => s + (i.valor || 0) * (i.quantidade || 1), 0);
     const total = Math.max(0, subtotal - (o.desconto || 0));
     const payload = {
-      user_id: user.id,
+      user_id: clinicaId,
       paciente_id: o.pacienteId ?? pacienteId ?? null,
       paciente_nome: o.pacienteNome ?? null,
       titulo: o.titulo || 'Plano de tratamento',
@@ -137,3 +137,4 @@ export const useOrcamentos = (pacienteId?: string) => {
 
   return { orcamentos, loading, saveOrcamento, updateStatus, deleteOrcamento, reload: load };
 };
+

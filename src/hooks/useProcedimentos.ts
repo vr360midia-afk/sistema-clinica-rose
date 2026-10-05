@@ -70,7 +70,7 @@ export const useProcedimentos = () => {
 
   const fetchAll = useCallback(async () => {
     if (authLoading) return;
-    if (!user?.id) {
+    if (!clinicaId) {
       setProcedimentos([]);
       setPacotes([]);
       setLoading(false);
@@ -78,8 +78,8 @@ export const useProcedimentos = () => {
     }
     setLoading(true);
     const [procRes, pacRes] = await Promise.all([
-      supabase.from('procedimentos').select('*').eq('user_id', user.id).order('nome'),
-      supabase.from('pacotes_procedimentos').select('*').eq('user_id', user.id).order('nome'),
+      supabase.from('procedimentos').select('*').eq('user_id', clinicaId).order('nome'),
+      supabase.from('pacotes_procedimentos').select('*').eq('user_id', clinicaId).order('nome'),
     ]);
     if (procRes.error) {
       toast({ title: 'Erro ao carregar procedimentos', description: procRes.error.message, variant: 'destructive' });
@@ -88,15 +88,15 @@ export const useProcedimentos = () => {
     }
     if (!pacRes.error) setPacotes((pacRes.data || []).map(rowToPacote));
     setLoading(false);
-  }, [user?.id, authLoading, toast]);
+  }, [clinicaId, authLoading, toast]);
 
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
 
   const addProcedimento = async (p: Omit<Procedimento, 'id' | 'criadoEm' | 'atualizadoEm'>) => {
-    if (!user?.id) return;
-    const { error } = await supabase.from('procedimentos').insert({ ...procedimentoToRow(p), user_id: user.id });
+    if (!clinicaId) return;
+    const { error } = await supabase.from('procedimentos').insert({ ...procedimentoToRow(p), user_id: clinicaId });
     if (error) {
       toast({ title: 'Erro ao salvar', description: error.message, variant: 'destructive' });
       return;
@@ -130,9 +130,9 @@ export const useProcedimentos = () => {
   };
 
   const addPacote = async (pacote: Omit<Pacote, 'id'>) => {
-    if (!user?.id) return;
+    if (!clinicaId) return;
     const { error } = await supabase.from('pacotes_procedimentos').insert({
-      user_id: user.id,
+      user_id: clinicaId,
       nome: pacote.nome,
       descricao: pacote.descricao || null,
       procedimento_ids: pacote.procedimentos,
@@ -171,3 +171,4 @@ export const useProcedimentos = () => {
     refetch: fetchAll,
   };
 };
+

@@ -21,18 +21,18 @@ const rowToSignature = (row: any): StoredSignature => ({
 });
 
 export const useSignatures = () => {
-  const { user } = useAuth();
+  const { user, clinicaId } = useAuth();
   const [signatures, setSignatures] = useState<StoredSignature[]>([]);
 
   const fetchSignatures = useCallback(async () => {
-    if (!user?.id) {
+    if (!clinicaId) {
       setSignatures([]);
       return [];
     }
     const { data, error } = await supabase
       .from('assinaturas')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', clinicaId)
       .order('criado_em', { ascending: false });
     if (error) {
       console.error('Erro ao carregar assinaturas:', error);
@@ -41,7 +41,7 @@ export const useSignatures = () => {
     const list = (data || []).map(rowToSignature);
     setSignatures(list);
     return list;
-  }, [user?.id]);
+  }, [clinicaId]);
 
   useEffect(() => {
     fetchSignatures();
@@ -49,11 +49,11 @@ export const useSignatures = () => {
 
   const saveSignature = useCallback(
     async (signatureData: SignatureData, documentId?: string, patientId?: string) => {
-      if (!user?.id) return null;
+      if (!clinicaId) return null;
       const { data, error } = await supabase
         .from('assinaturas')
         .insert({
-          user_id: user.id,
+          user_id: clinicaId,
           nome: signatureData.signerName,
           tipo: signatureData.signerRole,
           assinatura_data: signatureData.signature,
@@ -71,7 +71,7 @@ export const useSignatures = () => {
       setSignatures((prev) => [saved, ...prev]);
       return saved;
     },
-    [user?.id]
+    [clinicaId]
   );
 
   const getStoredSignatures = useCallback(() => signatures, [signatures]);
@@ -128,10 +128,10 @@ export const useSignatures = () => {
   );
 
   const clearAllSignatures = useCallback(async () => {
-    if (!user?.id) return;
-    await supabase.from('assinaturas').delete().eq('user_id', user.id);
+    if (!clinicaId) return;
+    await supabase.from('assinaturas').delete().eq('user_id', clinicaId);
     setSignatures([]);
-  }, [user?.id]);
+  }, [clinicaId]);
 
   return {
     signatures,
@@ -144,3 +144,4 @@ export const useSignatures = () => {
     refetch: fetchSignatures,
   };
 };
+

@@ -14,18 +14,18 @@ export interface Dentista {
 }
 
 export const useDentistas = () => {
-  const { user } = useAuth();
+  const { user, clinicaId } = useAuth();
   const { toast } = useToast();
   const [dentistas, setDentistas] = useState<Dentista[]>([]);
   const [loading, setLoading] = useState(false);
 
   const fetchDentistas = useCallback(async () => {
-    if (!user?.id) return;
+    if (!clinicaId) return;
     setLoading(true);
     const { data, error } = await supabase
       .from('dentistas')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', clinicaId)
       .order('nome');
     if (error) {
       toast({ title: 'Erro ao carregar dentistas', description: error.message, variant: 'destructive' });
@@ -33,16 +33,16 @@ export const useDentistas = () => {
       setDentistas((data || []) as Dentista[]);
     }
     setLoading(false);
-  }, [user?.id, toast]);
+  }, [clinicaId, toast]);
 
   useEffect(() => {
     fetchDentistas();
   }, [fetchDentistas]);
 
   const addDentista = async (d: Omit<Dentista, 'id' | 'ativo'> & { ativo?: boolean }) => {
-    if (!user?.id) return;
+    if (!clinicaId) return;
     const { error } = await supabase.from('dentistas').insert({
-      user_id: user.id,
+      user_id: clinicaId,
       nome: d.nome,
       cro: d.cro || null,
       especialidade: d.especialidade || null,
@@ -79,3 +79,4 @@ export const useDentistas = () => {
 
   return { dentistas, loading, addDentista, updateDentista, deleteDentista, refetch: fetchDentistas };
 };
+

@@ -108,3 +108,4 @@ export const useOdontograma = (pacienteId?: string) => {
 
   return { dados, setDados, versoes, loading, saving, salvar, recarregarVersoes: carregarVersoes };
 };
+

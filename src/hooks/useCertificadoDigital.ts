@@ -25,7 +25,7 @@ const vazio: CertificadoDigital = {
 };
 
 export const useCertificadoDigital = () => {
-  const { user } = useAuth();
+  const { user, clinicaId } = useAuth();
   const [certificado, setCertificado] = useState<CertificadoDigital>(vazio);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -40,7 +40,7 @@ export const useCertificadoDigital = () => {
     const { data, error } = await supabase
       .from('certificados_digitais')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', clinicaId)
       .maybeSingle();
     if (error) console.error('Erro ao carregar certificado digital:', error);
     if (data) {
@@ -68,7 +68,7 @@ export const useCertificadoDigital = () => {
     if (!user) return false;
     setSaving(true);
     const payload = {
-      user_id: user.id,
+      user_id: clinicaId,
       provedor: dados.provedor,
       ambiente: dados.ambiente,
       titular_nome: dados.titularNome || null,
@@ -93,7 +93,7 @@ export const useCertificadoDigital = () => {
 
   const remover = async () => {
     if (!user) return;
-    const { error } = await supabase.from('certificados_digitais').delete().eq('user_id', user.id);
+    const { error } = await supabase.from('certificados_digitais').delete().eq('user_id', clinicaId);
     if (error) {
       toast.error('Erro ao remover certificado');
       return;
@@ -104,3 +104,4 @@ export const useCertificadoDigital = () => {
 
   return { certificado, setCertificado, loading, saving, salvar, remover, reload: load };
 };
+

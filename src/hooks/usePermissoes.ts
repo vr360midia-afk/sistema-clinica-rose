@@ -21,7 +21,7 @@ const defaultPermissions: UserPermissions = {
 };
 
 export const usePermissoes = () => {
-  const { user } = useAuth();
+  const { user, clinicaId } = useAuth();
   const [permissoes, setPermissoes] = useState<UserPermissions>(defaultPermissions);
   const [loading, setLoading] = useState(true);
   const [isOwner, setIsOwner] = useState(true);
@@ -73,3 +73,4 @@ export const usePermissoes = () => {
 
   return { permissoes, loading, isOwner };
 };
+

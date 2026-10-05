@@ -5,8 +5,10 @@ import { supabase } from '@/integrations/supabase/client';
 
 interface AuthContextType {
   user: User | null;
+  clinicaId: string | null;
   session: Session | null;
-  signUp: (email: string, password: string, nome?: string) => Promise<{ error: any; user: User | null; session: Session | null }>;
+  signUp: (email: string, password: string, nome?: string) => Promise<{ error: any; user: User | null;
+  clinicaId: string | null; session: Session | null }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
   loading: boolean;
@@ -26,11 +28,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [clinicaId, setClinicaId] = useState<string | null>(null);
 
   useEffect(() => {
     // Atualiza apenas quando o usuário realmente muda (evita re-render/reload
     // ao trocar de aba, quando o Supabase dispara TOKEN_REFRESHED/SIGNED_IN)
-    const applySession = (newSession: Session | null) => {
+    const applySession = async (newSession: Session | null) => {
       setSession(prev => {
         if (prev?.user?.id === newSession?.user?.id) return prev;
         return newSession;
@@ -39,6 +42,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (prev?.id === newSession?.user?.id) return prev;
         return newSession?.user ?? null;
       });
+      if (newSession?.user?.id) {
+        const { data, error } = await supabase.rpc('clinica_id');
+        setClinicaId(data && !error ? (data as string) : newSession.user.id);
+      } else {
+        setClinicaId(null);
+      }
       setLoading(false);
     };
 
@@ -104,3 +113,4 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     </AuthContext.Provider>
   );
 };
+

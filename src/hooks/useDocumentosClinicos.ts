@@ -54,7 +54,7 @@ const rowToDoc = (row: any): DocumentoClinico => ({
 });
 
 export const useDocumentosClinicos = (pacienteId?: string) => {
-  const { user } = useAuth();
+  const { user, clinicaId } = useAuth();
   const [documentos, setDocumentos] = useState<DocumentoClinico[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -80,7 +80,7 @@ export const useDocumentosClinicos = (pacienteId?: string) => {
   const salvarDocumento = async (doc: Partial<DocumentoClinico>) => {
     if (!user) return null;
     const payload = {
-      user_id: user.id,
+      user_id: clinicaId,
       paciente_id: doc.pacienteId ?? pacienteId ?? null,
       paciente_nome: doc.pacienteNome ?? null,
       tipo: doc.tipo || 'prescricao',
@@ -163,3 +163,4 @@ export const useDocumentosClinicos = (pacienteId?: string) => {
 
   return { documentos, loading, salvarDocumento, registrarAssinatura, registrarCfo, deleteDocumento, reload: load };
 };
+

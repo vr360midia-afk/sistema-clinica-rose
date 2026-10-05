@@ -66,7 +66,7 @@ export const encontrarBloqueio = (
 };
 
 export const useBloqueios = () => {
-  const { user } = useAuth();
+  const { user, clinicaId } = useAuth();
   const [bloqueios, setBloqueios] = useState<BloqueioAgenda[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -93,7 +93,7 @@ export const useBloqueios = () => {
   const addBloqueio = async (b: Omit<BloqueioAgenda, 'id'>) => {
     if (!user) return;
     const { error } = await supabase.from('bloqueios_agenda').insert({
-      user_id: user.id,
+      user_id: clinicaId,
       titulo: b.titulo,
       dentista: b.dentista || null,
       data_inicio: b.dataInicio,
@@ -124,3 +124,4 @@ export const useBloqueios = () => {
 
   return { bloqueios, loading, addBloqueio, deleteBloqueio, reload: load };
 };
+

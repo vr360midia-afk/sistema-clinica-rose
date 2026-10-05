@@ -12,7 +12,7 @@ export const ROLE_LABELS: Record<AppRole, string> = {
 };
 
 export const useUserRoles = () => {
-  const { user } = useAuth();
+  const { user, clinicaId } = useAuth();
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -23,7 +23,7 @@ export const useUserRoles = () => {
       return;
     }
     setLoading(true);
-    const { data, error } = await supabase.from('user_roles').select('role').eq('user_id', user.id);
+    const { data, error } = await supabase.from('user_roles').select('role').eq('user_id', clinicaId);
     if (error) console.error('Erro ao carregar perfis:', error);
     setRoles(((data || []).map((r: any) => r.role) as AppRole[]) || []);
     setLoading(false);
@@ -36,7 +36,7 @@ export const useUserRoles = () => {
   const addRole = useCallback(
     async (role: AppRole) => {
       if (!user) return;
-      const { error } = await supabase.from('user_roles').insert({ user_id: user.id, role });
+      const { error } = await supabase.from('user_roles').insert({ user_id: clinicaId, role });
       if (error) {
         console.error(error);
         toast.error('Não foi possível atribuir o perfil (apenas administradores podem).');
@@ -51,7 +51,7 @@ export const useUserRoles = () => {
   const removeRole = useCallback(
     async (role: AppRole) => {
       if (!user) return;
-      const { error } = await supabase.from('user_roles').delete().eq('user_id', user.id).eq('role', role);
+      const { error } = await supabase.from('user_roles').delete().eq('user_id', clinicaId).eq('role', role);
       if (error) {
         console.error(error);
         toast.error('Não foi possível remover o perfil.');
@@ -68,3 +68,4 @@ export const useUserRoles = () => {
 
   return { roles, loading, isAdmin, hasRole, addRole, removeRole, reload: load };
 };
+

@@ -59,18 +59,18 @@ const toRow = (m: Partial<Medicamento>): MedicamentoUpdate => {
 };
 
 export const useMedicamentos = () => {
-  const { user } = useAuth();
+  const { user, clinicaId } = useAuth();
   const { toast } = useToast();
   const [medicamentos, setMedicamentos] = useState<Medicamento[]>([]);
   const [loading, setLoading] = useState(false);
 
   const fetchMedicamentos = useCallback(async () => {
-    if (!user?.id) return;
+    if (!clinicaId) return;
     setLoading(true);
     const { data, error } = await supabase
       .from('medicamentos')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', clinicaId)
       .order('nome');
     if (error) {
       toast({ title: 'Erro ao carregar medicamentos', description: error.message, variant: 'destructive' });
@@ -78,15 +78,15 @@ export const useMedicamentos = () => {
       setMedicamentos(((data || []) as MedicamentoRow[]).map(fromRow));
     }
     setLoading(false);
-  }, [user?.id, toast]);
+  }, [clinicaId, toast]);
 
   useEffect(() => {
     fetchMedicamentos();
   }, [fetchMedicamentos]);
 
   const addMedicamento = async (m: Omit<Medicamento, 'id'>) => {
-    if (!user?.id) return;
-    const { error } = await supabase.from('medicamentos').insert({ user_id: user.id, ...toRow(m), nome: m.nome });
+    if (!clinicaId) return;
+    const { error } = await supabase.from('medicamentos').insert({ user_id: clinicaId, ...toRow(m), nome: m.nome });
     if (error) {
       toast({ title: 'Erro ao adicionar medicamento', description: error.message, variant: 'destructive' });
       return;
@@ -117,3 +117,4 @@ export const useMedicamentos = () => {
 
   return { medicamentos, loading, addMedicamento, updateMedicamento, deleteMedicamento, refetch: fetchMedicamentos };
 };
+

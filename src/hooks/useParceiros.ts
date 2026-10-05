@@ -42,18 +42,18 @@ const fromRow = (r: ParceiroRow): Parceiro => ({
 });
 
 export const useParceiros = () => {
-  const { user } = useAuth();
+  const { user, clinicaId } = useAuth();
   const { toast } = useToast();
   const [parceiros, setParceiros] = useState<Parceiro[]>([]);
   const [loading, setLoading] = useState(false);
 
   const fetchParceiros = useCallback(async () => {
-    if (!user?.id) return;
+    if (!clinicaId) return;
     setLoading(true);
     const { data, error } = await supabase
       .from('parceiros')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', clinicaId)
       .order('nome');
     if (error) {
       toast({ title: 'Erro ao carregar parceiros', description: error.message, variant: 'destructive' });
@@ -61,16 +61,16 @@ export const useParceiros = () => {
       setParceiros(((data || []) as ParceiroRow[]).map(fromRow));
     }
     setLoading(false);
-  }, [user?.id, toast]);
+  }, [clinicaId, toast]);
 
   useEffect(() => {
     fetchParceiros();
   }, [fetchParceiros]);
 
   const addParceiro = async (p: Omit<Parceiro, 'id'>) => {
-    if (!user?.id) return;
+    if (!clinicaId) return;
     const { error } = await supabase.from('parceiros').insert({
-      user_id: user.id,
+      user_id: clinicaId,
       nome: p.nome,
       especialidade: p.especialidade || null,
       telefone: p.telefone || null,
@@ -120,3 +120,4 @@ export const useParceiros = () => {
 
   return { parceiros, loading, addParceiro, updateParceiro, deleteParceiro, refetch: fetchParceiros };
 };
+

@@ -24,7 +24,7 @@ export const marcarBackupFeito = (userId?: string) => {
 
 /** Executa o backup automático (download do JSON) conforme a frequência configurada */
 export const useBackupAutomatico = () => {
-  const { user } = useAuth();
+  const { user, clinicaId } = useAuth();
   const { configuracoes, loading } = useConfiguracoes();
   const executado = useRef(false);
 
@@ -49,5 +49,6 @@ export const useBackupAutomatico = () => {
     }, 4000);
 
     return () => clearTimeout(timer);
-  }, [user?.id, loading, configuracoes.backupAutomatico, configuracoes.frequenciaBackup]);
+  }, [clinicaId, loading, configuracoes.backupAutomatico, configuracoes.frequenciaBackup]);
 };
+

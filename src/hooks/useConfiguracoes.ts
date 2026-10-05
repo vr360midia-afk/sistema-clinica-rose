@@ -36,19 +36,19 @@ export const defaultConfiguracoes: ConfiguracoesGerais = {
 };
 
 export const useConfiguracoes = () => {
-  const { user } = useAuth();
+  const { user, clinicaId } = useAuth();
   const { toast } = useToast();
   const [configuracoes, setConfiguracoes] = useState<ConfiguracoesGerais>(defaultConfiguracoes);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const fetchConfiguracoes = useCallback(async () => {
-    if (!user?.id) return;
+    if (!clinicaId) return;
     setLoading(true);
     const { data, error } = await supabase
       .from('configuracoes')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', clinicaId)
       .maybeSingle();
 
     if (error) {
@@ -71,20 +71,20 @@ export const useConfiguracoes = () => {
       });
     }
     setLoading(false);
-  }, [user?.id, toast]);
+  }, [clinicaId, toast]);
 
   useEffect(() => {
     fetchConfiguracoes();
   }, [fetchConfiguracoes]);
 
   const saveConfiguracoes = async (values: ConfiguracoesGerais) => {
-    if (!user?.id) return;
+    if (!clinicaId) return;
     setSaving(true);
     const { error } = await supabase
       .from('configuracoes')
       .upsert(
         {
-          user_id: user.id,
+          user_id: clinicaId,
           nome_clinica: values.nomeClinica,
           logo_url: values.logoUrl || null,
           cnpj: values.cnpj,
@@ -114,3 +114,4 @@ export const useConfiguracoes = () => {
 
   return { configuracoes, setConfiguracoes, loading, saving, saveConfiguracoes, refetch: fetchConfiguracoes };
 };
+
