@@ -103,12 +103,9 @@ const Auth = () => {
           className="absolute inset-0 opacity-60 pointer-events-none"
           style={{ background: 'radial-gradient(ellipse 80% 60% at 20% 10%, hsl(var(--primary) / 0.18), transparent 70%)' }}
         />
-        <div className="relative flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-primary/15 border border-primary/20 flex items-center justify-center">
-            <Sparkles className="h-5 w-5 text-primary" />
+                  <div className="relative flex items-center gap-3">
+            <img src="/logo.png" alt="Dental Angel" className="h-10 object-contain" />
           </div>
-          <span className="text-lg font-semibold tracking-tight">DentalRose</span>
-        </div>
         <div className="relative space-y-8">
           <h1 className="text-4xl font-bold tracking-tight leading-tight">
             A gestão completa<br />do seu consultório.
@@ -211,3 +208,4 @@ const Auth = () => {
 };
 
 export default Auth;
+
