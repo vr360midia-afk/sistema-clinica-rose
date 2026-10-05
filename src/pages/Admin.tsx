@@ -80,7 +80,7 @@ const Admin = () => {
       const detalhes = Object.entries(porTabela).map(([tabela, qtd]) => `${tabela}: ${qtd}`).join(' • ');
       setResumoRestauracao(`${inseridos} registros e ${arquivos} arquivo(s) restaurados.${detalhes ? ` ${detalhes}` : ''}`);
       if (erros.length) {
-        toast.warning(`${inseridos} registros e ${arquivos} arquivo(s) restaurados. Falhas: ${erros.map(x => x.tabela).join(', ')}`);
+        toast.warning(`${inseridos} registros e ${arquivos} arquivo(s) restaurados. Falhas: ${erros.map(x => `${x.tabela} (${x.mensagem})`).join(', ')}`);
       } else {
         toast.success(`100% concluído: ${inseridos} registros e ${arquivos} arquivo(s) restaurados. Atualizando a página...`);
       }
