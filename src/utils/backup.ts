@@ -108,6 +108,8 @@ export const gerarBackupCompleto = async (
   };
 
   for (const tabela of BACKUP_TABLES) {
+    if (tabela === 'profiles') continue;
+    
     avancar(`Exportando ${tabela}`);
     const { data, error } = await (supabase as any)
       .from(tabela)
@@ -291,6 +293,7 @@ export const restaurarBackup = async (
   reportar('Preparando restauração');
 
   for (const tabela of BACKUP_TABLES) {
+    if (tabela === 'profiles') continue;
     const registros = payload.tabelas[tabela];
     if (!Array.isArray(registros) || registros.length === 0) continue;
 
