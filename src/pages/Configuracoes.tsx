@@ -9,11 +9,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import BloqueiosManager from '@/components/configuracoes/BloqueiosManager';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
-import { Settings, Wifi, Bell, Shield, Database, MessageSquare, UserCog, Upload, Trash2, Image as ImageIcon, Handshake, ShieldCheck, Pill } from 'lucide-react';
+import { Settings, Wifi, Bell, Shield, Database, MessageSquare, UserCog, Upload, Trash2, Image as ImageIcon, Handshake, ShieldCheck, Pill, Users } from 'lucide-react';
 import DentistasManager from '@/components/configuracoes/DentistasManager';
 import CertificadoDigitalManager from '@/components/configuracoes/CertificadoDigitalManager';
 import ParceirosManager from '@/components/configuracoes/ParceirosManager';
 import MedicamentosManager from '@/components/configuracoes/MedicamentosManager';
+import EquipeManager from '@/components/configuracoes/EquipeManager';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { Loader2 } from 'lucide-react';
 import { downloadBackupCompleto, lerArquivoBackup, restaurarBackup, type ProgressoBackup } from '@/utils/backup';
@@ -179,6 +180,7 @@ const Configuracoes = () => {
         <Tabs defaultValue="geral" className="space-y-6">
           <TabsList className="flex flex-wrap h-auto">
             <TabsTrigger value="geral">Geral</TabsTrigger>
+            <TabsTrigger value="equipe"><Users className="h-4 w-4 mr-1" />Equipe</TabsTrigger>
             <TabsTrigger value="dentistas"><UserCog className="h-4 w-4 mr-1" />Dentistas</TabsTrigger>
             <TabsTrigger value="parceiros"><Handshake className="h-4 w-4 mr-1" />Parceiros</TabsTrigger>
             <TabsTrigger value="medicamentos"><Pill className="h-4 w-4 mr-1" />Medicamentos</TabsTrigger>
@@ -188,6 +190,10 @@ const Configuracoes = () => {
             <TabsTrigger value="notificacoes">Notificações</TabsTrigger>
             <TabsTrigger value="backup">Backup</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="equipe">
+            <EquipeManager />
+          </TabsContent>
 
           <TabsContent value="dentistas">
             <DentistasManager />

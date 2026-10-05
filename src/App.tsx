@@ -6,6 +6,7 @@ import { AuthProvider } from '@/context/AuthContext';
 import { SecurityProvider } from '@/context/SecurityContext';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import RoleRoute from '@/components/auth/RoleRoute';
+import PermissionRoute from '@/components/auth/PermissionRoute';
 import Index from '@/pages/Index';
 import Auth from '@/pages/Auth';
 import Dashboard from '@/pages/Dashboard';
@@ -40,18 +41,18 @@ function App() {
               <Route path="/assinar-extrato/:id" element={<AssinarExtrato />} />
               <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-              <Route path="/pacientes" element={<ProtectedRoute><Pacientes /></ProtectedRoute>} />
-              <Route path="/agenda" element={<ProtectedRoute><Agenda /></ProtectedRoute>} />
-<Route path="/financeiro" element={<ProtectedRoute><RoleRoute allow={['admin']}><Financeiro /></RoleRoute></ProtectedRoute>} />
+              <Route path="/pacientes" element={<ProtectedRoute><PermissionRoute modulo="pacientes"><Pacientes /></PermissionRoute></ProtectedRoute>} />
+              <Route path="/agenda" element={<ProtectedRoute><PermissionRoute modulo="agenda"><Agenda /></PermissionRoute></ProtectedRoute>} />
+              <Route path="/financeiro" element={<ProtectedRoute><PermissionRoute modulo="financeiro"><Financeiro /></PermissionRoute></ProtectedRoute>} />
               <Route path="/faturamento-parceiros" element={<ProtectedRoute><RoleRoute allow={['admin']}><FaturamentoParceiros /></RoleRoute></ProtectedRoute>} />
-              <Route path="/prontuarios" element={<ProtectedRoute><Prontuarios /></ProtectedRoute>} />
+              <Route path="/prontuarios" element={<ProtectedRoute><PermissionRoute modulo="prontuarios"><Prontuarios /></PermissionRoute></ProtectedRoute>} />
               <Route path="/relatorios" element={<ProtectedRoute><RoleRoute allow={['admin']}><Relatorios /></RoleRoute></ProtectedRoute>} />
-              <Route path="/configuracoes" element={<ProtectedRoute><RoleRoute allow={['admin']}><Configuracoes /></RoleRoute></ProtectedRoute>} />
-              <Route path="/estoque" element={<ProtectedRoute><Estoque /></ProtectedRoute>} />
+              <Route path="/configuracoes" element={<ProtectedRoute><PermissionRoute modulo="configuracoes"><Configuracoes /></PermissionRoute></ProtectedRoute>} />
+              <Route path="/estoque" element={<ProtectedRoute><PermissionRoute modulo="estoque"><Estoque /></PermissionRoute></ProtectedRoute>} />
               <Route path="/procedimentos" element={<ProtectedRoute><Procedimentos /></ProtectedRoute>} />
               <Route path="/comunicacao" element={<ProtectedRoute><Comunicacao /></ProtectedRoute>} />
               <Route path="/notas" element={<ProtectedRoute><Notas /></ProtectedRoute>} />
-              <Route path="/anamnese" element={<ProtectedRoute><Anamnese /></ProtectedRoute>} />
+              <Route path="/anamnese" element={<ProtectedRoute><PermissionRoute modulo="prontuarios"><Anamnese /></PermissionRoute></ProtectedRoute>} />
               <Route path="/admin" element={<ProtectedRoute><RoleRoute allow={['admin']}><Admin /></RoleRoute></ProtectedRoute>} />
               <Route path="/lixeira" element={<ProtectedRoute><RoleRoute allow={['admin']}><Lixeira /></RoleRoute></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />

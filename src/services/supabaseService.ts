@@ -15,6 +15,16 @@ interface Produto {
   atualizado_em?: string;
 }
 
+export interface MembroEquipe {
+  id: string;
+  clinica_id: string;
+  usuario_id: string;
+  nome: string;
+  email: string;
+  permissoes: Record<string, boolean>;
+  criado_em: string;
+}
+
 class SupabaseService {
   private parseLocalDate(value: unknown): Date | undefined {
     if (!value) return undefined;
@@ -632,6 +642,80 @@ class SupabaseService {
       .delete()
       .eq('id', id)
       .eq('user_id', userId);
+
+    if (error) throw error;
+    return true;
+  }
+
+  // EQUIPE
+  async getEquipe(): Promise<MembroEquipe[]> {
+    const userId = await this.getCurrentUserId();
+    const { data, error } = await supabase
+      .from('equipe')
+      .select('*')
+      .eq('clinica_id', userId)
+      .order('criado_em', { ascending: false });
+
+    if (error) throw error;
+    return data as MembroEquipe[];
+  }
+
+  async addMembroEquipe(email: string, permissoes: Record<string, boolean>): Promise<MembroEquipe> {
+    const userId = await this.getCurrentUserId();
+    
+    // Buscar o ID do usuário pelo email na tabela de perfis
+    const { data: perfil, error: perfilError } = await supabase
+      .from('perfis')
+      .select('id, nome')
+      .eq('email', email)
+      .maybeSingle();
+      
+    if (perfilError) throw perfilError;
+    if (!perfil) throw new Error('Usuário não encontrado. Peça para o funcionário criar uma conta primeiro usando este email.');
+
+    const { data, error } = await supabase
+      .from('equipe')
+      .insert([{
+        clinica_id: userId,
+        usuario_id: perfil.id,
+        email: email,
+        nome: perfil.nome || email.split('@')[0],
+        permissoes: permissoes
+      }])
+      .select()
+      .single();
+
+    if (error) {
+      if (error.code === '23505') throw new Error('Este usuário já faz parte da equipe.');
+      throw error;
+    }
+    
+    return data as MembroEquipe;
+  }
+
+  async updateMembroEquipe(id: string, permissoes: Record<string, boolean>): Promise<MembroEquipe> {
+    const userId = await this.getCurrentUserId();
+    
+    const { data, error } = await supabase
+      .from('equipe')
+      .update({ permissoes })
+      .eq('id', id)
+      .eq('clinica_id', userId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data as MembroEquipe;
+  }
+
+  async deleteMembroEquipe(id: string): Promise<boolean> {
+    const userId = await this.getCurrentUserId();
+    
+    const { error } = await supabase
+      .from('equipe')
+      .delete()
+      .eq('id', id)
+      .eq('clinica_id', userId);
 
     if (error) throw error;
     return true;
