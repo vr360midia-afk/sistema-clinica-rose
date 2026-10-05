@@ -38,15 +38,30 @@ class SupabaseService {
     return Number.isNaN(parsed.getTime()) ? undefined : parsed;
   }
 
+  private cachedClinicaId: string | null = null;
+  private cachedSessionUserId: string | null = null;
+
   private async getCurrentUserId(): Promise<string> {
-    // Sess√£o local primeiro (sem rede) para evitar falhas por rate limit/instabilidade
     const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user?.id) return session.user.id;
+    const userId = session?.user?.id || (await supabase.auth.getUser()).data.user?.id;
+    if (!userId) throw new Error('Usu·rio n„o autenticado');
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user?.id) return user.id;
+    if (this.cachedSessionUserId === userId && this.cachedClinicaId) {
+      return this.cachedClinicaId;
+    }
 
-    throw new Error('Usu√°rio n√£o autenticado');
+    try {
+      const { data, error } = await supabase.rpc('clinica_id');
+      if (data && !error) {
+        this.cachedSessionUserId = userId;
+        this.cachedClinicaId = data as string;
+        return data as string;
+      }
+    } catch (e) {
+      console.warn('Erro ao buscar clinica_id via RPC', e);
+    }
+    
+    return userId;
   }
 
   private async snapshotToLixeira(tabela: string, id: string, titulo?: string): Promise<void> {
@@ -855,3 +870,4 @@ class SupabaseService {
 }
 
 export const supabaseService = new SupabaseService();
+
