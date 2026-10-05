@@ -471,7 +471,7 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
                         <SelectItem value="none">Sem dentista específico</SelectItem>
                         {dentistasAtivos.map((d) => (
                           <SelectItem key={d.id} value={d.nome}>
-                            {d.nome}{d.especialidade ?  " - \" : ''}
+                            {d.nome}{d.especialidade ? " - " + d.especialidade : ""}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -529,6 +529,7 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
 };
 
 export default ConsultaModal;
+
 
 
 
