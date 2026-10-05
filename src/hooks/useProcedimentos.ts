@@ -62,7 +62,7 @@ const rowToPacote = (row: any): Pacote => ({
 });
 
 export const useProcedimentos = () => {
-  const { user, loading: authLoading } = useAuth();
+  const { clinicaId, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const [procedimentos, setProcedimentos] = useState<Procedimento[]>([]);
   const [pacotes, setPacotes] = useState<Pacote[]>([]);
@@ -171,4 +171,5 @@ export const useProcedimentos = () => {
     refetch: fetchAll,
   };
 };
+
 
