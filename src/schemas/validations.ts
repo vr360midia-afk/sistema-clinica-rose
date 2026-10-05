@@ -39,7 +39,7 @@ export const consultaSchema = z.object({
   duracao: z.number().min(15, 'Duração mínima de 15 minutos'),
   procedimento: z.string().min(1, 'Procedimento é obrigatório'),
   status: z.enum(['agendado', 'confirmado', 'realizado', 'cancelado', 'faltou']).default('agendado'),
-  dentista: z.string().min(1, 'Dentista é obrigatório'),
+  dentista: z.string().optional().or(z.literal('')),
   observacoes: z.string().optional(),
   valor: z.number().optional(),
   criadoEm: z.date().default(() => new Date()),
@@ -85,3 +85,5 @@ export type PacienteFormData = z.infer<typeof pacienteSchema>;
 export type ConsultaFormData = z.infer<typeof consultaSchema>;
 export type TransacaoFormData = z.infer<typeof transacaoSchema>;
 export type ProntuarioFormData = z.infer<typeof prontuarioSchema>;
+
+

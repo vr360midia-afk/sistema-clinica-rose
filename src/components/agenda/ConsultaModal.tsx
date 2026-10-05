@@ -162,7 +162,7 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
         duracao: data.duracao,
         procedimento: data.procedimento,
         status: data.status,
-        dentista: data.dentista,
+        dentista: data.dentista === 'none' ? '' : data.dentista,
         observacoes: data.observacoes || '',
         valor: data.valor,
         confirmacaoStatus: 'pendente' as const,
@@ -455,33 +455,30 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
                 )}
               />
 
-              <FormField
+                            <FormField
                 control={form.control}
                 name="dentista"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Dentista</FormLabel>
-                    {dentistasAtivos.length > 0 ? (
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione um dentista" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {dentistasAtivos.map((d) => (
-                            <SelectItem key={d.id} value={d.nome}>
-                              {d.nome}{d.especialidade ? ` â€” ${d.especialidade}` : ''}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">
-                        Nenhum dentista cadastrado.{' '}
-                        <Link to="/configuracoes" className="text-primary underline" onClick={onClose}>
-                          Cadastrar agora
-                        </Link>
+                    <FormLabel>Dentista (Opcional)</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || "none"}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione um dentista" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="none">Sem dentista específico</SelectItem>
+                        {dentistasAtivos.map((d) => (
+                          <SelectItem key={d.id} value={d.nome}>
+                            {d.nome}{d.especialidade ?  " - \" : ''}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {dentistasAtivos.length === 0 && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Dica: Você pode <Link to="/configuracoes" className="underline" onClick={onClose}>cadastrar dentistas</Link> para associá-los às consultas.
                       </p>
                     )}
                     <FormMessage />
@@ -532,3 +529,6 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
 };
 
 export default ConsultaModal;
+
+
+
