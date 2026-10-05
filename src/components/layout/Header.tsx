@@ -65,11 +65,8 @@ const Header = ({ onMenuToggle }: HeaderProps) => {
             <Menu className="h-5 w-5" />
           </Button>
 
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-green-500 rounded-lg flex items-center justify-center flex-shrink-0">
-              <span className="text-white font-bold text-sm">D</span>
-            </div>
-            <h1 className="text-base sm:text-xl font-bold text-foreground truncate">Dental do Milhão</h1>
+                    <div className="flex items-center gap-2 min-w-0">
+            <img src="/logo.png" alt="Dental Angel" className="h-8 sm:h-10 object-contain" />
           </div>
         </div>
 
@@ -141,3 +138,4 @@ const Header = ({ onMenuToggle }: HeaderProps) => {
 };
 
 export default Header;
+

@@ -78,11 +78,8 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
         )}
       >
         <div className="flex items-center justify-between h-16 px-4 border-b border-border lg:hidden">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-green-500 rounded-lg flex items-center justify-center flex-shrink-0">
-              <span className="text-white font-bold text-sm">D</span>
-            </div>
-            <h1 className="text-xl font-bold text-foreground truncate">Dental do Milhão</h1>
+                    <div className="flex items-center gap-3 min-w-0">
+            <img src="/logo.png" alt="Dental Angel" className="h-10 object-contain" />
           </div>
           <button
             onClick={onClose}
@@ -124,3 +121,4 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
 };
 
 export default Sidebar;
+

@@ -1,6 +1,6 @@
 {
-  "name": "Dental do Milh�o - Gestão Odontológica",
-  "short_name": "Dental do Milh�o",
+  "name": "Dental Angel - Gestão Odontológica",
+  "short_name": "Dental Angel",
   "description": "Agenda, prontuário, financeiro e pacientes da sua clínica odontológica.",
   "start_url": "/",
   "scope": "/",
@@ -14,3 +14,4 @@
     { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }
+
