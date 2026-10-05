@@ -82,7 +82,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
             <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-green-500 rounded-lg flex items-center justify-center flex-shrink-0">
               <span className="text-white font-bold text-sm">D</span>
             </div>
-            <h1 className="text-xl font-bold text-foreground truncate">Dental IA</h1>
+            <h1 className="text-xl font-bold text-foreground truncate">Dental do Milhão</h1>
           </div>
           <button
             onClick={onClose}
