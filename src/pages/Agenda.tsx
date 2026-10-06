@@ -210,6 +210,12 @@ const Agenda = () => {
                       onSelect={handleCalendarSelect}
                       locale={ptBR}
                       className="w-full max-w-none mx-auto"
+                      modifiers={{
+                        booked: transformedConsultas.map(c => new Date(c.data))
+                      }}
+                      modifiersClassNames={{
+                        booked: "relative after:content-[''] after:absolute after:bottom-1.5 after:left-1/2 after:-translate-x-1/2 after:w-1.5 after:h-1.5 after:bg-blue-500 after:rounded-full font-bold"
+                      }}
                       classNames={{
                         months: "flex flex-col space-y-4",
                         month: "space-y-4 w-full",
@@ -223,9 +229,9 @@ const Agenda = () => {
                         head_row: "flex w-full",
                         head_cell: "text-muted-foreground rounded-md flex-1 font-normal text-[0.8rem] flex items-center justify-center h-8",
                         row: "flex w-full mt-2",
-                        cell: "flex-1 h-8 sm:h-9 text-center text-sm p-0 relative flex items-center justify-center",
+                        cell: "flex-1 h-8 sm:h-10 text-center text-sm p-0 relative flex items-center justify-center",
                         day: "h-8 w-8 sm:h-9 sm:w-9 p-0 font-normal aria-selected:opacity-100 hover:bg-accent hover:text-accent-foreground rounded-md transition-colors",
-                        day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
+                        day_selected: "bg-blue-600 text-white hover:bg-blue-700 hover:text-white focus:bg-blue-600 focus:text-white font-bold",
                         day_today: "bg-accent text-accent-foreground font-semibold",
                         day_outside: "text-muted-foreground opacity-50 pointer-events-none",
                         day_disabled: "text-muted-foreground opacity-50",
