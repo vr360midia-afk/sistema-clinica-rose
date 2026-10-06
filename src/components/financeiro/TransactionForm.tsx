@@ -32,7 +32,7 @@ interface TransactionFormProps {
 const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionFormProps) => {
   const { user } = useAuth();
   const [uploading, setUploading] = useState(false);
-  const { pacientes, transacoes, addTransacao, updateTransacao, deleteTransacao } = useDentalSystem();
+  const { pacientes, transacoes, addTransacao, updateTransacao, deleteTransacao, addDocumento } = useDentalSystem();
   const { procedimentos } = useProcedimentos();
   const { parceiros } = useParceiros();
   const { orcamentos } = useOrcamentos();
@@ -134,9 +134,21 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
         const { error } = await supabase.storage.from('documentos-pacientes').upload(path, file, { contentType: file.type || undefined });
         if (error) throw error;
         newUrls.push(path);
+        
+        // Se já tivermos um paciente selecionado no form, atrelamos a ele nos documentos tbm
+        if (formData.pacienteId) {
+          await addDocumento({
+            pacienteId: formData.pacienteId,
+            nome: file.name,
+            tipo: 'comprovante',
+            arquivo: path,
+            tamanho: file.size,
+            analiseStatus: 'pendente'
+          });
+        }
       }
       setFormData(prev => ({ ...prev, comprovantes: [...(prev.comprovantes || []), ...newUrls] }));
-      toast.success(files.length > 1 ? 'Comprovantes anexados!' : 'Comprovante anexado!');
+      toast.success(files.length > 1 ? 'Comprovantes anexados e salvos nos documentos!' : 'Comprovante anexado e salvo nos documentos!');
     } catch (error) {
       console.error(error);
       toast.error('Erro ao fazer upload dos arquivos');
@@ -644,4 +656,5 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
 };
 
 export default TransactionForm;
+
 

@@ -32,6 +32,7 @@ const TIPOS: { value: TipoDocumento; label: string }[] = [
   { value: 'foto', label: 'Foto' },
   { value: 'receita', label: 'Receita' },
   { value: 'atestado', label: 'Atestado' },
+    { value: 'comprovante', label: 'Financeiro (Comprovante)' },
   { value: 'outro', label: 'Outro' },
 ];
 
@@ -427,3 +428,4 @@ const PatientDocuments = ({ patient }: PatientDocumentsProps) => {
 };
 
 export default PatientDocuments;
+

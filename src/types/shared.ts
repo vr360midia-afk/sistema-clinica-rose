@@ -152,6 +152,7 @@ export interface DocumentoPaciente extends BaseEntity {
   analiseStatus?: 'pendente' | 'processando' | 'concluida' | 'erro';
 }
 
-export type TipoDocumento = 'foto' | 'raio-x' | 'exame' | 'receita' | 'atestado' | 'outro';
+export type TipoDocumento = 'foto' | 'raio-x' | 'exame' | 'receita' | 'atestado' | 'comprovante' | 'outro';
+
 
 
