@@ -68,24 +68,32 @@ export const useParceiros = () => {
   }, [fetchParceiros]);
 
   const addParceiro = async (p: Omit<Parceiro, 'id'>) => {
-    if (!clinicaId) return;
-    const { error } = await supabase.from('parceiros').insert({
-      user_id: clinicaId,
-      nome: p.nome,
-      especialidade: p.especialidade || null,
-      telefone: p.telefone || null,
-      email: p.email || null,
-      tipo_repasse: p.tipoRepasse,
-      valor_repasse: p.valorRepasse || 0,
-      observacoes: p.observacoes || null,
-      ativo: p.ativo ?? true,
-    });
-    if (error) {
-      toast({ title: 'Erro ao adicionar parceiro', description: error.message, variant: 'destructive' });
-      return;
+    try {
+      if (!clinicaId) {
+        alert('Erro Parceiro: clinicaId não encontrado');
+        return;
+      }
+      const { error } = await supabase.from('parceiros').insert({
+        user_id: clinicaId,
+        nome: p.nome,
+        especialidade: p.especialidade || null,
+        telefone: p.telefone || null,
+        email: p.email || null,
+        tipo_repasse: p.tipoRepasse,
+        valor_repasse: p.valorRepasse || 0,
+        observacoes: p.observacoes || null,
+        ativo: p.ativo ?? true,
+      });
+      if (error) {
+        alert('Erro Parceiro DB: ' + error.message);
+        toast({ title: 'Erro ao adicionar parceiro', description: error.message, variant: 'destructive' });
+        return;
+      }
+      toast({ title: 'Parceiro adicionado!' });
+      await fetchParceiros();
+    } catch (err: any) {
+      alert('Exception Parceiro: ' + err.message);
     }
-    toast({ title: 'Parceiro adicionado!' });
-    await fetchParceiros();
   };
 
   const updateParceiro = async (id: string, patch: Partial<Parceiro>) => {

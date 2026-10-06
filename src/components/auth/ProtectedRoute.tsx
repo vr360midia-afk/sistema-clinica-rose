@@ -2,6 +2,7 @@
 import React from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Navigate } from 'react-router-dom';
+import { GlobalSkeleton } from '@/components/layout/SkeletonLoader';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -11,11 +12,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-muted flex items-center justify-center">
-        <div className="text-lg">Carregando...</div>
-      </div>
-    );
+    return <GlobalSkeleton />;
   }
 
   if (!user) {

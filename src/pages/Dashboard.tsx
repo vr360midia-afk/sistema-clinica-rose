@@ -6,10 +6,12 @@ import ConfirmacoesPendentes from '@/components/dashboard/ConfirmacoesPendentes'
 import AppointmentsList from '@/components/dashboard/AppointmentsList';
 import RecentActivity from '@/components/dashboard/RecentActivity';
 import LembretesWhatsApp from '@/components/dashboard/LembretesWhatsApp';
+import DashboardCharts from '@/components/dashboard/DashboardCharts';
 import { Users, Calendar, CreditCard } from 'lucide-react';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import { useAuth } from '@/context/AuthContext';
 import { formatMoney } from '@/utils/exportCsv';
+import { motion } from 'framer-motion';
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -55,8 +57,17 @@ const Dashboard = () => {
 
   return (
     <Layout>
-      <div className="space-y-6">
-        <div>
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5 }}
+        className="space-y-6"
+      >
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+        >
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground mb-1">
             {(() => {
               const hora = today.getHours();
@@ -69,10 +80,15 @@ const Dashboard = () => {
             {today.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
             {' · '}Seus dados estão sincronizados na nuvem.
           </p>
-        </div>
+        </motion.div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, staggerChildren: 0.1 }}
+          className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4"
+        >
           <StatsCard
             title="Pacientes Ativos"
             value={pacientesAtivos.toString()}
@@ -97,7 +113,10 @@ const Dashboard = () => {
             icon={CreditCard}
             iconBg="bg-purple-500/15 text-purple-400"
           />
-        </div>
+        </motion.div>
+
+        {/* Dashboard Charts */}
+        <DashboardCharts transacoes={transacoes} pacientes={pacientes} />
 
         {/* Main Content */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -106,7 +125,7 @@ const Dashboard = () => {
           <ConfirmacoesPendentes />
           <RecentActivity />
         </div>
-      </div>
+      </motion.div>
     </Layout>
   );
 };
