@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { FileText, Plus, Calendar } from 'lucide-react';
+import { FileText, Plus, Calendar, Pencil } from 'lucide-react';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import EmptyState from '@/components/common/EmptyState';
 import ProntuarioModal from '@/components/prontuarios/ProntuarioModal';
@@ -18,10 +18,17 @@ interface PatientMedicalRecordsProps {
 const PatientMedicalRecords = ({ patient }: PatientMedicalRecordsProps) => {
   const { prontuarios } = useDentalSystem();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [prontuarioEmEdicao, setProntuarioEmEdicao] = useState<any>(null);
   
   const patientProntuarios = prontuarios.filter(p => p.pacienteId === patient.id);
 
   const handleNewProntuario = () => {
+    setProntuarioEmEdicao(null);
+    setIsModalOpen(true);
+  };
+
+  const handleEditProntuario = (prontuario: any) => {
+    setProntuarioEmEdicao(prontuario);
     setIsModalOpen(true);
   };
 
@@ -29,6 +36,7 @@ const PatientMedicalRecords = ({ patient }: PatientMedicalRecordsProps) => {
     // O modal já salva através do contexto
     console.log('Prontuário salvo para:', patient.nome);
     setIsModalOpen(false);
+    setProntuarioEmEdicao(null);
   };
 
   return (
@@ -71,6 +79,14 @@ const PatientMedicalRecords = ({ patient }: PatientMedicalRecordsProps) => {
                     {prontuario.diagnostico}
                   </Badge>
                 )}
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="ml-2 text-indigo-600 hover:text-indigo-800"
+                  onClick={() => handleEditProntuario(prontuario)}
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -138,9 +154,13 @@ const PatientMedicalRecords = ({ patient }: PatientMedicalRecordsProps) => {
 
       <ProntuarioModal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={() => {
+          setIsModalOpen(false);
+          setProntuarioEmEdicao(null);
+        }}
         onSave={handleSaveProntuario}
         preSelectedPatient={patient.id}
+        prontuario={prontuarioEmEdicao}
       />
     </div>
   );

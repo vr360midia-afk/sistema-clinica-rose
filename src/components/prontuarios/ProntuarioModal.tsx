@@ -1,8 +1,8 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { useDentalSystem } from '@/context/DentalSystemContext';
@@ -17,12 +17,14 @@ interface ProntuarioModalProps {
   onClose: () => void;
   onSave: (data: any) => void;
   preSelectedPatient?: string;
+  prontuario?: any;
 }
 
-const ProntuarioModal = ({ isOpen, onClose, onSave, preSelectedPatient }: ProntuarioModalProps) => {
-  const { addProntuario } = useDentalSystem();
+const ProntuarioModal = ({ isOpen, onClose, onSave, preSelectedPatient, prontuario }: ProntuarioModalProps) => {
+  const { addProntuario, updateProntuario } = useDentalSystem();
   const { procedimentos } = useProcedimentos();
   const [selectedPatient, setSelectedPatient] = useState(preSelectedPatient || '');
+  const [dataEvento, setDataEvento] = useState(new Date().toISOString().split('T')[0]);
   const [queixaPrincipal, setQueixaPrincipal] = useState('');
   const [historiaDoenca, setHistoriaDoenca] = useState('');
   const [exameClinico, setExameClinico] = useState('');
@@ -32,12 +34,37 @@ const ProntuarioModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Prontu
   const [selectedProcedimentos, setSelectedProcedimentos] = useState<string[]>([]);
   const [precosLivres, setPrecosLivres] = useState<Record<string, number>>({});
 
-  // Garante que o paciente pré-selecionado seja aplicado ao abrir
-  React.useEffect(() => {
-    if (isOpen && preSelectedPatient) {
-      setSelectedPatient(preSelectedPatient);
+  useEffect(() => {
+    if (isOpen) {
+      if (prontuario) {
+        setSelectedPatient(prontuario.pacienteId);
+        const dataStr = prontuario.data instanceof Date 
+          ? prontuario.data.toISOString().split('T')[0]
+          : typeof prontuario.data === 'string'
+            ? prontuario.data.split('T')[0]
+            : new Date().toISOString().split('T')[0];
+        setDataEvento(dataStr);
+        setQueixaPrincipal(prontuario.queixaPrincipal || '');
+        setHistoriaDoenca(prontuario.historiaDoenca || '');
+        setExameClinico(prontuario.exameClinico || '');
+        setDiagnostico(prontuario.diagnostico || '');
+        setPlanoTratamento(prontuario.planoTratamento || '');
+        setObservacoes(prontuario.observacoes || '');
+        setSelectedProcedimentos(prontuario.procedimentosRealizados || []);
+      } else {
+        setSelectedPatient(preSelectedPatient || '');
+        setDataEvento(new Date().toISOString().split('T')[0]);
+        setQueixaPrincipal('');
+        setHistoriaDoenca('');
+        setExameClinico('');
+        setDiagnostico('');
+        setPlanoTratamento('');
+        setObservacoes('');
+        setSelectedProcedimentos([]);
+        setPrecosLivres({});
+      }
     }
-  }, [isOpen, preSelectedPatient]);
+  }, [isOpen, prontuario, preSelectedPatient]);
 
   const calcularValorTotal = () => {
     return selectedProcedimentos.reduce((total, nome) => {
@@ -54,14 +81,13 @@ const ProntuarioModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Prontu
       return;
     }
 
-
     try {
       const valorTotal = calcularValorTotal();
       const procedimentosRealizados = [...selectedProcedimentos];
 
       const prontuarioData = {
         pacienteId: selectedPatient,
-        data: new Date(),
+        data: new Date(`${dataEvento}T12:00:00`),
         queixaPrincipal: queixaPrincipal.trim(),
         historiaDoenca: historiaDoenca.trim(),
         exameClinico: exameClinico.trim(),
@@ -71,23 +97,21 @@ const ProntuarioModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Prontu
         observacoes: observacoes.trim()
       };
 
-      await addProntuario(prontuarioData);
+      if (prontuario?.id) {
+        if (updateProntuario) {
+            await updateProntuario(prontuario.id, prontuarioData);
+        } else {
+            console.error('updateProntuario não está definido no DentalSystemContext');
+        }
+      } else {
+        await addProntuario(prontuarioData);
+      }
+      
       onSave({ ...prontuarioData, valorTotal });
-      
-      // Reset form
-      setSelectedPatient(preSelectedPatient || '');
-      setQueixaPrincipal('');
-      setHistoriaDoenca('');
-      setExameClinico('');
-      setDiagnostico('');
-      setPlanoTratamento('');
-      setObservacoes('');
-      setSelectedProcedimentos([]);
-      setPrecosLivres({});
-      
       onClose();
     } catch (error) {
       console.error('Erro ao salvar prontuário:', error);
+      toast.error('Erro ao salvar prontuário');
     }
   };
 
@@ -95,7 +119,7 @@ const ProntuarioModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Prontu
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Novo Prontuário</DialogTitle>
+          <DialogTitle>{prontuario ? 'Editar Prontuário' : 'Novo Prontuário'}</DialogTitle>
         </DialogHeader>
 
         <Tabs key={preSelectedPatient ? 'proc' : 'dados'} defaultValue={preSelectedPatient ? 'procedimentos' : 'dados'} className="w-full">
@@ -105,9 +129,23 @@ const ProntuarioModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Prontu
           </TabsList>
           
           <TabsContent value="dados" className="space-y-4">
-            {!preSelectedPatient && (
-              <PatientSelector value={selectedPatient} onChange={setSelectedPatient} />
-            )}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {!preSelectedPatient && !prontuario && (
+                <div>
+                  <Label>Paciente</Label>
+                  <PatientSelector value={selectedPatient} onChange={setSelectedPatient} />
+                </div>
+              )}
+              <div className="space-y-2">
+                <Label htmlFor="dataEvento">Data do Prontuário (Útil para Histórico Passado)</Label>
+                <Input 
+                  id="dataEvento" 
+                  type="date" 
+                  value={dataEvento}
+                  onChange={(e) => setDataEvento(e.target.value)}
+                />
+              </div>
+            </div>
 
             <DictationTextarea
               id="queixa"
@@ -190,7 +228,7 @@ const ProntuarioModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Prontu
               Cancelar
             </Button>
             <Button onClick={handleSave}>
-              Salvar Prontuário
+              {prontuario ? 'Atualizar Prontuário' : 'Salvar Prontuário'}
             </Button>
           </div>
         </div>
