@@ -18,6 +18,9 @@ import { useOrcamentos } from '@/hooks/useOrcamentos';
 import { calcularSaldoOrcamento } from '@/utils/orcamentoSaldo';
 import { TipoTransacao, StatusTransacao, MetodoPagamento } from '@/types/shared';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/context/AuthContext';
+import { UploadCloud, Eye, Loader2, X, FileText } from 'lucide-react';
 
 interface TransactionFormProps {
   isOpen: boolean;
@@ -27,6 +30,8 @@ interface TransactionFormProps {
 }
 
 const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionFormProps) => {
+  const { user } = useAuth();
+  const [uploading, setUploading] = useState(false);
   const { pacientes, transacoes, addTransacao, updateTransacao, deleteTransacao } = useDentalSystem();
   const { procedimentos } = useProcedimentos();
   const { parceiros } = useParceiros();
@@ -49,7 +54,8 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
     observacoes: '',
     parceiroId: '',
     valorParceiro: '',
-    orcamentoId: ''
+    orcamentoId: '',
+    comprovanteUrl: ''
   });
 
   const emptyForm = {
@@ -66,7 +72,8 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
     observacoes: '',
     parceiroId: '',
     valorParceiro: '',
-    orcamentoId: ''
+    orcamentoId: '',
+    comprovanteUrl: ''
   };
 
   useEffect(() => {
@@ -116,6 +123,35 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
     ? calcularSaldoOrcamento(orcamentoSelecionado, transacoes as any[], orcamentos as any[])
     : { total: 0, pago: 0, saldo: 0, percentual: 0 };
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user?.id) return;
+    try {
+      setUploading(true);
+      const path = `${user.id}/comprovantes/${Date.now()}-${file.name.replace(/[^\w.\-]/g, '_')}`;
+      const { error } = await supabase.storage.from('documentos-pacientes').upload(path, file, { contentType: file.type || undefined });
+      if (error) throw error;
+      setFormData(prev => ({ ...prev, comprovanteUrl: path }));
+      toast.success('Comprovante anexado!');
+    } catch (error) {
+      console.error(error);
+      toast.error('Erro ao fazer upload do arquivo');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleViewComprovante = async () => {
+    if (!formData.comprovanteUrl) return;
+    try {
+      const { data, error } = await supabase.storage.from('documentos-pacientes').createSignedUrl(formData.comprovanteUrl, 60);
+      if (error) throw error;
+      if (data?.signedUrl) window.open(data.signedUrl, '_blank');
+    } catch (error) {
+      toast.error('Erro ao abrir comprovante');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -139,6 +175,7 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
         parceiroNome: parceiro?.nome,
         valorParceiro: parceiro ? valorParceiro : undefined,
         orcamentoId: formData.orcamentoId || undefined,
+        comprovanteUrl: formData.comprovanteUrl || undefined,
       };
 
       if (isEdit) {
@@ -539,6 +576,36 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
             </div>
           </div>
 
+
+          <div>
+            <Label>Comprovante (PDF/Imagem)</Label>
+            <div className="mt-2 flex items-center gap-3">
+              {formData.comprovanteUrl ? (
+                <div className="flex items-center gap-2 bg-muted p-2 rounded-md w-full justify-between">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground truncate">
+                    <FileText className="h-4 w-4 flex-shrink-0" />
+                    <span className="truncate max-w-[200px]">{formData.comprovanteUrl.split('/').pop()}</span>
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <Button type="button" variant="ghost" size="sm" onClick={handleViewComprovante}>
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setFormData(prev => ({ ...prev, comprovanteUrl: '' }))}>
+                      <X className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 w-full">
+                  <Input type="file" id="comprovante" accept="image/*,.pdf" className="hidden" onChange={handleFileUpload} />
+                  <Button type="button" variant="outline" onClick={() => document.getElementById('comprovante')?.click()} disabled={uploading} className="w-full">
+                    {uploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <UploadCloud className="h-4 w-4 mr-2" />}
+                    Anexar Comprovante
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
 
           <div>
             <Label htmlFor="observacoes">Observações</Label>
