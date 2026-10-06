@@ -47,10 +47,15 @@ const DentistasManager = () => {
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.nome.trim()) return;
-    setSaving(true);
-    await addDentista(form);
-    setForm(emptyForm);
-    setSaving(false);
+    try {
+      setSaving(true);
+      await addDentista(form);
+      setForm(emptyForm);
+      setSaving(false);
+    } catch (err: any) {
+      alert('Erro Dentista: ' + err.message);
+      setSaving(false);
+    }
   };
 
 

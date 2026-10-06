@@ -171,7 +171,7 @@ const Configuracoes = () => {
             <Settings className="h-6 w-6 text-blue-600" />
             <h1 className="text-xl sm:text-2xl font-bold text-foreground">Configurações</h1>
           </div>
-          <Button onClick={salvarConfiguracoes} disabled={saving || loading} className="bg-blue-600 hover:bg-blue-700">
+          <Button onClick={salvarConfiguracoes} disabled={saving || loading} className="bg-blue-600 hover:bg-blue-700 text-white">
             {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Salvar Configurações
           </Button>
@@ -540,3 +540,4 @@ const Configuracoes = () => {
 };
 
 export default Configuracoes;
+

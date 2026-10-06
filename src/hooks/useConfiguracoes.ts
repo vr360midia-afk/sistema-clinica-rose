@@ -81,41 +81,49 @@ export const useConfiguracoes = () => {
   }, [fetchConfiguracoes]);
 
   const saveConfiguracoes = async (values: ConfiguracoesGerais) => {
-    if (!clinicaId) {
-      toast({ title: 'Erro', description: 'ID da clínica não encontrado', variant: 'destructive' });
-      return false;
-    }
-    setSaving(true);
-    const { error } = await supabase
-      .from('configuracoes')
-      .upsert(
-        {
-          user_id: clinicaId,
-          nome_clinica: values.nomeClinica,
-          logo_url: values.logoUrl || null,
-          cnpj: values.cnpj,
-          endereco: values.endereco,
-          telefone: values.telefone,
-          whatsapp_numero: values.whatsappNumero || null,
-          email: values.email,
-          email_notificacoes: values.emailNotificacoes,
-          whatsapp_lembretes: values.whatsappLembretes,
-          lembrete_24h: values.lembrete24h,
-          lembrete_2h: values.lembrete2h,
-          backup_automatico: values.backupAutomatico,
-          frequencia_backup: values.frequenciaBackup,
-        },
-        { onConflict: 'user_id' }
-      );
-    setSaving(false);
+    try {
+      if (!clinicaId) {
+        alert('Erro: ID da clínica não encontrado.');
+        toast({ title: 'Erro', description: 'ID da clínica não encontrado', variant: 'destructive' });
+        return false;
+      }
+      setSaving(true);
+      const { error } = await supabase
+        .from('configuracoes')
+        .upsert(
+          {
+            user_id: clinicaId,
+            nome_clinica: values.nomeClinica,
+            logo_url: values.logoUrl || null,
+            cnpj: values.cnpj,
+            endereco: values.endereco,
+            telefone: values.telefone,
+            whatsapp_numero: values.whatsappNumero || null,
+            email: values.email,
+            email_notificacoes: values.emailNotificacoes,
+            whatsapp_lembretes: values.whatsappLembretes,
+            lembrete_24h: values.lembrete24h,
+            lembrete_2h: values.lembrete2h,
+            backup_automatico: values.backupAutomatico,
+            frequencia_backup: values.frequenciaBackup,
+          },
+          { onConflict: 'user_id' }
+        );
+      setSaving(false);
 
-    if (error) {
-      toast({ title: 'Erro ao salvar configurações', description: error.message, variant: 'destructive' });
+      if (error) {
+        alert('Erro ao salvar no banco: ' + error.message);
+        toast({ title: 'Erro ao salvar configurações', description: error.message, variant: 'destructive' });
+        return false;
+      }
+      toast({ title: 'Configurações salvas!', description: 'Suas preferências foram atualizadas.' });
+      await fetchConfiguracoes();
+      return true;
+    } catch (err: any) {
+      alert('Exception catch: ' + err.message);
+      setSaving(false);
       return false;
     }
-    toast({ title: 'Configurações salvas!', description: 'Suas preferências foram atualizadas.' });
-    await fetchConfiguracoes();
-    return true;
   };
 
   return { configuracoes, setConfiguracoes, loading, saving, saveConfiguracoes, refetch: fetchConfiguracoes };
