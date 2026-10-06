@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Activity, Circle, CheckCircle2, AlertCircle } from 'lucide-react';
+import { useDentalSystem } from '@/context/DentalSystemContext';
+import { toast } from 'sonner';
 
 const DENTES_SUPERIORES = [18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28];
 const DENTES_INFERIORES = [48, 47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36, 37, 38];
@@ -14,9 +16,23 @@ interface DenteStatus {
 }
 
 export const Odontograma = ({ patient }: { patient: any }) => {
+  const { updatePaciente } = useDentalSystem();
   // Inicializa todos como saudáveis
   const [status, setStatus] = useState<DenteStatus>({});
   const [selectedDente, setSelectedDente] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (patient?.odontograma) {
+      try {
+        const parsed = typeof patient.odontograma === 'string' 
+          ? JSON.parse(patient.odontograma) 
+          : patient.odontograma;
+        setStatus(parsed);
+      } catch (e) {
+        console.error('Erro ao ler odontograma:', e);
+      }
+    }
+  }, [patient?.odontograma]);
 
   const getCorDente = (estado?: EstadoDente) => {
     switch (estado) {
@@ -28,10 +44,20 @@ export const Odontograma = ({ patient }: { patient: any }) => {
     }
   };
 
-  const mudarEstado = (estado: EstadoDente) => {
+  const mudarEstado = async (estado: EstadoDente) => {
     if (selectedDente === null) return;
-    setStatus({ ...status, [selectedDente]: estado });
+    const newStatus = { ...status, [selectedDente]: estado };
+    setStatus(newStatus);
     setSelectedDente(null);
+    
+    if (updatePaciente && patient?.id) {
+      try {
+        await updatePaciente(patient.id, { odontograma: newStatus });
+        toast.success('Odontograma salvo!');
+      } catch (error) {
+        toast.error('Erro ao salvar no banco');
+      }
+    }
   };
 
   // Ícone de dente simplificado (Molar)

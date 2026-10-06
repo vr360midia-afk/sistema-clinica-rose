@@ -148,7 +148,7 @@ class SupabaseService {
 
   // Colunas válidas por tabela (evita enviar campos inexistentes ao banco)
   private tableColumns: Record<string, string[]> = {
-    pacientes: ['user_id','nome','email','telefone','idade','data_nascimento','endereco','cpf','rg','profissao','estado_civil','convenio','origem_lead','foto','historico_medico','alergias','medicamentos','observacoes','status','ultima_consulta','proxima_consulta','data_arquivamento','motivo_arquivamento'],
+    pacientes: ['user_id','nome','email','telefone','idade','data_nascimento','endereco','cpf','rg','profissao','estado_civil','convenio','origem_lead','foto','historico_medico','alergias','medicamentos','observacoes','status','ultima_consulta','proxima_consulta','data_arquivamento','motivo_arquivamento','odontograma'],
     consultas: ['user_id','paciente_id','paciente_nome','data','hora','tipo','status','valor','observacoes','duracao','procedimento','dentista','confirmacao_status','confirmado_em'],
     transacoes: ['user_id','tipo','descricao','valor','categoria','data','paciente_id','paciente_nome','status','consulta_id','metodo_pagamento','vencimento','observacoes','taxa_cartao_percentual','taxa_cartao_valor','parcelas','valor_parcela','valor_liquido','parceiro_id','parceiro_nome','valor_parceiro','orcamento_id','comprovantes'],
     prontuarios: ['user_id','paciente_id','paciente_nome','data','queixa_principal','diagnostico','tratamento','observacoes','odontograma','imagens','assinatura','procedimentos','consulta_id','historia_doenca','exame_clinico','plano_tratamento','procedimentos_realizados','anexos'],

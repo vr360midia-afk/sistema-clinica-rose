@@ -30,6 +30,7 @@ export interface Paciente extends BaseEntity {
   // Campos de arquivamento
   dataArquivamento?: Date;
   motivoArquivamento?: string;
+  odontograma?: any;
 }
 
 export type OrigemLead = 
