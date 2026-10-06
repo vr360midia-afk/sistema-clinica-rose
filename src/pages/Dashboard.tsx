@@ -4,6 +4,7 @@ import Layout from '@/components/layout/Layout';
 import StatsCard from '@/components/dashboard/StatsCard';
 import ConfirmacoesPendentes from '@/components/dashboard/ConfirmacoesPendentes';
 import AppointmentsList from '@/components/dashboard/AppointmentsList';
+import { RetornosPendentes } from '@/components/dashboard/RetornosPendentes';
 import RecentActivity from '@/components/dashboard/RecentActivity';
 import LembretesWhatsApp from '@/components/dashboard/LembretesWhatsApp';
 import DashboardCharts from '@/components/dashboard/DashboardCharts';
@@ -123,6 +124,7 @@ const Dashboard = () => {
           <AppointmentsList />
           <LembretesWhatsApp />
           <ConfirmacoesPendentes />
+          <RetornosPendentes />
           <RecentActivity />
         </div>
       </motion.div>

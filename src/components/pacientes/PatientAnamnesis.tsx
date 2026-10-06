@@ -71,6 +71,18 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
                     <span>{new Date(anamnese.data).toLocaleDateString('pt-BR')}</span>
                   </div>
                 </div>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="bg-green-50 text-green-600 hover:bg-green-100 border-green-200"
+                  onClick={() => {
+                    const link = `${window.location.origin}/assinar-anamnese/${anamnese.id}?token=${anamnese.id}`;
+                    const msg = `Olá! Clique no link abaixo para assinar digitalmente a sua Ficha de Anamnese da Clínica:\n\n${link}`;
+                    import('@/lib/whatsapp').then(({ openWhatsApp }) => openWhatsApp(patient.telefone || '', msg));
+                  }}
+                >
+                  Pedir Assinatura pelo WhatsApp
+                </Button>
               </div>
             </CardHeader>
             <CardContent className="space-y-3">

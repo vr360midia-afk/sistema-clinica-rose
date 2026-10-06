@@ -12,6 +12,7 @@ import PatientTimeline from './PatientTimeline';
 import PatientFinancial from './PatientFinancial';
 import PatientOrcamentos from './PatientOrcamentos';
 import PatientDocumentosClinicos from './PatientDocumentosClinicos';
+import { ImpressaoDocs } from './ImpressaoDocs';
 
 
 interface PatientDetailsProps {
@@ -49,9 +50,11 @@ const PatientDetails = ({ patient, onClose, onEdit, onSchedule, onAddProcediment
           </div>
         </div>
         <div className="flex flex-col sm:flex-row gap-2">
+          <ImpressaoDocs patient={patient} />
+          
           <Button onClick={onSchedule}>
             <CalendarPlus className="h-4 w-4 mr-2" />
-            Agendar consulta
+            Agendar
           </Button>
           {onAddProcedimento && (
             <Button onClick={onAddProcedimento} variant="secondary">

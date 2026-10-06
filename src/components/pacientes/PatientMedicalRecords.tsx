@@ -7,6 +7,7 @@ import { FileText, Plus, Calendar } from 'lucide-react';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import EmptyState from '@/components/common/EmptyState';
 import ProntuarioModal from '@/components/prontuarios/ProntuarioModal';
+import { PatientIA } from './PatientIA';
 
 interface PatientMedicalRecordsProps {
   patient: any;
@@ -28,28 +29,6 @@ const PatientMedicalRecords = ({ patient }: PatientMedicalRecordsProps) => {
     setIsModalOpen(false);
   };
 
-  if (patientProntuarios.length === 0) {
-    return (
-      <>
-        <EmptyState
-          icon={FileText}
-          title="Nenhum prontuário encontrado"
-          description="Este paciente ainda não possui prontuários médicos cadastrados"
-          action={{
-            label: 'Criar Prontuário',
-            onClick: handleNewProntuario
-          }}
-        />
-        <ProntuarioModal
-          isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
-          onSave={handleSaveProntuario}
-          preSelectedPatient={patient.id}
-        />
-      </>
-    );
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -60,7 +39,20 @@ const PatientMedicalRecords = ({ patient }: PatientMedicalRecordsProps) => {
         </Button>
       </div>
 
-      <div className="grid gap-4">
+      <PatientIA patient={patient} />
+
+      {patientProntuarios.length === 0 ? (
+        <EmptyState
+          icon={FileText}
+          title="Nenhum prontuário encontrado"
+          description="Este paciente ainda não possui prontuários médicos cadastrados"
+          action={{
+            label: 'Criar Prontuário',
+            onClick: handleNewProntuario
+          }}
+        />
+      ) : (
+        <div className="grid gap-4">
         {patientProntuarios.map((prontuario) => (
           <Card key={prontuario.id} className="hover:shadow-md transition-shadow">
             <CardHeader className="pb-3">
@@ -137,6 +129,7 @@ const PatientMedicalRecords = ({ patient }: PatientMedicalRecordsProps) => {
           </Card>
         ))}
       </div>
+      )}
 
       <ProntuarioModal
         isOpen={isModalOpen}
