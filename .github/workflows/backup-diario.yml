@@ -1,0 +1,42 @@
+name: Supabase Daily Backup
+
+on:
+  schedule:
+    # 23:59 no fuso horário de Brasília (UTC-3) corresponde a 02:59 UTC
+    - cron: '59 2 * * *'
+  workflow_dispatch: # Permite você testar o backup rodando manualmente por um botão
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Configurar Cliente do Banco de Dados (PostgreSQL)
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y postgresql-client
+
+    - name: Fazer o Backup (Dump) do Supabase
+      env:
+        DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      run: |
+        if [ -z "$DB_URL" ]; then
+          echo "Erro: SUPABASE_DB_URL nao configurado nas Secrets do GitHub"
+          exit 1
+        fi
+        
+        # Gera o nome do arquivo com a data de hoje
+        FILENAME="backup-clinica-$(date +'%Y-%m-%d').sql"
+        
+        # Faz o backup apenas do esquema public (onde ficam seus dados reais, tabelas e perfis)
+        pg_dump "$DB_URL" -n public > "$FILENAME"
+        
+        # Comprime o arquivo (zip) para ele ficar leve
+        gzip "$FILENAME"
+
+    - name: Salvar o Arquivo no GitHub (Exclui automaticamente após 7 dias)
+      uses: actions/upload-artifact@v4
+      with:
+        name: backup-diario-clinica-${{ github.run_id }}
+        path: backup-clinica-*.sql.gz
+        retention-days: 7 # Apaga automaticamente em 7 dias!
