@@ -57,6 +57,27 @@ const Pacientes = () => {
   const [anoFiltro, setAnoFiltro] = useState('todos');
   const { requireMasterPassword } = useSecurityGate();
   
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const { configuracoes } = useConfiguracoes();
+
+  const handleScannerResult = (dadosExtraidos: any) => {
+    setEditingPatient({
+      id: '',
+      nome: dadosExtraidos.nome || '',
+      telefone: dadosExtraidos.telefone || '',
+      cpf: dadosExtraidos.cpf || '',
+      dataNascimento: dadosExtraidos.dataNascimento || '',
+      endereco: dadosExtraidos.endereco || '',
+      historicoMedico: dadosExtraidos.historicoMedico || '',
+      alergias: dadosExtraidos.alergias || '',
+      medicamentos: dadosExtraidos.medicamentos || '',
+      observacoes: dadosExtraidos.observacoes || '',
+      status: 'Ativo',
+      criadoEm: new Date().toISOString()
+    } as any);
+    setShowForm(true);
+  };
+
   // Modals
   const [archiveModal, setArchiveModal] = useState({ isOpen: false, patient: null });
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, patient: null });
@@ -303,6 +324,10 @@ const Pacientes = () => {
             <Button onClick={() => setShowForm(true)} className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto">
               <Plus className="h-4 w-4 mr-2" />
               Novo Paciente
+            </Button>
+            <Button onClick={() => setIsScannerOpen(true)} className="bg-indigo-600 hover:bg-indigo-700 w-full sm:w-auto">
+              <Sparkles className="h-4 w-4 mr-2" />
+              Ficha Digital
             </Button>
             <Button onClick={handleAddProcedimento} variant="outline" className="w-full sm:w-auto">
               <Stethoscope className="h-4 w-4 mr-2" />
@@ -688,6 +713,12 @@ const Pacientes = () => {
           onSaved={() => setSchedulingPatient(null)}
         />
       </div>
+      <ScannerProntuarioModal
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+        geminiApiKey={configuracoes?.geminiApiKey || ''}
+        onExtraido={handleScannerResult}
+      />
     </Layout>
   );
 };
