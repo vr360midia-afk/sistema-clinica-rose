@@ -8,6 +8,8 @@ import { useDentalSystem } from '@/context/DentalSystemContext';
 import EmptyState from '@/components/common/EmptyState';
 import ProntuarioModal from '@/components/prontuarios/ProntuarioModal';
 import { PatientIA } from './PatientIA';
+import { EvolucaoSorriso } from './EvolucaoSorriso';
+import { Odontograma } from './Odontograma';
 
 interface PatientMedicalRecordsProps {
   patient: any;
@@ -130,6 +132,9 @@ const PatientMedicalRecords = ({ patient }: PatientMedicalRecordsProps) => {
         ))}
       </div>
       )}
+
+      <Odontograma patient={patient} />
+      <EvolucaoSorriso patient={patient} />
 
       <ProntuarioModal
         isOpen={isModalOpen}

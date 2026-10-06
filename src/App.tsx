@@ -9,6 +9,7 @@ import RoleRoute from '@/components/auth/RoleRoute';
 import PermissionRoute from '@/components/auth/PermissionRoute';
 import Index from '@/pages/Index';
 import Auth from '@/pages/Auth';
+import AgendamentoPublico from '@/pages/AgendamentoPublico';
 import Dashboard from '@/pages/Dashboard';
 import Pacientes from '@/pages/Pacientes';
 import Agenda from '@/pages/Agenda';
@@ -37,6 +38,7 @@ function App() {
           <div className="App">
             <Routes>
               <Route path="/auth" element={<Auth />} />
+              <Route path="/agendar" element={<AgendamentoPublico />} />
               <Route path="/assinar-anamnese/:id" element={<AssinarAnamnese />} />
               <Route path="/assinar-extrato/:id" element={<AssinarExtrato />} />
               <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />

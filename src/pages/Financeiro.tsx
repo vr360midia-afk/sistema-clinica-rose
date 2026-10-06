@@ -11,6 +11,7 @@ import { useSecurityGate } from '@/context/SecurityContext';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import Inadimplencia from '@/components/financeiro/Inadimplencia';
 import OrcamentosAbertos from '@/components/financeiro/OrcamentosAbertos';
+import { FinanceiroDRE } from '@/components/financeiro/FinanceiroDRE';
 import { gerarRecibo } from '@/utils/recibo';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { useOrcamentos } from '@/hooks/useOrcamentos';
@@ -263,6 +264,8 @@ const Financeiro = () => {
             </div>
           </CardContent>
         </Card>
+
+        <FinanceiroDRE />
 
         <TransactionForm
           isOpen={showTransactionForm}
