@@ -12,7 +12,7 @@ export type { DentalSystemContextType };
 
 
 export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   
   // Estados
   const [pacientes, setPacientes] = useState<Paciente[]>([]);
@@ -50,6 +50,11 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
         try {
           return { nome, ok: true, data: await fn() };
         } catch (error: any) {
+          if (error.message?.toLowerCase().includes('jwt expired')) {
+             toast.error('Sessão expirada. Faça login novamente.');
+             await signOut();
+             return { nome, ok: false, data: fallback };
+          }
           console.error(`Erro ao carregar ${nome} (tentativa ${tentativa + 1}):`, error);
           if (tentativa === 1 && nome === 'pacientes') {
             alert(`Erro crítico ao carregar ${nome}: ` + (error.message || JSON.stringify(error)));
