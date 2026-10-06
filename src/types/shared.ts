@@ -154,3 +154,4 @@ export interface DocumentoPaciente extends BaseEntity {
 
 export type TipoDocumento = 'foto' | 'raio-x' | 'exame' | 'receita' | 'atestado' | 'outro';
 
+
