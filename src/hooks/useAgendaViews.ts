@@ -8,7 +8,7 @@ type ViewType = 'day' | 'week' | 'month';
 
 export const useAgendaViews = (selectedDate: Date) => {
   const { consultas, pacientes, updateConsulta, deleteConsulta } = useDentalSystem();
-  const [view, setView] = useState<ViewType>('week'); // Mudança aqui: padrão é 'week'
+  const [view, setView] = useState<ViewType>('day');
 
   // Transformar consultas para o formato esperado pelos componentes
   // Converte string 'YYYY-MM-DD' para Date local (evita deslocamento de fuso)
