@@ -16,6 +16,7 @@ import { toast } from 'sonner';
 import { formatMoney } from '@/utils/exportCsv';
 import { useOrcamentos } from '@/hooks/useOrcamentos';
 import { calcularSaldosOrcamentos } from '@/utils/orcamentoSaldo';
+import { FinanceiroComprovantes } from '@/components/financeiro/FinanceiroComprovantes';
 
 interface PatientFinancialProps {
   patient: any;
@@ -456,6 +457,8 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
           )}
         </CardContent>
       </Card>
+
+      <FinanceiroComprovantes patient={patient} />
 
       {showTransactionForm && (
         <TransactionForm

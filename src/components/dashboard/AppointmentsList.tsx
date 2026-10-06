@@ -120,7 +120,14 @@ const AppointmentsList = () => {
                     </>
                   )}
                   {consulta.status === 'confirmado' && (
-                    <Button variant="outline" size="sm" onClick={() => navigate("/pacientes?id=" + consulta.pacienteId)}>
+                    <Button variant="outline" size="sm" onClick={() => {
+                        const id = consulta.pacienteId || (consulta as any).paciente_id;
+                        if (!id) {
+                          alert('Erro: ID do paciente ausente.');
+                          return;
+                        }
+                        navigate("/pacientes?id=" + id);
+                    }}>
                       Iniciar
                     </Button>
                   )}
