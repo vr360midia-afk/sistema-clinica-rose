@@ -1,0 +1,112 @@
+.rbc-calendar {
+  min-height: 650px;
+  width: 100%;
+  font-family: inherit;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  background-color: hsl(var(--card));
+  overflow: hidden;
+  color: hsl(var(--foreground));
+}
+
+.rbc-month-view, .rbc-time-view {
+  border: none;
+}
+
+.rbc-header {
+  border-bottom: 1px solid hsl(var(--border)) !important;
+  border-left: 1px solid hsl(var(--border));
+  padding: 10px 4px;
+  font-weight: 600;
+  text-transform: capitalize;
+  color: hsl(var(--muted-foreground));
+  background-color: hsl(var(--muted) / 0.3);
+}
+
+.rbc-month-row {
+  border-top: 1px solid hsl(var(--border));
+}
+
+.rbc-day-bg {
+  border-left: 1px solid hsl(var(--border));
+}
+
+.rbc-day-bg + .rbc-day-bg {
+  border-left: 1px solid hsl(var(--border));
+}
+
+.rbc-today {
+  background-color: hsl(var(--accent) / 0.3);
+}
+
+.rbc-off-range-bg {
+  background-color: hsl(var(--muted) / 0.1);
+}
+
+.rbc-event {
+  border-radius: 4px;
+  padding: 3px 5px;
+  font-size: 0.75rem;
+  border: none;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  transition: all 0.2s;
+}
+
+.rbc-event:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+.rbc-event-content {
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.rbc-time-header.rbc-overflowing {
+  border-right: 1px solid hsl(var(--border));
+}
+
+.rbc-time-header-content {
+  border-left: 1px solid hsl(var(--border));
+}
+
+.rbc-time-content {
+  border-top: 1px solid hsl(var(--border));
+}
+
+.rbc-timeslot-group {
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.rbc-time-slot {
+  color: hsl(var(--muted-foreground));
+  font-size: 0.8rem;
+}
+
+.rbc-day-slot .rbc-time-slot {
+  border-top: 1px dashed hsl(var(--border) / 0.6);
+}
+
+.rbc-current-time-indicator {
+  background-color: hsl(var(--destructive));
+  height: 2px;
+}
+
+/* Drag and Drop Styles */
+.rbc-addons-dnd .rbc-addons-dnd-resizable {
+  transition: none !important;
+}
+
+.rbc-addons-dnd .rbc-addons-dnd-resizable-month-event {
+  width: 98% !important;
+}
+
+.rbc-addons-dnd-is-dragging {
+  opacity: 0.5;
+}
+
+.rbc-addons-dnd-is-dragged {
+  opacity: 1;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.3) !important;
+  z-index: 100 !important;
+}

@@ -12,6 +12,7 @@ import ConsultaModal from '@/components/agenda/ConsultaModal';
 import DayView from '@/components/agenda/DayView';
 import WeekView from '@/components/agenda/WeekView';
 import MonthView from '@/components/agenda/MonthView';
+import { AgendaBigCalendar } from '@/components/agenda/AgendaBigCalendar';
 import AppointmentDetailsModal from '@/components/agenda/AppointmentDetailsModal';
 import PendentesModal from '@/components/agenda/PendentesModal';
 import { useAgendaViews } from '@/hooks/useAgendaViews';
@@ -20,6 +21,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 
 const Agenda = () => {
+  const { updateConsulta } = useDentalSystem();
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
   const [isConsultaModalOpen, setIsConsultaModalOpen] = useState(false);
@@ -124,40 +126,61 @@ const Agenda = () => {
   };
 
 
+  const bigCalendarEvents = useMemo(() => {
+    return transformedConsultas.map((c: any) => {
+      const [h, m] = (c.hora || '08:00').split(':').map(Number);
+      const start = new Date(c.data);
+      start.setHours(h || 8, m || 0, 0, 0);
+      const end = new Date(start);
+      end.setMinutes(start.getMinutes() + (Number(c.duracao) || 30));
+      
+      return {
+        id: c.id,
+        title: `${c.patient} - ${c.procedimento || 'Consulta'}`,
+        start,
+        end,
+        resource: c
+      };
+    });
+  }, [transformedConsultas]);
+
+  const handleEventDropOrResize = async ({ event, start, end }: { event: any, start: Date, end: Date }) => {
+    try {
+      const novaData = format(start, 'yyyy-MM-dd');
+      const novaHora = format(start, 'HH:mm');
+      const duracaoMinutos = Math.round((end.getTime() - start.getTime()) / 60000);
+      
+      await updateConsulta(event.id, {
+        data: novaData,
+        hora: novaHora,
+        duracao: duracaoMinutos
+      });
+      
+      toast.success('Consulta reagendada com sucesso!');
+    } catch (e) {
+      toast.error('Erro ao reagendar consulta');
+    }
+  };
+
   const renderCurrentView = () => {
     if (!selectedDate) return null;
 
-    switch (view) {
-      case 'day':
-        return (
-          <DayView
-            selectedDate={selectedDate}
-            appointments={appointmentsForSelectedDate}
-            onAppointmentClick={handleAppointmentClick}
-            onNewAppointment={handleNewAppointment}
-          />
-        );
-      case 'month':
-        return (
-          <MonthView
-            selectedDate={selectedDate}
-            onDateChange={handleDateChange}
-            consultas={transformedConsultas}
-            onAppointmentClick={handleAppointmentClick}
-            onDateClick={handleDateClick}
-          />
-        );
-      default:
-        return (
-          <WeekView
-            selectedDate={selectedDate}
-            onDateChange={handleDateChange}
-            consultas={transformedConsultas}
-            onAppointmentClick={handleAppointmentClick}
-            onDateClick={handleDateClick}
-          />
-        );
-    }
+    return (
+      <AgendaBigCalendar
+        events={bigCalendarEvents}
+        view={view as any}
+        date={selectedDate}
+        onNavigate={handleDateChange}
+        onView={setView as any}
+        onEventClick={(event) => handleAppointmentClick(event.resource)}
+        onEventDrop={handleEventDropOrResize}
+        onEventResize={handleEventDropOrResize}
+        onSelectSlot={(slotInfo) => {
+          setSelectedDate(slotInfo.start);
+          handleNewAppointment();
+        }}
+      />
+    );
   };
 
   return (
