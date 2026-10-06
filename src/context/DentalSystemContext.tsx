@@ -49,8 +49,11 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
       for (let tentativa = 0; tentativa < 2; tentativa++) {
         try {
           return { nome, ok: true, data: await fn() };
-        } catch (error) {
+        } catch (error: any) {
           console.error(`Erro ao carregar ${nome} (tentativa ${tentativa + 1}):`, error);
+          if (tentativa === 1 && nome === 'pacientes') {
+            alert(`Erro crítico ao carregar ${nome}: ` + (error.message || JSON.stringify(error)));
+          }
           if (tentativa === 0) await new Promise(r => setTimeout(r, 600));
         }
       }
