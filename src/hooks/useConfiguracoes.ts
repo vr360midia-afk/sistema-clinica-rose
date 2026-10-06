@@ -16,7 +16,7 @@ export interface ConfiguracoesGerais {
   lembrete24h: boolean;
   lembrete2h: boolean;
   backupAutomatico: boolean;
-  frequenciaBackup: string;
+  frequenciaBackup: string; geminiApiKey: string;
 }
 
 export const defaultConfiguracoes: ConfiguracoesGerais = {
@@ -32,7 +32,7 @@ export const defaultConfiguracoes: ConfiguracoesGerais = {
   lembrete24h: true,
   lembrete2h: true,
   backupAutomatico: true,
-  frequenciaBackup: 'diario',
+  frequenciaBackup: 'diario', geminiApiKey: '',
 };
 
 export const useConfiguracoes = () => {
@@ -71,6 +71,7 @@ export const useConfiguracoes = () => {
         lembrete2h: data.lembrete_2h,
         backupAutomatico: data.backup_automatico,
         frequenciaBackup: data.frequencia_backup || 'diario',
+        geminiApiKey: data.gemini_api_key || '',
       });
     }
     setLoading(false);
@@ -106,6 +107,7 @@ export const useConfiguracoes = () => {
             lembrete_2h: values.lembrete2h,
             backup_automatico: values.backupAutomatico,
             frequencia_backup: values.frequenciaBackup,
+            gemini_api_key: values.geminiApiKey,
           },
           { onConflict: 'user_id' }
         );

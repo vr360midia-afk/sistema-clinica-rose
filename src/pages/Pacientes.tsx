@@ -23,8 +23,10 @@ import { openWhatsApp } from '@/lib/whatsapp';
 import { useSecurityGate } from '@/context/SecurityContext';
 import { useProcedimentos } from '@/hooks/useProcedimentos';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Users, Search, Plus, UserCheck, Calendar, Archive, MoreVertical, Edit2, Trash2, RotateCcw, Stethoscope } from 'lucide-react';
+import { Users, Search, Plus, UserCheck, Calendar, Archive, MoreVertical, Edit2, Trash2, RotateCcw, Stethoscope, Sparkles } from 'lucide-react';
 import { Procedimento } from '@/types/procedimentos';
+import { ScannerProntuarioModal } from '@/components/pacientes/ScannerProntuarioModal';
+import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 
 
 const Pacientes = () => {

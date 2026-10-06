@@ -326,6 +326,30 @@ const Configuracoes = () => {
 
           <TabsContent value="apis">
             <div className="space-y-6">
+              <Card className="border-indigo-200 shadow-md">
+                <CardHeader className="bg-indigo-50/50 dark:bg-indigo-950/20">
+                  <CardTitle className="flex items-center gap-2 text-indigo-700 dark:text-indigo-400">
+                    <MessageSquare className="h-5 w-5" />
+                    Google Gemini AI (Importação Inteligente)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4 pt-4">
+                  <div>
+                    <Label htmlFor="geminiApiKey">Chave de API (Google AI Studio)</Label>
+                    <p className="text-xs text-muted-foreground mb-2">Usada para ler prontuários em PDF/Imagens e extrair os dados automaticamente.</p>
+                    <div className="flex gap-2">
+                      <Input
+                        id="geminiApiKey"
+                        type="password"
+                        value={configuracoes.geminiApiKey || ''}
+                        onChange={(e) => setConfiguracoes({ ...configuracoes, geminiApiKey: e.target.value })}
+                        placeholder="Ex: AIzaSy..."
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
