@@ -101,6 +101,7 @@ export const useOrcamentos = (pacienteId?: string) => {
 
     if (error) {
       console.error(error);
+      alert('Erro DB Orçamento: ' + error.message);
       toast.error('Erro ao salvar orçamento');
       return;
     }
