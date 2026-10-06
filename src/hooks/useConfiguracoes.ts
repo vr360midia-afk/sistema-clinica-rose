@@ -43,7 +43,10 @@ export const useConfiguracoes = () => {
   const [saving, setSaving] = useState(false);
 
   const fetchConfiguracoes = useCallback(async () => {
-    if (!clinicaId) return;
+    if (!clinicaId) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     const { data, error } = await supabase
       .from('configuracoes')
@@ -78,7 +81,10 @@ export const useConfiguracoes = () => {
   }, [fetchConfiguracoes]);
 
   const saveConfiguracoes = async (values: ConfiguracoesGerais) => {
-    if (!clinicaId) return;
+    if (!clinicaId) {
+      toast({ title: 'Erro', description: 'ID da clínica não encontrado', variant: 'destructive' });
+      return false;
+    }
     setSaving(true);
     const { error } = await supabase
       .from('configuracoes')
