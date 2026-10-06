@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Layout from '@/components/layout/Layout';
 import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CalendarDays, Plus } from 'lucide-react';
+import { CalendarDays, Plus, Bell } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useDentalSystem } from '@/context/DentalSystemContext';
@@ -13,9 +13,11 @@ import DayView from '@/components/agenda/DayView';
 import WeekView from '@/components/agenda/WeekView';
 import MonthView from '@/components/agenda/MonthView';
 import AppointmentDetailsModal from '@/components/agenda/AppointmentDetailsModal';
+import PendentesModal from '@/components/agenda/PendentesModal';
 import { useAgendaViews } from '@/hooks/useAgendaViews';
 import { downloadICS } from '@/utils/calendarExport';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 const Agenda = () => {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
@@ -25,6 +27,29 @@ const Agenda = () => {
   const [consultaFormDate, setConsultaFormDate] = useState<Date | undefined>(undefined);
   const [consultaFormTime, setConsultaFormTime] = useState<string | undefined>(undefined);
   const [consultaEmEdicao, setConsultaEmEdicao] = useState<any>(null);
+  const [pendentes, setPendentes] = useState<any[]>([]);
+  const [isPendentesModalOpen, setIsPendentesModalOpen] = useState(false);
+
+  const carregarPendentes = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('agendamentos_pendentes')
+        .select('*')
+        .eq('status', 'pendente')
+        .order('criado_em', { ascending: false });
+      
+      if (!error && data) {
+        setPendentes(data);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    carregarPendentes();
+    // Poderia adicionar realtime subscription aqui para atualizar automático
+  }, []);
 
   const {
     view,
@@ -145,6 +170,16 @@ const Agenda = () => {
             <p className="text-sm sm:text-base text-muted-foreground">Gerencie seus agendamentos e consultas</p>
           </div>
           <div className="flex gap-2 w-full sm:w-auto">
+            {pendentes.length > 0 && (
+              <Button
+                variant="destructive"
+                className="flex items-center gap-2 flex-1 sm:flex-none justify-center animate-pulse"
+                onClick={() => setIsPendentesModalOpen(true)}
+              >
+                <Bell className="h-4 w-4" />
+                Aprovações ({pendentes.length})
+              </Button>
+            )}
             <Button
               variant="outline"
               className="flex items-center gap-2 flex-1 sm:flex-none justify-center"
@@ -275,6 +310,31 @@ const Agenda = () => {
           onStatusChange={handleStatusChange}
           onConfirmacaoChange={handleConfirmacaoChange}
           onReschedule={handleReschedule}
+        />
+        <PendentesModal
+          isOpen={isPendentesModalOpen}
+          onClose={() => setIsPendentesModalOpen(false)}
+          pendentes={pendentes}
+          onRefresh={carregarPendentes}
+          onApprove={async (pendente) => {
+            // Marca como aprovado no banco de dados para sumir da lista
+            await supabase.from('agendamentos_pendentes').update({ status: 'aprovado' }).eq('id', pendente.id);
+            carregarPendentes();
+            
+            // Set data for new appointment
+            setConsultaEmEdicao({
+              patient: pendente.nome,
+              telefone: pendente.telefone,
+              procedimento: pendente.motivo,
+              observacoes: `[Agendamento Online] Motivo: ${pendente.motivo}`
+            });
+            const d = new Date(pendente.data);
+            d.setDate(d.getDate() + 1); // Correção de fuso se necessário
+            setConsultaFormDate(d);
+            setConsultaFormTime(pendente.hora);
+            
+            setIsConsultaModalOpen(true);
+          }}
         />
       </div>
     </Layout>

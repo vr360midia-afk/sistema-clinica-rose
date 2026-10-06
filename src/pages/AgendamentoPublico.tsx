@@ -3,11 +3,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Calendar as CalendarIcon, Clock, User, Phone, CheckCircle2 } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, User, Phone, CheckCircle2, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 const AgendamentoPublico = () => {
   const [step, setStep] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     nome: '',
     telefone: '',
@@ -20,11 +22,31 @@ const AgendamentoPublico = () => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Em um sistema real, salvaria numa tabela 'agendamentos_pendentes'
-    toast.success('Agendamento solicitado com sucesso!');
-    setStep(2);
+    setIsLoading(true);
+    
+    try {
+      const { error } = await supabase
+        .from('agendamentos_pendentes')
+        .insert([{
+          nome: formData.nome,
+          telefone: formData.telefone,
+          data: formData.data,
+          hora: formData.hora,
+          motivo: formData.motivo
+        }]);
+
+      if (error) throw error;
+      
+      toast.success('Agendamento solicitado com sucesso!');
+      setStep(2);
+    } catch (error) {
+      console.error('Erro ao solicitar agendamento:', error);
+      toast.error('Não foi possível enviar a solicitação. Tente novamente.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (step === 2) {
@@ -133,8 +155,15 @@ const AgendamentoPublico = () => {
               </select>
             </div>
 
-            <Button type="submit" className="w-full mt-6 bg-indigo-600 hover:bg-indigo-700 h-11 text-md">
-              Confirmar Solicitação
+            <Button type="submit" disabled={isLoading} className="w-full mt-6 bg-indigo-600 hover:bg-indigo-700 h-11 text-md">
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Enviando...
+                </>
+              ) : (
+                'Confirmar Solicitação'
+              )}
             </Button>
           </form>
         </CardContent>
