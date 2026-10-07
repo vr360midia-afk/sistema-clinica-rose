@@ -17,6 +17,7 @@ import { formatMoney } from '@/utils/exportCsv';
 import { useOrcamentos } from '@/hooks/useOrcamentos';
 import { calcularSaldosOrcamentos } from '@/utils/orcamentoSaldo';
 import { FinanceiroComprovantes } from '@/components/financeiro/FinanceiroComprovantes';
+import { EditProcedimentoValorModal } from './EditProcedimentoValorModal';
 
 interface PatientFinancialProps {
   patient: any;
@@ -33,6 +34,7 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
   const [enviando, setEnviando] = useState(false);
   const [showTransactionForm, setShowTransactionForm] = useState(false);
   const [editingTransacao, setEditingTransacao] = useState<any | null>(null);
+  const [itemToEdit, setItemToEdit] = useState<any | null>(null);
 
 
   const { realizados, previstos, etapas, resumo, lancamentos } = useMemo(() => {
@@ -49,11 +51,14 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
           data: new Date(c.data),
           valor: Number(c.valor || 0),
           origem: 'Consulta',
+          originalId: c.id,
           dentista: c.dentista,
         })),
       ...pront.flatMap((p) =>
         (p.procedimentosRealizados || []).map((nome: any, i: number) => ({
           id: `p-${p.id}-${i}`,
+          prontuarioId: p.id,
+          index: i,
           nome: typeof nome === 'string' ? nome : nome?.nome || 'Procedimento',
           data: new Date(p.data),
           valor: typeof nome === 'object' ? Number(nome?.valor || 0) : 0,
@@ -107,6 +112,7 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
           hora: c.hora,
           dentista: c.dentista,
           origem: 'Consulta',
+          originalId: c.id,
         });
         item.valor += Number(c.valor || 0);
         etapasMap.set(key, item);
@@ -354,7 +360,12 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
                       {r.dentista ? ` • ${r.dentista}` : ''} • {r.origem}
                     </p>
                   </div>
-                  {r.valor > 0 && <span className="text-sm font-semibold shrink-0">{brl(r.valor)}</span>}
+                  <div className="flex items-center gap-2 shrink-0">
+                    {r.valor > 0 && <span className="text-sm font-semibold">{brl(r.valor)}</span>}
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setItemToEdit(r)}>
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </div>
               ))
             )}
@@ -468,6 +479,7 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
           transacao={editingTransacao || { pacienteId: patient.id, pacienteNome: patient.nome }}
         />
       )}
+    <EditProcedimentoValorModal isOpen={!!itemToEdit} onClose={() => setItemToEdit(null)} item={itemToEdit} />
     </div>
   );
 };

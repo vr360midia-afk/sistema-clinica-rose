@@ -4,6 +4,12 @@ import { Badge } from '@/components/ui/badge';
 import { Calendar, FileText, DollarSign, ClipboardList, FolderOpen, History } from 'lucide-react';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import EmptyState from '@/components/common/EmptyState';
+import TransactionForm from '@/components/financeiro/TransactionForm';
+import ConsultaModal from '@/components/agenda/ConsultaModal';
+import ProntuarioModal from '@/components/prontuarios/ProntuarioModal';
+import { Button } from '@/components/ui/button';
+import { Pencil } from 'lucide-react';
+import { useState } from 'react';
 import { formatMoney } from '@/utils/exportCsv';
 
 interface PatientTimelineProps {
@@ -14,6 +20,7 @@ type TimelineItem = {
   id: string;
   data: Date;
   tipo: 'consulta' | 'prontuario' | 'transacao' | 'anamnese' | 'documento';
+  originalId?: string;
   titulo: string;
   descricao?: string;
   badge?: string;
@@ -28,6 +35,9 @@ const config = {
 } as const;
 
 const PatientTimeline = ({ patient }: PatientTimelineProps) => {
+  const [editConsulta, setEditConsulta] = useState<any>(null);
+  const [editProntuario, setEditProntuario] = useState<any>(null);
+  const [editTransacao, setEditTransacao] = useState<any>(null);
   const { consultas, prontuarios, transacoes, anamneses, documentos } = useDentalSystem();
 
   const items = useMemo<TimelineItem[]>(() => {
@@ -38,6 +48,7 @@ const PatientTimeline = ({ patient }: PatientTimelineProps) => {
       .forEach((c) =>
         list.push({
           id: `c-${c.id}`,
+          originalId: c.id,
           data: new Date(c.data),
           tipo: 'consulta',
           titulo: c.procedimento || 'Consulta',
@@ -51,6 +62,7 @@ const PatientTimeline = ({ patient }: PatientTimelineProps) => {
       .forEach((p) =>
         list.push({
           id: `p-${p.id}`,
+          originalId: p.id,
           data: new Date(p.data),
           tipo: 'prontuario',
           titulo: p.queixaPrincipal || 'Prontuário',
@@ -63,6 +75,7 @@ const PatientTimeline = ({ patient }: PatientTimelineProps) => {
       .forEach((t) =>
         list.push({
           id: `t-${t.id}`,
+          originalId: t.id,
           data: new Date(t.data),
           tipo: 'transacao',
           titulo: `${t.tipo === 'receita' ? 'Recebimento' : 'Despesa'} ${formatMoney(Number(t.valor || 0))}`,
@@ -113,6 +126,7 @@ const PatientTimeline = ({ patient }: PatientTimelineProps) => {
   }
 
   return (
+    <>
     <div className="relative pl-5 sm:pl-6">
       <div className="absolute left-2 top-1 bottom-1 w-px bg-border" />
       <div className="space-y-3">
@@ -147,7 +161,10 @@ const PatientTimeline = ({ patient }: PatientTimelineProps) => {
         })}
       </div>
     </div>
+    {editTransacao && <TransactionForm isOpen={!!editTransacao} onClose={() => setEditTransacao(null)} transacao={editTransacao} isEdit={true} pacienteId={patient.id} />}
+      {editConsulta && <ConsultaModal isOpen={!!editConsulta} onClose={() => setEditConsulta(null)} editingConsulta={editConsulta} />}
+      {editProntuario && <ProntuarioModal isOpen={!!editProntuario} onClose={() => setEditProntuario(null)} prontuario={editProntuario} patient={patient} />}
+    </>
   );
-};
-
+}
 export default PatientTimeline;
