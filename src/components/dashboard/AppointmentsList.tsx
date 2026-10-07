@@ -9,7 +9,11 @@ import { useNavigate } from 'react-router-dom';
 
 const AppointmentsList = () => {
   const navigate = useNavigate();
-  const { consultas, pacientes } = useDentalSystem();
+  const { consultas, pacientes, updateConsulta } = useDentalSystem();
+
+  const handleConfirmar = async (id: string) => {
+    await updateConsulta(id, { status: 'confirmado' });
+  };
 
   // Filtrar consultas de hoje
   const today = new Date();
@@ -111,10 +115,10 @@ const AppointmentsList = () => {
                 <div className="flex gap-2">
                   {consulta.status === 'agendado' && (
                     <>
-                      <Button variant="outline" size="sm">
+                      <Button variant="outline" size="sm" onClick={() => handleConfirmar(consulta.id)}>
                         Confirmar
                       </Button>
-                      <Button variant="outline" size="sm">
+                      <Button variant="outline" size="sm" onClick={() => navigate('/agenda')}>
                         Reagendar
                       </Button>
                     </>
