@@ -273,7 +273,7 @@ const Agenda = () => {
                       locale={ptBR}
                       className="w-full max-w-none mx-auto"
                       modifiers={{
-                        booked: transformedConsultas.map(c => new Date(c.data))
+                        booked: transformedConsultas.map(c => new Date(c.data)).filter(d => !isNaN(d.getTime()))
                       }}
                       modifiersClassNames={{
                         booked: "relative after:content-[''] after:absolute after:bottom-1.5 after:left-1/2 after:-translate-x-1/2 after:w-1.5 after:h-1.5 after:bg-blue-500 after:rounded-full font-bold"
