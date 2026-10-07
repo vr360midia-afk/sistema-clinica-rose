@@ -46,7 +46,7 @@ export const ScannerProntuarioModal = ({ isOpen, onClose, geminiApiKey, onExtrai
 
       // 2. Chamar o Gemini
       const genAI = new GoogleGenerativeAI(geminiApiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+      const model = genAI.getGenerativeModel({ model: "gemini-3.0-flash" });
 
       const prompt = `Você é um assistente médico especializado em extrair dados de fichas e prontuários odontológicos/médicos escritos à mão ou digitados.
 Extraia as informações da imagem e retorne APENAS um JSON válido com os seguintes campos (use null se não encontrar a informação):
