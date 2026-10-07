@@ -127,21 +127,25 @@ const Agenda = () => {
 
 
   const bigCalendarEvents = useMemo(() => {
-    return transformedConsultas.map((c: any) => {
-      const [h, m] = (c.hora || '08:00').split(':').map(Number);
+    return transformedConsultas.reduce((acc: any[], c: any) => {
+      if (!c.data) return acc;
       const start = new Date(c.data);
+      if (isNaN(start.getTime())) return acc;
+
+      const [h, m] = (c.hora || '08:00').split(':').map(Number);
       start.setHours(h || 8, m || 0, 0, 0);
       const end = new Date(start);
       end.setMinutes(start.getMinutes() + (Number(c.duracao) || 30));
       
-      return {
+      acc.push({
         id: c.id,
         title: `${c.patient} - ${c.procedimento || 'Consulta'}`,
         start,
         end,
         resource: c
-      };
-    });
+      });
+      return acc;
+    }, []);
   }, [transformedConsultas]);
 
   const handleEventDropOrResize = async ({ event, start, end }: { event: any, start: Date, end: Date }) => {
