@@ -88,8 +88,9 @@ Extraia as informações da imagem e retorne APENAS um JSON válido com os segui
       handleClose();
 
     } catch (error: any) {
-      console.error(error);
-      toast.error("Erro na leitura: Não foi possível entender a imagem ou a API Key é inválida.");
+      console.error("Gemini API Error:", error);
+      const errorMessage = error?.message || "Erro desconhecido";
+      toast.error(`Erro na IA: ${errorMessage}`);
     } finally {
       setLoading(false);
     }
