@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Camera, Upload, Loader2, FileImage, Sparkles } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 interface ScannerProntuarioModalProps {
@@ -13,7 +13,7 @@ interface ScannerProntuarioModalProps {
 }
 
 export const ScannerProntuarioModal = ({ isOpen, onClose, geminiApiKey, onExtraido }: ScannerProntuarioModalProps) => {
-  const { toast } = useToast();
+  
   const [loading, setLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -34,11 +34,7 @@ export const ScannerProntuarioModal = ({ isOpen, onClose, geminiApiKey, onExtrai
   const processarImagem = async () => {
     if (!selectedFile) return;
     if (!geminiApiKey) {
-      toast({
-        title: "API Key não configurada",
-        description: "Configure a chave da API do Google Gemini em Configurações > APIs.",
-        variant: "destructive"
-      });
+      toast.error("API Key não configurada. Vá em Configurações > APIs.");
       return;
     }
 
@@ -86,21 +82,14 @@ Extraia as informações da imagem e retorne APENAS um JSON válido com os segui
 
       const dadosExtraidos = JSON.parse(text.trim());
       
-      toast({
-        title: "Leitura Concluída!",
-        description: "Os dados foram extraídos da imagem com sucesso."
-      });
+      toast.success("Os dados foram extraídos da imagem com sucesso!");
       
       onExtraido(dadosExtraidos);
       handleClose();
 
     } catch (error: any) {
       console.error(error);
-      toast({
-        title: "Erro na leitura",
-        description: "Não foi possível entender a imagem ou a API Key é inválida.",
-        variant: "destructive"
-      });
+      toast.error("Erro na leitura: Não foi possível entender a imagem ou a API Key é inválida.");
     } finally {
       setLoading(false);
     }
