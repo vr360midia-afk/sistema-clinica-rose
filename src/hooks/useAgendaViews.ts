@@ -51,7 +51,7 @@ export const useAgendaViews = (selectedDate: Date) => {
   // Filtrar consultas do dia selecionado para a visualização diária
   const appointmentsForSelectedDate = useMemo(() => {
     const selectedDateConsultas = transformedConsultas.filter(consulta => 
-      isSameDay(consulta.data, selectedDate)
+      consulta.data && !isNaN(consulta.data.getTime()) && isSameDay(consulta.data, selectedDate)
     );
 
     return selectedDateConsultas.map(consulta => ({
