@@ -12,6 +12,7 @@ import Auth from '@/pages/Auth';
 import AgendamentoPublico from '@/pages/AgendamentoPublico';
 import Dashboard from '@/pages/Dashboard';
 import Pacientes from '@/pages/Pacientes';
+import CRM from '@/pages/CRM';
 import Agenda from '@/pages/Agenda';
 import Financeiro from '@/pages/Financeiro';
 import FaturamentoParceiros from '@/pages/FaturamentoParceiros';
@@ -43,6 +44,7 @@ function App() {
               <Route path="/assinar-extrato/:id" element={<AssinarExtrato />} />
               <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              <Route path="/crm" element={<ProtectedRoute><CRM /></ProtectedRoute>} />
               <Route path="/pacientes" element={<ProtectedRoute><PermissionRoute modulo="pacientes"><Pacientes /></PermissionRoute></ProtectedRoute>} />
               <Route path="/agenda" element={<ProtectedRoute><PermissionRoute modulo="agenda"><Agenda /></PermissionRoute></ProtectedRoute>} />
               <Route path="/financeiro" element={<ProtectedRoute><PermissionRoute modulo="financeiro"><Financeiro /></PermissionRoute></ProtectedRoute>} />

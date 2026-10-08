@@ -4,6 +4,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useUserRoles, AppRole } from '@/hooks/useUserRoles';
 import {
+  Target,
   Home,
   Users,
   Calendar,
@@ -37,7 +38,8 @@ interface NavItem {
 const navigation: NavItem[] = [
   { name: 'Dashboard', href: '/', icon: Home },
   { name: 'Notas', href: '/notas', icon: StickyNote },
-  { name: 'Pacientes', href: '/pacientes', icon: Users },
+  { name: 'CRM / Leads', href: '/crm', icon: Target },
+    { name: 'Pacientes', href: '/pacientes', icon: Users },
   { name: 'Agenda', href: '/agenda', icon: Calendar },
   { name: 'Anamnese', href: '/anamnese', icon: FileText },
   { name: 'Prontuários', href: '/prontuarios', icon: Clipboard },
