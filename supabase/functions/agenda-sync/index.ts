@@ -69,7 +69,7 @@ serve(async (req) => {
         `DTSTAMP:${formatICalDate(new Date())}`,
         `DTSTART:${formatICalDate(startDateTime)}`,
         `DTEND:${formatICalDate(endDateTime)}`,
-        `SUMMARY:${pacienteNome} - ${c.procedimento || 'Consulta'}`,
+        `SUMMARY:💲 ${pacienteNome} - ${c.procedimento || 'Consulta'}`,
         `DESCRIPTION:Paciente: ${pacienteNome}\\nStatus: ${c.status}\\nObs: ${observacoesLimpa}`,
         'END:VEVENT'
       );
