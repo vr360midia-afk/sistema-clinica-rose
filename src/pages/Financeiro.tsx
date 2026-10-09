@@ -1,10 +1,10 @@
-
 import React, { useState } from 'react';
 import Layout from '@/components/layout/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DollarSign, TrendingUp, TrendingDown, Plus, CreditCard, Receipt, Pencil, Trash2, Handshake, Target } from 'lucide-react';
 import TransactionForm from '@/components/financeiro/TransactionForm';
 import { registrarAuditoria } from '@/hooks/useAuditLog';
@@ -110,6 +110,90 @@ const Financeiro = () => {
     else toast.error('Não foi possível gerar o recibo');
   };
 
+  const receitas = filteredTransacoes.filter(t => t.tipo === 'receita');
+  const despesasTransactions = filteredTransacoes.filter(t => t.tipo === 'despesa');
+
+  const renderTransactions = (transacoesToRender: any[], isDespesa: boolean) => (
+    <Card>
+      <CardHeader>
+        <CardTitle>{isDespesa ? 'Contas a Pagar / Pagas' : 'Recebimentos (Faturamento)'}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          {transacoesToRender.length === 0 ? (
+            <div className="text-center py-8">
+              <CreditCard className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <p className="text-muted-foreground">Nenhuma transação registrada neste mês</p>
+            </div>
+          ) : (
+            transacoesToRender
+              .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())
+              .map((transacao) => (
+                <div key={transacao.id} className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="flex items-center gap-4">
+                    <div className="p-2 rounded-full bg-blue-100">
+                      {transacao.metodoPagamento === 'cartao' ? (
+                        <CreditCard className="h-5 w-5 text-blue-600" />
+                      ) : (
+                        <Receipt className="h-5 w-5 text-blue-600" />
+                      )}
+                    </div>
+                    <div>
+                      <div className="font-medium">{transacao.tipo === 'despesa' && transacao.parceiroNome ? transacao.parceiroNome : getPacienteName(transacao.pacienteId)}</div>
+                      <div className="text-sm text-muted-foreground">
+                        {transacao.descricao}
+                      </div>
+                      <div className="text-sm text-muted-foreground">{new Date(transacao.data).toLocaleDateString('pt-BR')}</div>
+                    </div>
+                  </div>
+                  <div className="text-right space-y-1">
+                    <div className="font-semibold">{formatMoney(transacao.valor)}</div>
+                    <Badge 
+                      className={transacao.status === 'pago' 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-yellow-100 text-yellow-800'
+                      }
+                    >
+                      {transacao.status === 'pago' ? 'Pago' : 'Pendente'}
+                    </Badge>
+                    <div className="flex flex-wrap justify-end gap-1 pt-1">
+                      {transacao.tipo === 'receita' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1"
+                          onClick={() => emitirRecibo(transacao)}
+                        >
+                          <Receipt className="h-3.5 w-3.5" />
+                          Recibo
+                        </Button>
+                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1"
+                        onClick={() => { setEditingTransacao(transacao); setShowTransactionForm(true); }}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        Editar
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1 text-destructive"
+                        onClick={() => handleDelete(transacao.id)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
 
   return (
     <Layout>
@@ -133,167 +217,102 @@ const Financeiro = () => {
           </div>
         </div>
 
-        {/* Cards de Resumo */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Total Recebido</p>
-                  <p className="text-xl sm:text-2xl font-bold text-green-600">{formatMoney(totalReceived)}</p>
-                </div>
-                <TrendingUp className="h-8 w-8 text-green-600" />
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">A Receber</p>
-                  <p className="text-xl sm:text-2xl font-bold text-yellow-600">{formatMoney(totalAReceber)}</p>
-                  {totalOrcamentosAberto > 0 && (
-                    <p className="text-[11px] text-muted-foreground">Orçamentos aprovados: {formatMoney(totalOrcamentosAberto)}</p>
-                  )}
-                </div>
-                <TrendingDown className="h-8 w-8 text-yellow-600" />
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Despesas / Parcerias</p>
-                  <p className="text-xl sm:text-2xl font-bold text-red-500">{formatMoney(totalDespesas)}</p>
-                  <p className="text-[11px] text-muted-foreground">Repasses a parceiros: {formatMoney(totalRepasses)}</p>
-                </div>
-                <Handshake className="h-8 w-8 text-red-500" />
-              </div>
-            </CardContent>
-          </Card>
+        <Tabs defaultValue="geral" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3 h-auto">
+            <TabsTrigger value="geral" className="py-2">Visão Geral & DRE</TabsTrigger>
+            <TabsTrigger value="pacientes" className="py-2">Pacientes & Faturamento</TabsTrigger>
+            <TabsTrigger value="despesas" className="py-2">Despesas do Consultório</TabsTrigger>
+          </TabsList>
 
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Saldo Líquido (recebido - despesas)</p>
-                  <p className={`text-xl sm:text-2xl font-bold ${saldoLiquido >= 0 ? 'text-green-600' : 'text-red-500'}`}>{formatMoney(saldoLiquido)}</p>
-                  <p className="text-[11px] text-muted-foreground">Previsto c/ a receber: {formatMoney((saldoLiquido + totalAReceber))}</p>
-                </div>
-                <DollarSign className="h-8 w-8 text-blue-600" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Projeção de Faturamento</p>
-                  <p className="text-xl sm:text-2xl font-bold text-purple-500">{formatMoney(totalProjecao)}</p>
-                  <p className="text-[11px] text-muted-foreground">{orcamentosPendentes.length} orçamento(s) aguardando aprovação</p>
-                </div>
-                <Target className="h-8 w-8 text-purple-500" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <OrcamentosAbertos
-          onLancarPagamento={(prefill) => {
-            setEditingTransacao(prefill);
-            setShowTransactionForm(true);
-          }}
-        />
-
-        <Inadimplencia />
-
-        {/* Lista de Transações */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Transações Recentes</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {filteredTransacoes.length === 0 ? (
-                <div className="text-center py-8">
-                  <CreditCard className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">Nenhuma transação registrada neste mês</p>
-                </div>
-              ) : (
-                filteredTransacoes
-                  .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())
-                  .map((transacao) => (
-                    <div key={transacao.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center gap-4">
-                        <div className="p-2 rounded-full bg-blue-100">
-                          {transacao.metodoPagamento === 'cartao' ? (
-                            <CreditCard className="h-5 w-5 text-blue-600" />
-                          ) : (
-                            <Receipt className="h-5 w-5 text-blue-600" />
-                          )}
-                        </div>
-                        <div>
-                          <div className="font-medium">{getPacienteName(transacao.pacienteId)}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {transacao.descricao}
-                          </div>
-                          <div className="text-sm text-muted-foreground">{new Date(transacao.data).toLocaleDateString('pt-BR')}</div>
-                        </div>
-                      </div>
-                      <div className="text-right space-y-1">
-                        <div className="font-semibold">{formatMoney(transacao.valor)}</div>
-                        <Badge 
-                          className={transacao.status === 'pago' 
-                            ? 'bg-green-100 text-green-800' 
-                            : 'bg-yellow-100 text-yellow-800'
-                          }
-                        >
-                          {transacao.status === 'pago' ? 'Pago' : 'Pendente'}
-                        </Badge>
-                        <div className="flex flex-wrap justify-end gap-1 pt-1">
-                          {transacao.tipo === 'receita' && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="gap-1"
-                              onClick={() => emitirRecibo(transacao)}
-                            >
-                              <Receipt className="h-3.5 w-3.5" />
-                              Recibo
-                            </Button>
-                          )}
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="gap-1"
-                            onClick={() => { setEditingTransacao(transacao); setShowTransactionForm(true); }}
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                            Editar
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="gap-1 text-destructive"
-                            onClick={() => handleDelete(transacao.id)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </div>
-
+          <TabsContent value="geral" className="space-y-6">
+            {/* Cards de Resumo */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Total Recebido</p>
+                      <p className="text-xl sm:text-2xl font-bold text-green-600">{formatMoney(totalReceived)}</p>
                     </div>
-                  ))
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                    <TrendingUp className="h-8 w-8 text-green-600" />
+                  </div>
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">A Receber</p>
+                      <p className="text-xl sm:text-2xl font-bold text-yellow-600">{formatMoney(totalAReceber)}</p>
+                      {totalOrcamentosAberto > 0 && (
+                        <p className="text-[11px] text-muted-foreground">Orçamentos aprovados: {formatMoney(totalOrcamentosAberto)}</p>
+                      )}
+                    </div>
+                    <TrendingDown className="h-8 w-8 text-yellow-600" />
+                  </div>
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Despesas / Parcerias</p>
+                      <p className="text-xl sm:text-2xl font-bold text-red-500">{formatMoney(totalDespesas)}</p>
+                      <p className="text-[11px] text-muted-foreground">Repasses a parceiros: {formatMoney(totalRepasses)}</p>
+                    </div>
+                    <Handshake className="h-8 w-8 text-red-500" />
+                  </div>
+                </CardContent>
+              </Card>
 
-        <FinanceiroDRE selectedMonth={selectedMonth} />
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Saldo Líquido (recebido - despesas)</p>
+                      <p className={\`text-xl sm:text-2xl font-bold \${saldoLiquido >= 0 ? 'text-green-600' : 'text-red-500'}\`}>{formatMoney(saldoLiquido)}</p>
+                      <p className="text-[11px] text-muted-foreground">Previsto c/ a receber: {formatMoney((saldoLiquido + totalAReceber))}</p>
+                    </div>
+                    <DollarSign className="h-8 w-8 text-blue-600" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Projeção de Faturamento</p>
+                      <p className="text-xl sm:text-2xl font-bold text-purple-500">{formatMoney(totalProjecao)}</p>
+                      <p className="text-[11px] text-muted-foreground">{orcamentosPendentes.length} orçamento(s) aguardando aprovação</p>
+                    </div>
+                    <Target className="h-8 w-8 text-purple-500" />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+            
+            <FinanceiroDRE selectedMonth={selectedMonth} />
+          </TabsContent>
+
+          <TabsContent value="pacientes" className="space-y-6">
+            <OrcamentosAbertos
+              onLancarPagamento={(prefill) => {
+                setEditingTransacao(prefill);
+                setShowTransactionForm(true);
+              }}
+            />
+            <Inadimplencia />
+            {renderTransactions(receitas, false)}
+          </TabsContent>
+
+          <TabsContent value="despesas" className="space-y-6">
+            {renderTransactions(despesasTransactions, true)}
+            {/* O Calendário de Vencimentos será integrado aqui futuramente */}
+          </TabsContent>
+        </Tabs>
 
         <TransactionForm
           isOpen={showTransactionForm}
