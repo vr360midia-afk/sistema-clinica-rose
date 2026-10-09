@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { DollarSign, TrendingUp, TrendingDown, Plus, CreditCard, Receipt, Pencil, Trash2, Handshake, Target } from 'lucide-react';
+import { DollarSign, TrendingUp, TrendingDown, Plus, CreditCard, Receipt, Pencil, Trash2, Handshake, Target, CheckCircle2 } from 'lucide-react';
 import TransactionForm from '@/components/financeiro/TransactionForm';
 import { registrarAuditoria } from '@/hooks/useAuditLog';
 import { useSecurityGate } from '@/context/SecurityContext';
@@ -80,6 +80,10 @@ const Financeiro = () => {
     .filter((o) => o.status === 'aprovado')
     .reduce((sum, o) => sum + (saldosOrcamentos.get(o.id)?.saldo || 0), 0);
   const totalAReceber = totalPending + totalOrcamentosAberto;
+
+  // Orçamentos aprovados no mês (Vendas)
+  const orcamentosFechadosNoMes = filteredOrcamentos.filter(o => o.status === 'aprovado');
+  const totalFechadoMes = orcamentosFechadosNoMes.reduce((sum, o) => sum + Number(o.total || 0), 0);
 
   // Projeção de faturamento: orçamentos ainda não aprovados (rascunho/enviado)
   const orcamentosPendentes = filteredOrcamentos.filter((o) => o.status !== 'aprovado' && o.status !== 'recusado');
@@ -226,12 +230,25 @@ const Financeiro = () => {
 
           <TabsContent value="geral" className="space-y-6">
             {/* Cards de Resumo */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
               <Card>
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-muted-foreground">Total Recebido</p>
+                      <p className="text-sm text-muted-foreground">Vendas (Orçamentos Fechados)</p>
+                      <p className="text-xl sm:text-2xl font-bold text-blue-600">{formatMoney(totalFechadoMes)}</p>
+                      <p className="text-[11px] text-muted-foreground">{orcamentosFechadosNoMes.length} orçamento(s) aprovado(s)</p>
+                    </div>
+                    <CheckCircle2 className="h-8 w-8 text-blue-600" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Total Recebido (Caixa)</p>
                       <p className="text-xl sm:text-2xl font-bold text-green-600">{formatMoney(totalReceived)}</p>
                     </div>
                     <TrendingUp className="h-8 w-8 text-green-600" />
