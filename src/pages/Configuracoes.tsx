@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import BloqueiosManager from '@/components/configuracoes/BloqueiosManager';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
-import { Settings, Wifi, Bell, Shield, Database, MessageSquare, UserCog, Upload, Trash2, Image as ImageIcon, Handshake, ShieldCheck, Pill, Users } from 'lucide-react';
+import { Settings, Wifi, Bell, Shield, Database, MessageSquare, UserCog, Upload, Trash2, Image as ImageIcon, Handshake, ShieldCheck, Pill, Users, Calendar } from 'lucide-react';
 import DentistasManager from '@/components/configuracoes/DentistasManager';
 import CertificadoDigitalManager from '@/components/configuracoes/CertificadoDigitalManager';
 import ParceirosManager from '@/components/configuracoes/ParceirosManager';
