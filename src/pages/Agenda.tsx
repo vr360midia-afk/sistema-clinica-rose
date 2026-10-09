@@ -113,7 +113,7 @@ const Agenda = () => {
       inicio.setHours(h || 8, m || 0, 0, 0);
       return {
         id: c.id,
-        titulo: `💲 ${c.patient} - ${c.procedimento || 'Consulta'}`,
+        titulo: `${c.procedimento || 'Consulta'} - ${c.patient}`,
         descricao: [c.dentista ? `Dentista: ${c.dentista}` : '', c.status ? `Status: ${c.status}` : '']
           .filter(Boolean)
           .join('\n'),
@@ -139,7 +139,7 @@ const Agenda = () => {
       
       acc.push({
         id: c.id,
-        title: `💲 ${c.patient} - ${c.procedimento || 'Consulta'}`,
+        title: `${c.patient} - ${c.procedimento || 'Consulta'}`,
         start,
         end,
         resource: c
