@@ -103,8 +103,10 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
 
   const valorBruto = parseFloat(formData.valor) || 0;
   const isCartao = formData.metodoPagamento === 'cartao';
+  const isPixParcelado = formData.metodoPagamento === 'pix_parcelado';
+  const permiteParcelamento = isCartao || isPixParcelado;
   const taxaPerc = isCartao ? parseFloat(formData.taxaCartaoPercentual) || 0 : 0;
-  const parcelas = isCartao ? Math.max(1, parseInt(formData.parcelas) || 1) : 1;
+  const parcelas = permiteParcelamento ? Math.max(1, parseInt(formData.parcelas) || 1) : 1;
   const taxaValor = (valorBruto * taxaPerc) / 100;
   const valorLiquido = valorBruto - taxaValor;
   const valorParcela = parcelas > 0 ? valorBruto / parcelas : valorBruto;
@@ -243,7 +245,24 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
 
         toast.success('Transação atualizada');
       } else {
-        await addTransacao(transactionData);
+        if (formData.metodoPagamento === 'pix_parcelado' && parcelas > 1) {
+          for (let i = 0; i < parcelas; i++) {
+            const dataVencimento = formData.vencimento ? new Date(formData.vencimento) : new Date(formData.data);
+            dataVencimento.setMonth(dataVencimento.getMonth() + i);
+            await addTransacao({
+              ...transactionData,
+              valor: valorParcela,
+              valorLiquido: valorParcela,
+              vencimento: dataVencimento,
+              descricao: `${formData.descricao} (Parcela ${i + 1}/${parcelas})`,
+              parcelas: 1,
+              valorParcela: valorParcela,
+              status: i === 0 ? formData.status : 'pendente'
+            });
+          }
+        } else {
+          await addTransacao(transactionData);
+        }
         // Repasse ao parceiro entra automaticamente como despesa/parceria
         if (parceiro && valorParceiro > 0 && formData.tipo === 'receita') {
           await addTransacao({
@@ -493,6 +512,7 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
                   <SelectItem value="dinheiro">Dinheiro</SelectItem>
                   <SelectItem value="cartao">Cartão</SelectItem>
                   <SelectItem value="pix">PIX</SelectItem>
+                  <SelectItem value="pix_parcelado">PIX Parcelado</SelectItem>
                   <SelectItem value="boleto">Boleto</SelectItem>
                   <SelectItem value="transferencia">Transferência</SelectItem>
                 </SelectContent>
@@ -500,22 +520,24 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
             </div>
           </div>
 
-          {isCartao && (
+          {permiteParcelamento && (
             <div className="space-y-3 rounded-lg border p-3">
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="taxa">Taxa da máquina (%)</Label>
-                  <Input
-                    id="taxa"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="Ex: 3.99"
-                    value={formData.taxaCartaoPercentual}
-                    onChange={(e) => setFormData(prev => ({ ...prev, taxaCartaoPercentual: e.target.value }))}
-                  />
-                </div>
-                <div>
+                {isCartao && (
+                  <div>
+                    <Label htmlFor="taxa">Taxa da máquina (%)</Label>
+                    <Input
+                      id="taxa"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="Ex: 3.99"
+                      value={formData.taxaCartaoPercentual}
+                      onChange={(e) => setFormData(prev => ({ ...prev, taxaCartaoPercentual: e.target.value }))}
+                    />
+                  </div>
+                )}
+                <div className={!isCartao ? "col-span-2" : ""}>
                   <Label htmlFor="parcelas">Parcelas</Label>
                   <Input
                     id="parcelas"
@@ -529,21 +551,25 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
               </div>
               <div className="space-y-1 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Valor pago pelo cliente</span>
+                  <span className="text-muted-foreground">Valor {isPixParcelado ? 'do PIX' : 'pago pelo cliente'}</span>
                   <span>{money(valorBruto)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Parcelamento</span>
                   <span>{parcelas}x de {money(valorParcela)}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Desconto da taxa ({taxaPerc}%)</span>
-                  <span className="text-destructive">- {money(taxaValor)}</span>
-                </div>
-                <div className="flex justify-between font-medium border-t pt-1">
-                  <span>Valor líquido</span>
-                  <span className="text-primary">{money(valorLiquido)}</span>
-                </div>
+                {isCartao && (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Desconto da taxa ({taxaPerc}%)</span>
+                      <span className="text-destructive">- {money(taxaValor)}</span>
+                    </div>
+                    <div className="flex justify-between font-medium border-t pt-1">
+                      <span>Valor líquido</span>
+                      <span className="text-primary">{money(valorLiquido)}</span>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           )}

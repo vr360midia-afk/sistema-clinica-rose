@@ -88,7 +88,7 @@ export interface Transacao extends BaseEntity {
 
 export type TipoTransacao = 'receita' | 'despesa';
 export type StatusTransacao = 'pago' | 'pendente' | 'vencido' | 'cancelado';
-export type MetodoPagamento = 'dinheiro' | 'cartao' | 'pix' | 'boleto' | 'transferencia';
+export type MetodoPagamento = 'dinheiro' | 'cartao' | 'pix' | 'pix_parcelado' | 'boleto' | 'transferencia';
 
 export interface Prontuario extends BaseEntity {
   pacienteId: string;

@@ -394,7 +394,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
             <div className="space-y-1.5">
               <Label>Formas de pagamento</Label>
               <div className="flex flex-wrap gap-1.5">
-                {['À vista (PIX)', 'Dinheiro', 'Cartão de crédito', 'Cartão de débito', '2x sem juros', '3x sem juros', '6x', '12x', 'Boleto'].map((f) => (
+                {['À vista (PIX)', 'PIX Parcelado', 'Dinheiro', 'Cartão de crédito', 'Cartão de débito', '2x sem juros', '3x sem juros', '6x', '12x', 'Boleto'].map((f) => (
                   <Button
                     key={f}
                     type="button"

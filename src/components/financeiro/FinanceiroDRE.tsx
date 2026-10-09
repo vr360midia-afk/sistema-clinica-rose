@@ -5,15 +5,17 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, L
 import { TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
 import { formatMoney } from '@/utils/exportCsv';
 
-export const FinanceiroDRE = () => {
+export const FinanceiroDRE = ({ selectedMonth }: { selectedMonth?: string }) => {
   const { transacoes } = useDentalSystem();
 
-  const mesAtual = new Date().getMonth();
-  const anoAtual = new Date().getFullYear();
+  const [ano, mes] = selectedMonth 
+    ? selectedMonth.split('-') 
+    : [new Date().getFullYear().toString(), String(new Date().getMonth() + 1).padStart(2, '0')];
 
   const transacoesMes = transacoes.filter(t => {
+    if (!t.data) return false;
     const data = new Date(t.data);
-    return data.getMonth() === mesAtual && data.getFullYear() === anoAtual;
+    return data.getMonth() === (Number(mes) - 1) && data.getFullYear() === Number(ano);
   });
 
   const receitas = transacoesMes.filter(t => t.tipo === 'receita' && t.status === 'pago').reduce((acc, t) => acc + Number(t.valor), 0);

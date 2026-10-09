@@ -15,6 +15,7 @@ import CertificadoDigitalManager from '@/components/configuracoes/CertificadoDig
 import ParceirosManager from '@/components/configuracoes/ParceirosManager';
 import MedicamentosManager from '@/components/configuracoes/MedicamentosManager';
 import EquipeManager from '@/components/configuracoes/EquipeManager';
+import ConfiguracoesAgenda from '@/components/configuracoes/ConfiguracoesAgenda';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { Loader2 } from 'lucide-react';
 import { downloadBackupCompleto, lerArquivoBackup, restaurarBackup, type ProgressoBackup } from '@/utils/backup';
@@ -180,6 +181,7 @@ const Configuracoes = () => {
         <Tabs defaultValue="geral" className="space-y-6">
           <TabsList className="flex flex-wrap h-auto">
             <TabsTrigger value="geral">Geral</TabsTrigger>
+            <TabsTrigger value="agenda"><Calendar className="h-4 w-4 mr-1" />Agenda (Sincronização)</TabsTrigger>
             <TabsTrigger value="equipe"><Users className="h-4 w-4 mr-1" />Equipe</TabsTrigger>
             <TabsTrigger value="dentistas"><UserCog className="h-4 w-4 mr-1" />Dentistas</TabsTrigger>
             <TabsTrigger value="parceiros"><Handshake className="h-4 w-4 mr-1" />Parceiros</TabsTrigger>
@@ -211,7 +213,9 @@ const Configuracoes = () => {
             <CertificadoDigitalManager />
           </TabsContent>
 
-
+          <TabsContent value="agenda">
+            <ConfiguracoesAgenda />
+          </TabsContent>
 
           <TabsContent value="geral">
             <Card>

@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import Layout from '@/components/layout/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { DollarSign, TrendingUp, TrendingDown, Plus, CreditCard, Receipt, Pencil, Trash2, Handshake, Target } from 'lucide-react';
 import TransactionForm from '@/components/financeiro/TransactionForm';
@@ -27,6 +28,11 @@ const Financeiro = () => {
   const [showTransactionForm, setShowTransactionForm] = useState(false);
   const [editingTransacao, setEditingTransacao] = useState<any | null>(null);
 
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const dataAtual = new Date();
+    return `${dataAtual.getFullYear()}-${String(dataAtual.getMonth() + 1).padStart(2, '0')}`;
+  });
+
   const handleSaveTransaction = (transactionData: any) => {
     // O TransactionForm já salva através do contexto
     setShowTransactionForm(false);
@@ -45,9 +51,23 @@ const Financeiro = () => {
     }
   };
 
-  const totalReceived = transacoes.filter(t => t.status === 'pago' && t.tipo === 'receita').reduce((sum, t) => sum + Number(t.valor || 0), 0);
-  const totalPending = transacoes.filter(t => t.status === 'pendente' && t.tipo === 'receita').reduce((sum, t) => sum + Number(t.valor || 0), 0);
-  const despesas = transacoes.filter(t => t.tipo === 'despesa');
+  const filteredTransacoes = transacoes.filter(t => {
+    if (!t.data) return false;
+    const tData = new Date(t.data);
+    const tMesAno = `${tData.getFullYear()}-${String(tData.getMonth() + 1).padStart(2, '0')}`;
+    return tMesAno === selectedMonth;
+  });
+
+  const filteredOrcamentos = orcamentos.filter(o => {
+    if (!o.data) return false;
+    const oData = new Date(o.data);
+    const oMesAno = `${oData.getFullYear()}-${String(oData.getMonth() + 1).padStart(2, '0')}`;
+    return oMesAno === selectedMonth;
+  });
+
+  const totalReceived = filteredTransacoes.filter(t => t.status === 'pago' && t.tipo === 'receita').reduce((sum, t) => sum + Number(t.valor || 0), 0);
+  const totalPending = filteredTransacoes.filter(t => t.status === 'pendente' && t.tipo === 'receita').reduce((sum, t) => sum + Number(t.valor || 0), 0);
+  const despesas = filteredTransacoes.filter(t => t.tipo === 'despesa');
   const totalDespesas = despesas.reduce((sum, t) => sum + Number(t.valor || 0), 0);
   const totalRepasses = despesas
     .filter(t => t.parceiroId || t.parceiroNome || t.categoria === 'parceria')
@@ -56,13 +76,13 @@ const Financeiro = () => {
 
   // Saldo em aberto de orçamentos aprovados (já desconta o que foi pago)
   const saldosOrcamentos = calcularSaldosOrcamentos(orcamentos, transacoes);
-  const totalOrcamentosAberto = orcamentos
+  const totalOrcamentosAberto = filteredOrcamentos
     .filter((o) => o.status === 'aprovado')
     .reduce((sum, o) => sum + (saldosOrcamentos.get(o.id)?.saldo || 0), 0);
   const totalAReceber = totalPending + totalOrcamentosAberto;
 
   // Projeção de faturamento: orçamentos ainda não aprovados (rascunho/enviado)
-  const orcamentosPendentes = orcamentos.filter((o) => o.status !== 'aprovado' && o.status !== 'recusado');
+  const orcamentosPendentes = filteredOrcamentos.filter((o) => o.status !== 'aprovado' && o.status !== 'recusado');
   const totalProjecao = orcamentosPendentes.reduce((sum, o) => sum + Number(o.total || 0), 0);
 
   const getPacienteName = (pacienteId: string) => {
@@ -99,10 +119,18 @@ const Financeiro = () => {
             <h1 className="text-xl sm:text-2xl font-bold text-foreground mb-2">Financeiro</h1>
             <p className="text-muted-foreground">Controle financeiro e faturamento</p>
           </div>
-          <Button onClick={() => { setEditingTransacao(null); setShowTransactionForm(true); }} className="flex items-center gap-2">
-            <Plus className="h-4 w-4" />
-            Nova Transação
-          </Button>
+          <div className="flex items-center gap-2">
+            <Input
+              type="month"
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="w-auto"
+            />
+            <Button onClick={() => { setEditingTransacao(null); setShowTransactionForm(true); }} className="flex items-center gap-2">
+              <Plus className="h-4 w-4" />
+              Nova Transação
+            </Button>
+          </div>
         </div>
 
         {/* Cards de Resumo */}
@@ -190,13 +218,13 @@ const Financeiro = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {transacoes.length === 0 ? (
+              {filteredTransacoes.length === 0 ? (
                 <div className="text-center py-8">
                   <CreditCard className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">Nenhuma transação registrada</p>
+                  <p className="text-muted-foreground">Nenhuma transação registrada neste mês</p>
                 </div>
               ) : (
-                transacoes
+                filteredTransacoes
                   .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())
                   .map((transacao) => (
                     <div key={transacao.id} className="flex items-center justify-between p-4 border rounded-lg">
@@ -265,7 +293,7 @@ const Financeiro = () => {
           </CardContent>
         </Card>
 
-        <FinanceiroDRE />
+        <FinanceiroDRE selectedMonth={selectedMonth} />
 
         <TransactionForm
           isOpen={showTransactionForm}

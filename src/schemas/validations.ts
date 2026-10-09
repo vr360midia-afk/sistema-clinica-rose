@@ -54,7 +54,7 @@ export const transacaoSchema = z.object({
   valor: z.number().positive('Valor deve ser positivo'),
   tipo: z.enum(['receita', 'despesa']),
   status: z.enum(['pago', 'pendente', 'vencido', 'cancelado']).default('pendente'),
-  metodoPagamento: z.enum(['dinheiro', 'cartao', 'pix', 'boleto', 'transferencia']),
+  metodoPagamento: z.enum(['dinheiro', 'cartao', 'pix', 'pix_parcelado', 'boleto', 'transferencia']),
   data: z.date(),
   vencimento: z.date().optional(),
   descricao: z.string().min(1, 'Descrição é obrigatória'),

@@ -79,7 +79,7 @@ const PlatformLogin = () => {
         </AlertDescription>
       </Alert>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {/* Instagram */}
         <Card>
           <CardHeader>
@@ -167,6 +167,49 @@ const PlatformLogin = () => {
                 </Button>
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        {/* WhatsApp Web */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <MessageCircle className="h-5 w-5 text-green-500" />
+                WhatsApp Web
+              </div>
+              <Badge className="bg-green-100 text-green-800">
+                Ativo Padrão
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 p-3 bg-green-50 rounded-lg">
+                <CheckCircle className="h-5 w-5 text-green-600" />
+                <div>
+                  <p className="font-medium text-green-800">Pronto para uso</p>
+                  <p className="text-sm text-green-600">Nativo do sistema</p>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <h4 className="font-medium">Funcionalidades:</h4>
+                <ul className="text-sm text-muted-foreground space-y-1">
+                  <li>• Mensagens a 1 clique</li>
+                  <li>• Lembretes (abertura manual)</li>
+                  <li>• Cobranças (abertura manual)</li>
+                  <li>• 100% Gratuito</li>
+                </ul>
+              </div>
+
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="text-xs">
+                  Ao enviar mensagens, o sistema abrirá automaticamente o seu WhatsApp Web ou aplicativo desktop. Não requer configuração extra.
+                </AlertDescription>
+              </Alert>
+            </div>
           </CardContent>
         </Card>
 
@@ -269,7 +312,7 @@ const PlatformLogin = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="flex items-center justify-between p-3 border rounded-lg">
               <div className="flex items-center gap-3">
                 <Instagram className="h-5 w-5 text-pink-600" />
@@ -299,6 +342,16 @@ const PlatformLogin = () => {
                 }
               >
                 {connections.whatsapp.connected ? 'Ativo' : 'Inativo'}
+              </Badge>
+            </div>
+
+            <div className="flex items-center justify-between p-3 border rounded-lg">
+              <div className="flex items-center gap-3">
+                <MessageCircle className="h-5 w-5 text-green-500" />
+                <span>WhatsApp Web</span>
+              </div>
+              <Badge className="bg-green-100 text-green-800">
+                Ativo
               </Badge>
             </div>
           </div>
