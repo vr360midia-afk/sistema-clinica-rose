@@ -85,6 +85,7 @@ export interface ContratoSnapshot {
   clinica: ContratoDadosClinica;
   orcamento: ContratoDadosOrcamento;
   financeiro: ContratoDadosFinanceiro;
+  observacoesCustomizadas?: string;
   assinaturaPaciente?: {
     assinaturaData: string;
     nome: string;
@@ -790,6 +791,16 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
         As partes expressamente reconhecem e atribuem ao presente contrato a eficácia de <strong>Título Executivo Extrajudicial</strong>, nos termos do <strong>Artigo 784, inciso III, do Código de Processo Civil brasileiro (Lei nº 13.105/2015)</strong>, declarando líquidas, certas e exigíveis as obrigações pecuniárias ora assumidas. Para dirimir eventuais controvérsias decorrentes deste instrumento, as partes elegem o foro da Comarca de <strong>${clinica.cidade || 'Domicílio da Clínica'}</strong>, renunciando expressamente a qualquer outro, por mais privilegiado que seja.
       </p>
     </div>
+
+    ${snapshot.observacoesCustomizadas && snapshot.observacoesCustomizadas.trim() ? `
+    <!-- Cláusula Especial / Observações Complementares -->
+    <div class="clausula-bloco">
+      <div class="clausula-titulo">CLÁUSULA ESPECIAL — DAS DISPOSIÇÕES COMPLEMENTARES E CONVENCIONADAS</div>
+      <p class="paragrafo">
+        ${snapshot.observacoesCustomizadas.trim().replace(/\n/g, '<br/>')}
+      </p>
+    </div>
+    ` : ''}
 
     <!-- Data e Assinaturas -->
     <div class="bloco-assinaturas">
