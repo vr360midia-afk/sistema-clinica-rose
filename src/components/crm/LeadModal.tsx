@@ -157,6 +157,7 @@ export default function LeadModal({ isOpen, onClose, lead, onSave }: LeadModalPr
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="novo">Novo Lead</SelectItem>
+                  <SelectItem value="primeiro_contato">Primeiro Contato</SelectItem>
                   <SelectItem value="fu_3h">1º Follow-up (3h)</SelectItem>
                   <SelectItem value="fu_18h">2º Follow-up (18h)</SelectItem>
                   <SelectItem value="fu_2d">3º Follow-up (2 dias)</SelectItem>
@@ -166,8 +167,8 @@ export default function LeadModal({ isOpen, onClose, lead, onSave }: LeadModalPr
                   <SelectItem value="fu_21d">7º Follow-up (21 dias)</SelectItem>
                   <SelectItem value="fu_30d">8º Follow-up (30 dias)</SelectItem>
                   <SelectItem value="mensal">Depois Mensal</SelectItem>
-                  <SelectItem value="agendado">Agendado / Ganho</SelectItem>
-                  <SelectItem value="perdido">Perdido / Sem interesse</SelectItem>
+                  <SelectItem value="agendado">Consulta Agendada</SelectItem>
+                  <SelectItem value="perdido">Perdido</SelectItem>
                 </SelectContent>
               </Select>
             </div>
