@@ -3,6 +3,7 @@ import { formatMoney } from './exportCsv';
 import type { Paciente, Transacao } from '@/types/shared';
 import type { Orcamento } from '@/hooks/useOrcamentos';
 import type { ConfiguracoesGerais } from '@/hooks/useConfiguracoes';
+import { carregarConfiguracoesContratoSync, type ConfiguracoesContrato } from '@/hooks/useConfiguracoesContrato';
 
 export interface ContratoItem {
   nome: string;
@@ -46,6 +47,11 @@ export interface ContratoDadosClinica {
   cidade: string;
   dentistaResponsavel: string;
   chavePix?: string;
+  tipoChavePix?: string;
+  favorecidoPix?: string;
+  cnpjCpfFavorecidoPix?: string;
+  bancoPix?: string;
+  instrucoesPix?: string;
 }
 
 export interface ContratoDadosOrcamento {
@@ -125,6 +131,7 @@ export const mapearDadosContrato = ({
   orcamento,
   transacoes = [],
   configuracoes,
+  configuracoesContrato,
   dentistaNome,
   dentistaCro,
   cidadeLocal = 'São Paulo',
@@ -133,6 +140,7 @@ export const mapearDadosContrato = ({
   orcamento: Orcamento | any;
   transacoes?: Transacao[] | any[];
   configuracoes?: Partial<ConfiguracoesGerais> | any;
+  configuracoesContrato?: Partial<ConfiguracoesContrato> | any;
   dentistaNome?: string;
   dentistaCro?: string;
   cidadeLocal?: string;
@@ -140,6 +148,8 @@ export const mapearDadosContrato = ({
   const emitidoEmData = new Date();
   const emitidoEm = emitidoEmData.toISOString();
   const contratoId = `CTR-${orcamento?.id ? orcamento.id.slice(0, 8).toUpperCase() : Date.now().toString(36).toUpperCase()}`;
+
+  const cfgContrato = configuracoesContrato || carregarConfiguracoesContratoSync(null, configuracoes);
 
   // 1. Dados cadastrais do Paciente
   const dadosPaciente: ContratoDadosPaciente = {
@@ -156,18 +166,27 @@ export const mapearDadosContrato = ({
     estadoCivil: patient?.estadoCivil || 'Não informado',
   };
 
+  const cidadeDefinida = cidadeLocal && cidadeLocal !== 'São Paulo'
+    ? cidadeLocal
+    : (cfgContrato.cidadeForoContrato || cidadeLocal || 'São Paulo');
+
   // 2. Dados da Clínica / Responsável Técnico
   const dadosClinica: ContratoDadosClinica = {
-    nome: configuracoes?.nomeClinica || 'Clínica Odontológica',
-    cnpj: configuracoes?.cnpj || 'Não informado',
-    cro: dentistaCro || configuracoes?.croResponsavel || configuracoes?.cro_responsavel || 'CRO sob consulta',
-    endereco: configuracoes?.endereco || 'Endereço da clínica',
-    telefone: configuracoes?.telefone || configuracoes?.whatsappNumero || 'Não informado',
-    email: configuracoes?.email || 'Não informado',
+    nome: cfgContrato.nomeClinicaContrato || configuracoes?.nomeClinica || 'Clínica Odontológica',
+    cnpj: cfgContrato.cnpjClinicaContrato || configuracoes?.cnpj || 'Não informado',
+    cro: dentistaCro || cfgContrato.croResponsavelContrato || configuracoes?.croResponsavel || configuracoes?.cro_responsavel || 'CRO sob consulta',
+    endereco: cfgContrato.enderecoContrato || configuracoes?.endereco || 'Endereço da clínica',
+    telefone: cfgContrato.telefoneContrato || configuracoes?.telefone || configuracoes?.whatsappNumero || 'Não informado',
+    email: cfgContrato.emailContrato || configuracoes?.email || 'Não informado',
     logoUrl: configuracoes?.logoUrl || undefined,
-    cidade: cidadeLocal,
-    dentistaResponsavel: dentistaNome || configuracoes?.croResponsavel || 'Cirurgião-Dentista Responsável',
-    chavePix: configuracoes?.telefone || configuracoes?.cnpj || configuracoes?.whatsappNumero || configuracoes?.email || 'Chave da clínica sob consulta',
+    cidade: cidadeDefinida,
+    dentistaResponsavel: dentistaNome || cfgContrato.dentistaResponsavelContrato || configuracoes?.croResponsavel || 'Cirurgião-Dentista Responsável',
+    chavePix: cfgContrato.chavePix || configuracoes?.telefone || configuracoes?.cnpj || 'Chave da clínica sob consulta',
+    tipoChavePix: cfgContrato.tipoChavePix || 'telefone',
+    favorecidoPix: cfgContrato.favorecidoPix || configuracoes?.nomeClinica || 'Titular da Conta',
+    cnpjCpfFavorecidoPix: cfgContrato.cnpjCpfFavorecidoPix || configuracoes?.cnpj || '',
+    bancoPix: cfgContrato.bancoPix || '',
+    instrucoesPix: cfgContrato.instrucoesPix || 'O(A) CONTRATANTE poderá utilizar a câmera do smartphone para leitura do QR Code acima ou efetuar a transferência direta para a chave informada, encaminhando o comprovante para confirmação da baixa da parcela.',
   };
 
   // 3. Procedimentos aprovados do Orçamento
@@ -701,10 +720,11 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
           <div style="flex: 1;">
             <div style="padding: 6px 10px; background-color: #ffffff; border-radius: 4px; border: 1px solid #bae6fd; font-size: 11px; color: #0c4a6e;">
               <strong>Chave PIX:</strong> ${clinica.chavePix || clinica.cnpj || clinica.telefone || 'Chave da clínica sob consulta'} <br/>
-              <strong>Titular / Favorecido:</strong> ${clinica.nome} • CNPJ: ${clinica.cnpj}
+              <strong>Titular / Favorecido:</strong> ${clinica.favorecidoPix || clinica.nome} ${clinica.cnpjCpfFavorecidoPix ? `• CNPJ/CPF: ${clinica.cnpjCpfFavorecidoPix}` : (clinica.cnpj ? `• CNPJ: ${clinica.cnpj}` : '')}
+              ${clinica.bancoPix ? `<br/><strong>Instituição / Banco:</strong> ${clinica.bancoPix}` : ''}
             </div>
             <div style="margin-top: 4px; font-size: 11px; color: #0284c7;">
-              O(A) CONTRATANTE poderá utilizar a câmera do smartphone para leitura do QR Code acima ou efetuar a transferência direta para a chave informada, encaminhando o comprovante para confirmação da baixa da parcela.
+              ${clinica.instrucoesPix || 'O(A) CONTRATANTE poderá utilizar a câmera do smartphone para leitura do QR Code acima ou efetuar a transferência direta para a chave informada, encaminhando o comprovante para confirmação da baixa da parcela.'}
             </div>
           </div>
         </div>

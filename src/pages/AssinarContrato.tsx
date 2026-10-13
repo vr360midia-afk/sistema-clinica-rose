@@ -401,6 +401,13 @@ export default function AssinarContrato() {
                     <span className="font-mono text-sm font-bold text-emerald-900 dark:text-emerald-100 select-all">
                       {snapshot.clinica.chavePix}
                     </span>
+                    {(snapshot.clinica.favorecidoPix || snapshot.clinica.cnpjCpfFavorecidoPix) && (
+                      <p className="text-xs text-emerald-800 dark:text-emerald-300 mt-0.5">
+                        Favorecido: <strong>{snapshot.clinica.favorecidoPix || snapshot.clinica.nome}</strong>
+                        {snapshot.clinica.cnpjCpfFavorecidoPix && ` • ${snapshot.clinica.cnpjCpfFavorecidoPix}`}
+                        {snapshot.clinica.bancoPix && ` • ${snapshot.clinica.bancoPix}`}
+                      </p>
+                    )}
                   </div>
                 </div>
                 <Button

@@ -45,6 +45,7 @@ import { cn } from '@/lib/utils';
 
 import { useOrcamentos, Orcamento } from '@/hooks/useOrcamentos';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
+import { useConfiguracoesContrato } from '@/hooks/useConfiguracoesContrato';
 import { useDentistas } from '@/hooks/useDentistas';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import { useDocumentosClinicos, DocumentoClinico } from '@/hooks/useDocumentosClinicos';
@@ -76,6 +77,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
 }) => {
   const { orcamentos } = useOrcamentos(patient?.id);
   const { configuracoes } = useConfiguracoes();
+  const { configContrato } = useConfiguracoesContrato();
   const { dentistas } = useDentistas();
   const { transacoes } = useDentalSystem();
   const { documentos, salvarDocumento } = useDocumentosClinicos(patient?.id);
@@ -164,9 +166,10 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
       orcamento: orcamentoAtual,
       transacoes: transacoesOrcamento,
       configuracoes,
-      dentistaNome: selectedDentistaNome || configuracoes?.croResponsavel,
-      dentistaCro: dentistaAtual?.cro || configuracoes?.croResponsavel,
-      cidadeLocal,
+      configuracoesContrato: configContrato,
+      dentistaNome: selectedDentistaNome || configContrato.dentistaResponsavelContrato || configuracoes?.croResponsavel,
+      dentistaCro: dentistaAtual?.cro || configContrato.croResponsavelContrato || configuracoes?.croResponsavel,
+      cidadeLocal: cidadeLocal || configContrato.cidadeForoContrato,
     });
 
     setSnapshotAtual(snap);
@@ -236,9 +239,10 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
       orcamento: orcamentoAtual,
       transacoes: transacoesOrcamento,
       configuracoes,
-      dentistaNome: selectedDentistaNome || configuracoes?.croResponsavel,
-      dentistaCro: dentistaAtual?.cro || configuracoes?.croResponsavel,
-      cidadeLocal,
+      configuracoesContrato: configContrato,
+      dentistaNome: selectedDentistaNome || configContrato.dentistaResponsavelContrato || configuracoes?.croResponsavel,
+      dentistaCro: dentistaAtual?.cro || configContrato.croResponsavelContrato || configuracoes?.croResponsavel,
+      cidadeLocal: cidadeLocal || configContrato.cidadeForoContrato,
     });
     setSnapshotAtual(snap);
     toast.success('Valores padrão do sistema restaurados com sucesso.');
@@ -379,8 +383,9 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
       return;
     }
 
-    const clinicaPix = snapshotAtual?.clinica.chavePix || configuracoes?.telefone || configuracoes?.cnpj || '';
-    const clinicaNome = snapshotAtual?.clinica.nome || configuracoes?.nomeClinica || 'Clínica Odontológica';
+    const clinicaPix = snapshotAtual?.clinica.chavePix || configContrato.chavePix || configuracoes?.telefone || configuracoes?.cnpj || '';
+    const favorecidoPix = snapshotAtual?.clinica.favorecidoPix || configContrato.favorecidoPix || snapshotAtual?.clinica.nome || configuracoes?.nomeClinica || 'Dra. Rosangela Santos';
+    const bancoPix = snapshotAtual?.clinica.bancoPix || configContrato.bancoPix || '';
     const linkAssinatura = snapshotAtual ? gerarLinkAssinaturaContrato(snapshotAtual, contratoVisualizacao?.id) : '';
 
     let mensagem =
@@ -401,7 +406,8 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
       mensagem +=
         `\n✦ *Dados Oficiais para Pagamento via PIX:*\n` +
         `• *Chave PIX:* ${clinicaPix}\n` +
-        `• *Favorecido:* ${clinicaNome}\n` +
+        `• *Titular / Favorecido:* ${favorecidoPix}\n` +
+        (bancoPix ? `• *Banco / Instituição:* ${bancoPix}\n` : '') +
         `• Favor encaminhar o comprovante por este canal para baixa contábil e emissão do recibo.\n`;
     }
 
@@ -917,6 +923,36 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                           <Input
                             value={snapshotAtual.clinica.chavePix || ''}
                             onChange={(e) => handleUpdateSnapshotField('clinica.chavePix', e.target.value)}
+                            className="h-8 text-xs border-border bg-background text-foreground"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Titular / Favorecido PIX</Label>
+                          <Input
+                            value={snapshotAtual.clinica.favorecidoPix || ''}
+                            onChange={(e) => handleUpdateSnapshotField('clinica.favorecidoPix', e.target.value)}
+                            placeholder="Ex: Dra. Rosangela Santos"
+                            className="h-8 text-xs border-border bg-background text-foreground"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">CPF / CNPJ do Titular PIX</Label>
+                          <Input
+                            value={snapshotAtual.clinica.cnpjCpfFavorecidoPix || ''}
+                            onChange={(e) => handleUpdateSnapshotField('clinica.cnpjCpfFavorecidoPix', e.target.value)}
+                            placeholder="032.663.962-43"
+                            className="h-8 text-xs border-border bg-background text-foreground"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Banco / Instituição</Label>
+                          <Input
+                            value={snapshotAtual.clinica.bancoPix || ''}
+                            onChange={(e) => handleUpdateSnapshotField('clinica.bancoPix', e.target.value)}
+                            placeholder="Ex: Nubank, Banco do Brasil..."
                             className="h-8 text-xs border-border bg-background text-foreground"
                           />
                         </div>
