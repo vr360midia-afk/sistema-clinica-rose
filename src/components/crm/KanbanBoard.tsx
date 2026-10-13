@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -18,6 +18,10 @@ import {
   MessageSquare,
   ArrowDownLeft,
   ArrowUpRight,
+  UserPlus,
+  Globe,
+  Sparkles,
+  AlertTriangle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -63,10 +67,21 @@ export interface Lead {
   last_message_at?: string | null;
 }
 
+export const COLUNAS_ESSENCIAIS_IDS = [
+  'novo_lead',
+  'primeiro_contato',
+  'followup_1',
+  'followup_2',
+  'agendado',
+  'perdido',
+];
+
 interface KanbanBoardProps {
   leads: Lead[];
   onLeadsChange: (leads: Lead[]) => void;
   onEditLead: (lead: Lead) => void;
+  modoColunas?: 'essencial' | 'completo';
+  onConverterEmPaciente?: (lead: Lead) => void;
 }
 
 export interface ColumnDef {
@@ -229,10 +244,91 @@ export function formatTempoRelativo(dataStr?: string | null): string {
   }
 }
 
-export default function KanbanBoard({ leads, onLeadsChange, onEditLead }: KanbanBoardProps) {
+export const renderOrigemBadge = (origemRaw?: string | null) => {
+  const o = (origemRaw || 'whatsapp').toLowerCase().trim();
+  if (o.includes('whatsapp') || o.includes('wa')) {
+    return (
+      <Badge
+        variant="outline"
+        className="text-[10px] px-1.5 py-0 font-medium bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800 flex items-center gap-1 shrink-0"
+      >
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+        WhatsApp
+      </Badge>
+    );
+  }
+  if (o.includes('meta') || o.includes('facebook') || o.includes('ads')) {
+    return (
+      <Badge
+        variant="outline"
+        className="text-[10px] px-1.5 py-0 font-medium bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-800 flex items-center gap-1 shrink-0"
+      >
+        <Sparkles className="h-2.5 w-2.5 text-blue-500" />
+        Meta Ads
+      </Badge>
+    );
+  }
+  if (o.includes('instagram')) {
+    return (
+      <Badge
+        variant="outline"
+        className="text-[10px] px-1.5 py-0 font-medium bg-pink-50 dark:bg-pink-950/40 text-pink-700 dark:text-pink-400 border-pink-300 dark:border-pink-800 flex items-center gap-1 shrink-0"
+      >
+        <span className="w-1.5 h-1.5 rounded-full bg-pink-500" />
+        Instagram
+      </Badge>
+    );
+  }
+  if (o.includes('site') || o.includes('web')) {
+    return (
+      <Badge
+        variant="outline"
+        className="text-[10px] px-1.5 py-0 font-medium bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-400 border-purple-300 dark:border-purple-800 flex items-center gap-1 shrink-0"
+      >
+        <Globe className="h-2.5 w-2.5 text-purple-500" />
+        Site
+      </Badge>
+    );
+  }
+  if (o.includes('google')) {
+    return (
+      <Badge
+        variant="outline"
+        className="text-[10px] px-1.5 py-0 font-medium bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-800 flex items-center gap-1 shrink-0"
+      >
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+        Google Ads
+      </Badge>
+    );
+  }
+  return (
+    <Badge
+      variant="outline"
+      className="text-[10px] px-1.5 py-0 font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 shrink-0"
+    >
+      {origemRaw || 'Manual'}
+    </Badge>
+  );
+};
+
+export default function KanbanBoard({
+  leads,
+  onLeadsChange,
+  onEditLead,
+  modoColunas = 'essencial',
+  onConverterEmPaciente,
+}: KanbanBoardProps) {
   const [columns, setColumns] = useState<Record<string, Lead[]>>({});
   const [leadSelecionadoParaMover, setLeadSelecionadoParaMover] = useState<Lead | null>(null);
   const [leadSelecionadoParaChat, setLeadSelecionadoParaChat] = useState<Lead | null>(null);
+
+  // Lista de colunas a renderizar de acordo com o modo escolhido
+  const colunasVisiveis = useMemo(() => {
+    if (modoColunas === 'essencial') {
+      return COLUMNS.filter((col) => COLUNAS_ESSENCIAIS_IDS.includes(col.id));
+    }
+    return COLUMNS;
+  }, [modoColunas]);
 
   useEffect(() => {
     // Agrupa leads por coluna com normalização
@@ -242,7 +338,14 @@ export default function KanbanBoard({ leads, onLeadsChange, onEditLead }: Kanban
     });
 
     leads.forEach((lead) => {
-      const st = normalizarStatus(lead.stage || lead.status);
+      let st = normalizarStatus(lead.stage || lead.status);
+      // Se estiver no modo essencial, agrupa follow-ups extensos na etapa de follow-up
+      if (modoColunas === 'essencial' && !COLUNAS_ESSENCIAIS_IDS.includes(st)) {
+        if (st.startsWith('fu_') || st === 'mensal') {
+          st = 'followup_2';
+        }
+      }
+
       if (grouped[st]) {
         grouped[st].push(lead);
       } else {
@@ -252,7 +355,7 @@ export default function KanbanBoard({ leads, onLeadsChange, onEditLead }: Kanban
     });
 
     setColumns(grouped);
-  }, [leads]);
+  }, [leads, modoColunas]);
 
   // Transfere o lead para uma coluna selecionada
   const handleMoveLeadToColumn = async (lead: Lead, targetColumnId: string) => {
@@ -394,7 +497,7 @@ export default function KanbanBoard({ leads, onLeadsChange, onEditLead }: Kanban
     <>
       <DragDropContext onDragEnd={onDragEnd}>
         <div className="flex h-full items-start space-x-3.5 min-w-max px-2 py-1 select-none">
-          {COLUMNS.map((col) => {
+          {colunasVisiveis.map((col) => {
             const leadsInCol = columns[col.id] || [];
             return (
               <div
@@ -483,6 +586,19 @@ export default function KanbanBoard({ leads, onLeadsChange, onEditLead }: Kanban
                                   </div>
 
                                   <div className="flex items-center gap-1 opacity-70 group-hover:opacity-100 transition-opacity shrink-0">
+                                    {onConverterEmPaciente && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          onConverterEmPaciente(lead);
+                                        }}
+                                        className="p-1 text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950 rounded transition-colors"
+                                        title="Cadastrar como Paciente da Clínica"
+                                      >
+                                        <UserPlus className="h-3.5 w-3.5 text-emerald-600" />
+                                      </button>
+                                    )}
                                     <button
                                       type="button"
                                       onClick={(e) => {
@@ -557,12 +673,7 @@ export default function KanbanBoard({ leads, onLeadsChange, onEditLead }: Kanban
                                 {/* Linha 5: Origem + Seletor Mover + Ação WhatsApp */}
                                 <div className="flex items-center justify-between gap-1.5 pt-2 border-t border-slate-100 dark:border-slate-800/80 mt-1">
                                   <div className="flex items-center gap-1.5 min-w-0">
-                                    <Badge
-                                      variant="secondary"
-                                      className="text-[10px] px-1.5 py-0 font-normal bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 truncate"
-                                    >
-                                      {origemExibicao}
-                                    </Badge>
+                                    {renderOrigemBadge(origemExibicao)}
 
                                     {/* Mover rápido */}
                                     <DropdownMenu>
@@ -612,6 +723,22 @@ export default function KanbanBoard({ leads, onLeadsChange, onEditLead }: Kanban
                                             </DropdownMenuItem>
                                           );
                                         })}
+
+                                        {onConverterEmPaciente && (
+                                          <>
+                                            <DropdownMenuSeparator />
+                                            <DropdownMenuItem
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                onConverterEmPaciente(lead);
+                                              }}
+                                              className="text-xs text-emerald-600 dark:text-emerald-400 font-medium cursor-pointer"
+                                            >
+                                              <UserPlus className="h-3.5 w-3.5 mr-2 text-emerald-600" />
+                                              Cadastrar como Paciente
+                                            </DropdownMenuItem>
+                                          </>
+                                        )}
                                       </DropdownMenuContent>
                                     </DropdownMenu>
                                   </div>
