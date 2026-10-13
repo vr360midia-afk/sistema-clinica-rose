@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import WhatsAppLeadMenu from './WhatsAppLeadMenu';
 
 interface LeadModalProps {
   isOpen: boolean;
@@ -184,11 +185,27 @@ export default function LeadModal({ isOpen, onClose, lead, onSave }: LeadModalPr
             </div>
           </div>
 
-          <DialogFooter className="mt-6">
-            <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? 'Salvando...' : 'Salvar Lead'}
-            </Button>
+          <DialogFooter className="mt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              {lead?.id && formData.telefone ? (
+                <WhatsAppLeadMenu
+                  lead={{
+                    id: lead.id,
+                    nome: formData.nome || 'Lead',
+                    telefone: formData.telefone,
+                    status: formData.status,
+                  }}
+                  buttonVariant="full"
+                />
+              ) : null}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
+              <Button type="submit" disabled={loading}>
+                {loading ? 'Salvando...' : 'Salvar Lead'}
+              </Button>
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>

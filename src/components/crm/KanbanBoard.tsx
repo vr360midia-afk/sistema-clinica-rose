@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import WhatsAppLeadMenu from './WhatsAppLeadMenu';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -506,18 +507,7 @@ export default function KanbanBoard({ leads, onLeadsChange, onEditLead }: Kanban
                                     </DropdownMenu>
                                   </div>
 
-                                  <Button
-                                    size="sm"
-                                    type="button"
-                                    className="h-6 w-6 p-0 rounded-full bg-[#25D366] hover:bg-[#128C7E] text-white shadow-sm shrink-0"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleWhatsApp(lead);
-                                    }}
-                                    title="Conversar no WhatsApp"
-                                  >
-                                    <MessageCircle className="h-3 w-3" />
-                                  </Button>
+                                  <WhatsAppLeadMenu lead={lead} buttonVariant="icon" />
                                 </div>
                               </div>
                             )}
@@ -619,16 +609,10 @@ export default function KanbanBoard({ leads, onLeadsChange, onEditLead }: Kanban
                 </Button>
 
                 {leadSelecionadoParaMover.telefone && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleWhatsApp(leadSelecionadoParaMover)}
-                    className="h-8 text-xs gap-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
-                  >
-                    <MessageCircle className="h-3 w-3 text-emerald-600" />
-                    WhatsApp
-                  </Button>
+                  <WhatsAppLeadMenu
+                    lead={leadSelecionadoParaMover}
+                    buttonVariant="full"
+                  />
                 )}
               </div>
 
