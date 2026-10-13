@@ -37,6 +37,7 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
     alergias: patient?.alergias || '',
     medicamentos: patient?.medicamentos || '',
     ultimaConsulta: patient?.ultimaConsulta || patient?.ultima_consulta || '',
+    status: (patient?.status || 'Ativo') as string,
     observacoes: patient?.observacoes || ''
   });
 
@@ -100,7 +101,7 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
         medicamentos: formData.medicamentos?.trim() || '',
         ultimaConsulta: formData.ultimaConsulta?.trim() || '',
         observacoes: formData.observacoes?.trim() || '',
-        status: patient?.status || 'Ativo'
+        status: (formData.status || 'Ativo') as any
       };
 
       console.log('Patient data to save:', patientData);
@@ -271,7 +272,21 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <Label htmlFor="status" className="font-medium">Status do Paciente</Label>
+                  <Select value={formData.status || 'Ativo'} onValueChange={(value) => handleInputChange('status', value)}>
+                    <SelectTrigger className="h-10 mt-1">
+                      <SelectValue placeholder="Selecione o status..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Ativo">Ativo</SelectItem>
+                      <SelectItem value="Pendente">Pendente</SelectItem>
+                      <SelectItem value="Em Tratamento">Em Tratamento</SelectItem>
+                      <SelectItem value="Tratamento Concluido">Tratamento Concluído</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div>
                   <Label htmlFor="convenio" className="font-medium">Convênio</Label>
                   <Select value={formData.convenio} onValueChange={(value) => handleInputChange('convenio', value)}>

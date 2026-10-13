@@ -35,7 +35,7 @@ const Dashboard = () => {
   }
 
   // Calcular estatísticas reais
-  const pacientesAtivos = pacientes.filter(p => p.status === 'Ativo').length;
+  const pacientesAtivos = pacientes.filter(p => p.status !== 'Arquivado' && p.status !== 'Inativo').length;
   
   const today = new Date();
   const consultasHojeList = consultas.filter(consulta => {

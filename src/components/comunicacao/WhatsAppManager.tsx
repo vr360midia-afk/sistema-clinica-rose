@@ -214,7 +214,14 @@ const WhatsAppManager = () => {
                         <p className="font-medium text-sm">{paciente.nome}</p>
                         <p className="text-xs text-muted-foreground">{paciente.telefone}</p>
                       </div>
-                      <Badge variant={paciente.status === 'Ativo' ? 'default' : 'secondary'}>
+                      <Badge
+                        variant={paciente.status === 'Ativo' ? 'default' : 'secondary'}
+                        className={
+                          paciente.status === 'Pendente' ? 'bg-amber-100 text-amber-800 border-amber-300' :
+                          paciente.status === 'Em Tratamento' ? 'bg-blue-100 text-blue-800 border-blue-300' :
+                          paciente.status === 'Tratamento Concluido' ? 'bg-purple-100 text-purple-800 border-purple-300' : ''
+                        }
+                      >
                         {paciente.status}
                       </Badge>
                     </div>

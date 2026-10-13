@@ -11,7 +11,7 @@ export const usePatientFilters = (pacientes: Paciente[]) => {
 
     // Filter by status
     if (statusFilter === 'active') {
-      filtered = filtered.filter(p => p.status === 'Ativo' || p.status === 'Inativo');
+      filtered = filtered.filter(p => p.status !== 'Arquivado');
     } else if (statusFilter === 'archived') {
       filtered = filtered.filter(p => p.status === 'Arquivado');
     }

@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft, CalendarPlus, Edit2, Plus, User, FileText, ClipboardList, ListChecks, FolderOpen, History, DollarSign, Stethoscope } from 'lucide-react';
 import { openWhatsApp } from '@/lib/whatsapp';
@@ -24,6 +25,25 @@ interface PatientDetailsProps {
 }
 
 const PatientDetails = ({ patient, onClose, onEdit, onSchedule, onAddProcedimento }: PatientDetailsProps) => {
+  const renderStatusBadge = (status?: string) => {
+    switch (status) {
+      case 'Ativo':
+        return <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-300">Ativo</Badge>;
+      case 'Pendente':
+        return <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300">Pendente</Badge>;
+      case 'Em Tratamento':
+        return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border-blue-300">Em Tratamento</Badge>;
+      case 'Tratamento Concluido':
+        return <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 border-purple-300">Tratamento Concluído</Badge>;
+      case 'Arquivado':
+        return <Badge className="bg-muted text-foreground border-border">Arquivado</Badge>;
+      case 'Inativo':
+        return <Badge variant="secondary">Inativo</Badge>;
+      default:
+        return <Badge variant="secondary">{status || 'Ativo'}</Badge>;
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -32,7 +52,10 @@ const PatientDetails = ({ patient, onClose, onEdit, onSchedule, onAddProcediment
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-foreground">{patient.nome}</h1>
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h1 className="text-xl sm:text-2xl font-bold text-foreground">{patient.nome}</h1>
+              {renderStatusBadge(patient.status)}
+            </div>
             <p className="text-sm text-muted-foreground">
               {patient.email}
               {patient.email && patient.telefone ? ' • ' : ''}

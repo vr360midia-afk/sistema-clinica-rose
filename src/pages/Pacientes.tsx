@@ -86,7 +86,7 @@ const Pacientes = () => {
   const [showProcedimentoForm, setShowProcedimentoForm] = useState(false);
   const [selectedProcedimento, setSelectedProcedimento] = useState<Procedimento | null>(null);
 
-    React.useEffect(() => {
+  React.useEffect(() => {
     const id = searchParams.get('id');
     if (id && pacientes.length > 0) {
       const patient = pacientes.find(p => p.id === id);
@@ -96,7 +96,18 @@ const Pacientes = () => {
     }
   }, [searchParams, pacientes]);
 
-  const pacientesAtivos = pacientes.filter(p => p.status === 'Ativo' || p.status === 'Inativo');
+  React.useEffect(() => {
+    if (selectedPatient) {
+      const updated = pacientes.find(p => p.id === selectedPatient.id);
+      if (updated && updated !== selectedPatient) {
+        setSelectedPatient(updated);
+      }
+    }
+  }, [pacientes]);
+
+  const [statusFiltro, setStatusFiltro] = useState<string>('todos');
+
+  const pacientesAtivos = pacientes.filter(p => p.status !== 'Arquivado');
   const pacientesArquivados = pacientes.filter(p => p.status === 'Arquivado');
 
   const anosArquivo = Array.from(
@@ -144,6 +155,8 @@ const Pacientes = () => {
       (paciente.email || '').toLowerCase().includes(termo) ||
       (paciente.telefone || '').includes(searchTerm);
     if (!buscaOk) return false;
+
+    if (statusFiltro !== 'todos' && (paciente.status || 'Ativo') !== statusFiltro) return false;
 
     if (mesFiltro === 'todos' && anoFiltro === 'todos') return true;
 
@@ -238,15 +251,22 @@ const Pacientes = () => {
     setSelectedProcedimento(null);
   };
 
-  const getStatusBadge = (status: string, proximaConsulta: Date | null) => {
-    if (status === 'Arquivado') {
-      return <Badge className="bg-muted text-foreground border-border">Arquivado</Badge>;
-    } else if (status === 'Ativo' && proximaConsulta) {
-      return <Badge className="bg-green-100 text-green-800 border-green-200">Ativo</Badge>;
-    } else if (status === 'Ativo' && !proximaConsulta) {
-      return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">Pendente</Badge>;
-    } else {
-      return <Badge variant="secondary">Inativo</Badge>;
+  const getStatusBadge = (status?: string) => {
+    switch (status) {
+      case 'Ativo':
+        return <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-300">Ativo</Badge>;
+      case 'Pendente':
+        return <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300">Pendente</Badge>;
+      case 'Em Tratamento':
+        return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border-blue-300">Em Tratamento</Badge>;
+      case 'Tratamento Concluido':
+        return <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 border-purple-300">Tratamento Concluído</Badge>;
+      case 'Arquivado':
+        return <Badge className="bg-muted text-foreground border-border">Arquivado</Badge>;
+      case 'Inativo':
+        return <Badge variant="secondary">Inativo</Badge>;
+      default:
+        return <Badge variant="secondary">{status || 'Ativo'}</Badge>;
     }
   };
 
@@ -356,6 +376,7 @@ const Pacientes = () => {
                 <div>
                   <p className="text-sm text-muted-foreground">Pacientes Ativos</p>
                   <p className="text-xl sm:text-2xl font-bold">{pacientes.filter(p => p.status === 'Ativo').length}</p>
+                  <p className="text-xs text-blue-600 mt-0.5">{pacientes.filter(p => p.status === 'Em Tratamento').length} em tratamento</p>
                 </div>
                 <UserCheck className="h-8 w-8 text-green-600" />
               </div>
@@ -366,10 +387,11 @@ const Pacientes = () => {
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Próximas Consultas</p>
-                  <p className="text-xl sm:text-2xl font-bold">{pacientes.filter(p => p.proximaConsulta).length}</p>
+                  <p className="text-sm text-muted-foreground">Pendentes</p>
+                  <p className="text-xl sm:text-2xl font-bold">{pacientes.filter(p => p.status === 'Pendente').length}</p>
+                  <p className="text-xs text-purple-600 mt-0.5">{pacientes.filter(p => p.status === 'Tratamento Concluido').length} concluídos</p>
                 </div>
-                <Calendar className="h-8 w-8 text-purple-600" />
+                <Calendar className="h-8 w-8 text-amber-600" />
               </div>
             </CardContent>
           </Card>
@@ -425,8 +447,21 @@ const Pacientes = () => {
             </Card>
           </div>
 
-          {/* Filtro por data */}
-          <div className="flex flex-col sm:flex-row gap-2 mt-3">
+          {/* Filtro por status e data */}
+          <div className="flex flex-col sm:flex-row gap-2 mt-3 flex-wrap">
+            <Select value={statusFiltro} onValueChange={setStatusFiltro}>
+              <SelectTrigger className="w-full sm:w-48">
+                <SelectValue placeholder="Filtrar por Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos os status</SelectItem>
+                <SelectItem value="Ativo">Ativo</SelectItem>
+                <SelectItem value="Pendente">Pendente</SelectItem>
+                <SelectItem value="Em Tratamento">Em Tratamento</SelectItem>
+                <SelectItem value="Tratamento Concluido">Tratamento Concluído</SelectItem>
+              </SelectContent>
+            </Select>
+
             <Select value={tipoData} onValueChange={(v) => setTipoData(v as 'cadastro' | 'atendimento')}>
               <SelectTrigger className="w-full sm:w-52">
                 <SelectValue />
@@ -461,12 +496,12 @@ const Pacientes = () => {
               </SelectContent>
             </Select>
 
-            {(mesFiltro !== 'todos' || anoFiltro !== 'todos') && (
+            {(mesFiltro !== 'todos' || anoFiltro !== 'todos' || statusFiltro !== 'todos') && (
               <Button
                 variant="ghost"
-                onClick={() => { setMesFiltro('todos'); setAnoFiltro('todos'); }}
+                onClick={() => { setMesFiltro('todos'); setAnoFiltro('todos'); setStatusFiltro('todos'); }}
               >
-                Limpar filtro
+                Limpar filtros
               </Button>
             )}
           </div>
@@ -513,7 +548,7 @@ const Pacientes = () => {
                                 <h3 className="text-sm font-medium text-foreground truncate">
                                   {paciente.nome}
                                 </h3>
-                                {getStatusBadge(paciente.status, paciente.proximaConsulta)}
+                                {getStatusBadge(paciente.status)}
                               </div>
                               <div className="mt-1 flex flex-col sm:flex-row sm:flex-wrap sm:space-x-6">
                                 <div className="mt-2 flex items-center text-sm text-muted-foreground">
@@ -637,7 +672,7 @@ const Pacientes = () => {
                                 <h3 className="text-sm font-medium text-foreground truncate">
                                   {paciente.nome}
                                 </h3>
-                                {getStatusBadge(paciente.status, paciente.proximaConsulta)}
+                                {getStatusBadge(paciente.status)}
                               </div>
                               {paciente.dataArquivamento && (
                                 <div className="mt-1 text-sm text-muted-foreground">

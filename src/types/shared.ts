@@ -43,7 +43,20 @@ export type OrigemLead =
   | 'panfleto'
   | 'outros';
 
-export type StatusPaciente = 'Ativo' | 'Inativo' | 'Arquivado';
+export type StatusPaciente =
+  | 'Ativo'
+  | 'Pendente'
+  | 'Em Tratamento'
+  | 'Tratamento Concluido'
+  | 'Inativo'
+  | 'Arquivado';
+
+export const STATUS_PACIENTE_OPCOES: { value: StatusPaciente; label: string }[] = [
+  { value: 'Ativo', label: 'Ativo' },
+  { value: 'Pendente', label: 'Pendente' },
+  { value: 'Em Tratamento', label: 'Em Tratamento' },
+  { value: 'Tratamento Concluido', label: 'Tratamento Concluído' },
+];
 
 export interface Consulta extends BaseEntity {
   pacienteId: string;

@@ -41,7 +41,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ transacoes, pa
   }));
 
   // Generate data for Patients: Ativos vs Inativos
-  const ativos = pacientes.filter(p => p.status === 'Ativo').length;
+  const ativos = pacientes.filter(p => p.status !== 'Arquivado' && p.status !== 'Inativo').length;
   const inativos = pacientes.length - ativos;
   
   const patientsData = [

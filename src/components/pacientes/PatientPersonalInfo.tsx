@@ -2,10 +2,14 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 import { Phone, Mail, Calendar, FileText } from 'lucide-react';
 import { openWhatsApp } from '@/lib/whatsapp';
 import { calcularIdade } from '@/utils/idade';
 import { useDentalSystem } from '@/context/DentalSystemContext';
+import { StatusPaciente } from '@/types/shared';
+import { toast } from 'sonner';
 
 
 interface PatientPersonalInfoProps {
@@ -14,7 +18,35 @@ interface PatientPersonalInfoProps {
 
 const PatientPersonalInfo = ({ patient }: PatientPersonalInfoProps) => {
   const idade = calcularIdade(patient.dataNascimento) ?? patient.idade;
-  const { consultas } = useDentalSystem();
+  const { consultas, updatePaciente } = useDentalSystem();
+
+  const handleStatusChange = async (newStatus: StatusPaciente) => {
+    try {
+      await updatePaciente(patient.id, { status: newStatus });
+      toast.success(`Status atualizado para "${newStatus}"`);
+    } catch (err: any) {
+      toast.error('Erro ao atualizar status: ' + (err?.message || 'Erro desconhecido'));
+    }
+  };
+
+  const renderStatusBadge = (status: string) => {
+    switch (status) {
+      case 'Ativo':
+        return <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-300">Ativo</Badge>;
+      case 'Pendente':
+        return <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300">Pendente</Badge>;
+      case 'Em Tratamento':
+        return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border-blue-300">Em Tratamento</Badge>;
+      case 'Tratamento Concluido':
+        return <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 border-purple-300">Tratamento Concluído</Badge>;
+      case 'Arquivado':
+        return <Badge className="bg-muted text-foreground border-border">Arquivado</Badge>;
+      case 'Inativo':
+        return <Badge variant="secondary">Inativo</Badge>;
+      default:
+        return <Badge variant="secondary">{status || 'Ativo'}</Badge>;
+    }
+  };
   const getConsultaDateTime = (consulta: { data: Date; hora: string }) => {
     const dataHora = new Date(consulta.data);
     const [hora, minuto] = (consulta.hora || '00:00').split(':').map(Number);
@@ -150,14 +182,34 @@ const PatientPersonalInfo = ({ patient }: PatientPersonalInfoProps) => {
       </div>
 
       <div className="space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Status</CardTitle>
+        <Card className="shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-semibold">Status do Paciente</CardTitle>
           </CardHeader>
-          <CardContent>
-            <Badge className={patient.status === 'Ativo' ? 'bg-green-100 text-green-800' : 'bg-muted text-foreground'}>
-              {patient.status}
-            </Badge>
+          <CardContent className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status Atual</span>
+              {renderStatusBadge(patient.status)}
+            </div>
+            <div className="pt-2 border-t">
+              <Label className="text-xs text-muted-foreground block mb-1.5 font-medium">
+                Alterar status:
+              </Label>
+              <Select
+                value={patient.status || 'Ativo'}
+                onValueChange={(val) => handleStatusChange(val as StatusPaciente)}
+              >
+                <SelectTrigger className="h-9 w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Ativo">Ativo</SelectItem>
+                  <SelectItem value="Pendente">Pendente</SelectItem>
+                  <SelectItem value="Em Tratamento">Em Tratamento</SelectItem>
+                  <SelectItem value="Tratamento Concluido">Tratamento Concluído</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </CardContent>
         </Card>
 
