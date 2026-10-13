@@ -476,7 +476,8 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
           isOpen={showTransactionForm}
           onClose={() => { setShowTransactionForm(false); setEditingTransacao(null); }}
           onSave={() => { setShowTransactionForm(false); setEditingTransacao(null); }}
-          transacao={editingTransacao || { pacienteId: patient.id, pacienteNome: patient.nome }}
+          transacao={editingTransacao}
+          pacienteId={patient?.id}
         />
       )}
     <EditProcedimentoValorModal isOpen={!!itemToEdit} onClose={() => setItemToEdit(null)} item={itemToEdit} />

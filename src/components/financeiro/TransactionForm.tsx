@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, Stethoscope, Handshake, FileText } from 'lucide-react';
+import { CalendarIcon, Stethoscope, Handshake, FileText, UploadCloud, Eye, Loader2, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useDentalSystem } from '@/context/DentalSystemContext';
@@ -20,16 +20,17 @@ import { TipoTransacao, StatusTransacao, MetodoPagamento } from '@/types/shared'
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
-import { UploadCloud, Eye, Loader2, X, FileText } from 'lucide-react';
 
 interface TransactionFormProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (transaction: any) => void;
   transacao?: any | null;
+  pacienteId?: string;
+  isEdit?: boolean;
 }
 
-const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionFormProps) => {
+const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId }: TransactionFormProps) => {
   const { user } = useAuth();
   const [uploading, setUploading] = useState(false);
   const { pacientes, transacoes, addTransacao, updateTransacao, deleteTransacao, addDocumento } = useDentalSystem();
@@ -38,7 +39,6 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
   const { orcamentos } = useOrcamentos();
   const isEdit = !!transacao?.id;
   const anoAtual = new Date().getFullYear();
-
 
   const [formData, setFormData] = useState({
     pacienteId: '',
@@ -76,30 +76,50 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
     comprovantes: [] as string[]
   };
 
+  const prevIsOpenRef = useRef(false);
+  const currentTransacaoIdRef = useRef<string | undefined>(undefined);
+
   useEffect(() => {
-    if (!isOpen) return;
-    if (transacao) {
-      setFormData({
-        pacienteId: transacao.pacienteId || '',
-        valor: String(transacao.valor ?? ''),
-        tipo: (transacao.tipo || 'receita') as TipoTransacao,
-        status: (transacao.status || 'pendente') as StatusTransacao,
-        metodoPagamento: (transacao.metodoPagamento || 'dinheiro') as MetodoPagamento,
-        taxaCartaoPercentual: transacao.taxaCartaoPercentual ? String(transacao.taxaCartaoPercentual) : '',
-        parcelas: String(transacao.parcelas || 1),
-        data: transacao.data ? new Date(transacao.data) : new Date(),
-        vencimento: transacao.vencimento ? new Date(transacao.vencimento) : null,
-        descricao: transacao.descricao || '',
-        observacoes: transacao.observacoes || '',
-        parceiroId: transacao.parceiroId || '',
-        valorParceiro: transacao.valorParceiro ? String(transacao.valorParceiro) : '',
-        orcamentoId: transacao.orcamentoId || ''
-      });
-    } else {
-      setFormData(emptyForm);
+    const justOpened = isOpen && !prevIsOpenRef.current;
+    const transacaoId = transacao?.id;
+    const transacaoIdMudou = isOpen && transacaoId !== currentTransacaoIdRef.current;
+
+    if (justOpened || transacaoIdMudou) {
+      currentTransacaoIdRef.current = transacaoId;
+
+      if (transacao && transacao.id) {
+        setFormData({
+          pacienteId: transacao.pacienteId || pacienteId || '',
+          valor: String(transacao.valor ?? ''),
+          tipo: (transacao.tipo || 'receita') as TipoTransacao,
+          status: (transacao.status || 'pendente') as StatusTransacao,
+          metodoPagamento: (transacao.metodoPagamento || 'dinheiro') as MetodoPagamento,
+          taxaCartaoPercentual: transacao.taxaCartaoPercentual ? String(transacao.taxaCartaoPercentual) : '',
+          parcelas: String(transacao.parcelas || 1),
+          data: transacao.data ? new Date(transacao.data) : new Date(),
+          vencimento: transacao.vencimento ? new Date(transacao.vencimento) : null,
+          descricao: transacao.descricao || '',
+          observacoes: transacao.observacoes || '',
+          parceiroId: transacao.parceiroId || '',
+          valorParceiro: transacao.valorParceiro ? String(transacao.valorParceiro) : '',
+          orcamentoId: transacao.orcamentoId || '',
+          comprovantes: Array.isArray(transacao.comprovantes)
+            ? transacao.comprovantes
+            : (transacao.comprovanteUrl ? [transacao.comprovanteUrl] : [])
+        });
+      } else {
+        setFormData({
+          ...emptyForm,
+          pacienteId: transacao?.pacienteId || pacienteId || '',
+        });
+      }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, transacao]);
+
+    if (!isOpen) {
+      currentTransacaoIdRef.current = undefined;
+    }
+    prevIsOpenRef.current = isOpen;
+  }, [isOpen, transacao?.id, pacienteId]);
 
   const valorBruto = parseFloat(formData.valor) || 0;
   const isCartao = formData.metodoPagamento === 'cartao';
@@ -131,6 +151,8 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
     try {
       setUploading(true);
       const newUrls: string[] = [];
+      const pid = formData.pacienteId || pacienteId;
+
       for (const file of Array.from(files)) {
         const path = `${user.id}/comprovantes/${Date.now()}-${file.name.replace(/[^\w.\-]/g, '_')}`;
         const { error } = await supabase.storage.from('documentos-pacientes').upload(path, file, { contentType: file.type || undefined });
@@ -138,24 +160,33 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
         newUrls.push(path);
         
         // Se já tivermos um paciente selecionado no form, atrelamos a ele nos documentos tbm
-        if (formData.pacienteId) {
-          await addDocumento({
-            pacienteId: formData.pacienteId,
-            nome: file.name,
-            tipo: 'comprovante',
-            arquivo: path,
-            tamanho: file.size,
-            analiseStatus: 'pendente'
-          });
+        if (pid) {
+          try {
+            await addDocumento({
+              pacienteId: pid,
+              nome: file.name,
+              tipo: 'comprovante',
+              arquivo: path,
+              tamanho: file.size,
+              analiseStatus: 'pendente'
+            });
+          } catch (docErr) {
+            console.warn('Erro ao salvar comprovante no prontuário:', docErr);
+          }
         }
       }
-      setFormData(prev => ({ ...prev, comprovantes: [...(prev.comprovantes || []), ...newUrls] }));
-      toast.success(files.length > 1 ? 'Comprovantes anexados e salvos nos documentos!' : 'Comprovante anexado e salvo nos documentos!');
+      setFormData(prev => ({
+        ...prev,
+        pacienteId: prev.pacienteId || pid || '',
+        comprovantes: [...(prev.comprovantes || []), ...newUrls]
+      }));
+      toast.success(files.length > 1 ? 'Comprovantes anexados!' : 'Comprovante anexado!');
     } catch (error) {
       console.error(error);
       toast.error('Erro ao fazer upload dos arquivos');
     } finally {
       setUploading(false);
+      if (e.target) e.target.value = '';
     }
   };
 
@@ -181,15 +212,21 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao }: TransactionForm
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.pacienteId || !formData.valor || !formData.descricao) {
-      toast.error('Preencha todos os campos obrigatórios');
+    const pid = formData.pacienteId || pacienteId;
+    if (!pid || !formData.valor || !formData.descricao) {
+      toast.error('Preencha todos os campos obrigatórios (Paciente, Valor e Descrição)');
       return;
     }
 
     try {
       const { taxaCartaoPercentual, parcelas: _p, valorParceiro: _vp, orcamentoId: _oid, ...rest } = formData;
+      const pacienteObj = pacientes.find(p => p.id === pid);
+      const pacienteNome = pacienteObj?.nome || (transacao as any)?.pacienteNome;
+
       const transactionData = {
         ...rest,
+        pacienteId: pid,
+        pacienteNome: pacienteNome || rest.pacienteNome,
         valor: valorBruto,
         categoria: formData.tipo === 'despesa' && parceiro ? 'parceria' : (rest as any).categoria,
         taxaCartaoPercentual: taxaPerc,
