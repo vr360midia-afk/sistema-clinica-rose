@@ -32,18 +32,18 @@ export const pacienteSchema = z.object({
 
 // Schema para Consulta
 export const consultaSchema = z.object({
-  id: z.string().optional(),
+  id: z.string().optional().nullable(),
   pacienteId: z.string().min(1, 'Paciente é obrigatório'),
-  data: z.date(),
+  data: z.preprocess((val) => (typeof val === 'string' ? new Date(val) : val), z.date({ required_error: 'Data é obrigatória' })),
   hora: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, 'Formato de hora inválido'),
-  duracao: z.number().min(15, 'Duração mínima de 15 minutos'),
+  duracao: z.number().min(15, 'Duração mínima de 15 minutos').default(60),
   procedimento: z.string().min(1, 'Procedimento é obrigatório'),
-  status: z.enum(['agendado', 'confirmado', 'realizado', 'cancelado', 'faltou']).default('agendado'),
-  dentista: z.string().optional().or(z.literal('')),
-  observacoes: z.string().optional(),
-  valor: z.number().optional(),
-  criadoEm: z.date().default(() => new Date()),
-  atualizadoEm: z.date().default(() => new Date())
+  status: z.enum(['agendado', 'confirmado', 'realizado', 'cancelado', 'faltou', 'remarcado']).default('agendado'),
+  dentista: z.string().optional().nullable().or(z.literal('')),
+  observacoes: z.string().optional().nullable(),
+  valor: z.number().optional().nullable(),
+  criadoEm: z.date().optional(),
+  atualizadoEm: z.date().optional()
 });
 
 // Schema para Transação

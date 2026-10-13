@@ -23,12 +23,18 @@ interface KanbanBoardProps {
 }
 
 const COLUMNS = [
-  { id: 'novo', title: 'Novos', color: 'bg-blue-100 border-blue-200 text-blue-800' },
-  { id: 'em_atendimento', title: 'Atendimento', color: 'bg-yellow-100 border-yellow-200 text-yellow-800' },
-  { id: 'agendado', title: 'Agendado', color: 'bg-purple-100 border-purple-200 text-purple-800' },
-  { id: 'negociando', title: 'Negociando', color: 'bg-orange-100 border-orange-200 text-orange-800' },
-  { id: 'ganho', title: 'Ganhos', color: 'bg-green-100 border-green-200 text-green-800' },
-  { id: 'perdido', title: 'Perdidos', color: 'bg-red-100 border-red-200 text-red-800' }
+  { id: 'novo', title: 'Novo Lead', color: 'bg-blue-100 border-blue-200 text-blue-800' },
+  { id: 'fu_3h', title: '1º F-up (3h)', color: 'bg-slate-100 border-slate-200 text-slate-800' },
+  { id: 'fu_18h', title: '2º F-up (18h)', color: 'bg-slate-100 border-slate-200 text-slate-800' },
+  { id: 'fu_2d', title: '3º F-up (2d)', color: 'bg-slate-100 border-slate-200 text-slate-800' },
+  { id: 'fu_5d', title: '4º F-up (5d)', color: 'bg-slate-100 border-slate-200 text-slate-800' },
+  { id: 'fu_7d', title: '5º F-up (7d)', color: 'bg-slate-100 border-slate-200 text-slate-800' },
+  { id: 'fu_14d', title: '6º F-up (14d)', color: 'bg-slate-100 border-slate-200 text-slate-800' },
+  { id: 'fu_21d', title: '7º F-up (21d)', color: 'bg-slate-100 border-slate-200 text-slate-800' },
+  { id: 'fu_30d', title: '8º F-up (30d)', color: 'bg-slate-100 border-slate-200 text-slate-800' },
+  { id: 'mensal', title: 'Mensal', color: 'bg-amber-100 border-amber-200 text-amber-800' },
+  { id: 'agendado', title: 'Agendado', color: 'bg-green-100 border-green-200 text-green-800' },
+  { id: 'perdido', title: 'Perdido', color: 'bg-red-100 border-red-200 text-red-800' }
 ];
 
 export default function KanbanBoard({ leads, onLeadsChange, onEditLead }: KanbanBoardProps) {

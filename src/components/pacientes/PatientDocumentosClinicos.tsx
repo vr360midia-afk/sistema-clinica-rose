@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { FileText, Plus, Trash2, PenTool, Printer, MessageCircle, ShieldCheck, ExternalLink } from 'lucide-react';
+import { FileText, Plus, Trash2, PenTool, Printer, MessageCircle, ShieldCheck, ExternalLink, FileSignature } from 'lucide-react';
 import { useDocumentosClinicos, DocumentoClinico, DocumentoClinicoItem, DocumentoClinicoTipo } from '@/hooks/useDocumentosClinicos';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { useDentistas } from '@/hooks/useDentistas';
@@ -17,6 +17,7 @@ import SignatureModal from '@/components/signature/SignatureModal';
 import { gerarDocumentoClinicoPdf } from '@/utils/documentoClinicoPdf';
 import { openWhatsApp } from '@/lib/whatsapp';
 import { toast } from 'sonner';
+import ContratoModal from '@/components/contratos/ContratoModal';
 
 interface Props {
   patient: any;
@@ -41,6 +42,7 @@ const PatientDocumentosClinicos = ({ patient }: Props) => {
   const [cfoDoc, setCfoDoc] = useState<DocumentoClinico | null>(null);
   const [cfoLink, setCfoLink] = useState('');
   const [cfoCodigo, setCfoCodigo] = useState('');
+  const [contratoModalOpen, setContratoModalOpen] = useState(false);
 
   const aplicarMedicamento = (id: string) => {
     const m = medicamentos.find((x) => x.id === id);
@@ -163,11 +165,16 @@ const PatientDocumentosClinicos = ({ patient }: Props) => {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <h3 className="text-lg font-semibold flex items-center gap-2">
-          <FileText className="h-5 w-5" /> Prescrições e atestados
+          <FileText className="h-5 w-5" /> Documentos clínicos e contratos
         </h3>
-        <Button onClick={() => setOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" /> Novo documento
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setContratoModalOpen(true)}>
+            <FileSignature className="h-4 w-4 mr-2 text-primary" /> Gerar Contrato
+          </Button>
+          <Button onClick={() => setOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" /> Novo documento
+          </Button>
+        </div>
       </div>
 
       {!documentos.length && (
@@ -185,7 +192,9 @@ const PatientDocumentosClinicos = ({ patient }: Props) => {
               <CardTitle className="text-base flex items-center justify-between gap-2 flex-wrap">
                 <span className="flex items-center gap-2">
                   {doc.titulo}
-                  <Badge variant="outline">{doc.tipo === 'atestado' ? 'Atestado' : 'Prescrição'}</Badge>
+                  <Badge variant="outline">
+                    {doc.tipo === 'atestado' ? 'Atestado' : doc.tipo === 'contrato' ? 'Contrato' : 'Prescrição'}
+                  </Badge>
                   {doc.assinadoEm ? (
                     <Badge className="bg-green-600 hover:bg-green-600">Assinado</Badge>
                   ) : (
@@ -216,6 +225,12 @@ const PatientDocumentosClinicos = ({ patient }: Props) => {
                   {doc.cid ? ` • CID ${doc.cid}` : ''}
                 </p>
               )}
+              {doc.tipo === 'contrato' && (
+                <div className="text-sm text-muted-foreground bg-muted/40 p-2.5 rounded border border-border/60">
+                  <p className="font-medium text-foreground">Contrato de Prestação de Serviços Odontológicos</p>
+                  <p className="text-xs">Documento jurídico emitido com termos e valores arquivados imutavelmente.</p>
+                </div>
+              )}
               <div className="flex flex-wrap gap-2">
                 <Button
                   size="sm"
@@ -233,9 +248,11 @@ const PatientDocumentosClinicos = ({ patient }: Props) => {
                 <Button size="sm" variant="outline" onClick={() => setAssinandoDoc(doc)}>
                   <PenTool className="h-4 w-4 mr-2" /> {doc.assinadoEm ? 'Reassinar' : 'Assinar'}
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => abrirCfo(doc)}>
-                  <ShieldCheck className="h-4 w-4 mr-2" /> Emitir no CFO
-                </Button>
+                {doc.tipo !== 'contrato' && (
+                  <Button size="sm" variant="outline" onClick={() => abrirCfo(doc)}>
+                    <ShieldCheck className="h-4 w-4 mr-2" /> Emitir no CFO
+                  </Button>
+                )}
                 {doc.cfoLinkValidacao && (
                   <Button size="sm" variant="ghost" asChild>
                     <a href={doc.cfoLinkValidacao} target="_blank" rel="noopener noreferrer">
@@ -397,6 +414,14 @@ const PatientDocumentosClinicos = ({ patient }: Props) => {
           documentType={assinandoDoc.tipo}
           description="A assinatura é armazenada com segurança na nuvem e aplicada ao PDF do documento."
           onSignatureComplete={(data) => handleAssinatura(assinandoDoc, data)}
+        />
+      )}
+
+      {contratoModalOpen && (
+        <ContratoModal
+          isOpen={contratoModalOpen}
+          onClose={() => setContratoModalOpen(false)}
+          patient={patient}
         />
       )}
     </div>

@@ -28,6 +28,7 @@ export interface Orcamento {
   parceiroTipoRepasse?: 'percentual' | 'fixo' | null;
   parceiroValorRepasse?: number;
   criadoEm: Date;
+  atualizadoEm: Date;
 }
 
 const rowToOrcamento = (row: any): Orcamento => ({
@@ -46,7 +47,8 @@ const rowToOrcamento = (row: any): Orcamento => ({
   parceiroNome: row.parceiro_nome,
   parceiroTipoRepasse: row.parceiro_tipo_repasse,
   parceiroValorRepasse: Number(row.parceiro_valor_repasse || 0),
-  criadoEm: new Date(row.criado_em),
+  criadoEm: new Date(row.criado_em || row.created_at || new Date()),
+  atualizadoEm: new Date(row.atualizado_em || row.updated_at || row.criado_em || row.created_at || new Date()),
 });
 
 export const useOrcamentos = (pacienteId?: string) => {
@@ -93,6 +95,7 @@ export const useOrcamentos = (pacienteId?: string) => {
       parceiro_nome: o.parceiroNome || null,
       parceiro_tipo_repasse: o.parceiroTipoRepasse || null,
       parceiro_valor_repasse: o.parceiroValorRepasse || 0,
+      atualizado_em: new Date().toISOString(),
     };
 
     const { error } = o.id
@@ -116,7 +119,10 @@ export const useOrcamentos = (pacienteId?: string) => {
   };
 
   const updateStatus = async (id: string, status: Orcamento['status']) => {
-    const { error } = await supabase.from('orcamentos').update({ status }).eq('id', id);
+    const { error } = await supabase.from('orcamentos').update({ 
+      status,
+      atualizado_em: new Date().toISOString()
+    }).eq('id', id);
     if (error) {
       toast.error('Erro ao atualizar status');
       return;

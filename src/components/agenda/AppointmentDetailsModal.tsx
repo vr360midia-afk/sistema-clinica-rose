@@ -17,6 +17,7 @@ interface AppointmentDetailsModalProps {
   onClose: () => void;
   appointment: {
     id: string;
+    pacienteId?: string;
     patient: string;
     time: string;
     duration: string;
@@ -32,6 +33,7 @@ interface AppointmentDetailsModalProps {
       lastVisit: string;
       allergies: string;
     };
+    [key: string]: any;
   } | null;
   onEdit?: (appointment: any) => void;
   onDelete?: (appointmentId: string) => void;
@@ -157,7 +159,7 @@ const AppointmentDetailsModal = ({
                 </Button>
               )}
 
-              {onReschedule && (appointment.status === 'agendado' || appointment.status === 'confirmado' || appointment.status === 'faltou') && (
+              {onReschedule && (appointment.status === 'agendado' || appointment.status === 'confirmado' || appointment.status === 'faltou' || appointment.status === 'remarcado') && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -169,16 +171,36 @@ const AppointmentDetailsModal = ({
                 </Button>
               )}
 
-              {onStatusChange && appointment.status !== 'cancelado' && appointment.status !== 'realizado' && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onStatusChange(appointment.id, 'cancelado')}
-                  className="gap-2 text-red-600 hover:text-red-700"
-                >
-                  <XCircle className="h-4 w-4" />
-                  Cancelou a consulta
-                </Button>
+              {onStatusChange && appointment.status !== 'cancelado' && appointment.status !== 'realizado' && appointment.status !== 'faltou' && appointment.status !== 'remarcado' && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onStatusChange(appointment.id, 'remarcado')}
+                    className="gap-2 text-orange-600 hover:text-orange-700"
+                  >
+                    <CalendarClock className="h-4 w-4" />
+                    Foi reagendada
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onStatusChange(appointment.id, 'faltou')}
+                    className="gap-2 text-yellow-600 hover:text-yellow-700"
+                  >
+                    <XCircle className="h-4 w-4" />
+                    Não compareceu
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onStatusChange(appointment.id, 'cancelado')}
+                    className="gap-2 text-red-600 hover:text-red-700"
+                  >
+                    <XCircle className="h-4 w-4" />
+                    Cancelou a consulta
+                  </Button>
+                </>
               )}
             </div>
           </div>

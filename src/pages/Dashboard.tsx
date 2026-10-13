@@ -12,6 +12,7 @@ import DashboardCharts from '@/components/dashboard/DashboardCharts';
 import { Users, Calendar, CreditCard } from 'lucide-react';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import { useAuth } from '@/context/AuthContext';
+import { useOrcamentos } from '@/hooks/useOrcamentos';
 import { formatMoney } from '@/utils/exportCsv';
 import { motion } from 'framer-motion';
 
@@ -37,14 +38,18 @@ const Dashboard = () => {
   const pacientesAtivos = pacientes.filter(p => p.status === 'Ativo').length;
   
   const today = new Date();
-  const consultasHoje = consultas.filter(consulta => {
+  const consultasHojeList = consultas.filter(consulta => {
     const consultaDate = new Date(consulta.data);
     return consultaDate.toDateString() === today.toDateString();
-  }).length;
+  });
+  const consultasHoje = consultasHojeList.length;
 
-  const consultasPendentes = consultas.filter(c => c.status === 'agendado').length;
+  const consultasPendentes = consultasHojeList.filter(c => c.status === 'agendado').length;
+  const consultasCanceladas = consultasHojeList.filter(c => c.status === 'cancelado').length;
+  const consultasFaltou = consultasHojeList.filter(c => c.status === 'faltou').length;
+  const consultasRemarcadas = consultasHojeList.filter(c => c.status === 'remarcado').length;
 
-  // Receita mensal atual
+  // Receita mensal atual (Transações pagas)
   const currentMonth = today.getMonth();
   const currentYear = today.getFullYear();
   const receitaMensal = transacoes
@@ -52,9 +57,20 @@ const Dashboard = () => {
       const transacaoDate = new Date(t.data);
       return transacaoDate.getMonth() === currentMonth && 
              transacaoDate.getFullYear() === currentYear &&
-             t.tipo === 'receita';
+             t.tipo === 'receita' && t.status === 'pago';
     })
     .reduce((sum, t) => sum + t.valor, 0);
+
+  const { orcamentos } = useOrcamentos();
+  
+  // Orçamentos Fechados (Vendas)
+  const vendasMes = orcamentos
+    .filter(o => {
+      if (o.status?.toLowerCase() !== 'aprovado') return false;
+      const data = new Date(o.atualizadoEm || o.criadoEm);
+      return data.getMonth() === currentMonth && data.getFullYear() === currentYear;
+    })
+    .reduce((sum, o) => sum + Number(o.total || 0), 0);
 
 
   return (
@@ -84,12 +100,11 @@ const Dashboard = () => {
           </p>
         </motion.div>
 
-        {/* Stats Cards */}
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, staggerChildren: 0.1 }}
-          className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4"
+          className="grid grid-cols-1 sm:grid-cols-4 gap-3 sm:gap-4"
         >
           <StatsCard
             title="Pacientes Ativos"
@@ -100,15 +115,31 @@ const Dashboard = () => {
             iconBg="bg-blue-500/15 text-blue-400"
           />
           <StatsCard
+            title="Vendas (Fechados)"
+            value={`${formatMoney(vendasMes)}`}
+            change="Mês atual"
+            changeType="neutral"
+            icon={CreditCard}
+            iconBg="bg-amber-500/15 text-amber-500"
+          />
+          <StatsCard
             title="Consultas Hoje"
             value={consultasHoje.toString()}
-            change={consultasPendentes > 0 ? `${consultasPendentes} pendentes` : 'Nenhuma pendente'}
+            change={
+              <div className="flex flex-col gap-0.5 mt-1">
+                {consultasPendentes > 0 && <span>{consultasPendentes} pendentes</span>}
+                {consultasCanceladas > 0 && <span className="text-red-500">{consultasCanceladas} cancelada(s)</span>}
+                {consultasFaltou > 0 && <span className="text-red-500">{consultasFaltou} faltou</span>}
+                {consultasRemarcadas > 0 && <span className="text-orange-500">{consultasRemarcadas} reagendada(s)</span>}
+                {consultasHoje === 0 && <span>Nenhuma consulta hoje</span>}
+              </div>
+            }
             changeType="neutral"
             icon={Calendar}
             iconBg="bg-green-500/15 text-green-400"
           />
           <StatsCard
-            title="Receita Mensal"
+            title="Receita (Caixa)"
             value={`${formatMoney(receitaMensal)}`}
             change="Mês atual"
             changeType="neutral"

@@ -11,6 +11,11 @@ export interface ClinicaInfo {
 }
 
 export const gerarDocumentoClinicoPdf = async (doc: DocumentoClinico, clinica: ClinicaInfo = {}) => {
+  if (doc.tipo === 'contrato') {
+    const filename = `${doc.titulo.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${(doc.pacienteNome || 'paciente').toLowerCase().replace(/[^a-z0-9]/g, '_')}.pdf`;
+    return downloadHtmlAsPdf(doc.conteudo, filename);
+  }
+
   const emissor = clinica.nomeClinica || 'Clínica Odontológica';
   const dataFmt = new Date(doc.criadoEm).toLocaleDateString('pt-BR');
   const isAtestado = doc.tipo === 'atestado';

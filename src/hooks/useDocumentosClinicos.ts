@@ -3,12 +3,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
 
-export type DocumentoClinicoTipo = 'prescricao' | 'atestado';
+export type DocumentoClinicoTipo = 'prescricao' | 'atestado' | 'contrato';
 
 export interface DocumentoClinicoItem {
   nome: string;
   posologia?: string;
   quantidade?: string;
+  [key: string]: any;
 }
 
 export interface DocumentoClinico {
@@ -18,7 +19,7 @@ export interface DocumentoClinico {
   tipo: DocumentoClinicoTipo;
   titulo: string;
   conteudo?: string | null;
-  itens: DocumentoClinicoItem[];
+  itens: any;
   diasAfastamento?: number | null;
   cid?: string | null;
   dentista?: string | null;
@@ -84,7 +85,7 @@ export const useDocumentosClinicos = (pacienteId?: string) => {
       paciente_id: doc.pacienteId ?? pacienteId ?? null,
       paciente_nome: doc.pacienteNome ?? null,
       tipo: doc.tipo || 'prescricao',
-      titulo: doc.titulo || (doc.tipo === 'atestado' ? 'Atestado odontológico' : 'Prescrição odontológica'),
+      titulo: doc.titulo || (doc.tipo === 'atestado' ? 'Atestado odontológico' : doc.tipo === 'contrato' ? 'Contrato de prestação de serviços' : 'Prescrição odontológica'),
       conteudo: doc.conteudo || null,
       itens: (doc.itens || []) as never,
       dias_afastamento: doc.diasAfastamento ?? null,

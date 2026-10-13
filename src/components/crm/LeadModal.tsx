@@ -131,12 +131,11 @@ export default function LeadModal({ isOpen, onClose, lead, onSave }: LeadModalPr
               <Select value={formData.origem} onValueChange={(v) => setFormData({...formData, origem: v})}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Manual">Manual</SelectItem>
-                  <SelectItem value="Meta Ads">Meta Ads</SelectItem>
-                  <SelectItem value="Google Ads">Google Ads</SelectItem>
-                  <SelectItem value="Site">Site</SelectItem>
-                  <SelectItem value="Instagram (Orgânico)">Instagram (Orgânico)</SelectItem>
-                  <SelectItem value="Indicação">Indicação</SelectItem>
+                  <SelectItem value="Meta Ads">Leads de Meta Ads</SelectItem>
+                  <SelectItem value="Google Ads">Leads Google</SelectItem>
+                  <SelectItem value="Instagram">Leads Instagram</SelectItem>
+                  <SelectItem value="Pacientes">Pacientes</SelectItem>
+                  <SelectItem value="Manual">Manual / Outros</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -153,16 +152,22 @@ export default function LeadModal({ isOpen, onClose, lead, onSave }: LeadModalPr
             </div>
 
             <div className="space-y-2 col-span-2">
-              <Label>Status Atual</Label>
+              <Label>Status Atual (Etapa de Follow-up)</Label>
               <Select value={formData.status} onValueChange={(v) => setFormData({...formData, status: v})}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="novo">Novo Lead</SelectItem>
-                  <SelectItem value="em_atendimento">Em Atendimento</SelectItem>
-                  <SelectItem value="agendado">Avaliação Agendada</SelectItem>
-                  <SelectItem value="negociando">Negociando Orçamento</SelectItem>
-                  <SelectItem value="ganho">Ganho (Fechou)</SelectItem>
-                  <SelectItem value="perdido">Perdido (Não fechou)</SelectItem>
+                  <SelectItem value="fu_3h">1º Follow-up (3h)</SelectItem>
+                  <SelectItem value="fu_18h">2º Follow-up (18h)</SelectItem>
+                  <SelectItem value="fu_2d">3º Follow-up (2 dias)</SelectItem>
+                  <SelectItem value="fu_5d">4º Follow-up (5 dias)</SelectItem>
+                  <SelectItem value="fu_7d">5º Follow-up (7 dias)</SelectItem>
+                  <SelectItem value="fu_14d">6º Follow-up (14 dias)</SelectItem>
+                  <SelectItem value="fu_21d">7º Follow-up (21 dias)</SelectItem>
+                  <SelectItem value="fu_30d">8º Follow-up (30 dias)</SelectItem>
+                  <SelectItem value="mensal">Depois Mensal</SelectItem>
+                  <SelectItem value="agendado">Agendado / Ganho</SelectItem>
+                  <SelectItem value="perdido">Perdido / Sem interesse</SelectItem>
                 </SelectContent>
               </Select>
             </div>

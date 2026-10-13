@@ -58,12 +58,7 @@ const Financeiro = () => {
     return tMesAno === selectedMonth;
   });
 
-  const filteredOrcamentos = orcamentos.filter(o => {
-    if (!o.data) return false;
-    const oData = new Date(o.data);
-    const oMesAno = `${oData.getFullYear()}-${String(oData.getMonth() + 1).padStart(2, '0')}`;
-    return oMesAno === selectedMonth;
-  });
+  const filteredOrcamentos = orcamentos;
 
   const totalReceived = filteredTransacoes.filter(t => t.status === 'pago' && t.tipo === 'receita').reduce((sum, t) => sum + Number(t.valor || 0), 0);
   const totalPending = filteredTransacoes.filter(t => t.status === 'pendente' && t.tipo === 'receita').reduce((sum, t) => sum + Number(t.valor || 0), 0);
@@ -74,20 +69,31 @@ const Financeiro = () => {
     .reduce((sum, t) => sum + Number(t.valor || 0), 0);
   const saldoLiquido = totalReceived - totalDespesas;
 
-  // Saldo em aberto de orçamentos aprovados (já desconta o que foi pago)
-  const saldosOrcamentos = calcularSaldosOrcamentos(orcamentos, transacoes);
-  const totalOrcamentosAberto = filteredOrcamentos
-    .filter((o) => o.status === 'aprovado')
-    .reduce((sum, o) => sum + (saldosOrcamentos.get(o.id)?.saldo || 0), 0);
-  const totalAReceber = totalPending + totalOrcamentosAberto;
+  // Função para verificar se a data pertence ao mês selecionado
+  const isNoMes = (data: Date) => {
+    if (!data || isNaN(data.getTime())) return false;
+    const mesAno = `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}`;
+    return mesAno === selectedMonth;
+  };
 
-  // Orçamentos aprovados no mês (Vendas)
-  const orcamentosFechadosNoMes = filteredOrcamentos.filter(o => o.status === 'aprovado');
+  // Vendas (Orçamentos Fechados no Mês Selecionado)
+  const orcamentosFechadosNoMes = orcamentos.filter(o => 
+    o.status?.toLowerCase() === 'aprovado' && isNoMes(new Date(o.atualizadoEm || o.criadoEm))
+  );
   const totalFechadoMes = orcamentosFechadosNoMes.reduce((sum, o) => sum + Number(o.total || 0), 0);
 
-  // Projeção de faturamento: orçamentos ainda não aprovados (rascunho/enviado)
-  const orcamentosPendentes = filteredOrcamentos.filter((o) => o.status !== 'aprovado' && o.status !== 'recusado');
+  // Projeção (Orçamentos Abertos no Mês Selecionado)
+  const orcamentosPendentes = orcamentos.filter(o => 
+    o.status?.toLowerCase() !== 'aprovado' && o.status?.toLowerCase() !== 'recusado' && isNoMes(new Date(o.atualizadoEm || o.criadoEm))
+  );
   const totalProjecao = orcamentosPendentes.reduce((sum, o) => sum + Number(o.total || 0), 0);
+
+  // A Receber (Todo o saldo em aberto, independente do mês, mais pendentes do mês)
+  const saldosOrcamentos = calcularSaldosOrcamentos(orcamentos, transacoes);
+  const totalOrcamentosAberto = orcamentos
+    .filter((o) => o.status?.toLowerCase() === 'aprovado')
+    .reduce((sum, o) => sum + (saldosOrcamentos.get(o.id)?.saldo || 0), 0);
+  const totalAReceber = totalPending + totalOrcamentosAberto;
 
   const getPacienteName = (pacienteId: string) => {
     const paciente = pacientes.find(p => p.id === pacienteId);

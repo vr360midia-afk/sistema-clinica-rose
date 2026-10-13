@@ -6,7 +6,7 @@ import { LucideIcon } from 'lucide-react';
 interface StatsCardProps {
   title: string;
   value: string;
-  change: string;
+  change: React.ReactNode;
   changeType: 'positive' | 'negative' | 'neutral';
   icon: LucideIcon;
   iconBg: string;

@@ -25,9 +25,9 @@ import { toast } from 'sonner';
 import { buildConsultaMessage, openWhatsApp } from '@/lib/whatsapp';
 
 
-// Períodos completos: ocupam e bloqueiam a agenda no intervalo inteiro
+// PerÃ­odos completos: ocupam e bloqueiam a agenda no intervalo inteiro
 const PERIODOS = [
-  { value: 'manha', label: 'Manhã inteira (08:00 - 12:00)', horaInicio: '08:00', horaFim: '12:00', duracao: 240 },
+  { value: 'manha', label: 'ManhÃ£ inteira (08:00 - 12:00)', horaInicio: '08:00', horaFim: '12:00', duracao: 240 },
   { value: 'tarde', label: 'Tarde inteira (13:00 - 18:00)', horaInicio: '13:00', horaFim: '18:00', duracao: 300 },
   { value: 'noite', label: 'Noite inteira (18:00 - 22:00)', horaInicio: '18:00', horaFim: '22:00', duracao: 240 },
   { value: 'dia', label: 'Dia inteiro (08:00 - 22:00)', horaInicio: '08:00', horaFim: '22:00', duracao: 840 },
@@ -72,20 +72,20 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
   });
 
   // Inicializar todos os campos somente ao abrir (sem sobrescrever a data
-  // escolhida pelo usuário enquanto o modal estiver em uso).
+  // escolhida pelo usuÃ¡rio enquanto o modal estiver em uso).
   React.useEffect(() => {
     if (!isOpen) return;
     if (editingConsulta) {
       form.reset({
         data: editingConsulta.data ? new Date(editingConsulta.data) : (selectedDate ? new Date(selectedDate) : new Date()),
-        hora: editingConsulta.hora || selectedTime || '09:00',
-        duracao: Number(editingConsulta.duracao) || 60,
-        status: 'agendado',
-        procedimento: editingConsulta.procedimento || '',
-        dentista: editingConsulta.dentista || '',
-        pacienteId: editingConsulta.pacienteId || initialPatientId || '',
+        hora: (editingConsulta.hora || editingConsulta.time || selectedTime || '09:00').substring(0, 5),
+        duracao: Number(editingConsulta.duracao) || (typeof editingConsulta.duration === 'string' ? parseInt(editingConsulta.duration, 10) : Number(editingConsulta.duration)) || 60,
+        status: editingConsulta.status === 'remarcado' ? 'agendado' : (editingConsulta.status || 'agendado'),
+        procedimento: editingConsulta.procedimento || editingConsulta.procedure || '',
+        dentista: (editingConsulta.dentista || editingConsulta.dentist || '') === 'none' ? '' : (editingConsulta.dentista || editingConsulta.dentist || ''),
+        pacienteId: editingConsulta.pacienteId || editingConsulta.paciente_id || initialPatientId || '',
         observacoes: editingConsulta.observacoes || '',
-        valor: editingConsulta.valor,
+        valor: editingConsulta.valor !== null && editingConsulta.valor !== undefined && !isNaN(Number(editingConsulta.valor)) ? Number(editingConsulta.valor) : undefined,
       });
     } else {
       form.reset({
@@ -118,7 +118,7 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
     return (h || 0) * 60 + (m || 0);
   };
 
-  // Detecta sobreposição de horário para o mesmo dentista na mesma data
+  // Detecta sobreposiÃ§Ã£o de horÃ¡rio para o mesmo dentista na mesma data
   const findConflito = (data: ConsultaFormData) => {
     const inicio = toMinutes(data.hora);
     const fim = inicio + (data.duracao || 60);
@@ -127,8 +127,7 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
       if (c.status === 'cancelado' || c.status === 'remarcado') return false;
       if (!c.dentista || !data.dentista) return false;
       if (c.dentista !== data.dentista) return false;
-      const cData = new Date(c.data);
-      if (format(cData, 'yyyy-MM-dd') !== format(data.data, 'yyyy-MM-dd')) return false;
+      if (toISODate(c.data) !== toISODate(data.data)) return false;
       const cInicio = toMinutes(c.hora);
       const cFim = cInicio + (c.duracao || 60);
       return inicio < cFim && cInicio < fim;
@@ -136,7 +135,11 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
   };
 
   const onSubmit = async (data: ConsultaFormData) => {
-    if (!user?.id) return;
+    const currentUserId = user?.id || (await supabase.auth.getSession()).data.session?.user?.id;
+    if (!currentUserId && !editingConsulta?.id) {
+      toast.error('Usuário não autenticado. Por favor, recarregue a página.');
+      return;
+    }
 
     const bloqueio = encontrarBloqueio(bloqueios, data.data, data.hora, data.duracao || 60, data.dentista);
     if (bloqueio) {
@@ -162,16 +165,15 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
         duracao: data.duracao,
         procedimento: data.procedimento,
         status: data.status,
-        dentista: data.dentista === 'none' ? '' : data.dentista,
+        dentista: data.dentista === 'none' ? '' : (data.dentista || ''),
         observacoes: data.observacoes || '',
-        valor: data.valor,
+        valor: data.valor ?? undefined,
         confirmacaoStatus: 'pendente' as const,
-        userId: user.id
       };
       if (editingConsulta?.id) {
         await updateConsulta(editingConsulta.id, consultaData);
       } else {
-        await addConsulta(consultaData);
+        await addConsulta({ ...consultaData, userId: currentUserId || '' });
       }
 
       // Período completo: bloquear a agenda no intervalo
@@ -190,7 +192,6 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
           observacoes: data.procedimento || null,
         });
       }
-
 
       // Avisar a dentista pelo WhatsApp
       const dentista = dentistasAtivos.find((d) => d.nome === data.dentista);
@@ -214,13 +215,13 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
       onSaved?.(data.data);
       onClose();
       form.reset();
-    } catch (error) {
-      console.error('Erro ao criar consulta:', error);
+    } catch (error: any) {
+      console.error('Erro ao salvar consulta:', error);
+      toast.error('Erro ao salvar remarcação: ' + (error?.message || 'Tente novamente'));
     } finally {
       setIsLoading(false);
     }
   };
-
 
   const handlePatientCreated = (patientId: string) => {
     // Seta imediatamente; o useEffect garante a seleção quando a lista atualizar
@@ -229,7 +230,6 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
     setIsQuickPatientModalOpen(false);
     toast.success('Paciente selecionado! Complete o agendamento da consulta.');
   };
-
 
   return (
     <>
@@ -243,7 +243,23 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
           </DialogHeader>
 
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <form
+              onSubmit={(e) => {
+                form.handleSubmit(
+                  async (formData) => {
+                    await onSubmit(formData);
+                  },
+                  (errors) => {
+                    console.error('Erros no formulário de consulta:', errors);
+                    const errorMsgs = Object.entries(errors)
+                      .map(([key, err]) => `${key}: ${err?.message || 'inválido'}`)
+                      .join(' | ');
+                    toast.error(`Verifique os campos: ${errorMsgs}`);
+                  }
+                )(e);
+              }}
+              className="space-y-4"
+            >
               <FormField
                 control={form.control}
                 name="pacienteId"
@@ -352,7 +368,7 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
                   name="duracao"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Duração / Período</FormLabel>
+                      <FormLabel>DuraÃ§Ã£o / PerÃ­odo</FormLabel>
                       <Select
                         onValueChange={(val) => {
                           const periodo = PERIODOS.find((p) => p.value === val);
@@ -387,7 +403,7 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
                       </Select>
                       {periodoSelecionado && (
                         <p className="text-xs text-muted-foreground">
-                          A agenda será bloqueada nesse período (ex.: casos de lentes).
+                          A agenda serÃ¡ bloqueada nesse perÃ­odo (ex.: casos de lentes).
                         </p>
                       )}
                       <FormMessage />
@@ -412,8 +428,9 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
                           <SelectItem value="agendado">Agendado</SelectItem>
                           <SelectItem value="confirmado">Confirmado</SelectItem>
                           <SelectItem value="realizado">Realizado</SelectItem>
-                          <SelectItem value="cancelado">Cancelado</SelectItem>
+                          <SelectItem value="remarcado">Remarcado</SelectItem>
                           <SelectItem value="faltou">Faltou</SelectItem>
+                          <SelectItem value="cancelado">Cancelado</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -468,7 +485,7 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="none">Sem dentista espec�fico</SelectItem>
+                        <SelectItem value="none">Sem dentista específico</SelectItem>
                         {dentistasAtivos.map((d) => (
                           <SelectItem key={d.id} value={d.nome}>
                             {d.nome}{d.especialidade ? " - " + d.especialidade : ""}
@@ -478,7 +495,7 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
                     </Select>
                     {dentistasAtivos.length === 0 && (
                       <p className="text-xs text-muted-foreground mt-1">
-                        Dica: Voc� pode <Link to="/configuracoes" className="underline" onClick={onClose}>cadastrar dentistas</Link> para associ�-los �s consultas.
+                        Dica: Você pode <Link to="/configuracoes" className="underline" onClick={onClose}>cadastrar dentistas</Link> para associá-los às consultas.
                       </p>
                     )}
                     <FormMessage />
@@ -491,10 +508,10 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
                 name="observacoes"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Observações</FormLabel>
+                    <FormLabel>ObservaÃ§Ãµes</FormLabel>
                     <FormControl>
                       <Textarea 
-                        placeholder="Observações adicionais..."
+                        placeholder="ObservaÃ§Ãµes adicionais..."
                         className="resize-none"
                         rows={3}
                         {...field}
@@ -511,7 +528,7 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
                 </Button>
                 <Button type="submit" disabled={isLoading} className="w-full sm:w-auto">
                   {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {editingConsulta ? 'Salvar Remarcação' : 'Agendar Consulta'}
+                  {editingConsulta ? 'Salvar RemarcaÃ§Ã£o' : 'Agendar Consulta'}
                 </Button>
               </div>
             </form>

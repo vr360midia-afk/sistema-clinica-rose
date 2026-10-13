@@ -7,9 +7,9 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ClipboardList, Plus, Trash2, MessageCircle, Check, X, Handshake, FileText, Pencil } from 'lucide-react';
+import { ClipboardList, Plus, Trash2, MessageCircle, Check, X, Handshake, FileText, Pencil, FileSignature, Sparkles, CalendarDays } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
-import { useOrcamentos, OrcamentoItem } from '@/hooks/useOrcamentos';
+import { useOrcamentos, OrcamentoItem, Orcamento } from '@/hooks/useOrcamentos';
 import { useProcedimentos } from '@/hooks/useProcedimentos';
 import { useParceiros, TipoRepasse } from '@/hooks/useParceiros';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
@@ -18,6 +18,19 @@ import { gerarOrcamentoPdf } from '@/utils/orcamentoPdf';
 import { openWhatsApp } from '@/lib/whatsapp';
 import { formatMoney } from '@/utils/exportCsv';
 import { toast } from 'sonner';
+import ContratoModal from '@/components/contratos/ContratoModal';
+import { useDentalSystem } from '@/context/DentalSystemContext';
+import { mapearDadosContrato } from '@/utils/contratoEngine';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from '@/components/ui/alert-dialog';
 
 interface Props {
   patient: any;
@@ -29,6 +42,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
   const { parceiros, addParceiro, refetch: refetchParceiros } = useParceiros();
   const { configuracoes } = useConfiguracoes();
   const { dentistas } = useDentistas();
+  const { addTransacao } = useDentalSystem();
 
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -39,6 +53,18 @@ const PatientOrcamentos = ({ patient }: Props) => {
   const [formasPagamento, setFormasPagamento] = useState('');
   const [selectKey, setSelectKey] = useState(0);
   const [statusEdicao, setStatusEdicao] = useState<'rascunho' | 'enviado' | 'aprovado' | 'recusado'>('rascunho');
+  const [contratoModalOpen, setContratoModalOpen] = useState(false);
+  const [contratoOrcamento, setContratoOrcamento] = useState<Orcamento | null>(null);
+
+  // Aprovação com lançamento financeiro
+  const [aprovandoOrcamento, setAprovandoOrcamento] = useState<Orcamento | null>(null);
+  const [lancandoFinanceiro, setLancandoFinanceiro] = useState(false);
+
+  // PIX Parcelado
+  const [pixParceladoAtivo, setPixParceladoAtivo] = useState(false);
+  const [pixEntrada, setPixEntrada] = useState<number>(0);
+  const [pixParcelas, setPixParcelas] = useState<number>(3);
+  const [pixDiaVencimento, setPixDiaVencimento] = useState<number>(10);
 
 
   // Parceria
@@ -51,6 +77,95 @@ const PatientOrcamentos = ({ patient }: Props) => {
 
   const subtotal = itens.reduce((s, i) => s + i.valor * i.quantidade, 0);
   const total = Math.max(0, subtotal - desconto);
+
+  const montarTextoPixParcelado = (entradaVal: number, parcelasVal: number, diaVal: number, totalVal: number) => {
+    const qtd = Math.max(1, parcelasVal);
+    const saldo = Math.max(0, totalVal - entradaVal);
+    const valorParc = saldo / qtd;
+    if (entradaVal > 0) {
+      return `PIX Parcelado: Entrada de ${formatMoney(entradaVal)} + ${qtd}x de ${formatMoney(valorParc)} (Vencimento todo dia ${diaVal})`;
+    }
+    return `PIX Parcelado: ${qtd}x de ${formatMoney(valorParc)} (Vencimento todo dia ${diaVal})`;
+  };
+
+  const handleTogglePixParcelado = () => {
+    const novo = !pixParceladoAtivo;
+    setPixParceladoAtivo(novo);
+    if (novo) {
+      setFormasPagamento(montarTextoPixParcelado(pixEntrada, pixParcelas, pixDiaVencimento, total));
+    }
+  };
+
+  const handleChangePixEntrada = (valor: number) => {
+    const clamped = Math.min(total, Math.max(0, valor));
+    setPixEntrada(clamped);
+    if (pixParceladoAtivo) {
+      setFormasPagamento(montarTextoPixParcelado(clamped, pixParcelas, pixDiaVencimento, total));
+    }
+  };
+
+  const handleConfirmarAprovacao = async (o: Orcamento, lancarFinanceiro: boolean) => {
+    try {
+      setLancandoFinanceiro(true);
+      await updateStatus(o.id, 'aprovado');
+
+      if (lancarFinanceiro) {
+        const snap = mapearDadosContrato({
+          patient,
+          orcamento: o,
+          transacoes: [],
+          configuracoes,
+        });
+
+        const parcelas = snap.financeiro.parcelas;
+        for (const p of parcelas) {
+          const isEntrada = p.descricao.toLowerCase().includes('entrada');
+          
+          let dataVenc: Date = new Date();
+          if (p.vencimento && p.vencimento.includes('/')) {
+            const [dia, mes, ano] = p.vencimento.split('/');
+            dataVenc = new Date(Number(ano), Number(mes) - 1, Number(dia), 12, 0, 0);
+          }
+
+          await addTransacao({
+            pacienteId: patient.id,
+            valor: p.valor,
+            tipo: 'receita',
+            status: isEntrada ? 'pendente' : 'pendente',
+            metodoPagamento: 'pix_parcelado',
+            data: new Date(),
+            vencimento: dataVenc,
+            descricao: `${o.titulo}: ${p.descricao}`,
+            categoria: 'Tratamentos',
+            orcamentoId: o.id,
+          });
+        }
+        toast.success('Orçamento aprovado e parcelas lançadas no Contas a Receber!');
+      } else {
+        toast.success('Orçamento aprovado com sucesso!');
+      }
+    } catch (err: any) {
+      console.error('Erro ao aprovar orçamento:', err);
+      toast.error('Erro ao aprovar orçamento ou lançar parcelas');
+    } finally {
+      setLancandoFinanceiro(false);
+      setAprovandoOrcamento(null);
+    }
+  };
+
+  const handleChangePixParcelas = (qtd: number) => {
+    setPixParcelas(qtd);
+    if (pixParceladoAtivo) {
+      setFormasPagamento(montarTextoPixParcelado(pixEntrada, qtd, pixDiaVencimento, total));
+    }
+  };
+
+  const handleChangePixDia = (dia: number) => {
+    setPixDiaVencimento(dia);
+    if (pixParceladoAtivo) {
+      setFormasPagamento(montarTextoPixParcelado(pixEntrada, pixParcelas, dia, total));
+    }
+  };
 
   const addProcedimento = (id: string) => {
     const p = procedimentos.find((x) => x.id === id);
@@ -102,6 +217,10 @@ const PatientOrcamentos = ({ patient }: Props) => {
     setDesconto(0);
     setObservacoes('');
     setFormasPagamento('');
+    setPixParceladoAtivo(false);
+    setPixEntrada(0);
+    setPixParcelas(3);
+    setPixDiaVencimento(10);
     setParceriaAtiva(false);
     setParceiroId('');
     setValorRepasse(0);
@@ -116,6 +235,29 @@ const PatientOrcamentos = ({ patient }: Props) => {
     setDesconto(o.desconto || 0);
     setObservacoes(o.observacoes || '');
     setFormasPagamento(o.formasPagamento || '');
+
+    if (o.formasPagamento && /pix\s*parcelado/i.test(o.formasPagamento)) {
+      setPixParceladoAtivo(true);
+      const entradaMatch = o.formasPagamento.match(/entrada(?:\s+de)?\s*(?:r\$)?\s*([\d.,]+)/i);
+      if (entradaMatch) {
+        setPixEntrada(Number(entradaMatch[1].replace(/\./g, '').replace(',', '.')) || 0);
+      } else {
+        setPixEntrada(0);
+      }
+      const parcMatch = o.formasPagamento.match(/(\d+)\s*x/i);
+      if (parcMatch) {
+        setPixParcelas(Number(parcMatch[1]) || 3);
+      }
+      const diaMatch = o.formasPagamento.match(/(?:vencimento|dia)\s*(?:todo\s*dia)?\s*(\d{1,2})/i);
+      if (diaMatch) {
+        setPixDiaVencimento(Number(diaMatch[1]) || 10);
+      }
+    } else {
+      setPixParceladoAtivo(false);
+      setPixEntrada(0);
+      setPixParcelas(3);
+      setPixDiaVencimento(10);
+    }
     setParceriaAtiva(!!o.parceiroId || !!o.parceiroNome);
     setParceiroId(o.parceiroId || '');
     setTipoRepasse((o.parceiroTipoRepasse as TipoRepasse) || 'percentual');
@@ -218,9 +360,21 @@ const PatientOrcamentos = ({ patient }: Props) => {
           <ClipboardList className="h-5 w-5 text-primary" />
           Orçamentos e planos de tratamento
         </CardTitle>
-        <Button size="sm" onClick={abrirNovo}>
-          <Plus className="h-4 w-4 mr-1" /> Novo
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setContratoOrcamento(null);
+              setContratoModalOpen(true);
+            }}
+          >
+            <FileSignature className="h-4 w-4 mr-1 text-primary" /> Contratos
+          </Button>
+          <Button size="sm" onClick={abrirNovo}>
+            <Plus className="h-4 w-4 mr-1" /> Novo
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-3">
         {loading ? (
@@ -293,10 +447,23 @@ const PatientOrcamentos = ({ patient }: Props) => {
                   <MessageCircle className="h-4 w-4 mr-1" /> Enviar
                 </Button>
 
+                <Button
+                  size="sm"
+                  variant={o.status === 'aprovado' ? 'default' : 'outline'}
+                  className={o.status === 'aprovado' ? 'bg-primary text-primary-foreground hover:bg-primary/90' : ''}
+                  onClick={() => {
+                    setContratoOrcamento(o);
+                    setContratoModalOpen(true);
+                  }}
+                  title="Gerar contrato formal com base neste orçamento"
+                >
+                  <FileSignature className="h-4 w-4 mr-1" /> Contrato
+                </Button>
+
                 {o.status !== 'aprovado' && o.status !== 'recusado' && (
                   <>
-                    <Button size="sm" variant="outline" onClick={() => updateStatus(o.id, 'aprovado')}>
-                      <Check className="h-4 w-4 mr-1" /> Aprovar
+                    <Button size="sm" variant="outline" onClick={() => setAprovandoOrcamento(o)}>
+                      <Check className="h-4 w-4 mr-1 text-emerald-600" /> Aprovar
                     </Button>
                     <Button size="sm" variant="outline" onClick={() => updateStatus(o.id, 'recusado')}>
                       <X className="h-4 w-4 mr-1" /> Recusar
@@ -391,24 +558,139 @@ const PatientOrcamentos = ({ patient }: Props) => {
               </div>
             </div>
 
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>Formas de pagamento</Label>
               <div className="flex flex-wrap gap-1.5">
-                {['À vista (PIX)', 'PIX Parcelado', 'Dinheiro', 'Cartão de crédito', 'Cartão de débito', '2x sem juros', '3x sem juros', '6x', '12x', 'Boleto'].map((f) => (
-                  <Button
-                    key={f}
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-xs"
-                    onClick={() =>
-                      setFormasPagamento((prev) => (prev ? (prev.includes(f) ? prev : `${prev}, ${f}`) : f))
-                    }
-                  >
-                    {f}
-                  </Button>
-                ))}
+                {['À vista (PIX)', 'PIX Parcelado', 'Dinheiro', 'Cartão de crédito', 'Cartão de débito', '2x sem juros', '3x sem juros', '6x', '12x', 'Boleto'].map((f) => {
+                  const isPixParcelado = f === 'PIX Parcelado';
+                  const isActive = isPixParcelado && pixParceladoAtivo;
+                  return (
+                    <Button
+                      key={f}
+                      type="button"
+                      size="sm"
+                      variant={isActive ? 'default' : 'outline'}
+                      className={`h-7 text-xs ${isActive ? 'bg-primary text-primary-foreground font-semibold shadow-xs' : ''}`}
+                      onClick={() => {
+                        if (isPixParcelado) {
+                          handleTogglePixParcelado();
+                        } else {
+                          setFormasPagamento((prev) => (prev ? (prev.includes(f) ? prev : `${prev}, ${f}`) : f));
+                        }
+                      }}
+                    >
+                      {f}
+                    </Button>
+                  );
+                })}
               </div>
+
+              {pixParceladoAtivo && (
+                <div className="rounded-lg border border-primary/30 bg-primary/5 p-3.5 space-y-3 animate-in fade-in duration-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-primary">
+                      <Sparkles className="h-4 w-4" />
+                      Configuração de PIX Parcelado (Entrada, Parcelas e Vencimento)
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 px-1.5 text-xs text-muted-foreground hover:text-foreground"
+                      onClick={() => setPixParceladoAtivo(false)}
+                    >
+                      <X className="h-3.5 w-3.5 mr-1" /> Fechar
+                    </Button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                      <div className="flex justify-between items-center">
+                        <Label className="text-xs">Valor da Entrada (R$)</Label>
+                        {pixEntrada >= total && total > 0 && (
+                          <span className="text-[10px] text-amber-500 font-medium">Entrada cobre o total</span>
+                        )}
+                      </div>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={total}
+                        step="0.01"
+                        placeholder="0.00 (sem entrada)"
+                        value={pixEntrada || ''}
+                        onChange={(e) => handleChangePixEntrada(Number(e.target.value) || 0)}
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-xs">Qtd. de Parcelas</Label>
+                      <Select
+                        value={String(pixParcelas)}
+                        onValueChange={(v) => handleChangePixParcelas(Number(v) || 1)}
+                      >
+                        <SelectTrigger className="h-9 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18, 24].map((n) => (
+                            <SelectItem key={n} value={String(n)}>
+                              {n}x {n > 1 ? 'mensais' : '(à vista)'}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-xs">Dia do Vencimento</Label>
+                      <Select
+                        value={String(pixDiaVencimento)}
+                        onValueChange={(v) => handleChangePixDia(Number(v) || 10)}
+                      >
+                        <SelectTrigger className="h-9 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[1, 5, 10, 15, 20, 25, 28, 30].map((d) => (
+                            <SelectItem key={d} value={String(d)}>
+                              Todo dia {d}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {/* Resumo do Cálculo em tempo real */}
+                  <div className="rounded-md bg-background/80 border border-border p-2.5 text-xs space-y-1">
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Total do Orçamento:</span>
+                      <span className="font-medium text-foreground">{formatMoney(total)}</span>
+                    </div>
+                    {pixEntrada > 0 && (
+                      <div className="flex justify-between text-muted-foreground">
+                        <span>Entrada pactuada (PIX):</span>
+                        <span className="font-semibold text-emerald-600">+{formatMoney(pixEntrada)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Saldo a parcelar:</span>
+                      <span>{formatMoney(Math.max(0, total - pixEntrada))}</span>
+                    </div>
+                    <div className="flex justify-between text-foreground font-semibold pt-1 border-t border-border/60">
+                      <span>Plano PIX:</span>
+                      <span className="text-primary font-bold">
+                        {pixParcelas}x de {formatMoney(Math.max(0, total - pixEntrada) / Math.max(1, pixParcelas))}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground pt-0.5">
+                      <CalendarDays className="h-3.5 w-3.5 text-primary" />
+                      Vencimentos: Todo dia <strong>{pixDiaVencimento}</strong> de cada mês (gerará o cronograma do contrato).
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <Textarea
                 value={formasPagamento}
                 onChange={(e) => setFormasPagamento(e.target.value)}
@@ -497,6 +779,58 @@ const PatientOrcamentos = ({ patient }: Props) => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {contratoModalOpen && (
+        <ContratoModal
+          isOpen={contratoModalOpen}
+          onClose={() => setContratoModalOpen(false)}
+          patient={patient}
+          initialOrcamento={contratoOrcamento}
+        />
+      )}
+
+      {/* Diálogo de Aprovação com Lançamento Financeiro Opcional */}
+      {aprovandoOrcamento && (
+        <AlertDialog open={!!aprovandoOrcamento} onOpenChange={(open) => !open && setAprovandoOrcamento(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <Check className="h-5 w-5 text-emerald-600" />
+                Aprovar Orçamento #{aprovandoOrcamento.id ? aprovandoOrcamento.id.slice(0, 8).toUpperCase() : ''}
+              </AlertDialogTitle>
+              <AlertDialogDescription className="space-y-2 text-sm text-muted-foreground pt-1">
+                <p>
+                  O plano <strong>{aprovandoOrcamento.titulo}</strong> no valor total de{' '}
+                  <strong className="text-foreground">{formatMoney(aprovandoOrcamento.total)}</strong> será aprovado.
+                </p>
+                <div className="rounded-md bg-muted/50 p-2.5 border border-border text-xs space-y-1">
+                  <div><strong>Condição de Pagamento:</strong> {aprovandoOrcamento.formasPagamento || 'A combinar'}</div>
+                  <div className="text-muted-foreground">
+                    Deseja lançar a entrada e as parcelas automaticamente no <strong>Contas a Receber (Financeiro)</strong> para monitoramento de vencimentos e lembretes de PIX?
+                  </div>
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+              <AlertDialogCancel disabled={lancandoFinanceiro}>Cancelar</AlertDialogCancel>
+              <Button
+                variant="outline"
+                disabled={lancandoFinanceiro}
+                onClick={() => handleConfirmarAprovacao(aprovandoOrcamento, false)}
+              >
+                Apenas Aprovar
+              </Button>
+              <AlertDialogAction
+                className="bg-primary text-primary-foreground hover:bg-primary/90"
+                disabled={lancandoFinanceiro}
+                onClick={() => handleConfirmarAprovacao(aprovandoOrcamento, true)}
+              >
+                {lancandoFinanceiro ? 'Lançando...' : 'Sim, Lançar no Financeiro'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </Card>
   );
 };

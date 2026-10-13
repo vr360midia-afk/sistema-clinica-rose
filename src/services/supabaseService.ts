@@ -44,7 +44,7 @@ class SupabaseService {
   private async getCurrentUserId(): Promise<string> {
     const { data: { session } } = await supabase.auth.getSession();
     const userId = session?.user?.id || (await supabase.auth.getUser()).data.user?.id;
-    if (!userId) throw new Error('Usu�rio n�o autenticado');
+    if (!userId) throw new Error('Usuário não autenticado');
 
     if (this.cachedSessionUserId === userId && this.cachedClinicaId) {
       return this.cachedClinicaId;
@@ -96,8 +96,8 @@ class SupabaseService {
       ...data,
       criadoEm: new Date(data.criado_em),
       atualizadoEm: new Date(data.atualizado_em),
-      // Colunas DATE chegam como YYYY-MM-DD. Interpretá-las como UTC desloca
-      // a consulta para o dia anterior em fusos como o de São Paulo.
+      // Colunas DATE chegam como YYYY-MM-DD. InterpretÃ¡-las como UTC desloca
+      // a consulta para o dia anterior em fusos como o de SÃ£o Paulo.
       data: this.parseLocalDate(data.data),
       dataNascimento: data.data_nascimento ? new Date(data.data_nascimento + 'T00:00:00') : undefined,
       dataArquivamento: data.data_arquivamento ? new Date(data.data_arquivamento + 'T00:00:00') : undefined,
@@ -146,7 +146,7 @@ class SupabaseService {
     };
   };
 
-  // Colunas válidas por tabela (evita enviar campos inexistentes ao banco)
+  // Colunas vÃ¡lidas por tabela (evita enviar campos inexistentes ao banco)
   private tableColumns: Record<string, string[]> = {
     pacientes: ['user_id','nome','email','telefone','idade','data_nascimento','endereco','cpf','rg','profissao','estado_civil','convenio','origem_lead','foto','historico_medico','alergias','medicamentos','observacoes','status','ultima_consulta','proxima_consulta','data_arquivamento','motivo_arquivamento','odontograma'],
     consultas: ['user_id','paciente_id','paciente_nome','data','hora','tipo','status','valor','observacoes','duracao','procedimento','dentista','confirmacao_status','confirmado_em'],
@@ -157,7 +157,7 @@ class SupabaseService {
     produtos: ['user_id','nome','categoria','quantidade','minimo','preco'],
   };
 
-  // Colunas do tipo DATE (sem hora) — precisam de YYYY-MM-DD no fuso local
+  // Colunas do tipo DATE (sem hora) â€” precisam de YYYY-MM-DD no fuso local
   private dateOnlyColumns: Record<string, string[]> = {
     pacientes: ['data_nascimento'],
     consultas: ['data'],
@@ -345,14 +345,17 @@ class SupabaseService {
   async updateConsulta(id: string, updates: Partial<Consulta>): Promise<Consulta | null> {
     const userId = await this.getCurrentUserId();
     const updateData = this.transformLocalToSupabase(updates, 'consultas');
+    delete updateData.id;
+    delete updateData.user_id;
+    delete updateData.criado_em;
+    updateData.atualizado_em = new Date().toISOString();
 
     const { data, error } = await supabase
       .from('consultas')
       .update(updateData)
       .eq('id', id)
-      .eq('user_id', userId)
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) throw error;
     return data ? this.transformSupabaseToLocal(data) : null;
@@ -371,7 +374,7 @@ class SupabaseService {
     return true;
   }
 
-  // TRANSAÇÕES
+  // TRANSAÃ‡Ã•ES
   async getTransacoes(): Promise<Transacao[]> {
     const userId = await this.getCurrentUserId();
     const { data, error } = await supabase
@@ -427,7 +430,7 @@ class SupabaseService {
     return true;
   }
 
-  // PRONTUÁRIOS
+  // PRONTUÃ�RIOS
   async getProntuarios(): Promise<Prontuario[]> {
     const userId = await this.getCurrentUserId();
     const { data, error } = await supabase
@@ -679,7 +682,7 @@ class SupabaseService {
   async addMembroEquipe(email: string, permissoes: Record<string, boolean>): Promise<MembroEquipe> {
     const userId = await this.getCurrentUserId();
     
-    // Buscar o ID do usuário pelo email na tabela de perfis
+    // Buscar o ID do usuÃ¡rio pelo email na tabela de perfis
     const { data: perfil, error: perfilError } = await supabase
       .from('perfis')
       .select('id, nome')
@@ -687,7 +690,7 @@ class SupabaseService {
       .maybeSingle();
       
     if (perfilError) throw perfilError;
-    if (!perfil) throw new Error('Usuário não encontrado. Peça para o funcionário criar uma conta primeiro usando este email.');
+    if (!perfil) throw new Error('UsuÃ¡rio nÃ£o encontrado. PeÃ§a para o funcionÃ¡rio criar uma conta primeiro usando este email.');
 
     const { data, error } = await supabase
       .from('equipe')
@@ -702,7 +705,7 @@ class SupabaseService {
       .single();
 
     if (error) {
-      if (error.code === '23505') throw new Error('Este usuário já faz parte da equipe.');
+      if (error.code === '23505') throw new Error('Este usuÃ¡rio jÃ¡ faz parte da equipe.');
       throw error;
     }
     
@@ -737,7 +740,7 @@ class SupabaseService {
     return true;
   }
 
-  // Métodos utilitários
+  // MÃ©todos utilitÃ¡rios
   async clearAllData(): Promise<void> {
     const userId = await this.getCurrentUserId();
     
@@ -773,10 +776,10 @@ class SupabaseService {
     if (error) throw error;
   }
 
-  // Migração de dados do localStorage
+  // MigraÃ§Ã£o de dados do localStorage
   async migrateFromLocalStorage(): Promise<void> {
     try {
-      console.log('Iniciando migração dos dados do localStorage para Supabase...');
+      console.log('Iniciando migraÃ§Ã£o dos dados do localStorage para Supabase...');
       
       // Importar dados do localStorage
       const { localStorageService } = await import('@/services/localStorage');
@@ -823,22 +826,22 @@ class SupabaseService {
         console.log(`${localConsultas.length} consultas migradas`);
       }
 
-      // Migrar transações  
+      // Migrar transaÃ§Ãµes  
       if (localTransacoes.length > 0) {
         for (const transacao of localTransacoes) {
           const { id, criadoEm, atualizadoEm, ...transacaoData } = transacao;
           await this.saveTransacao(transacaoData);
         }
-        console.log(`${localTransacoes.length} transações migradas`);
+        console.log(`${localTransacoes.length} transaÃ§Ãµes migradas`);
       }
 
-      // Migrar prontuários
+      // Migrar prontuÃ¡rios
       if (localProntuarios.length > 0) {
         for (const prontuario of localProntuarios) {
           const { id, criadoEm, atualizadoEm, ...prontuarioData } = prontuario;
           await this.saveProntuario(prontuarioData);
         }
-        console.log(`${localProntuarios.length} prontuários migrados`);
+        console.log(`${localProntuarios.length} prontuÃ¡rios migrados`);
       }
 
       // Migrar anamneses
@@ -859,12 +862,12 @@ class SupabaseService {
         console.log(`${localDocumentos.length} documentos migrados`);
       }
 
-      toast.success('Migração concluída com sucesso!');
-      console.log('Migração dos dados concluída com sucesso');
+      toast.success('MigraÃ§Ã£o concluÃ­da com sucesso!');
+      console.log('MigraÃ§Ã£o dos dados concluÃ­da com sucesso');
       
     } catch (error) {
-      console.error('Erro durante a migração:', error);
-      toast.error('Erro durante a migração dos dados');
+      console.error('Erro durante a migraÃ§Ã£o:', error);
+      toast.error('Erro durante a migraÃ§Ã£o dos dados');
       throw error;
     }
   }

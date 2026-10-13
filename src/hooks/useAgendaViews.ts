@@ -55,15 +55,22 @@ export const useAgendaViews = (selectedDate: Date) => {
     );
 
     return selectedDateConsultas.map(consulta => ({
+      ...consulta,
       id: consulta.id,
+      pacienteId: consulta.pacienteId,
       patient: consulta.patient,
       time: consulta.hora,
+      hora: consulta.hora,
       duration: `${consulta.duracao}min`,
+      duracao: consulta.duracao,
       procedure: consulta.procedimento,
+      procedimento: consulta.procedimento,
       status: consulta.status,
       confirmacaoStatus: consulta.confirmacaoStatus,
       dentist: consulta.dentista,
+      dentista: consulta.dentista,
       date: consulta.data,
+      data: consulta.data,
       patientData: consulta.patientData
     }));
   }, [transformedConsultas, selectedDate]);

@@ -219,11 +219,13 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
       const consultaAtualizada = await supabaseService.updateConsulta(id, updates);
       if (consultaAtualizada) {
         setConsultas(prev => prev.map(c => c.id === id ? consultaAtualizada : c));
-        toast.success('Consulta atualizada com sucesso!');
+      } else {
+        setConsultas(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
       }
-    } catch (error) {
+      toast.success('Consulta atualizada com sucesso!');
+    } catch (error: any) {
       console.error('Erro ao atualizar consulta:', error);
-      toast.error('Erro ao atualizar consulta');
+      toast.error('Erro ao atualizar consulta: ' + (error?.message || 'Tente novamente'));
       throw error;
     }
   };

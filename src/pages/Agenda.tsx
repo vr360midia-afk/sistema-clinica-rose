@@ -21,7 +21,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 
 const Agenda = () => {
-  const { updateConsulta } = useDentalSystem();
+  const { updateConsulta, consultas } = useDentalSystem();
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
   const [isConsultaModalOpen, setIsConsultaModalOpen] = useState(false);
@@ -79,11 +79,18 @@ const Agenda = () => {
   const handleReschedule = (appointment: any) => {
     setIsDetailsModalOpen(false);
     // Busca a consulta completa (com pacienteId, observações, valor) pelo id
-    const completa = transformedConsultas.find((c: any) => c.id === appointment.id) || appointment;
-    setConsultaEmEdicao(completa);
-    const data = completa.data ? new Date(completa.data) : selectedDate;
+    const original = consultas.find((c) => c.id === appointment.id);
+    const completa = transformedConsultas.find((c: any) => c.id === appointment.id) || original || appointment;
+    const finalConsulta = {
+      ...appointment,
+      ...original,
+      ...completa,
+      pacienteId: completa.pacienteId || original?.pacienteId || appointment.pacienteId || appointment.paciente_id || ''
+    };
+    setConsultaEmEdicao(finalConsulta);
+    const data = finalConsulta.data ? new Date(finalConsulta.data) : selectedDate;
     setConsultaFormDate(data);
-    setConsultaFormTime(completa.hora || appointment.time);
+    setConsultaFormTime(finalConsulta.hora || appointment.time);
     setIsConsultaModalOpen(true);
   };
 
