@@ -44,8 +44,8 @@ export default function CRM() {
   useEffect(() => {
     fetchLeads();
 
-    // Inscrição Realtime no Supabase para receber novos leads instantaneamente
-    const canal = supabase
+    // Inscrição Realtime no Supabase para receber novos leads e mensagens instantaneamente
+    const canalLeads = supabase
       .channel('crm_leads_realtime_stream')
       .on(
         'postgres_changes',
@@ -53,8 +53,8 @@ export default function CRM() {
         (payload) => {
           const novoLead: any = payload.new;
           if (!novoLead) return;
-          toast.info(`🎉 Novo lead recebido: ${novoLead.nome || 'Novo Contato'}!`, {
-            description: `Origem: ${novoLead.origem || 'Meta Ads / Site'}`,
+          toast.info(`🎉 Novo lead: ${novoLead.name || novoLead.nome || 'Novo Contato'}!`, {
+            description: `Origem: ${novoLead.origin || novoLead.origem || 'WhatsApp'}`,
           });
           setLeads((prev) => [novoLead, ...prev.filter((l) => l.id !== novoLead.id)]);
         }
@@ -66,7 +66,7 @@ export default function CRM() {
           const leadAtualizado: any = payload.new;
           if (!leadAtualizado) return;
           setLeads((prev) =>
-            prev.map((l) => (l.id === leadAtualizado.id ? leadAtualizado : l))
+            prev.map((l) => (l.id === leadAtualizado.id ? { ...l, ...leadAtualizado } : l))
           );
         }
       )
@@ -80,10 +80,31 @@ export default function CRM() {
           }
         }
       )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'crm_messages' },
+        (payload) => {
+          const newMsg: any = payload.new;
+          if (!newMsg?.lead_id) return;
+          setLeads((prev) =>
+            prev.map((lead) => {
+              if (lead.id === newMsg.lead_id) {
+                return {
+                  ...lead,
+                  ultima_mensagem: newMsg.body,
+                  last_message_direction: newMsg.direction,
+                  last_message_at: newMsg.created_at,
+                };
+              }
+              return lead;
+            })
+          );
+        }
+      )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(canal);
+      supabase.removeChannel(canalLeads);
     };
   }, []);
 
@@ -92,13 +113,43 @@ export default function CRM() {
     else setRefreshing(true);
 
     try {
-      const { data, error } = await supabase
+      const { data: rawLeads, error } = await supabase
         .from('crm_leads')
         .select('*')
-        .order('data_criacao', { ascending: false });
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setLeads(data || []);
+
+      // Busca últimas mensagens para prévia dinâmica nos cards
+      const { data: messagesData } = await supabase
+        .from('crm_messages')
+        .select('lead_id, body, direction, created_at')
+        .order('created_at', { ascending: false });
+
+      const latestMsgMap = new Map();
+      (messagesData || []).forEach((m: any) => {
+        if (!latestMsgMap.has(m.lead_id)) {
+          latestMsgMap.set(m.lead_id, m);
+        }
+      });
+
+      const leadsComPreview = (rawLeads || []).map((l: any) => {
+        const lastMsg = latestMsgMap.get(l.id);
+        return {
+          ...l,
+          ultima_mensagem: lastMsg?.body || l.observacoes || null,
+          last_message_direction: lastMsg?.direction || null,
+          last_message_at:
+            lastMsg?.created_at ||
+            l.last_inbound_at ||
+            l.last_outbound_at ||
+            l.updated_at ||
+            l.created_at ||
+            l.data_criacao,
+        };
+      });
+
+      setLeads(leadsComPreview);
       if (silencioso) {
         toast.success('Lista de leads atualizada!');
       }
@@ -139,14 +190,16 @@ export default function CRM() {
       // Filtro de texto (nome ou telefone)
       if (busca.trim()) {
         const termo = busca.toLowerCase().trim();
-        const nomeMatch = (lead.nome || '').toLowerCase().includes(termo);
-        const telMatch = (lead.telefone || '').replace(/\D/g, '').includes(termo);
+        const nomeAlvo = (lead.name || lead.nome || '').toLowerCase();
+        const telAlvo = (lead.phone || lead.telefone || '').replace(/\D/g, '');
+        const nomeMatch = nomeAlvo.includes(termo);
+        const telMatch = telAlvo.includes(termo.replace(/\D/g, ''));
         if (!nomeMatch && !telMatch) return false;
       }
 
       // Filtro de origem
       if (filtroOrigem !== 'todos') {
-        const origemLead = (lead.origem || 'Manual').toLowerCase();
+        const origemLead = (lead.origin || lead.origem || 'WhatsApp').toLowerCase();
         if (origemLead !== filtroOrigem.toLowerCase()) {
           return false;
         }
@@ -159,14 +212,22 @@ export default function CRM() {
   // Métricas do Funil
   const metricas = useMemo(() => {
     const total = leads.length;
-    const novos = leads.filter((l) => l.status === 'novo' || !l.status).length;
-    const primeiroContato = leads.filter(
-      (l) => l.status === 'primeiro_contato' || l.status === '1_contato'
-    ).length;
-    const agendados = leads.filter(
-      (l) => l.status === 'agendado' || l.status === 'consulta_agendada'
-    ).length;
-    const perdidos = leads.filter((l) => l.status === 'perdido').length;
+    const novos = leads.filter((l) => {
+      const st = l.stage || l.status;
+      return st === 'novo_lead' || st === 'novo' || !st;
+    }).length;
+    const primeiroContato = leads.filter((l) => {
+      const st = l.stage || l.status;
+      return st === 'primeiro_contato' || st === '1_contato';
+    }).length;
+    const agendados = leads.filter((l) => {
+      const st = l.stage || l.status;
+      return st === 'agendado' || st === 'consulta_agendada';
+    }).length;
+    const perdidos = leads.filter((l) => {
+      const st = l.stage || l.status;
+      return st === 'perdido';
+    }).length;
     const valorTotal = leads.reduce(
       (acc, l) => acc + (Number(l.valor_estimado) || 0),
       0

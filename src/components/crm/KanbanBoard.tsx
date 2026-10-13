@@ -14,10 +14,15 @@ import {
   MoveRight,
   User,
   Calendar,
+  Clock,
+  MessageSquare,
+  ArrowDownLeft,
+  ArrowUpRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import WhatsAppLeadMenu from './WhatsAppLeadMenu';
+import LeadChatModal from './LeadChatModal';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,14 +42,25 @@ import {
 
 export interface Lead {
   id: string;
-  nome: string;
-  telefone: string | null;
-  status: string;
-  origem: string | null;
+  name?: string | null;
+  nome?: string | null;
+  phone?: string | null;
+  telefone?: string | null;
+  stage?: string | null;
+  status?: string | null;
+  origin?: string | null;
+  origem?: string | null;
+  last_inbound_at?: string | null;
+  last_outbound_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  data_criacao?: string | null;
   campanha?: string | null;
   observacoes?: string | null;
-  valor_estimado: number | null;
-  data_criacao: string;
+  valor_estimado?: number | null;
+  ultima_mensagem?: string | null;
+  last_message_direction?: 'in' | 'out' | null;
+  last_message_at?: string | null;
 }
 
 interface KanbanBoardProps {
@@ -64,7 +80,7 @@ export interface ColumnDef {
 
 export const COLUMNS: ColumnDef[] = [
   {
-    id: 'novo',
+    id: 'novo_lead',
     title: 'Novo Lead',
     color: 'text-blue-700 dark:text-blue-300',
     headerBg: 'bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800',
@@ -80,7 +96,7 @@ export const COLUMNS: ColumnDef[] = [
     dotColor: 'bg-indigo-500',
   },
   {
-    id: 'fu_3h',
+    id: 'followup_1',
     title: '1º F-up (3h)',
     color: 'text-slate-700 dark:text-slate-300',
     headerBg: 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800',
@@ -88,7 +104,7 @@ export const COLUMNS: ColumnDef[] = [
     dotColor: 'bg-slate-400',
   },
   {
-    id: 'fu_18h',
+    id: 'followup_2',
     title: '2º F-up (18h)',
     color: 'text-slate-700 dark:text-slate-300',
     headerBg: 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800',
@@ -170,18 +186,53 @@ export const COLUMNS: ColumnDef[] = [
 ];
 
 // Normaliza possíveis variações salvas no banco
-const normalizarStatus = (status: string): string => {
-  if (!status) return 'novo';
-  if (status === 'consulta_agendada' || status === 'agendado_ganho') return 'agendado';
-  if (status === '1_contato' || status === 'primeiro-contato' || status === 'contato_inicial') {
+export const normalizarStatus = (statusOrStage?: string | null): string => {
+  if (!statusOrStage) return 'novo_lead';
+  if (statusOrStage === 'novo' || statusOrStage === 'novo_lead') return 'novo_lead';
+  if (
+    statusOrStage === '1_contato' ||
+    statusOrStage === 'primeiro-contato' ||
+    statusOrStage === 'primeiro_contato' ||
+    statusOrStage === 'contato_inicial'
+  ) {
     return 'primeiro_contato';
   }
-  return status;
+  if (statusOrStage === 'fu_3h' || statusOrStage === 'followup_1') return 'followup_1';
+  if (statusOrStage === 'fu_18h' || statusOrStage === 'followup_2') return 'followup_2';
+  if (
+    statusOrStage === 'consulta_agendada' ||
+    statusOrStage === 'agendado_ganho' ||
+    statusOrStage === 'agendado'
+  ) {
+    return 'agendado';
+  }
+  return statusOrStage;
 };
+
+// Formata tempo relativo de contato ("há 15 min", "ontem", etc.)
+export function formatTempoRelativo(dataStr?: string | null): string {
+  if (!dataStr) return '';
+  try {
+    const diffMs = Date.now() - new Date(dataStr).getTime();
+    if (diffMs < 0) return 'agora';
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1) return 'agora';
+    if (diffMin < 60) return `há ${diffMin} min`;
+    const diffHoras = Math.floor(diffMin / 60);
+    if (diffHoras < 24) return `há ${diffHoras}h`;
+    const diffDias = Math.floor(diffHoras / 24);
+    if (diffDias === 1) return 'ontem';
+    if (diffDias < 7) return `há ${diffDias} dias`;
+    return new Date(dataStr).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  } catch {
+    return '';
+  }
+}
 
 export default function KanbanBoard({ leads, onLeadsChange, onEditLead }: KanbanBoardProps) {
   const [columns, setColumns] = useState<Record<string, Lead[]>>({});
   const [leadSelecionadoParaMover, setLeadSelecionadoParaMover] = useState<Lead | null>(null);
+  const [leadSelecionadoParaChat, setLeadSelecionadoParaChat] = useState<Lead | null>(null);
 
   useEffect(() => {
     // Agrupa leads por coluna com normalização
@@ -191,21 +242,21 @@ export default function KanbanBoard({ leads, onLeadsChange, onEditLead }: Kanban
     });
 
     leads.forEach((lead) => {
-      const st = normalizarStatus(lead.status);
+      const st = normalizarStatus(lead.stage || lead.status);
       if (grouped[st]) {
         grouped[st].push(lead);
       } else {
-        if (!grouped['novo']) grouped['novo'] = [];
-        grouped['novo'].push(lead);
+        if (!grouped['novo_lead']) grouped['novo_lead'] = [];
+        grouped['novo_lead'].push(lead);
       }
     });
 
     setColumns(grouped);
   }, [leads]);
 
-  // Transfere o lead para uma coluna selecionada (via clique direto ou drag & drop)
+  // Transfere o lead para uma coluna selecionada
   const handleMoveLeadToColumn = async (lead: Lead, targetColumnId: string) => {
-    const statusAtual = normalizarStatus(lead.status);
+    const statusAtual = normalizarStatus(lead.stage || lead.status);
     if (statusAtual === targetColumnId) {
       setLeadSelecionadoParaMover(null);
       return;
@@ -220,13 +271,16 @@ export default function KanbanBoard({ leads, onLeadsChange, onEditLead }: Kanban
       newColumns[col.id] = [...(columns[col.id] || [])];
     });
 
-    // Remove de todas as colunas locais
     Object.keys(newColumns).forEach((colKey) => {
       newColumns[colKey] = newColumns[colKey].filter((l) => l.id !== lead.id);
     });
 
-    // Insere no topo da coluna de destino
-    const updatedLead: Lead = { ...lead, status: targetColumnId };
+    const updatedLead: Lead = {
+      ...lead,
+      stage: targetColumnId,
+      status: targetColumnId,
+      updated_at: new Date().toISOString(),
+    };
     if (!newColumns[targetColumnId]) {
       newColumns[targetColumnId] = [];
     }
@@ -237,13 +291,16 @@ export default function KanbanBoard({ leads, onLeadsChange, onEditLead }: Kanban
     onLeadsChange(allLeads);
     setLeadSelecionadoParaMover(null);
 
-    toast.success(`Lead "${lead.nome}" movido para "${targetTitle}"!`);
+    toast.success(`Lead "${lead.name || lead.nome}" movido para "${targetTitle}"!`);
 
-    // Persiste no Supabase
     try {
       const { error } = await supabase
         .from('crm_leads')
-        .update({ status: targetColumnId })
+        .update({
+          stage: targetColumnId,
+          status: targetColumnId,
+          updated_at: new Date().toISOString(),
+        })
         .eq('id', lead.id);
 
       if (error) throw error;
@@ -275,8 +332,15 @@ export default function KanbanBoard({ leads, onLeadsChange, onEditLead }: Kanban
       reordered.splice(destination.index, 0, item);
       newColumns[source.droppableId] = reordered;
     } else {
-      newColumns[source.droppableId] = newColumns[source.droppableId].filter((_, idx) => idx !== source.index);
-      const updatedItem = { ...item, status: destination.droppableId };
+      newColumns[source.droppableId] = newColumns[source.droppableId].filter(
+        (_, idx) => idx !== source.index
+      );
+      const updatedItem = {
+        ...item,
+        stage: destination.droppableId,
+        status: destination.droppableId,
+        updated_at: new Date().toISOString(),
+      };
       const destItems = [...(newColumns[destination.droppableId] || [])];
       destItems.splice(destination.index, 0, updatedItem);
       newColumns[destination.droppableId] = destItems;
@@ -284,7 +348,11 @@ export default function KanbanBoard({ leads, onLeadsChange, onEditLead }: Kanban
       try {
         const { error } = await supabase
           .from('crm_leads')
-          .update({ status: destination.droppableId })
+          .update({
+            stage: destination.droppableId,
+            status: destination.droppableId,
+            updated_at: new Date().toISOString(),
+          })
           .eq('id', item.id);
 
         if (error) throw error;
@@ -301,18 +369,6 @@ export default function KanbanBoard({ leads, onLeadsChange, onEditLead }: Kanban
     onLeadsChange(allLeads);
   };
 
-  const handleWhatsApp = (lead: Lead) => {
-    if (!lead.telefone) {
-      toast.error('Lead não tem telefone cadastrado');
-      return;
-    }
-    const tel = lead.telefone.replace(/\D/g, '');
-    const text = encodeURIComponent(
-      `Olá ${lead.nome}, tudo bem? Aqui é da clínica da Dra. Rosangela Santos! Como posso ajudar você hoje?`
-    );
-    window.open(`https://wa.me/55${tel}?text=${text}`, '_blank');
-  };
-
   const handleDelete = async (id: string) => {
     if (!window.confirm('Tem certeza que deseja excluir este lead?')) return;
 
@@ -325,9 +381,12 @@ export default function KanbanBoard({ leads, onLeadsChange, onEditLead }: Kanban
       if (leadSelecionadoParaMover?.id === id) {
         setLeadSelecionadoParaMover(null);
       }
+      if (leadSelecionadoParaChat?.id === id) {
+        setLeadSelecionadoParaChat(null);
+      }
     } catch (e) {
       console.error(e);
-      toast.error('Erro ao excluir');
+      toast.error('Erro ao excluir lead');
     }
   };
 
@@ -373,7 +432,19 @@ export default function KanbanBoard({ leads, onLeadsChange, onEditLead }: Kanban
                       }`}
                     >
                       {leadsInCol.map((lead, index) => {
-                        const statusLead = normalizarStatus(lead.status);
+                        const statusLead = normalizarStatus(lead.stage || lead.status);
+                        const nomeExibicao = lead.name || lead.nome || 'Paciente';
+                        const telefoneExibicao = lead.phone || lead.telefone;
+                        const dataUltimoContato =
+                          lead.last_message_at ||
+                          lead.last_inbound_at ||
+                          lead.last_outbound_at ||
+                          lead.updated_at ||
+                          lead.created_at ||
+                          lead.data_criacao;
+                        const tempoRelativo = formatTempoRelativo(dataUltimoContato);
+                        const origemExibicao = lead.origin || lead.origem || 'WhatsApp';
+
                         return (
                           <Draggable key={lead.id} draggableId={lead.id} index={index}>
                             {(providedDrag, snapshotDrag) => (
@@ -384,10 +455,15 @@ export default function KanbanBoard({ leads, onLeadsChange, onEditLead }: Kanban
                                 onClick={(e) => {
                                   // Evita acionar ao clicar em botões específicos dentro do card
                                   const target = e.target as HTMLElement;
-                                  if (target.closest('button, a, [role="menuitem"], [data-radix-dropdown-menu-content]')) {
+                                  if (
+                                    target.closest(
+                                      'button, a, [role="menuitem"], [data-radix-dropdown-menu-content]'
+                                    )
+                                  ) {
                                     return;
                                   }
-                                  setLeadSelecionadoParaMover(lead);
+                                  // Clique no card abre o Chat do WhatsApp
+                                  setLeadSelecionadoParaChat(lead);
                                 }}
                                 className={`group relative bg-white dark:bg-card p-3 mb-2.5 rounded-lg border border-slate-200 dark:border-border shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer ${
                                   snapshotDrag.isDragging
@@ -395,14 +471,14 @@ export default function KanbanBoard({ leads, onLeadsChange, onEditLead }: Kanban
                                     : ''
                                 }`}
                               >
-                                {/* Linha 1: Nome do Lead + Botões de Ação */}
-                                <div className="flex justify-between items-start gap-2 mb-1.5">
+                                {/* Linha 1: Nome do Lead + Ações rápidas */}
+                                <div className="flex justify-between items-start gap-2 mb-1">
                                   <div className="min-w-0 flex-1">
                                     <h4
-                                      className="font-semibold text-xs sm:text-sm text-foreground truncate group-hover:text-primary transition-colors"
-                                      title={lead.nome}
+                                      className="font-semibold text-xs sm:text-sm text-foreground truncate group-hover:text-primary transition-colors flex items-center gap-1.5"
+                                      title={nomeExibicao}
                                     >
-                                      {lead.nome}
+                                      <span>{nomeExibicao}</span>
                                     </h4>
                                   </div>
 
@@ -414,7 +490,7 @@ export default function KanbanBoard({ leads, onLeadsChange, onEditLead }: Kanban
                                         onEditLead(lead);
                                       }}
                                       className="p-1 text-muted-foreground hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 rounded transition-colors"
-                                      title="Editar Lead"
+                                      title="Editar Informações"
                                     >
                                       <Pencil className="h-3.5 w-3.5" />
                                     </button>
@@ -432,35 +508,63 @@ export default function KanbanBoard({ leads, onLeadsChange, onEditLead }: Kanban
                                   </div>
                                 </div>
 
-                                {/* Linha 2: Telefone */}
-                                {lead.telefone && (
-                                  <div className="flex items-center text-xs text-muted-foreground mb-2">
-                                    <Phone className="h-3 w-3 mr-1 text-slate-400 shrink-0" />
-                                    <span className="font-mono truncate">{lead.telefone}</span>
+                                {/* Linha 2: Telefone + Tempo Relativo */}
+                                <div className="flex items-center justify-between gap-1 text-xs text-muted-foreground mb-1.5">
+                                  {telefoneExibicao && (
+                                    <div className="flex items-center font-mono text-[11px] truncate">
+                                      <Phone className="h-3 w-3 mr-1 text-slate-400 shrink-0" />
+                                      {telefoneExibicao}
+                                    </div>
+                                  )}
+                                  {tempoRelativo && (
+                                    <span
+                                      className="inline-flex items-center gap-1 text-[10px] text-muted-foreground shrink-0 font-medium"
+                                      title={`Último contato: ${dataUltimoContato ? new Date(dataUltimoContato).toLocaleString('pt-BR') : ''}`}
+                                    >
+                                      <Clock className="h-2.5 w-2.5 text-slate-400" />
+                                      {tempoRelativo}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Linha 3: Trecho da Última Mensagem */}
+                                {lead.ultima_mensagem && (
+                                  <div className="mb-2 p-1.5 rounded bg-muted/60 dark:bg-slate-900/70 border border-slate-200/60 dark:border-slate-800 text-[11px] text-slate-700 dark:text-slate-300 flex items-start gap-1.5">
+                                    {lead.last_message_direction === 'out' ? (
+                                      <ArrowUpRight className="h-3 w-3 text-emerald-500 shrink-0 mt-0.5" />
+                                    ) : (
+                                      <ArrowDownLeft className="h-3 w-3 text-blue-500 shrink-0 mt-0.5" />
+                                    )}
+                                    <span className="truncate italic leading-snug">
+                                      "{lead.ultima_mensagem}"
+                                    </span>
                                   </div>
                                 )}
 
-                                {/* Linha 3: Valor Estimado se houver */}
+                                {/* Linha 4: Valor se houver */}
                                 {lead.valor_estimado && lead.valor_estimado > 0 ? (
                                   <div className="mb-2">
                                     <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-200/60 dark:border-emerald-800/40">
                                       <DollarSign className="h-3 w-3" />
-                                      R$ {Number(lead.valor_estimado).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                      R${' '}
+                                      {Number(lead.valor_estimado).toLocaleString('pt-BR', {
+                                        minimumFractionDigits: 2,
+                                      })}
                                     </span>
                                   </div>
                                 ) : null}
 
-                                {/* Linha 4: Origem + Seletor de Mover Coluna + WhatsApp */}
+                                {/* Linha 5: Origem + Seletor Mover + Ação WhatsApp */}
                                 <div className="flex items-center justify-between gap-1.5 pt-2 border-t border-slate-100 dark:border-slate-800/80 mt-1">
                                   <div className="flex items-center gap-1.5 min-w-0">
                                     <Badge
                                       variant="secondary"
                                       className="text-[10px] px-1.5 py-0 font-normal bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 truncate"
                                     >
-                                      {lead.origem || 'Manual'}
+                                      {origemExibicao}
                                     </Badge>
 
-                                    {/* Menu Dropdown de Mover Rápido */}
+                                    {/* Mover rápido */}
                                     <DropdownMenu>
                                       <DropdownMenuTrigger asChild>
                                         <button
@@ -474,7 +578,10 @@ export default function KanbanBoard({ leads, onLeadsChange, onEditLead }: Kanban
                                           <ChevronDown className="h-2.5 w-2.5 opacity-60" />
                                         </button>
                                       </DropdownMenuTrigger>
-                                      <DropdownMenuContent align="start" className="w-56 max-h-72 overflow-y-auto">
+                                      <DropdownMenuContent
+                                        align="start"
+                                        className="w-56 max-h-72 overflow-y-auto"
+                                      >
                                         <DropdownMenuLabel className="text-xs">
                                           Mover para coluna:
                                         </DropdownMenuLabel>
@@ -492,7 +599,9 @@ export default function KanbanBoard({ leads, onLeadsChange, onEditLead }: Kanban
                                               className="flex items-center justify-between text-xs py-1.5 cursor-pointer"
                                             >
                                               <span className="flex items-center gap-2 truncate">
-                                                <span className={`w-2 h-2 rounded-full ${targetCol.dotColor} shrink-0`} />
+                                                <span
+                                                  className={`w-2 h-2 rounded-full ${targetCol.dotColor} shrink-0`}
+                                                />
                                                 <span className={isCurrent ? 'font-bold' : ''}>
                                                   {targetCol.title}
                                                 </span>
@@ -507,7 +616,17 @@ export default function KanbanBoard({ leads, onLeadsChange, onEditLead }: Kanban
                                     </DropdownMenu>
                                   </div>
 
-                                  <WhatsAppLeadMenu lead={lead} buttonVariant="icon" />
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <WhatsAppLeadMenu
+                                      lead={{
+                                        id: lead.id,
+                                        nome: nomeExibicao,
+                                        telefone: telefoneExibicao || null,
+                                        status: statusLead,
+                                      }}
+                                      buttonVariant="icon"
+                                    />
+                                  </div>
                                 </div>
                               </div>
                             )}
@@ -524,7 +643,22 @@ export default function KanbanBoard({ leads, onLeadsChange, onEditLead }: Kanban
         </div>
       </DragDropContext>
 
-      {/* Modal Interativo para Selecionar Coluna ao Clicar no Lead */}
+      {/* Modal Interativo de Chat do WhatsApp (Abre ao Clicar no Card) */}
+      {leadSelecionadoParaChat && (
+        <LeadChatModal
+          isOpen={!!leadSelecionadoParaChat}
+          onClose={() => setLeadSelecionadoParaChat(null)}
+          lead={leadSelecionadoParaChat}
+          onLeadUpdated={(leadAtualizado) => {
+            const allLeads = Object.values(columns)
+              .flat()
+              .map((l) => (l.id === leadAtualizado.id ? { ...l, ...leadAtualizado } : l));
+            onLeadsChange(allLeads);
+          }}
+        />
+      )}
+
+      {/* Modal de Mover Lead */}
       {leadSelecionadoParaMover && (
         <Dialog
           open={!!leadSelecionadoParaMover}
@@ -540,27 +674,21 @@ export default function KanbanBoard({ leads, onLeadsChange, onEditLead }: Kanban
               </DialogTitle>
               <DialogDescription className="text-xs sm:text-sm">
                 Selecione abaixo para qual etapa do funil deseja mover o contato{' '}
-                <strong className="text-foreground">{leadSelecionadoParaMover.nome}</strong>:
+                <strong className="text-foreground">
+                  {leadSelecionadoParaMover.name || leadSelecionadoParaMover.nome}
+                </strong>
+                :
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-3 py-2">
-              <div className="flex items-center justify-between p-2.5 bg-muted/50 rounded-lg text-xs">
-                <span className="text-muted-foreground flex items-center gap-1.5">
-                  <User className="h-3.5 w-3.5 text-primary" />
-                  <strong>{leadSelecionadoParaMover.nome}</strong>
-                  {leadSelecionadoParaMover.telefone && ` • ${leadSelecionadoParaMover.telefone}`}
-                </span>
-                {leadSelecionadoParaMover.valor_estimado ? (
-                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                    R$ {Number(leadSelecionadoParaMover.valor_estimado).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </span>
-                ) : null}
-              </div>
-
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[340px] overflow-y-auto p-1">
                 {COLUMNS.map((col) => {
-                  const isCurrent = col.id === normalizarStatus(leadSelecionadoParaMover.status);
+                  const isCurrent =
+                    col.id ===
+                    normalizarStatus(
+                      leadSelecionadoParaMover.stage || leadSelecionadoParaMover.status
+                    );
                   return (
                     <button
                       key={col.id}
@@ -577,13 +705,12 @@ export default function KanbanBoard({ leads, onLeadsChange, onEditLead }: Kanban
                         <span className={`w-2.5 h-2.5 rounded-full ${col.dotColor} shrink-0`} />
                         <span className="truncate">{col.title}</span>
                       </div>
-
                       {isCurrent ? (
                         <span className="flex items-center gap-1 text-[10px] text-primary shrink-0">
                           <Check className="h-3.5 w-3.5" /> Atual
                         </span>
                       ) : (
-                        <MoveRight className="h-3.5 w-3.5 text-muted-foreground opacity-60 group-hover:opacity-100 shrink-0" />
+                        <MoveRight className="h-3.5 w-3.5 text-muted-foreground opacity-60 shrink-0" />
                       )}
                     </button>
                   );
@@ -592,30 +719,6 @@ export default function KanbanBoard({ leads, onLeadsChange, onEditLead }: Kanban
             </div>
 
             <DialogFooter className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-t pt-3 mt-1">
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const l = leadSelecionadoParaMover;
-                    setLeadSelecionadoParaMover(null);
-                    onEditLead(l);
-                  }}
-                  className="h-8 text-xs gap-1"
-                >
-                  <Pencil className="h-3 w-3" />
-                  Editar Dados
-                </Button>
-
-                {leadSelecionadoParaMover.telefone && (
-                  <WhatsAppLeadMenu
-                    lead={leadSelecionadoParaMover}
-                    buttonVariant="full"
-                  />
-                )}
-              </div>
-
               <Button
                 type="button"
                 variant="ghost"
