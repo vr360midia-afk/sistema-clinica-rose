@@ -9,10 +9,11 @@ interface ScannerProntuarioModalProps {
   isOpen: boolean;
   onClose: () => void;
   geminiApiKey: string;
+  openaiApiKey?: string;
   onExtraido: (dados: any) => void;
 }
 
-export const ScannerProntuarioModal = ({ isOpen, onClose, geminiApiKey, onExtraido }: ScannerProntuarioModalProps) => {
+export const ScannerProntuarioModal = ({ isOpen, onClose, geminiApiKey, openaiApiKey, onExtraido }: ScannerProntuarioModalProps) => {
   
   const [loading, setLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -33,20 +34,16 @@ export const ScannerProntuarioModal = ({ isOpen, onClose, geminiApiKey, onExtrai
 
   const processarImagem = async () => {
     if (!selectedFile) return;
-    if (!geminiApiKey) {
-      toast.error("API Key não configurada. Vá em Configurações > APIs.");
+    if (!openaiApiKey && !geminiApiKey) {
+      toast.error("Nenhuma chave de IA configurada. Configure o ChatGPT ou Gemini em Configurações > APIs.");
       return;
     }
 
     setLoading(true);
     try {
-      // 1. Converter imagem para base64 limpo (sem o prefixo data:image/...)
+      // 1. Converter imagem para base64
       const base64String = preview?.split(',')[1];
       if (!base64String) throw new Error("Erro ao ler a imagem");
-
-      // 2. Chamar o Gemini
-      const genAI = new GoogleGenerativeAI(geminiApiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-3.0-flash" });
 
       const prompt = `Você é um assistente médico especializado em extrair dados de fichas e prontuários odontológicos/médicos escritos à mão ou digitados.
 Extraia as informações da imagem e retorne APENAS um JSON válido com os seguintes campos (use null se não encontrar a informação):
@@ -62,33 +59,71 @@ Extraia as informações da imagem e retorne APENAS um JSON válido com os segui
   "observacoes": "Outras observações clínicas, queixa principal"
 }`;
 
-      const imageParts = [
-        {
-          inlineData: {
-            data: base64String,
-            mimeType: selectedFile.type
+      let dadosExtraidos: any = null;
+
+      // Prioridade 1: Se tiver chave OpenAI (ChatGPT GPT-4o-mini ou GPT-4o Vision)
+      if (openaiApiKey) {
+        const mime = selectedFile.type || 'image/jpeg';
+        const res = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${openaiApiKey}`,
           },
-        },
-      ];
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: [
+              {
+                role: 'user',
+                content: [
+                  { type: 'text', text: prompt },
+                  { type: 'image_url', image_url: { url: `data:${mime};base64,${base64String}` } },
+                ],
+              },
+            ],
+          }),
+        });
 
-      const result = await model.generateContent([prompt, ...imageParts]);
-      const response = await result.response;
-      let text = response.text();
-      
-      // Limpar o markdown de JSON se o Gemini retornar com ```json
-      if (text.includes('\`\`\`json')) {
-        text = text.replace(/\`\`\`json/g, '').replace(/\`\`\`/g, '');
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData?.error?.message || `Erro da OpenAI [${res.status}]`);
+        }
+
+        const data = await res.json();
+        let text = data?.choices?.[0]?.message?.content || '{}';
+        text = text.replace(/```json|```/g, '').trim();
+        dadosExtraidos = JSON.parse(text);
+      } else {
+        // Prioridade 2: Google Gemini
+        const genAI = new GoogleGenerativeAI(geminiApiKey);
+        const model = genAI.getGenerativeModel({ model: "gemini-3.0-flash" });
+
+        const imageParts = [
+          {
+            inlineData: {
+              data: base64String,
+              mimeType: selectedFile.type
+            },
+          },
+        ];
+
+        const result = await model.generateContent([prompt, ...imageParts]);
+        const response = await result.response;
+        let text = response.text();
+        
+        if (text.includes('```json')) {
+          text = text.replace(/```json/g, '').replace(/```/g, '');
+        }
+
+        dadosExtraidos = JSON.parse(text.trim());
       }
-
-      const dadosExtraidos = JSON.parse(text.trim());
       
-      toast.success("Os dados foram extraídos da imagem com sucesso!");
-      
+      toast.success("Dados do prontuário extraídos com sucesso pela IA!");
       onExtraido(dadosExtraidos);
       handleClose();
 
     } catch (error: any) {
-      console.error("Gemini API Error:", error);
+      console.error("AI Error:", error);
       const errorMessage = error?.message || "Erro desconhecido";
       toast.error(`Erro na IA: ${errorMessage}`);
     } finally {

@@ -6,17 +6,26 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const apiKey = Deno.env.get('LOVABLE_API_KEY');
-    if (!apiKey) {
-      return new Response(JSON.stringify({ error: 'LOVABLE_API_KEY ausente' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
     const body = await req.json().catch(() => null);
     const audioBase64: string | undefined = body?.audioBase64;
     const mimeType: string = body?.mimeType || 'audio/webm';
+
+    // Suporta chave OpenAI vinda do body ou do ambiente
+    const openaiKey = (body?.apiKey || Deno.env.get('OPENAI_API_KEY') || '').trim();
+    const lovableKey = (Deno.env.get('LOVABLE_API_KEY') || '').trim();
+
+    if (!openaiKey && !lovableKey) {
+      return new Response(
+        JSON.stringify({
+          error:
+            'Chave de IA não configurada. Defina OPENAI_API_KEY ou LOVABLE_API_KEY nas variáveis de ambiente.',
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
 
     if (!audioBase64 || typeof audioBase64 !== 'string') {
       return new Response(JSON.stringify({ error: 'audioBase64 é obrigatório' }), {
@@ -25,10 +34,55 @@ Deno.serve(async (req) => {
       });
     }
 
-    // O gateway espera o container; audio/mp4 deve ser tratado como m4a.
     const sub = mimeType.split('/')[1] || 'webm';
-    const format = sub === 'mp4' ? 'm4a' : sub;
+    const ext = sub === 'mp4' ? 'm4a' : sub;
 
+    // Se temos OpenAI Key, usamos o Whisper da OpenAI (altamente preciso para português)
+    if (openaiKey) {
+      // Converte Base64 para Uint8Array
+      const binaryString = atob(audioBase64);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+
+      const blob = new Blob([bytes], { type: mimeType });
+      const formData = new FormData();
+      formData.append('file', blob, `audio.${ext}`);
+      formData.append('model', 'whisper-1');
+      formData.append('language', 'pt');
+      formData.append(
+        'prompt',
+        'Áudio de consulta ou prontuário odontológico. Termos: dentes, canal, restauração, implante, resina.'
+      );
+
+      const resWhisper = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${openaiKey}`,
+        },
+        body: formData,
+      });
+
+      if (!resWhisper.ok) {
+        const details = await resWhisper.text();
+        console.error(`OpenAI Whisper falhou [${resWhisper.status}]: ${details}`);
+        return new Response(
+          JSON.stringify({ error: 'Falha na transcrição com Whisper', details }),
+          { status: resWhisper.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const jsonWhisper = await resWhisper.json();
+      const transcribedText = jsonWhisper?.text || '';
+
+      return new Response(
+        JSON.stringify({ text: transcribedText.trim(), provider: 'openai_whisper' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Fallback: Gateway Lovable
     const prompt =
       'Você é um assistente de uma clínica odontológica. Transcreva o áudio a seguir para texto em português do Brasil. ' +
       'Preserve termos técnicos odontológicos e formate o texto em parágrafos curtos. ' +
@@ -38,7 +92,7 @@ Deno.serve(async (req) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Lovable-API-Key': apiKey,
+        'Lovable-API-Key': lovableKey,
         'X-Lovable-AIG-SDK': 'fetch',
       },
       body: JSON.stringify({
@@ -48,7 +102,7 @@ Deno.serve(async (req) => {
             role: 'user',
             content: [
               { type: 'text', text: prompt },
-              { type: 'input_audio', input_audio: { data: audioBase64, format } },
+              { type: 'input_audio', input_audio: { data: audioBase64, format: ext } },
             ],
           },
         ],
@@ -60,14 +114,14 @@ Deno.serve(async (req) => {
       console.error(`AI gateway falhou [${res.status}]: ${details}`);
       return new Response(
         JSON.stringify({ error: 'Falha na transcrição', status: res.status, details }),
-        { status: res.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        { status: res.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     const json = await res.json();
     const text: string = json?.choices?.[0]?.message?.content ?? '';
 
-    return new Response(JSON.stringify({ text: text.trim() }), {
+    return new Response(JSON.stringify({ text: text.trim(), provider: 'lovable_gemini' }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (err) {

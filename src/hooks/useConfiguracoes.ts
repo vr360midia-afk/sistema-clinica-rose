@@ -16,7 +16,11 @@ export interface ConfiguracoesGerais {
   lembrete24h: boolean;
   lembrete2h: boolean;
   backupAutomatico: boolean;
-  frequenciaBackup: string; geminiApiKey: string;
+  frequenciaBackup: string;
+  geminiApiKey: string;
+  openaiApiKey: string;
+  openaiModel: string;
+  openaiSystemPrompt: string;
 }
 
 export const defaultConfiguracoes: ConfiguracoesGerais = {
@@ -32,7 +36,11 @@ export const defaultConfiguracoes: ConfiguracoesGerais = {
   lembrete24h: true,
   lembrete2h: true,
   backupAutomatico: true,
-  frequenciaBackup: 'diario', geminiApiKey: '',
+  frequenciaBackup: 'diario',
+  geminiApiKey: '',
+  openaiApiKey: '',
+  openaiModel: 'gpt-4o-mini',
+  openaiSystemPrompt: '',
 };
 
 export const useConfiguracoes = () => {
@@ -72,6 +80,9 @@ export const useConfiguracoes = () => {
         backupAutomatico: data.backup_automatico,
         frequenciaBackup: data.frequencia_backup || 'diario',
         geminiApiKey: data.gemini_api_key || '',
+        openaiApiKey: (data as any).openai_api_key || '',
+        openaiModel: (data as any).openai_model || 'gpt-4o-mini',
+        openaiSystemPrompt: (data as any).openai_system_prompt || '',
       });
     }
     setLoading(false);
@@ -108,6 +119,9 @@ export const useConfiguracoes = () => {
             backup_automatico: values.backupAutomatico,
             frequencia_backup: values.frequenciaBackup,
             gemini_api_key: values.geminiApiKey,
+            openai_api_key: values.openaiApiKey || null,
+            openai_model: values.openaiModel || 'gpt-4o-mini',
+            openai_system_prompt: values.openaiSystemPrompt || null,
           },
           { onConflict: 'user_id' }
         );

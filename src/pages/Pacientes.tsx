@@ -752,6 +752,7 @@ const Pacientes = () => {
         isOpen={isScannerOpen}
         onClose={() => setIsScannerOpen(false)}
         geminiApiKey={configuracoes?.geminiApiKey || ''}
+        openaiApiKey={configuracoes?.openaiApiKey || ''}
         onExtraido={handleScannerResult}
       />
     </Layout>

@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import BloqueiosManager from '@/components/configuracoes/BloqueiosManager';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
-import { Settings, Wifi, Bell, Shield, Database, MessageSquare, UserCog, Upload, Trash2, Image as ImageIcon, Handshake, ShieldCheck, Pill, Users, Calendar, FileSignature } from 'lucide-react';
+import { Settings, Wifi, Bell, Shield, Database, MessageSquare, UserCog, Upload, Trash2, Image as ImageIcon, Handshake, ShieldCheck, Pill, Users, Calendar, FileSignature, Bot, Sparkles, CheckCircle2, AlertCircle, Eye, EyeOff, ExternalLink } from 'lucide-react';
 import DentistasManager from '@/components/configuracoes/DentistasManager';
 import CertificadoDigitalManager from '@/components/configuracoes/CertificadoDigitalManager';
 import ParceirosManager from '@/components/configuracoes/ParceirosManager';
@@ -21,6 +21,9 @@ import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { Loader2 } from 'lucide-react';
 import { downloadBackupCompleto, lerArquivoBackup, restaurarBackup, type ProgressoBackup } from '@/utils/backup';
 import BackupProgress from '@/components/common/BackupProgress';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { testarOpenAiKey } from '@/services/chatgptService';
 
 
 const formatCnpjCpf = (value: string) => {
@@ -42,6 +45,9 @@ const Configuracoes = () => {
   const { toast } = useToast();
   const { configuracoes, setConfiguracoes, loading, saving, saveConfiguracoes } = useConfiguracoes();
   const [tokens, setTokens] = useState({ whatsappToken: '', instagramToken: '', asaasToken: '' });
+  const [mostrarOpenAiKey, setMostrarOpenAiKey] = useState(false);
+  const [testandoOpenAi, setTestandoOpenAi] = useState(false);
+  const [statusOpenAi, setStatusOpenAi] = useState<{ ok: boolean; msg: string } | null>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const [logoLoading, setLogoLoading] = useState(false);
   const restoreInputRef = useRef<HTMLInputElement>(null);
@@ -52,6 +58,55 @@ const Configuracoes = () => {
 
   const salvarConfiguracoes = async () => {
     await saveConfiguracoes(configuracoes);
+  };
+
+  const handleTestarOpenAi = async () => {
+    if (!configuracoes.openaiApiKey) {
+      toast({
+        title: 'Chave não informada',
+        description: 'Digite sua chave da OpenAI (sk-...) antes de testar.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setTestandoOpenAi(true);
+    setStatusOpenAi(null);
+
+    try {
+      const res = await testarOpenAiKey(
+        configuracoes.openaiApiKey,
+        configuracoes.openaiModel || 'gpt-4o-mini'
+      );
+
+      if (res.success) {
+        setStatusOpenAi({
+          ok: true,
+          msg: `Conexão bem-sucedida com a OpenAI (${res.model || configuracoes.openaiModel})!`,
+        });
+        toast({
+          title: 'OpenAI ChatGPT Conectado!',
+          description: `API validada com sucesso com o modelo ${res.model || configuracoes.openaiModel}.`,
+        });
+      } else {
+        setStatusOpenAi({
+          ok: false,
+          msg: res.error || 'Falha ao conectar à API da OpenAI.',
+        });
+        toast({
+          title: 'Falha no Teste OpenAI',
+          description: res.error || 'Verifique se a chave é válida e possui saldo ativo.',
+          variant: 'destructive',
+        });
+      }
+    } catch (err: any) {
+      setStatusOpenAi({
+        ok: false,
+        msg: err.message || 'Erro inesperado na chamada.',
+      });
+    } finally {
+      setTestandoOpenAi(false);
+    }
   };
 
   const handleBackupNow = async () => {
@@ -339,17 +394,173 @@ const Configuracoes = () => {
 
           <TabsContent value="apis">
             <div className="space-y-6">
-              <Card className="border-indigo-200 shadow-md">
-                <CardHeader className="bg-indigo-50/50 dark:bg-indigo-950/20">
-                  <CardTitle className="flex items-center gap-2 text-indigo-700 dark:text-indigo-400">
-                    <MessageSquare className="h-5 w-5" />
-                    Google Gemini AI (Importação Inteligente)
-                  </CardTitle>
+              {/* Card Destaque: OpenAI ChatGPT */}
+              <Card className="border-emerald-500/40 shadow-lg bg-gradient-to-br from-slate-900/90 via-slate-900/70 to-emerald-950/20">
+                <CardHeader className="border-b border-border/50 pb-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <CardTitle className="flex items-center gap-2.5 text-base sm:text-lg text-emerald-600 dark:text-emerald-400 font-bold">
+                      <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+                        <Bot className="h-5 w-5" />
+                      </div>
+                      OpenAI ChatGPT (Copiloto CRM & Inteligência Artificial)
+                    </CardTitle>
+                    <span className="text-xs px-2.5 py-0.5 rounded-full font-medium bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center gap-1 w-fit">
+                      <Sparkles className="h-3 w-3" /> GPT-4o & GPT-4o-mini
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Alimenta o copiloto de atendimento do WhatsApp no CRM, sugestões automáticas de respostas persuasivas para leads, qualificação de pacientes e análise clínica.
+                  </p>
                 </CardHeader>
                 <CardContent className="space-y-4 pt-4">
+                  {/* Chave de API OpenAI */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="openaiApiKey" className="text-xs font-semibold">
+                        Chave Secreta de API da OpenAI (API Key)
+                      </Label>
+                      <a
+                        href="https://platform.openai.com/api-keys"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[11px] text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1"
+                      >
+                        Obter chave na OpenAI <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </div>
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <Input
+                          id="openaiApiKey"
+                          type={mostrarOpenAiKey ? 'text' : 'password'}
+                          value={configuracoes.openaiApiKey || ''}
+                          onChange={(e) =>
+                            setConfiguracoes({ ...configuracoes, openaiApiKey: e.target.value })
+                          }
+                          placeholder="sk-proj-..."
+                          className="font-mono text-xs pr-10"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setMostrarOpenAiKey(!mostrarOpenAiKey)}
+                          className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
+                          title={mostrarOpenAiKey ? 'Ocultar chave' : 'Mostrar chave'}
+                        >
+                          {mostrarOpenAiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleTestarOpenAi}
+                        disabled={testandoOpenAi || !configuracoes.openaiApiKey}
+                        className="text-xs shrink-0 border-emerald-500/40 hover:bg-emerald-500/10 hover:text-emerald-400"
+                      >
+                        {testandoOpenAi ? (
+                          <>
+                            <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin text-emerald-400" />
+                            Testando...
+                          </>
+                        ) : (
+                          <>
+                            <Wifi className="h-3.5 w-3.5 mr-1.5 text-emerald-400" />
+                            Testar Conexão
+                          </>
+                        )}
+                      </Button>
+                    </div>
+
+                    {statusOpenAi && (
+                      <div
+                        className={`p-2.5 rounded-md text-xs flex items-center gap-2 border mt-2 ${
+                          statusOpenAi.ok
+                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                            : 'bg-red-500/10 border-red-500/30 text-red-400'
+                        }`}
+                      >
+                        {statusOpenAi.ok ? (
+                          <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                        ) : (
+                          <AlertCircle className="h-4 w-4 text-red-400 shrink-0" />
+                        )}
+                        <span className="font-medium">{statusOpenAi.msg}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Modelo do ChatGPT */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="openaiModel" className="text-xs font-semibold">
+                        Modelo do ChatGPT
+                      </Label>
+                      <Select
+                        value={configuracoes.openaiModel || 'gpt-4o-mini'}
+                        onValueChange={(val) =>
+                          setConfiguracoes({ ...configuracoes, openaiModel: val })
+                        }
+                      >
+                        <SelectTrigger id="openaiModel" className="text-xs">
+                          <SelectValue placeholder="Selecione o modelo" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="gpt-4o-mini" className="text-xs">
+                            <span className="font-semibold text-emerald-400">gpt-4o-mini</span>{' '}
+                            (Recomendado • Rápido e Econômico)
+                          </SelectItem>
+                          <SelectItem value="gpt-4o" className="text-xs">
+                            <span className="font-semibold text-blue-400">gpt-4o</span>{' '}
+                            (Mais Inteligente • Casos Clínicos Complexos)
+                          </SelectItem>
+                          <SelectItem value="gpt-3.5-turbo" className="text-xs">
+                            <span>gpt-3.5-turbo</span> (Legado)
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-[11px] text-muted-foreground">
+                        O <strong>gpt-4o-mini</strong> é o modelo oficial da OpenAI mais recomendado para velocidade em chats de WhatsApp e custo reduzido.
+                      </p>
+                    </div>
+
+                    {/* Instruções do Sistema / Personalidade da Clínica */}
+                    <div className="space-y-1.5">
+                      <Label htmlFor="openaiPrompt" className="text-xs font-semibold">
+                        Instrução do Assistente (System Prompt)
+                      </Label>
+                      <Textarea
+                        id="openaiPrompt"
+                        rows={3}
+                        value={configuracoes.openaiSystemPrompt || ''}
+                        onChange={(e) =>
+                          setConfiguracoes({
+                            ...configuracoes,
+                            openaiSystemPrompt: e.target.value,
+                          })
+                        }
+                        placeholder="Ex: Você é a assistente de atendimento da clínica Dra. Rosangela Santos. Seja cordial, acolhedora, responda dúvidas sobre tratamentos e sempre convide o paciente para uma avaliação presencial no JTR."
+                        className="text-xs resize-none"
+                      />
+                      <p className="text-[11px] text-muted-foreground">
+                        Define o tom de voz e como o ChatGPT deve responder aos pacientes.
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Card Google Gemini AI */}
+              <Card className="border-indigo-200 dark:border-indigo-900/40 shadow-sm">
+                <CardHeader className="bg-indigo-50/50 dark:bg-indigo-950/20 py-3">
+                  <CardTitle className="flex items-center gap-2 text-indigo-700 dark:text-indigo-400 text-sm font-semibold">
+                    <Sparkles className="h-4 w-4" />
+                    Google Gemini AI (Importação & Scanner de Prontuários)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4 pt-3">
                   <div>
-                    <Label htmlFor="geminiApiKey">Chave de API (Google AI Studio)</Label>
-                    <p className="text-xs text-muted-foreground mb-2">Usada para ler prontuários em PDF/Imagens e extrair os dados automaticamente.</p>
+                    <Label htmlFor="geminiApiKey" className="text-xs">Chave de API (Google AI Studio)</Label>
+                    <p className="text-[11px] text-muted-foreground mb-1.5">Usada alternativamente para ler prontuários em PDF/Imagens e extrair os dados automaticamente.</p>
                     <div className="flex gap-2">
                       <Input
                         id="geminiApiKey"
@@ -357,6 +568,7 @@ const Configuracoes = () => {
                         value={configuracoes.geminiApiKey || ''}
                         onChange={(e) => setConfiguracoes({ ...configuracoes, geminiApiKey: e.target.value })}
                         placeholder="Ex: AIzaSy..."
+                        className="text-xs font-mono"
                       />
                     </div>
                   </div>

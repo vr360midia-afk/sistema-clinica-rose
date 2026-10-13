@@ -6,18 +6,27 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const apiKey = Deno.env.get('LOVABLE_API_KEY');
-    if (!apiKey) {
-      return new Response(JSON.stringify({ error: 'LOVABLE_API_KEY ausente' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
     const body = await req.json().catch(() => null);
     const fileUrl: string | undefined = body?.fileUrl ?? body?.imageUrl;
     const nome: string = body?.nome || 'documento';
     const tipo: string = body?.tipo || 'outro';
+
+    // Suporta chave OpenAI vinda do body ou do ambiente
+    const openaiKey = (body?.apiKey || Deno.env.get('OPENAI_API_KEY') || '').trim();
+    const lovableKey = (Deno.env.get('LOVABLE_API_KEY') || '').trim();
+
+    if (!openaiKey && !lovableKey) {
+      return new Response(
+        JSON.stringify({
+          error:
+            'Chave de IA não configurada. Defina OPENAI_API_KEY ou LOVABLE_API_KEY nas variáveis de ambiente ou passe apiKey.',
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
 
     if (!fileUrl || typeof fileUrl !== 'string') {
       return new Response(JSON.stringify({ error: 'fileUrl ou imageUrl é obrigatório' }), {
@@ -44,13 +53,13 @@ Responda SOMENTE com um JSON válido, sem markdown, no formato:
 }
 Não invente diagnóstico definitivo; descreva apenas o que é observável e sinalize incertezas.`;
 
-    // Baixa o arquivo e envia inline (base64) — evita erros de fetch/robots.txt no provedor
+    // Baixa o arquivo e converte para base64
     const fileRes = await fetch(fileUrl);
     if (!fileRes.ok) {
       console.error(`Falha ao baixar arquivo [${fileRes.status}]`);
       return new Response(
         JSON.stringify({ error: 'Falha ao baixar arquivo para análise' }),
-        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -58,7 +67,7 @@ Não invente diagnóstico definitivo; descreva apenas o que é observável e sin
     if (buf.byteLength === 0) {
       return new Response(
         JSON.stringify({ error: 'Arquivo vazio' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -81,19 +90,33 @@ Não invente diagnóstico definitivo; descreva apenas o que é observável e sin
     } else {
       return new Response(
         JSON.stringify({ error: `Tipo de arquivo não suportado: ${mime}` }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const res = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    // Chamada à OpenAI (ChatGPT) ou fallback para Lovable
+    const endpoint = openaiKey
+      ? 'https://api.openai.com/v1/chat/completions'
+      : 'https://ai.gateway.lovable.dev/v1/chat/completions';
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    if (openaiKey) {
+      headers['Authorization'] = `Bearer ${openaiKey}`;
+    } else {
+      headers['Lovable-API-Key'] = lovableKey;
+      headers['X-Lovable-AIG-SDK'] = 'fetch';
+    }
+
+    const model = openaiKey ? (body?.model || 'gpt-4o-mini') : 'google/gemini-3.7-flash';
+
+    const res = await fetch(endpoint, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Lovable-API-Key': apiKey,
-        'X-Lovable-AIG-SDK': 'fetch',
-      },
+      headers,
       body: JSON.stringify({
-        model: 'google/gemini-3.7-flash',
+        model,
         messages: [
           {
             role: 'user',
@@ -111,7 +134,7 @@ Não invente diagnóstico definitivo; descreva apenas o que é observável e sin
       console.error(`AI gateway falhou [${res.status}]: ${details}`);
       return new Response(
         JSON.stringify({ error: 'Falha na análise por IA', status: res.status, details }),
-        { status: res.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        { status: res.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -127,8 +150,8 @@ Não invente diagnóstico definitivo; descreva apenas o que é observável e sin
     }
 
     return new Response(
-      JSON.stringify({ resumo: dados?.resumo || cleaned, dados }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      JSON.stringify({ resumo: dados?.resumo || cleaned, dados, model_used: model }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (err) {
     console.error('analisar-documento erro:', err);

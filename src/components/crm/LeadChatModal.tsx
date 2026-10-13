@@ -25,11 +25,22 @@ import {
   User,
   ShieldCheck,
   Smile,
+  Bot,
+  Flame,
+  ThermometerSnowflake,
+  Sun,
+  ChevronDown,
+  ChevronUp,
+  RefreshCw,
+  Copy,
+  Zap,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { abrirWhatsAppWeb } from '@/utils/crmWhatsApp';
 import { COLUMNS } from './KanbanBoard';
+import { sugerirRespostasCrm, type CrmAnaliseIa } from '@/services/chatgptService';
+import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 
 export interface ChatMessage {
   id: string;
@@ -53,6 +64,7 @@ export const LeadChatModal: React.FC<LeadChatModalProps> = ({
   lead,
   onLeadUpdated,
 }) => {
+  const { configuracoes } = useConfiguracoes();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(true);
   const [textoResposta, setTextoResposta] = useState('');
@@ -61,10 +73,42 @@ export const LeadChatModal: React.FC<LeadChatModalProps> = ({
     lead?.stage || lead?.status || 'novo_lead'
   );
 
+  // Estados do Copiloto IA (ChatGPT)
+  const [copilotoAberto, setCopilotoAberto] = useState(false);
+  const [gerandoIa, setGerandoIa] = useState(false);
+  const [analiseIa, setAnaliseIa] = useState<CrmAnaliseIa | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const handleGerarSugestoesIa = async () => {
+    setGerandoIa(true);
+    setCopilotoAberto(true);
+    try {
+      const resultado = await sugerirRespostasCrm({
+        lead,
+        messages,
+        apiKey: configuracoes?.openaiApiKey,
+        model: configuracoes?.openaiModel || 'gpt-4o-mini',
+        systemPrompt: configuracoes?.openaiSystemPrompt,
+      });
+      setAnaliseIa(resultado);
+      toast.success('Sugestões geradas com o ChatGPT!');
+    } catch (err: any) {
+      toast.error(err.message || 'Falha ao consultar ChatGPT', {
+        description: 'Verifique se sua chave da OpenAI está cadastrada em Configurações > APIs.',
+      });
+    } finally {
+      setGerandoIa(false);
+    }
+  };
+
+  const handleUsarSugestao = (texto: string) => {
+    setTextoResposta(texto);
+    toast.success('Sugestão inserida no chat! Edite ou clique em Enviar.');
   };
 
   useEffect(() => {
@@ -378,6 +422,142 @@ export const LeadChatModal: React.FC<LeadChatModalProps> = ({
             })
           )}
           <div ref={messagesEndRef} />
+        </div>
+
+        {/* ================================================================== */}
+        {/* Painel do Copiloto IA (ChatGPT) */}
+        {/* ================================================================== */}
+        <div className="bg-slate-900 border-t border-slate-800 shrink-0">
+          {/* Barra de Gatilho do Copiloto */}
+          <div className="px-3 py-2 flex items-center justify-between bg-slate-900/90 text-xs">
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  if (!analiseIa && !copilotoAberto) {
+                    handleGerarSugestoesIa();
+                  } else {
+                    setCopilotoAberto(!copilotoAberto);
+                  }
+                }}
+                disabled={gerandoIa}
+                className="h-7 text-xs gap-1.5 border-emerald-500/40 bg-emerald-950/30 text-emerald-400 hover:bg-emerald-900/40 hover:text-emerald-300 shadow-xs"
+              >
+                {gerandoIa ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-400" />
+                ) : (
+                  <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
+                )}
+                <span>Copiloto ChatGPT</span>
+                {copilotoAberto ? (
+                  <ChevronDown className="h-3 w-3 opacity-70" />
+                ) : (
+                  <ChevronUp className="h-3 w-3 opacity-70" />
+                )}
+              </Button>
+
+              {analiseIa?.temperatura && (
+                <Badge
+                  variant="outline"
+                  className={`text-[10px] px-2 py-0 border ${
+                    analiseIa.temperatura === 'Quente'
+                      ? 'border-orange-500/50 text-orange-400 bg-orange-950/40'
+                      : analiseIa.temperatura === 'Morno'
+                      ? 'border-amber-500/50 text-amber-400 bg-amber-950/40'
+                      : 'border-blue-500/50 text-blue-400 bg-blue-950/40'
+                  }`}
+                >
+                  {analiseIa.temperatura === 'Quente' && '🔥 Lead Quente'}
+                  {analiseIa.temperatura === 'Morno' && '🌤️ Lead Morno'}
+                  {analiseIa.temperatura === 'Frio' && '❄️ Lead Frio'}
+                </Badge>
+              )}
+
+              {analiseIa?.interesse && (
+                <span className="text-[11px] text-slate-400 truncate max-w-[200px] hidden sm:inline">
+                  • {analiseIa.interesse}
+                </span>
+              )}
+            </div>
+
+            {copilotoAberto && (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={handleGerarSugestoesIa}
+                disabled={gerandoIa}
+                className="h-7 text-[11px] gap-1 text-slate-400 hover:text-emerald-400 px-2"
+                title="Regerar sugestões com ChatGPT"
+              >
+                <RefreshCw className={`h-3 w-3 ${gerandoIa ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">Novas Opções</span>
+              </Button>
+            )}
+          </div>
+
+          {/* Gaveta Aberta com as Sugestões */}
+          {copilotoAberto && (
+            <div className="p-3 bg-slate-950/80 border-t border-slate-800/80 max-h-56 overflow-y-auto space-y-2.5">
+              {gerandoIa ? (
+                <div className="flex items-center justify-center py-6 gap-2.5 text-xs text-slate-400">
+                  <Loader2 className="h-4 w-4 animate-spin text-emerald-400" />
+                  <span>ChatGPT está analisando as mensagens e gerando respostas personalizadas...</span>
+                </div>
+              ) : analiseIa?.sugestoes && analiseIa.sugestoes.length > 0 ? (
+                <div className="space-y-2">
+                  {analiseIa.resumo && (
+                    <p className="text-[11px] text-slate-400 italic bg-slate-900/60 p-2 rounded border border-slate-800">
+                      💡 <strong>Resumo do ChatGPT:</strong> {analiseIa.resumo}
+                    </p>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {analiseIa.sugestoes.map((sug, idx) => (
+                      <div
+                        key={idx}
+                        className="p-2.5 rounded-lg border border-slate-800 hover:border-emerald-500/50 bg-slate-900/90 transition-all flex flex-col justify-between group"
+                      >
+                        <div className="space-y-1">
+                          <span className="text-[11px] font-semibold text-emerald-400 flex items-center gap-1">
+                            {sug.titulo}
+                          </span>
+                          <p className="text-[11px] text-slate-200 line-clamp-3 leading-relaxed">
+                            {sug.texto}
+                          </p>
+                        </div>
+
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => handleUsarSugestao(sug.texto)}
+                          className="h-6 text-[10px] mt-2 gap-1 bg-emerald-600/80 hover:bg-emerald-600 text-white font-medium"
+                        >
+                          <Zap className="h-2.5 w-2.5" />
+                          Usar no Chat
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-4 text-xs text-slate-400 space-y-2">
+                  <p>Clique abaixo para o ChatGPT analisar a conversa deste paciente e sugerir a melhor resposta.</p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleGerarSugestoesIa}
+                    className="h-8 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    Gerar Sugestões com ChatGPT
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Rodapé: Campo de Envio de Resposta */}
