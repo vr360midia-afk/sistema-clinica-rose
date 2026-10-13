@@ -39,6 +39,19 @@ const AgendamentoPublico = () => {
 
       if (error) throw error;
       
+      // Insere automaticamente no CRM de Leads
+      try {
+        await supabase.from('crm_leads').insert([{
+          nome: formData.nome,
+          telefone: formData.telefone,
+          status: 'novo',
+          origem: 'Site / Agendamento Online',
+          observacoes: `Solicitou consulta para ${formData.data.split('-').reverse().join('/')} às ${formData.hora}. Motivo: ${formData.motivo || 'Consulta de avaliação'}`
+        }]);
+      } catch (crmErr) {
+        console.warn('Erro ao registrar lead no CRM:', crmErr);
+      }
+
       toast.success('Agendamento solicitado com sucesso!');
       setStep(2);
     } catch (error) {

@@ -23,15 +23,18 @@ import {
   DollarSign,
   X,
   MessageSquare,
+  Zap,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import LeadModal from '@/components/crm/LeadModal';
+import LeadIntegracoesModal from '@/components/crm/LeadIntegracoesModal';
 
 export default function CRM() {
   const [leads, setLeads] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isIntegracoesOpen, setIsIntegracoesOpen] = useState(false);
   const [editingLead, setEditingLead] = useState<any>(null);
 
   // Filtros
@@ -40,6 +43,48 @@ export default function CRM() {
 
   useEffect(() => {
     fetchLeads();
+
+    // Inscrição Realtime no Supabase para receber novos leads instantaneamente
+    const canal = supabase
+      .channel('crm_leads_realtime_stream')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'crm_leads' },
+        (payload) => {
+          const novoLead: any = payload.new;
+          if (!novoLead) return;
+          toast.info(`🎉 Novo lead recebido: ${novoLead.nome || 'Novo Contato'}!`, {
+            description: `Origem: ${novoLead.origem || 'Meta Ads / Site'}`,
+          });
+          setLeads((prev) => [novoLead, ...prev.filter((l) => l.id !== novoLead.id)]);
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'crm_leads' },
+        (payload) => {
+          const leadAtualizado: any = payload.new;
+          if (!leadAtualizado) return;
+          setLeads((prev) =>
+            prev.map((l) => (l.id === leadAtualizado.id ? leadAtualizado : l))
+          );
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'crm_leads' },
+        (payload) => {
+          const leadDeletadoId = (payload.old as any)?.id;
+          if (leadDeletadoId) {
+            setLeads((prev) => prev.filter((l) => l.id !== leadDeletadoId));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(canal);
+    };
   }, []);
 
   const fetchLeads = async (silencioso = false) => {
@@ -146,6 +191,18 @@ export default function CRM() {
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsIntegracoesOpen(true)}
+              className="h-9 gap-1.5 border-blue-200 dark:border-blue-900 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/50"
+              title="Configurar captura automática de leads (Meta Ads, Site, Webhooks)"
+            >
+              <Zap className="h-4 w-4 text-blue-600 animate-pulse" />
+              <span className="hidden md:inline">Puxar Leads (Meta & Webhook)</span>
+              <span className="md:hidden">Integrações</span>
+            </Button>
+
             <Button
               variant="outline"
               size="sm"
@@ -258,6 +315,15 @@ export default function CRM() {
           onClose={() => setIsModalOpen(false)}
           lead={editingLead}
           onSave={() => fetchLeads(true)}
+        />
+      )}
+
+      {/* Modal de Integração Automática (Meta Ads, Site & Webhooks) */}
+      {isIntegracoesOpen && (
+        <LeadIntegracoesModal
+          isOpen={isIntegracoesOpen}
+          onClose={() => setIsIntegracoesOpen(false)}
+          onLeadCriado={() => fetchLeads(true)}
         />
       )}
     </Layout>
