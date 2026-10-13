@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ClipboardList, Plus, Trash2, MessageCircle, Check, X, Handshake, FileText, Pencil, FileSignature, Sparkles, CalendarDays } from 'lucide-react';
+import { ClipboardList, Plus, Trash2, MessageCircle, Check, X, Handshake, FileText, Pencil, FileSignature, Sparkles, CalendarDays, Link as LinkIcon } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { useOrcamentos, OrcamentoItem, Orcamento } from '@/hooks/useOrcamentos';
 import { useProcedimentos } from '@/hooks/useProcedimentos';
@@ -20,7 +20,7 @@ import { formatMoney } from '@/utils/exportCsv';
 import { toast } from 'sonner';
 import ContratoModal from '@/components/contratos/ContratoModal';
 import { useDentalSystem } from '@/context/DentalSystemContext';
-import { mapearDadosContrato } from '@/utils/contratoEngine';
+import { mapearDadosContrato, gerarLinkAssinaturaContrato } from '@/utils/contratoEngine';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -333,6 +333,20 @@ const PatientOrcamentos = ({ patient }: Props) => {
   };
 
 
+  const copiarLinkContrato = (o: (typeof orcamentos)[number]) => {
+    const snap = mapearDadosContrato({
+      patient,
+      orcamento: o,
+      configuracoes,
+      dentistas,
+    });
+    const link = gerarLinkAssinaturaContrato(snap);
+    navigator.clipboard.writeText(link);
+    toast.success('Link de assinatura do contrato copiado com sucesso!', {
+      description: 'Envie para o paciente assinar pelo celular.',
+    });
+  };
+
   const enviarWhatsApp = (o: (typeof orcamentos)[number]) => {
     if (!patient?.telefone) {
       toast.error('Paciente sem telefone cadastrado');
@@ -345,10 +359,26 @@ const PatientOrcamentos = ({ patient }: Props) => {
       `*Total: ${formatMoney(o.total)}*`,
       o.formasPagamento ? `Formas de pagamento: ${o.formasPagamento}` : null,
       o.observacoes || null,
-      '',
-      'Podemos seguir com este plano de tratamento?',
-    ].filter(Boolean);
-    openWhatsApp(patient.telefone, linhas.join('\n'));
+    ];
+
+    if (o.status === 'aprovado') {
+      const snap = mapearDadosContrato({
+        patient,
+        orcamento: o,
+        configuracoes,
+        dentistas,
+      });
+      const link = gerarLinkAssinaturaContrato(snap);
+      linhas.push('');
+      linhas.push(`✍️ *LINK PARA VISUALIZAR E ASSINAR O CONTRATO ONLINE:*`);
+      linhas.push(`Clique no link abaixo pelo seu celular para ler o contrato e assinar digitalmente:`);
+      linhas.push(`👉 ${link}`);
+    } else {
+      linhas.push('');
+      linhas.push('Podemos seguir com este plano de tratamento?');
+    }
+
+    openWhatsApp(patient.telefone, linhas.filter(Boolean).join('\n'));
     updateStatus(o.id, 'enviado');
   };
 
@@ -459,6 +489,18 @@ const PatientOrcamentos = ({ patient }: Props) => {
                 >
                   <FileSignature className="h-4 w-4 mr-1" /> Contrato
                 </Button>
+
+                {o.status === 'aprovado' && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                    onClick={() => copiarLinkContrato(o)}
+                    title="Copiar link oficial para o paciente assinar digitalmente"
+                  >
+                    <LinkIcon className="h-4 w-4 mr-1" /> Copiar Link
+                  </Button>
+                )}
 
                 {o.status !== 'aprovado' && o.status !== 'recusado' && (
                   <>

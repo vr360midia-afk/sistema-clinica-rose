@@ -859,3 +859,59 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
 </body>
 </html>`;
 };
+
+/**
+ * Codifica o snapshot do contrato em uma string compacta e segura para URL (base64url).
+ * Suporta caracteres UTF-8 e acentuação brasileira perfeitamente.
+ */
+export function codificarContratoUrl(snapshot: ContratoSnapshot): string {
+  try {
+    const json = JSON.stringify(snapshot);
+    const utf8Bytes = new TextEncoder().encode(json);
+    let binary = '';
+    for (let i = 0; i < utf8Bytes.length; i++) {
+      binary += String.fromCharCode(utf8Bytes[i]);
+    }
+    return btoa(binary)
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+  } catch (e) {
+    console.error('Erro ao codificar contrato:', e);
+    return '';
+  }
+}
+
+/**
+ * Decodifica a string da URL de volta para o ContratoSnapshot.
+ */
+export function decodificarContratoUrl(encoded: string): ContratoSnapshot | null {
+  try {
+    let base64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
+    while (base64.length % 4) {
+      base64 += '=';
+    }
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    const json = new TextDecoder().decode(bytes);
+    return JSON.parse(json) as ContratoSnapshot;
+  } catch (e) {
+    console.error('Erro ao decodificar contrato:', e);
+    return null;
+  }
+}
+
+/**
+ * Gera o link público oficial para visualização e assinatura digital do contrato pelo paciente.
+ */
+export function gerarLinkAssinaturaContrato(snapshot: ContratoSnapshot, docId?: string): string {
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const token = Math.random().toString(36).substring(2, 10);
+  const encoded = codificarContratoUrl(snapshot);
+  const id = docId || snapshot.contratoId;
+  return `${origin}/assinar-contrato/${id}?token=${token}&c=${encoded}`;
+}
+

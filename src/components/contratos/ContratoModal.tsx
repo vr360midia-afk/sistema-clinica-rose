@@ -27,6 +27,10 @@ import {
   User,
   Loader2,
   Eye,
+  Link as LinkIcon,
+  ExternalLink,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -42,6 +46,7 @@ import {
   mapearDadosContrato,
   gerarHtmlContrato,
   ContratoSnapshot,
+  gerarLinkAssinaturaContrato,
 } from '@/utils/contratoEngine';
 import { downloadHtmlAsPdf } from '@/utils/pdfDownload';
 import { openWhatsApp } from '@/lib/whatsapp';
@@ -73,6 +78,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
   const [cidadeLocal, setCidadeLocal] = useState<string>('São Paulo');
   const [salvando, setSalvando] = useState<boolean>(false);
   const [baixandoPdf, setBaixandoPdf] = useState<boolean>(false);
+  const [copiouLink, setCopiouLink] = useState<boolean>(false);
 
   // Assinatura digital
   const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
@@ -264,6 +270,23 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     }
   };
 
+  const handleCopiarLinkAssinatura = () => {
+    if (!snapshotAtual) return;
+    const link = gerarLinkAssinaturaContrato(snapshotAtual, contratoVisualizacao?.id);
+    navigator.clipboard.writeText(link);
+    setCopiouLink(true);
+    toast.success('Link de assinatura copiado com sucesso!', {
+      description: 'Envie o link para o paciente assinar pelo celular.',
+    });
+    setTimeout(() => setCopiouLink(false), 2500);
+  };
+
+  const handleAbrirPaginaAssinatura = () => {
+    if (!snapshotAtual) return;
+    const link = gerarLinkAssinaturaContrato(snapshotAtual, contratoVisualizacao?.id);
+    window.open(link, '_blank');
+  };
+
   // Envio de notificação no WhatsApp
   const handleEnviarWhatsApp = () => {
     if (!patient?.telefone) {
@@ -273,6 +296,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
 
     const clinicaPix = snapshotAtual?.clinica.chavePix || configuracoes?.telefone || configuracoes?.cnpj || '';
     const clinicaNome = snapshotAtual?.clinica.nome || configuracoes?.nomeClinica || 'Clínica Odontológica';
+    const linkAssinatura = snapshotAtual ? gerarLinkAssinaturaContrato(snapshotAtual, contratoVisualizacao?.id) : '';
 
     let mensagem =
       `Olá, ${patient.nome}! Tudo bem?\n\n` +
@@ -294,6 +318,14 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
         `• *Chave PIX:* ${clinicaPix}\n` +
         `• *Favorecido:* ${clinicaNome}\n` +
         `• Favor encaminhar o comprovante por este canal para baixa contábil e emissão do recibo.\n`;
+    }
+
+    if (linkAssinatura) {
+      mensagem +=
+        `\n✍️ *LINK PARA VISUALIZAR E ASSINAR DIGITALMENTE O CONTRATO:*\n` +
+        `Acesse o link abaixo pelo seu celular ou computador para conferir os termos e assinar online agora:\n` +
+        `👉 ${linkAssinatura}\n\n` +
+        `Após assinar, você também poderá baixar a sua via oficial em PDF diretamente pela página.\n`;
     }
 
     mensagem += `\nQualquer dúvida, nossa equipe está à sua inteira disposição!`;
@@ -675,12 +707,38 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                 type="button"
                 variant="outline"
                 size="sm"
+                className="h-9 gap-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950"
+                onClick={handleCopiarLinkAssinatura}
+                disabled={!snapshotAtual}
+                title="Copiar link para o paciente assinar online pelo celular"
+              >
+                {copiouLink ? <Check className="h-4 w-4 text-emerald-600" /> : <LinkIcon className="h-4 w-4" />}
+                {copiouLink ? 'Link Copiado!' : 'Copiar Link'}
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-9 gap-1.5 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-950"
+                onClick={handleAbrirPaginaAssinatura}
+                disabled={!snapshotAtual}
+                title="Abrir página pública de assinatura digital em nova aba"
+              >
+                <ExternalLink className="h-4 w-4" />
+                Abrir Assinatura
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
                 className="h-9 gap-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950"
                 onClick={handleEnviarWhatsApp}
                 disabled={!patient?.telefone || !snapshotAtual}
               >
                 <MessageCircle className="h-4 w-4" />
-                WhatsApp
+                WhatsApp (com Link)
               </Button>
 
               <Button

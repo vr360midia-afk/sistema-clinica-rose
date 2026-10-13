@@ -28,6 +28,7 @@ import Admin from '@/pages/Admin';
 import Lixeira from '@/pages/Lixeira';
 import AssinarAnamnese from '@/pages/AssinarAnamnese';
 import AssinarExtrato from '@/pages/AssinarExtrato';
+import AssinarContrato from '@/pages/AssinarContrato';
 import NotFound from '@/pages/NotFound';
 
 function App() {
@@ -42,6 +43,8 @@ function App() {
               <Route path="/agendar" element={<AgendamentoPublico />} />
               <Route path="/assinar-anamnese/:id" element={<AssinarAnamnese />} />
               <Route path="/assinar-extrato/:id" element={<AssinarExtrato />} />
+              <Route path="/assinar-contrato/:id" element={<AssinarContrato />} />
+              <Route path="/assinar-contrato" element={<AssinarContrato />} />
               <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/crm" element={<ProtectedRoute><CRM /></ProtectedRoute>} />
