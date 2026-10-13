@@ -937,12 +937,22 @@ export function decodificarContratoUrl(encoded: string): ContratoSnapshot | null
 
 /**
  * Gera o link público oficial para visualização e assinatura digital do contrato pelo paciente.
+ * Gera uma URL limpa e curta que não excede os limites de caracteres do WhatsApp Web nem navegadores.
  */
 export function gerarLinkAssinaturaContrato(snapshot: ContratoSnapshot, docId?: string): string {
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  const token = Math.random().toString(36).substring(2, 10);
-  const encoded = codificarContratoUrl(snapshot);
   const id = docId || snapshot.contratoId;
-  return `${origin}/assinar-contrato/${id}?token=${token}&c=${encoded}`;
+
+  // Garante que o snapshot esteja salvo no localStorage para carregamento imediato
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      window.localStorage.setItem(`contrato_${id}`, JSON.stringify(snapshot));
+      window.localStorage.setItem(`contrato_${snapshot.contratoId}`, JSON.stringify(snapshot));
+    } catch (_) {}
+  }
+
+  // URL curta e direta: https://meudominio/assinar-contrato/{id}
+  return `${origin}/assinar-contrato/${id}`;
 }
+
 

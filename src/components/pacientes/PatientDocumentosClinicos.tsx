@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { FileText, Plus, Trash2, PenTool, Printer, MessageCircle, ShieldCheck, ExternalLink, FileSignature } from 'lucide-react';
+import { FileText, Plus, Trash2, PenTool, Printer, MessageCircle, ShieldCheck, ExternalLink, FileSignature, Link as LinkIcon, Copy } from 'lucide-react';
 import { useDocumentosClinicos, DocumentoClinico, DocumentoClinicoItem, DocumentoClinicoTipo } from '@/hooks/useDocumentosClinicos';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { useDentistas } from '@/hooks/useDentistas';
@@ -111,15 +111,41 @@ const PatientDocumentosClinicos = ({ patient }: Props) => {
     setAssinandoDoc(null);
   };
 
-  const handleWhatsApp = (doc: DocumentoClinico) => {
+  const handleWhatsApp = async (doc: DocumentoClinico) => {
     if (!patient?.telefone) {
       toast.warning('Paciente sem telefone cadastrado.');
       return;
     }
-    const msg = `Olá ${patient.nome}! Seu documento "${doc.titulo}" foi emitido${
-      doc.assinadoEm ? ' e assinado digitalmente' : ''
-    } por ${configuracoes.nomeClinica || 'nossa clínica'}. Em instantes enviaremos o PDF.`;
+
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const linkAssinatura = `${origin}/assinar-contrato/${doc.id}`;
+
+    // Baixa o PDF do documento no computador para facilitar o anexo
+    try {
+      await gerarDocumentoClinicoPdf(doc, configuracoes);
+    } catch (_) {}
+
+    let msg = '';
+    if (doc.tipo === 'contrato') {
+      msg =
+        `Olá, ${patient.nome}! Tudo bem?\n\n` +
+        `Aqui está o seu *${doc.titulo}* emitido por *${configuracoes.nomeClinica || 'nossa clínica'}*.\n\n` +
+        `✍️ *LINK PARA VISUALIZAR E ASSINAR O CONTRATO ONLINE:*\n` +
+        `Acesse o link abaixo pelo seu celular para conferir os termos e assinar online agora:\n` +
+        `👉 ${linkAssinatura}\n\n` +
+        `Após assinar, você também poderá baixar a sua via oficial em PDF diretamente pela página.\n` +
+        `Qualquer dúvida, nossa equipe está à sua inteira disposição!`;
+    } else {
+      msg = `Olá ${patient.nome}! Seu documento "${doc.titulo}" foi emitido${
+        doc.assinadoEm ? ' e assinado digitalmente' : ''
+      } por ${configuracoes.nomeClinica || 'nossa clínica'}.\n\n` +
+      `👉 Para acessar seu documento online: ${linkAssinatura}`;
+    }
+
     openWhatsApp(patient.telefone, msg);
+    toast.info('Abrindo WhatsApp Web com o link!', {
+      description: 'O PDF do documento também foi baixado caso deseje anexá-lo na conversa.',
+    });
   };
 
   const textoCfo = (doc: DocumentoClinico) => {
@@ -263,6 +289,24 @@ const PatientDocumentosClinicos = ({ patient }: Props) => {
                 <Button size="sm" variant="outline" onClick={() => handleWhatsApp(doc)}>
                   <MessageCircle className="h-4 w-4 mr-2" /> WhatsApp
                 </Button>
+                {doc.tipo === 'contrato' && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/40"
+                    onClick={() => {
+                      const origin = typeof window !== 'undefined' ? window.location.origin : '';
+                      const link = `${origin}/assinar-contrato/${doc.id}`;
+                      navigator.clipboard.writeText(link);
+                      toast.success('Link de assinatura copiado com sucesso!', {
+                        description: 'Envie o link para o paciente assinar pelo celular.',
+                      });
+                    }}
+                    title="Copiar link de assinatura para o paciente"
+                  >
+                    <LinkIcon className="h-4 w-4 mr-2" /> Copiar Link
+                  </Button>
+                )}
                 <Button size="sm" variant="ghost" onClick={() => deleteDocumento(doc.id)}>
                   <Trash2 className="h-4 w-4 text-destructive" />
                 </Button>

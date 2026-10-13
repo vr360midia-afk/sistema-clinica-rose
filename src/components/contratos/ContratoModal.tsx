@@ -357,10 +357,34 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     }
   };
 
-  // Copia link de assinatura pública
-  const handleCopiarLinkAssinatura = () => {
+  // Copia link de assinatura pública (garantindo que o contrato esteja registrado no banco)
+  const handleCopiarLinkAssinatura = async () => {
     if (!snapshotAtual) return;
-    const link = gerarLinkAssinaturaContrato(snapshotAtual, contratoVisualizacao?.id);
+    let docId = contratoVisualizacao?.id || documentoIdSendoEditado;
+
+    // Se ainda não foi emitido no banco, salva agora para gerar UUID permanente
+    if (!docId && orcamentoAtual) {
+      try {
+        const htmlFinal = gerarHtmlContrato(snapshotAtual);
+        const docCriado = await salvarDocumento({
+          pacienteId: patient?.id,
+          pacienteNome: patient?.nome,
+          tipo: 'contrato',
+          titulo: `Contrato Odontológico - Orçamento #${snapshotAtual.orcamento.numeroIdentificador}`,
+          conteudo: htmlFinal,
+          itens: snapshotAtual as any,
+          dentista: snapshotAtual.clinica.dentistaResponsavel || selectedDentistaNome || null,
+        });
+        if (docCriado?.id) {
+          docId = docCriado.id;
+          setContratoVisualizacao(docCriado);
+        }
+      } catch (err) {
+        console.warn('Pré-gravação ao copiar link:', err);
+      }
+    }
+
+    const link = gerarLinkAssinaturaContrato(snapshotAtual, docId || undefined);
     navigator.clipboard.writeText(link);
     setCopiouLink(true);
     toast.success('Link de assinatura copiado com sucesso!', {
@@ -370,23 +394,73 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
   };
 
   // Abre a tela pública de assinatura em nova aba
-  const handleAbrirPaginaAssinatura = () => {
+  const handleAbrirPaginaAssinatura = async () => {
     if (!snapshotAtual) return;
-    const link = gerarLinkAssinaturaContrato(snapshotAtual, contratoVisualizacao?.id);
+    let docId = contratoVisualizacao?.id || documentoIdSendoEditado;
+
+    if (!docId && orcamentoAtual) {
+      try {
+        const htmlFinal = gerarHtmlContrato(snapshotAtual);
+        const docCriado = await salvarDocumento({
+          pacienteId: patient?.id,
+          pacienteNome: patient?.nome,
+          tipo: 'contrato',
+          titulo: `Contrato Odontológico - Orçamento #${snapshotAtual.orcamento.numeroIdentificador}`,
+          conteudo: htmlFinal,
+          itens: snapshotAtual as any,
+          dentista: snapshotAtual.clinica.dentistaResponsavel || selectedDentistaNome || null,
+        });
+        if (docCriado?.id) {
+          docId = docCriado.id;
+          setContratoVisualizacao(docCriado);
+        }
+      } catch (err) {
+        console.warn('Pré-gravação ao abrir assinatura:', err);
+      }
+    }
+
+    const link = gerarLinkAssinaturaContrato(snapshotAtual, docId || undefined);
     window.open(link, '_blank');
   };
 
   // Envio de notificação no WhatsApp
-  const handleEnviarWhatsApp = () => {
+  const handleEnviarWhatsApp = async () => {
     if (!patient?.telefone) {
       toast.warning('Paciente não possui telefone cadastrado');
       return;
+    }
+    if (!snapshotAtual) return;
+
+    // Se ainda não foi emitido no banco, salva agora para gerar UUID permanente
+    let docId = contratoVisualizacao?.id || documentoIdSendoEditado;
+    if (!docId && orcamentoAtual) {
+      try {
+        const htmlFinal = gerarHtmlContrato(snapshotAtual);
+        const docCriado = await salvarDocumento({
+          pacienteId: patient?.id,
+          pacienteNome: patient?.nome,
+          tipo: 'contrato',
+          titulo: `Contrato Odontológico - Orçamento #${snapshotAtual.orcamento.numeroIdentificador}`,
+          conteudo: htmlFinal,
+          itens: snapshotAtual as any,
+          dentista: snapshotAtual.clinica.dentistaResponsavel || selectedDentistaNome || null,
+        });
+        if (docCriado?.id) {
+          docId = docCriado.id;
+          setContratoVisualizacao(docCriado);
+        }
+      } catch (err) {
+        console.warn('Pré-gravação ao enviar WhatsApp:', err);
+      }
     }
 
     const clinicaPix = snapshotAtual?.clinica.chavePix || configContrato.chavePix || configuracoes?.telefone || configuracoes?.cnpj || '';
     const favorecidoPix = snapshotAtual?.clinica.favorecidoPix || configContrato.favorecidoPix || snapshotAtual?.clinica.nome || configuracoes?.nomeClinica || 'Dra. Rosangela Santos';
     const bancoPix = snapshotAtual?.clinica.bancoPix || configContrato.bancoPix || '';
-    const linkAssinatura = snapshotAtual ? gerarLinkAssinaturaContrato(snapshotAtual, contratoVisualizacao?.id) : '';
+    const linkAssinatura = gerarLinkAssinaturaContrato(snapshotAtual, docId || undefined);
+
+    // Baixa o PDF no computador para facilitar anexar caso a recepcionista deseje arrastar na conversa
+    handleDownloadPdf();
 
     let mensagem =
       `Olá, ${patient.nome}! Tudo bem?\n\n` +
@@ -422,6 +496,9 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     mensagem += `\nQualquer dúvida, nossa equipe está à sua inteira disposição!`;
 
     openWhatsApp(patient.telefone, mensagem);
+    toast.info('Abrindo WhatsApp Web com o link de assinatura!', {
+      description: 'O PDF do contrato também foi baixado caso deseje anexá-lo na conversa.',
+    });
   };
 
   // Aplicação da Assinatura Digital Interna

@@ -58,11 +58,10 @@ export default function AssinarContrato() {
     async function carregarContrato() {
       setLoading(true);
 
-      // 1. Tenta decodificar da URL (método mais resiliente, funciona sem login em qualquer celular)
+      // 1. Tenta decodificar da URL (caso algum link legado ainda contenha o parâmetro ?c=)
       if (encodedData) {
         const decoded = decodificarContratoUrl(encodedData);
         if (decoded) {
-          // Checa se já havia sido assinado localmente
           const localCache = localStorage.getItem(`contrato_assinado_${decoded.contratoId}`);
           if (localCache) {
             try {
@@ -79,20 +78,48 @@ export default function AssinarContrato() {
         }
       }
 
-      // 2. Tenta recuperar do localStorage por ID
+      // 2. Tenta recuperar do localStorage por ID imediato
       if (id) {
         const localCache = localStorage.getItem(`contrato_assinado_${id}`) || localStorage.getItem(`contrato_${id}`);
         if (localCache) {
           try {
             const cachedSnap = JSON.parse(localCache);
-            setSnapshot(cachedSnap);
-            setLoading(false);
-            return;
+            if (cachedSnap) {
+              setSnapshot(cachedSnap);
+              // Não finaliza imediatamente se ainda puder sincronizar com a nuvem, mas já garante exibição
+            }
           } catch (_) {}
         }
       }
 
-      // 3. Tenta buscar no banco de dados Supabase (caso haja permissão pública)
+      // 3. Tenta buscar via Edge Function pública 'contrato-publico' (funciona sem login no celular de qualquer paciente)
+      if (id) {
+        try {
+          const { data: funcData, error: funcErr } = await supabase.functions.invoke('contrato-publico', {
+            body: { action: 'get', id },
+          });
+
+          if (!funcErr && funcData?.ok && funcData?.snapshot) {
+            const snap = funcData.snapshot as ContratoSnapshot;
+            // Se já tem assinatura gravada no banco
+            if (funcData.assinadoEm && !snap.assinaturaPaciente) {
+              snap.status = 'assinado';
+              snap.assinaturaPaciente = {
+                assinaturaData: '',
+                nome: funcData.assinanteNome || snap.paciente.nome,
+                dataHora: funcData.assinadoEm,
+              };
+            }
+            setSnapshot(snap);
+            setLoading(false);
+            return;
+          }
+        } catch (edgeErr) {
+          console.warn('Edge function contrato-publico indisponível, tentando fallback direto:', edgeErr);
+        }
+      }
+
+      // 4. Fallback: Tenta buscar diretamente no banco de dados Supabase
       if (id) {
         try {
           const { data, error } = await supabase
@@ -107,6 +134,12 @@ export default function AssinarContrato() {
             return;
           }
         } catch (_) {}
+      }
+
+      // Se já tinha carregado do localStorage no passo 2
+      if (snapshot) {
+        setLoading(false);
+        return;
       }
 
       setLoading(false);
@@ -134,14 +167,34 @@ export default function AssinarContrato() {
       setSnapshot(updatedSnapshot);
       setShowSignatureModal(false);
 
-      // Salva no localStorage para persistência garantida no navegador
+      // Salva no localStorage para persistência garantida no navegador do paciente
       localStorage.setItem(`contrato_assinado_${snapshot.contratoId}`, JSON.stringify(updatedSnapshot));
       if (id) {
         localStorage.setItem(`contrato_assinado_${id}`, JSON.stringify(updatedSnapshot));
       }
 
-      // Tenta persistir no Supabase se disponível
+      // 1. Tenta persistir remotamente via Edge Function pública (sem exigir login)
+      let persistiuRemoto = false;
       if (id) {
+        try {
+          const { data: signRes, error: signErr } = await supabase.functions.invoke('contrato-publico', {
+            body: {
+              action: 'sign',
+              id,
+              signature: sigData.signature,
+              signerName: sigData.signerName || snapshot.paciente.nome,
+            },
+          });
+          if (!signErr && signRes?.ok) {
+            persistiuRemoto = true;
+          }
+        } catch (edgeErr) {
+          console.warn('Erro ao assinar via Edge function:', edgeErr);
+        }
+      }
+
+      // 2. Fallback: Tenta persistir direto no Supabase caso a tabela permita
+      if (id && !persistiuRemoto) {
         try {
           await supabase
             .from('documentos_clinicos')
@@ -153,7 +206,7 @@ export default function AssinarContrato() {
             })
             .eq('id', id);
         } catch (dbErr) {
-          console.warn('Persistência remota silenciosa:', dbErr);
+          console.warn('Persistência remota direta silenciosa:', dbErr);
         }
       }
 

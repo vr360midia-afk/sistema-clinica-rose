@@ -373,6 +373,11 @@ const PatientOrcamentos = ({ patient }: Props) => {
       linhas.push(`✍️ *LINK PARA VISUALIZAR E ASSINAR O CONTRATO ONLINE:*`);
       linhas.push(`Clique no link abaixo pelo seu celular para ler o contrato e assinar digitalmente:`);
       linhas.push(`👉 ${link}`);
+
+      // Baixa o PDF do orçamento automaticamente para facilitar o anexo se desejar
+      try {
+        baixarPdf(o);
+      } catch (_) {}
     } else {
       linhas.push('');
       linhas.push('Podemos seguir com este plano de tratamento?');
@@ -380,6 +385,12 @@ const PatientOrcamentos = ({ patient }: Props) => {
 
     openWhatsApp(patient.telefone, linhas.filter(Boolean).join('\n'));
     updateStatus(o.id, 'enviado');
+    toast.info('Abrindo WhatsApp Web!', {
+      description:
+        o.status === 'aprovado'
+          ? 'Link de assinatura incluso na mensagem e PDF baixado para facilitar envio!'
+          : 'Mensagem do orçamento pronta no WhatsApp.',
+    });
   };
 
 
