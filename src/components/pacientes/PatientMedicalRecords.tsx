@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { FileText, Plus, Calendar, Pencil } from 'lucide-react';
+import { FileText, Plus, Calendar, Pencil, Sparkles } from 'lucide-react';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import EmptyState from '@/components/common/EmptyState';
 import ProntuarioModal from '@/components/prontuarios/ProntuarioModal';
@@ -117,10 +117,40 @@ const PatientMedicalRecords = ({ patient }: PatientMedicalRecordsProps) => {
                 </div>
               )}
 
+              {prontuario.restauracoesPreexistentes?.possuiPreexistentes && (
+                <div className="p-3 rounded-md bg-amber-500/10 border border-amber-500/30 text-xs space-y-1.5 text-foreground">
+                  <div className="flex items-center justify-between font-semibold text-amber-700 dark:text-amber-400">
+                    <span className="flex items-center gap-1.5">
+                      <Sparkles className="h-3.5 w-3.5" />
+                      Restaurações Preexistentes & Lentes em Resina
+                    </span>
+                    {prontuario.restauracoesPreexistentes.dataProximaManutencaoSemestral && (
+                      <Badge variant="outline" className="border-amber-400 text-amber-700 dark:text-amber-300 bg-amber-100/50 dark:bg-amber-950/50">
+                        📅 Manutenção: {new Date(`${prontuario.restauracoesPreexistentes.dataProximaManutencaoSemestral}T12:00:00`).toLocaleDateString('pt-BR')}
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-muted-foreground">
+                    <div><strong>Tipo:</strong> {prontuario.restauracoesPreexistentes.tipoRestauracao || 'Lentes/Facetas em Resina'}</div>
+                    <div><strong>Dentes:</strong> {prontuario.restauracoesPreexistentes.dentesEnvolvidos || 'Conforme exame'}</div>
+                    <div><strong>Remoção Prevista:</strong> {prontuario.restauracoesPreexistentes.remocaoPrevista ? 'Sim' : 'Não'}</div>
+                    <div><strong>Tratamento Adicional:</strong> {prontuario.restauracoesPreexistentes.necessidadeTratamentoAdicional ? 'Sim' : 'Não'}</div>
+                    {prontuario.restauracoesPreexistentes.condicoesAposRemocao && (
+                      <div className="sm:col-span-2"><strong>Condições pós-remoção:</strong> {prontuario.restauracoesPreexistentes.condicoesAposRemocao}</div>
+                    )}
+                    {prontuario.restauracoesPreexistentes.orcamentoComplementar && (
+                      <div className="sm:col-span-2 text-primary font-medium">
+                        <strong>Orçamento Complementar:</strong> R$ {prontuario.restauracoesPreexistentes.orcamentoComplementar} ({prontuario.restauracoesPreexistentes.aprovacaoPaciente || 'Pendente de aprovação'})
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {prontuario.planoTratamento && (
                 <div>
                   <span className="text-sm font-medium">Plano de Tratamento:</span>
-                  <p className="text-sm text-muted-foreground mt-1">{prontuario.planoTratamento}</p>
+                  <p className="text-sm text-muted-foreground mt-1 whitespace-pre-line">{prontuario.planoTratamento}</p>
                 </div>
               )}
 

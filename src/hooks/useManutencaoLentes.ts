@@ -60,6 +60,9 @@ export const useManutencaoLentes = (janelaDias = 30) => {
     });
 
     (prontuarios as any[]).forEach((p) => {
+      if (p.restauracoesPreexistentes?.possuiPreexistentes) {
+        registrar(p.pacienteId, p.data || p.criadoEm);
+      }
       const textos = [
         p.tratamento,
         p.planoTratamento,

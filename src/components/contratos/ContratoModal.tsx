@@ -40,9 +40,11 @@ import {
   CreditCard,
   X,
   RefreshCw,
+  Sparkles,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { Switch } from '@/components/ui/switch';
 
 import { useOrcamentos, Orcamento } from '@/hooks/useOrcamentos';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
@@ -58,6 +60,7 @@ import {
   gerarHtmlContrato,
   ContratoSnapshot,
   gerarLinkAssinaturaContrato,
+  isContratoLenteResina,
 } from '@/utils/contratoEngine';
 import { downloadHtmlAsPdf } from '@/utils/pdfDownload';
 import { openWhatsApp } from '@/lib/whatsapp';
@@ -262,6 +265,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
       dentistaNome: selectedDentistaNome || configContrato.dentistaResponsavelContrato || configuracoes?.croResponsavel,
       dentistaCro: dentistaAtual?.cro || configContrato.croResponsavelContrato || configuracoes?.croResponsavel,
       cidadeLocal: cidadeLocal || configContrato.cidadeForoContrato,
+      dadosRestauracoesPreexistentes: patient?.restauracoesPreexistentes,
     });
 
     setSnapshotAtual(snap);
@@ -275,6 +279,12 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     dentistaAtual,
     cidadeLocal,
   ]);
+
+  // Identifica se o contrato inclui lentes em resina composta e as cláusulas específicas
+  const temLentesResinaNoContrato = useMemo(() => {
+    if (!snapshotAtual) return false;
+    return isContratoLenteResina(snapshotAtual);
+  }, [snapshotAtual]);
 
   // HTML renderizado do contrato atual
   const htmlContratoAtual = useMemo(() => {
@@ -335,6 +345,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
       dentistaNome: selectedDentistaNome || configContrato.dentistaResponsavelContrato || configuracoes?.croResponsavel,
       dentistaCro: dentistaAtual?.cro || configContrato.croResponsavelContrato || configuracoes?.croResponsavel,
       cidadeLocal: cidadeLocal || configContrato.cidadeForoContrato,
+      dadosRestauracoesPreexistentes: patient?.restauracoesPreexistentes,
     });
     setSnapshotAtual(snap);
     toast.success('Valores padrão do sistema restaurados com sucesso.');
@@ -859,6 +870,47 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                       onChange={(e) => setCidadeLocal(e.target.value)}
                       placeholder="São Paulo"
                       className="h-9 text-xs border-border bg-background text-foreground"
+                    />
+                  </div>
+                </div>
+
+                {/* Disposições Específicas: Lentes em Resina Composta e Restaurações Preexistentes */}
+                <div className="p-3 bg-card rounded-lg border border-border shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-1.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 shrink-0">
+                      <Sparkles className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <div className="font-semibold text-foreground flex items-center gap-2">
+                        <span>Cláusulas de Lentes em Resina e Restaurações Preexistentes</span>
+                        <Badge
+                          variant={temLentesResinaNoContrato ? 'default' : 'outline'}
+                          className={cn(
+                            "text-[10px] h-4 px-1.5 font-medium",
+                            temLentesResinaNoContrato ? "bg-amber-600 text-white hover:bg-amber-700" : ""
+                          )}
+                        >
+                          {temLentesResinaNoContrato ? '✓ Cláusulas 4ª e 5ª Inclusas' : 'Não aplicável'}
+                        </Badge>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        {temLentesResinaNoContrato
+                          ? 'Inclui automaticamente a Cláusula 4ª (Manutenção Semestral a cada 6 meses) e Cláusula 5ª (Restaurações Preexistentes, Condições Ocultas e Orçamento Complementar).'
+                          : 'As cláusulas de lentes em resina e restaurações preexistentes são inseridas automaticamente para orçamentos de lentes/facetas ou pelo botão ao lado.'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                    <Label htmlFor="toggleLentesResina" className="text-xs text-muted-foreground cursor-pointer select-none">
+                      {temLentesResinaNoContrato ? 'Incluir Cláusulas' : 'Desativadas'}
+                    </Label>
+                    <Switch
+                      id="toggleLentesResina"
+                      checked={temLentesResinaNoContrato}
+                      onCheckedChange={(checked) => {
+                        setIsManuallyEdited(true);
+                        setSnapshotAtual((prev) => (prev ? { ...prev, incluiLentesResina: checked } : prev));
+                      }}
                     />
                   </div>
                 </div>
@@ -1426,6 +1478,63 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                         rows={3}
                         className="text-xs border-border bg-background text-foreground"
                       />
+                    </div>
+
+                    {/* Seção 5: Cláusulas de Lentes em Resina e Restaurações Preexistentes */}
+                    <div className="p-4 bg-card rounded-lg border border-border shadow-sm space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                          <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                          5. Cláusulas de Lentes em Resina e Restaurações Preexistentes
+                        </h4>
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="incluiLentesSwitchEdit" className="text-xs text-muted-foreground cursor-pointer select-none">
+                            {temLentesResinaNoContrato ? 'Ativadas' : 'Desativadas'}
+                          </Label>
+                          <Switch
+                            id="incluiLentesSwitchEdit"
+                            checked={temLentesResinaNoContrato}
+                            onCheckedChange={(checked) => {
+                              handleUpdateSnapshotField('incluiLentesResina', checked);
+                            }}
+                          />
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Insere as cláusulas de Manutenção Preventiva Semestral (a cada 6 meses) e de Restaurações Preexistentes / Condições Clínicas Ocultas, ajustando a numeração sequencial automaticamente.
+                      </p>
+
+                      {temLentesResinaNoContrato && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-2 border-t border-border">
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Tipo de Restauração Preexistente</Label>
+                            <Input
+                              value={snapshotAtual.dadosRestauracoesPreexistentes?.tipoRestauracao || ''}
+                              onChange={(e) => handleUpdateSnapshotField('dadosRestauracoesPreexistentes.tipoRestauracao', e.target.value)}
+                              placeholder="Ex: Lentes em resina, facetas..."
+                              className="h-8 text-xs border-border bg-background text-foreground"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Dentes Envolvidos</Label>
+                            <Input
+                              value={snapshotAtual.dadosRestauracoesPreexistentes?.dentesEnvolvidos || ''}
+                              onChange={(e) => handleUpdateSnapshotField('dadosRestauracoesPreexistentes.dentesEnvolvidos', e.target.value)}
+                              placeholder="Ex: 11, 12, 13, 21, 22, 23"
+                              className="h-8 text-xs border-border bg-background text-foreground"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Orçamento Complementar (R$)</Label>
+                            <Input
+                              value={snapshotAtual.dadosRestauracoesPreexistentes?.orcamentoComplementar || ''}
+                              onChange={(e) => handleUpdateSnapshotField('dadosRestauracoesPreexistentes.orcamentoComplementar', e.target.value)}
+                              placeholder="Ex: 450,00"
+                              className="h-8 text-xs border-border bg-background text-foreground"
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* Botões de Ação na Aba de Edição */}

@@ -1,6 +1,6 @@
 import { valorPorExtenso } from './recibo';
 import { formatMoney } from './exportCsv';
-import type { Paciente, Transacao } from '@/types/shared';
+import type { Paciente, Transacao, AvaliacaoRestauracoesPreexistentes } from '@/types/shared';
 import type { Orcamento } from '@/hooks/useOrcamentos';
 import type { ConfiguracoesGerais } from '@/hooks/useConfiguracoes';
 import { carregarConfiguracoesContratoSync, type ConfiguracoesContrato } from '@/hooks/useConfiguracoesContrato';
@@ -93,6 +93,8 @@ export interface ContratoSnapshot {
   orcamento: ContratoDadosOrcamento;
   financeiro: ContratoDadosFinanceiro;
   observacoesCustomizadas?: string;
+  incluiLentesResina?: boolean;
+  dadosRestauracoesPreexistentes?: AvaliacaoRestauracoesPreexistentes;
   assinaturaPaciente?: {
     assinaturaData: string;
     nome: string;
@@ -149,6 +151,54 @@ export const parseBrMoney = (valStr: string | number | undefined | null): number
 };
 
 /**
+ * Verifica se o contrato abrange tratamento com lentes em resina composta,
+ * facetas em resina, laminados em resina ou restaurações estéticas similares.
+ */
+export const isContratoLenteResina = (snapshot: ContratoSnapshot): boolean => {
+  // Se o contrato já foi assinado sem essa indicação prévia, mantém o documento original preservado
+  if (snapshot.status === 'assinado' && snapshot.incluiLentesResina !== true) {
+    return false;
+  }
+
+  // 1. Se explicitamente sinalizado no snapshot
+  if (snapshot.incluiLentesResina === true) return true;
+  if (snapshot.incluiLentesResina === false) return false;
+
+  // 2. Se o paciente possui restaurações preexistentes cadastradas no snapshot
+  if (snapshot.dadosRestauracoesPreexistentes?.possuiPreexistentes) {
+    return true;
+  }
+
+  // 3. Verifica dados do orçamento (itens, título e observações)
+  const itens = snapshot.orcamento?.itens || [];
+  const textao = [
+    snapshot.orcamento?.titulo || '',
+    snapshot.orcamento?.observacoes || '',
+    snapshot.observacoesCustomizadas || '',
+    ...itens.map((i) => `${i.nome} ${i.denteOuRegiao || ''}`),
+  ]
+    .join(' ')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  const temLente = textao.includes('lente') || textao.includes('faceta') || textao.includes('laminado');
+  const temResina = textao.includes('resina');
+
+  if (temLente && temResina) return true;
+  if (
+    textao.includes('lente de contato') ||
+    textao.includes('lentes em resina') ||
+    textao.includes('facetas em resina') ||
+    textao.includes('lentes resina')
+  ) {
+    return true;
+  }
+
+  return false;
+};
+
+/**
  * Mapeia os dados existentes no sistema para o modelo padronizado do contrato.
  * NUNCA inventa dados fictícios; preserva rigorosamente a integridade dos registros.
  */
@@ -161,6 +211,8 @@ export const mapearDadosContrato = ({
   dentistaNome,
   dentistaCro,
   cidadeLocal = 'São Paulo',
+  incluiLentesResina,
+  dadosRestauracoesPreexistentes,
 }: {
   patient: Partial<Paciente> | any;
   orcamento: Orcamento | any;
@@ -170,6 +222,8 @@ export const mapearDadosContrato = ({
   dentistaNome?: string;
   dentistaCro?: string;
   cidadeLocal?: string;
+  incluiLentesResina?: boolean;
+  dadosRestauracoesPreexistentes?: AvaliacaoRestauracoesPreexistentes;
 }): ContratoSnapshot => {
   const emitidoEmData = new Date();
   const emitidoEm = emitidoEmData.toISOString();
@@ -595,6 +649,8 @@ export const mapearDadosContrato = ({
     orcamento: dadosOrcamento,
     financeiro: dadosFinanceiro,
     observacoesCustomizadas: orcamento?.observacoes || undefined,
+    incluiLentesResina: incluiLentesResina !== undefined ? incluiLentesResina : undefined,
+    dadosRestauracoesPreexistentes: dadosRestauracoesPreexistentes || patient?.restauracoesPreexistentes || undefined,
     assinaturaPaciente: null,
     assinaturaDentista: null,
   };
@@ -607,6 +663,13 @@ export const mapearDadosContrato = ({
 export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
   const { paciente, clinica, orcamento, financeiro } = snapshot;
   const dataHojeExtenso = formatarDataPorExtenso(new Date(snapshot.emitidoEm), clinica.cidade || 'Local');
+
+  const incluiLentes = isContratoLenteResina(snapshot);
+  let numeroClausula = 0;
+  const numClausula = () => {
+    numeroClausula += 1;
+    return `CLÁUSULA ${numeroClausula}ª`;
+  };
 
   const parcelasSemEntrada = financeiro.parcelas.filter(
     (p) => !p.descricao.toLowerCase().includes('entrada')
@@ -901,7 +964,7 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
 
     <!-- Cláusula 1 - Do Objeto -->
     <div class="clausula-bloco">
-      <div class="clausula-titulo">CLÁUSULA 1ª — DO OBJETO E PROCEDIMENTOS APROVADOS</div>
+      <div class="clausula-titulo">${numClausula()} — DO OBJETO E PROCEDIMENTOS APROVADOS</div>
       <p class="paragrafo">
         O presente contrato tem por objeto a prestação de serviços profissionais odontológicos pela <strong>CONTRATADA</strong> em favor do(a) <strong>CONTRATANTE</strong>, conforme diagnóstico clínico prévio e plano de tratamento formalmente aprovado no <strong>Orçamento nº #${orcamento.numeroIdentificador}</strong> (${orcamento.titulo}), compreendendo a realização dos seguintes atos e procedimentos clínicos:
       </p>
@@ -944,9 +1007,9 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
       </p>
     </div>
 
-    <!-- 5. CLÁUSULA 2ª — DO VALOR TOTAL -->
+    <!-- CLÁUSULA — DO VALOR TOTAL -->
     <div class="clausula-bloco">
-      <div class="clausula-titulo">CLÁUSULA 2ª — DO VALOR TOTAL</div>
+      <div class="clausula-titulo">${numClausula()} — DO VALOR TOTAL</div>
       <p class="paragrafo">
         Pela execução integral dos procedimentos odontológicos pactuados na Cláusula 1ª, o(a) <strong>CONTRATANTE</strong> pagará à <strong>CONTRATADA</strong> o valor total global e líquido de <strong>${formatMoney(financeiro.total)}</strong> (<em>${financeiro.totalExtenso}</em>).
       </p>
@@ -976,9 +1039,9 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
       </p>
     </div>
 
-    <!-- 6. CLÁUSULA 3ª — DO PAGAMENTO MENSAL VIA PIX E FORMAS ACORDADAS NO ORÇAMENTO -->
+    <!-- CLÁUSULA — DO PAGAMENTO MENSAL VIA PIX E FORMAS ACORDADAS NO ORÇAMENTO -->
     <div class="clausula-bloco">
-      <div class="clausula-titulo">CLÁUSULA 3ª — DO PAGAMENTO MENSAL VIA PIX E FORMAS ACORDADAS NO ORÇAMENTO</div>
+      <div class="clausula-titulo">${numClausula()} — DO PAGAMENTO MENSAL VIA PIX E FORMAS ACORDADAS NO ORÇAMENTO</div>
       <p class="paragrafo">
         O adimplemento do valor total avençado na Cláusula 2ª dar-se-á estritamente em conformidade com o acordado no <strong>Orçamento nº #${orcamento.numeroIdentificador}</strong> e com as formas de pagamento convencionadas entre as partes, registradas como: <strong>"${financeiro.formaPagamento}"</strong>.
       </p>
@@ -1065,9 +1128,72 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
       </p>
     </div>
 
-    <!-- Cláusula 4 - Das Obrigações da Contratada -->
+    ${incluiLentes ? `
+    <!-- CLÁUSULA — DA MANUTENÇÃO SEMESTRAL DAS LENTES EM RESINA COMPOSTA -->
     <div class="clausula-bloco">
-      <div class="clausula-titulo">Cláusula 4ª — Das Obrigações da Contratada</div>
+      <div class="clausula-titulo">${numClausula()} — DA MANUTENÇÃO SEMESTRAL DAS LENTES EM RESINA COMPOSTA</div>
+      <p class="paragrafo">
+        O(A) <strong>CONTRATANTE</strong> declara estar ciente de que, após a realização do tratamento estético com lentes em resina composta, recomenda-se o comparecimento a consultas de manutenção preventiva <strong>a cada 6 (seis) meses</strong>, ou em intervalos menores quando houver indicação clínica da cirurgiã-dentista responsável.
+      </p>
+      <p class="paragrafo">
+        As consultas de manutenção têm como finalidade avaliar a integridade das restaurações, condições gengivais, adaptação marginal, oclusão, higiene bucal, pigmentação, desgaste, necessidade de polimento e eventuais reparos.
+      </p>
+      <p class="paragrafo">
+        <strong>Parágrafo Primeiro:</strong> O(A) <strong>CONTRATANTE</strong> compromete-se a observar as orientações profissionais e comparecer às consultas periódicas recomendadas, visando à preservação da saúde bucal e à conservação das restaurações estéticas.
+      </p>
+      <p class="paragrafo">
+        <strong>Parágrafo Segundo:</strong> A ausência de manutenção periódica poderá contribuir para a evolução de alterações clínicas, acúmulo de pigmentos, desgaste e outras intercorrências, devendo a relação entre essas circunstâncias e eventuais danos ser avaliada individualmente.
+      </p>
+      <p class="paragrafo">
+        <strong>Parágrafo Terceiro:</strong> As consultas de manutenção, procedimentos de polimento, reparos, ajustes ou substituições não estão automaticamente incluídos no valor do tratamento inicial, salvo previsão expressa em orçamento ou acordo específico. Eventuais custos deverão ser previamente informados e autorizados pelo(a) paciente, respeitados os direitos e garantias legais.
+      </p>
+      <p class="paragrafo">
+        <strong>Parágrafo Quarto:</strong> O acompanhamento semestral não constitui garantia de durabilidade permanente das restaurações nem substitui a necessidade de consultas extraordinárias diante de sintomas, fraturas, desconfortos ou outras alterações.
+      </p>
+    </div>
+
+    <!-- CLÁUSULA — DAS RESTAURAÇÕES PREEXISTENTES, CONDIÇÕES CLÍNICAS OCULTAS E REVISÃO DO ORÇAMENTO -->
+    <div class="clausula-bloco">
+      <div class="clausula-titulo">${numClausula()} — DAS RESTAURAÇÕES PREEXISTENTES, CONDIÇÕES CLÍNICAS OCULTAS E REVISÃO DO ORÇAMENTO</div>
+      <p class="paragrafo">
+        O(A) <strong>CONTRATANTE</strong> declara estar ciente de que a existência de lentes dentais, facetas, coroas, restaurações em resina composta ou outros materiais restauradores previamente instalados poderá limitar a avaliação clínica completa das estruturas dentárias subjacentes.
+      </p>
+      <p class="paragrafo">
+        <strong>Parágrafo Primeiro:</strong> Determinadas condições, incluindo lesões de cárie, infiltrações, fraturas, alterações da estrutura dentária, comprometimento de restaurações preexistentes e outras necessidades clínicas, poderão não ser integralmente identificáveis durante o exame inicial, mesmo mediante avaliação criteriosa e utilização dos recursos diagnósticos indicados.
+      </p>
+      <p class="paragrafo">
+        <strong>Parágrafo Segundo:</strong> Quando houver indicação clínica de remoção de lentes, facetas ou restaurações preexistentes, o(a) <strong>CONTRATANTE</strong> reconhece que determinadas condições dos dentes e das estruturas subjacentes poderão ser identificadas ou confirmadas somente após a remoção desses materiais.
+      </p>
+      <p class="paragrafo">
+        <strong>Parágrafo Terceiro:</strong> Caso sejam identificadas condições clínicas não diagnosticáveis previamente, que exijam procedimentos adicionais ou modificações no planejamento inicialmente aprovado, a <strong>CONTRATADA</strong> comunicará ao(à) <strong>CONTRATANTE</strong> os achados clínicos, apresentará as alternativas de tratamento e fornecerá orçamento complementar discriminado.
+      </p>
+      <p class="paragrafo">
+        <strong>Parágrafo Quarto:</strong> A execução de procedimentos adicionais e a eventual alteração do valor inicialmente contratado dependerão de informação adequada e <strong>aprovação prévia e expressa do(a) CONTRATANTE</strong>, mediante termo aditivo, novo orçamento ou registro documental equivalente, ressalvadas as situações de urgência previstas em lei.
+      </p>
+      <p class="paragrafo">
+        <strong>Parágrafo Quinto:</strong> O(A) <strong>CONTRATANTE</strong> declara compreender que o orçamento inicial é elaborado com base nas condições clínicas identificáveis no momento da avaliação, não incluindo automaticamente tratamentos adicionais decorrentes de condições ocultas que não poderiam ser adequadamente identificadas antes da remoção das estruturas restauradoras existentes.
+      </p>
+      <p class="paragrafo">
+        <strong>Parágrafo Sexto:</strong> A identificação de condições clínicas ocultas não implica autorização automática para a realização de procedimentos adicionais, tampouco afasta a responsabilidade profissional pela adequada avaliação, execução e acompanhamento dos serviços prestados.
+      </p>
+      ${snapshot.dadosRestauracoesPreexistentes && snapshot.dadosRestauracoesPreexistentes.possuiPreexistentes ? `
+      <div style="margin: 12px 0 10px; padding: 10px 14px; background-color: #f8fafc; border: 1px solid #cbd5e1; border-left: 4px solid #0284c7; border-radius: 4px; font-family: Arial, sans-serif; font-size: 11px; line-height: 1.5; color: #334155;">
+        <strong style="color: #0369a1; text-transform: uppercase; font-size: 10px; letter-spacing: 0.5px;">Registro Clínico de Restaurações Preexistentes:</strong><br/>
+        • <strong>Tipo de Restauração Preexistente:</strong> ${snapshot.dadosRestauracoesPreexistentes.tipoRestauracao || 'Informado no prontuário'}<br/>
+        • <strong>Dentes Envolvidos:</strong> ${snapshot.dadosRestauracoesPreexistentes.dentesEnvolvidos || 'Conforme exame clínico'}<br/>
+        • <strong>Remoção Prevista:</strong> ${snapshot.dadosRestauracoesPreexistentes.remocaoPrevista ? 'Sim' : 'Não'}<br/>
+        ${snapshot.dadosRestauracoesPreexistentes.condicoesAposRemocao ? `• <strong>Condições Identificadas pós-remoção:</strong> ${snapshot.dadosRestauracoesPreexistentes.condicoesAposRemocao}<br/>` : ''}
+        ${snapshot.dadosRestauracoesPreexistentes.necessidadeTratamentoAdicional ? `• <strong>Tratamento Adicional Necessário:</strong> Sim<br/>` : ''}
+        ${snapshot.dadosRestauracoesPreexistentes.orcamentoComplementar ? `• <strong>Orçamento Complementar:</strong> ${typeof snapshot.dadosRestauracoesPreexistentes.orcamentoComplementar === 'number' ? formatMoney(snapshot.dadosRestauracoesPreexistentes.orcamentoComplementar) : snapshot.dadosRestauracoesPreexistentes.orcamentoComplementar} (${snapshot.dadosRestauracoesPreexistentes.aprovacaoPaciente ? `Aprovação: ${snapshot.dadosRestauracoesPreexistentes.aprovacaoPaciente}` : 'Pendente de aprovação'})<br/>` : ''}
+        ${snapshot.dadosRestauracoesPreexistentes.dataProximaManutencaoSemestral ? `• <strong>Próxima Manutenção Preventiva Semestral:</strong> ${formatarData(snapshot.dadosRestauracoesPreexistentes.dataProximaManutencaoSemestral)}` : ''}
+      </div>
+      ` : ''}
+    </div>
+    ` : ''}
+
+    <!-- Cláusula - Das Obrigações da Contratada -->
+    <div class="clausula-bloco">
+      <div class="clausula-titulo">${numClausula()} — DAS OBRIGAÇÕES DA CONTRATADA</div>
       <p class="paragrafo">
         A <strong>CONTRATADA</strong> obriga-se a empregar a mais apurada técnica odontológica e materiais biocompatíveis reconhecidos pelos órgãos competentes, agindo com diligência, ética e perícia para a consecução dos atos pactuados.
       </p>
@@ -1076,9 +1202,9 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
       </p>
     </div>
 
-    <!-- Cláusula 5 - Das Obrigações do Contratante -->
+    <!-- Cláusula - Das Obrigações do Contratante -->
     <div class="clausula-bloco">
-      <div class="clausula-titulo">Cláusula 5ª — Das Obrigações do Contratante / Paciente</div>
+      <div class="clausula-titulo">${numClausula()} — DAS OBRIGAÇÕES DO CONTRATANTE / PACIENTE</div>
       <p class="paragrafo">
         O(A) <strong>CONTRATANTE</strong> compromete-se a:
         <br/>a) Comparecer pontualmente a todas as consultas e sessões clínicas agendadas, comunicando eventual impossibilidade de comparecimento com antecedência mínima de 24 (vinte e quatro) horas;
@@ -1088,25 +1214,25 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
       </p>
     </div>
 
-    <!-- Cláusula 6 - Da Rescisão e Desistência -->
+    <!-- Cláusula - Da Rescisão e Desistência -->
     <div class="clausula-bloco">
-      <div class="clausula-titulo">Cláusula 6ª — Da Rescisão e Desistência</div>
+      <div class="clausula-titulo">${numClausula()} — DA RESCISÃO E DESISTÊNCIA</div>
       <p class="paragrafo">
         Em caso de desistência imotivada ou solicitação de rescisão antes do término completo do tratamento por qualquer das partes, haverá o acerto de contas exclusivo dos procedimentos já executados e das custas de materiais protéticos e laboratoriais já confeccionados, restituindo-se eventual saldo positivo ou exigindo-se o pagamento dos valores correspondentes às etapas já concluídas.
       </p>
     </div>
 
-    <!-- Cláusula 7 - Proteção de Dados (LGPD) -->
+    <!-- Cláusula - Proteção de Dados (LGPD) -->
     <div class="clausula-bloco">
-      <div class="clausula-titulo">Cláusula 7ª — Da Proteção de Dados Pessoais (LGPD)</div>
+      <div class="clausula-titulo">${numClausula()} — DA PROTEÇÃO DE DADOS PESSOAIS (LGPD)</div>
       <p class="paragrafo">
         As partes declaram ciência e anuência ao tratamento de dados pessoais e dados sensíveis de saúde para fins exclusivos de atendimento assistencial, prontuário médico-odontológico, faturamento e cumprimento de deveres legais impostos pelo CFO e pela Lei Federal nº 13.709/2018 (Lei Geral de Proteção de Dados Pessoais).
       </p>
     </div>
 
-    <!-- Cláusula 8 - Do Foro e Eficácia Executiva -->
+    <!-- Cláusula - Do Foro e Eficácia Executiva -->
     <div class="clausula-bloco">
-      <div class="clausula-titulo">Cláusula 8ª — Do Foro e Eficácia de Título Executivo Extrajudicial</div>
+      <div class="clausula-titulo">${numClausula()} — DO FORO E EFICÁCIA DE TÍTULO EXECUTIVO EXTRAJUDICIAL</div>
       <p class="paragrafo">
         As partes expressamente reconhecem e atribuem ao presente contrato a eficácia de <strong>Título Executivo Extrajudicial</strong>, nos termos do <strong>Artigo 784, inciso III, do Código de Processo Civil brasileiro (Lei nº 13.105/2015)</strong>, declarando líquidas, certas e exigíveis as obrigações pecuniárias ora assumidas. Para dirimir eventuais controvérsias decorrentes deste instrumento, as partes elegem o foro da Comarca de <strong>${clinica.cidade || 'Domicílio da Clínica'}</strong>, renunciando expressamente a qualquer outro, por mais privilegiado que seja.
       </p>

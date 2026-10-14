@@ -142,7 +142,23 @@ class SupabaseService {
       analiseDados: data.analise_dados,
       analiseStatus: data.analise_status,
       confirmacaoStatus: data.confirmacao_status,
-      confirmadoEm: data.confirmado_em ? new Date(data.confirmado_em) : undefined
+      confirmadoEm: data.confirmado_em ? new Date(data.confirmado_em) : undefined,
+      odontograma: (() => {
+        if (typeof data.odontograma === 'string') {
+          try { return JSON.parse(data.odontograma); } catch (_) { return data.odontograma; }
+        }
+        return data.odontograma;
+      })(),
+      restauracoesPreexistentes: (() => {
+        if (data.restauracoes_preexistentes) return data.restauracoes_preexistentes;
+        if (typeof data.odontograma === 'string') {
+          try {
+            const parsed = JSON.parse(data.odontograma);
+            return parsed?.restauracoesPreexistentes;
+          } catch (_) { return undefined; }
+        }
+        return data.odontograma?.restauracoesPreexistentes;
+      })(),
     };
   };
 
@@ -236,8 +252,20 @@ class SupabaseService {
     const allowed = table ? this.tableColumns[table] : undefined;
     const dateOnly = table ? (this.dateOnlyColumns[table] || []) : [];
 
+    const clonedData: any = { ...data };
+    if (table === 'prontuarios' && clonedData.restauracoesPreexistentes) {
+      let baseOdonto: any = {};
+      if (typeof clonedData.odontograma === 'string') {
+        try { baseOdonto = JSON.parse(clonedData.odontograma); } catch (_) {}
+      } else if (typeof clonedData.odontograma === 'object' && clonedData.odontograma !== null) {
+        baseOdonto = { ...clonedData.odontograma };
+      }
+      baseOdonto.restauracoesPreexistentes = clonedData.restauracoesPreexistentes;
+      clonedData.odontograma = baseOdonto;
+    }
+
     const result: any = {};
-    for (const [key, value] of Object.entries(data)) {
+    for (const [key, value] of Object.entries(clonedData)) {
       if (value === undefined) continue;
       const newKey = camelToSnake[key] || key;
       if (allowed && !allowed.includes(newKey)) continue;

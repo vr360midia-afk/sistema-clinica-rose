@@ -104,6 +104,18 @@ export type TipoTransacao = 'receita' | 'despesa';
 export type StatusTransacao = 'pago' | 'pendente' | 'vencido' | 'cancelado';
 export type MetodoPagamento = 'dinheiro' | 'cartao' | 'pix' | 'pix_parcelado' | 'boleto' | 'transferencia';
 
+export interface AvaliacaoRestauracoesPreexistentes {
+  possuiPreexistentes: boolean;
+  tipoRestauracao?: string;
+  dentesEnvolvidos?: string;
+  remocaoPrevista?: boolean;
+  condicoesAposRemocao?: string;
+  necessidadeTratamentoAdicional?: boolean;
+  orcamentoComplementar?: number | string;
+  aprovacaoPaciente?: 'sim' | 'nao' | 'pendente' | string;
+  dataProximaManutencaoSemestral?: string;
+}
+
 export interface Prontuario extends BaseEntity {
   pacienteId: string;
   consultaId?: string;
@@ -116,6 +128,8 @@ export interface Prontuario extends BaseEntity {
   procedimentosRealizados: string[];
   observacoes?: string;
   anexos?: string[];
+  odontograma?: any;
+  restauracoesPreexistentes?: AvaliacaoRestauracoesPreexistentes;
 }
 
 export interface Anamnese extends BaseEntity {

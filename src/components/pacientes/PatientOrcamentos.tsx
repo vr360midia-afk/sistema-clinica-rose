@@ -894,6 +894,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
       orcamento: o,
       configuracoes,
       dentistas,
+      dadosRestauracoesPreexistentes: patient?.restauracoesPreexistentes,
     });
     const link = gerarLinkAssinaturaContrato(snap);
     navigator.clipboard.writeText(link);
@@ -922,6 +923,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
         orcamento: o,
         configuracoes,
         dentistas,
+        dadosRestauracoesPreexistentes: patient?.restauracoesPreexistentes,
       });
       const link = gerarLinkAssinaturaContrato(snap);
       linhas.push('');
