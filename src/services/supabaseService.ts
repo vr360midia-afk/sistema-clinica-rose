@@ -690,7 +690,7 @@ class SupabaseService {
       .maybeSingle();
       
     if (perfilError) throw perfilError;
-    if (!perfil) throw new Error('UsuÃ¡rio nÃ£o encontrado. PeÃ§a para o funcionÃ¡rio criar uma conta primeiro usando este email.');
+    if (!perfil) throw new Error('Usuário não encontrado. Peça para o funcionário criar uma conta primeiro usando este email.');
 
     const { data, error } = await supabase
       .from('equipe')
@@ -705,7 +705,7 @@ class SupabaseService {
       .single();
 
     if (error) {
-      if (error.code === '23505') throw new Error('Este usuÃ¡rio jÃ¡ faz parte da equipe.');
+      if (error.code === '23505') throw new Error('Este usuário já faz parte da equipe.');
       throw error;
     }
     
@@ -862,12 +862,12 @@ class SupabaseService {
         console.log(`${localDocumentos.length} documentos migrados`);
       }
 
-      toast.success('MigraÃ§Ã£o concluÃ­da com sucesso!');
-      console.log('MigraÃ§Ã£o dos dados concluÃ­da com sucesso');
+      toast.success('Migração concluída com sucesso!');
+      console.log('Migração dos dados concluída com sucesso');
       
     } catch (error) {
-      console.error('Erro durante a migraÃ§Ã£o:', error);
-      toast.error('Erro durante a migraÃ§Ã£o dos dados');
+      console.error('Erro durante a migração:', error);
+      toast.error('Erro durante a migração dos dados');
       throw error;
     }
   }

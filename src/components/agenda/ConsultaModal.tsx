@@ -52,7 +52,7 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
   const { pacientes, consultas, addConsulta, updateConsulta } = useDentalSystem();
   const { user } = useAuth();
   const { dentistas } = useDentistas();
-  const { bloqueios, addBloqueio } = useBloqueios();
+  const { bloqueios, addBloqueio, reload: reloadBloqueios } = useBloqueios();
   const { procedimentos } = useProcedimentos();
   const procedimentosAtivos = procedimentos.filter((p) => p.ativo);
   const dentistasAtivos = dentistas.filter((d) => d.ativo);
@@ -169,13 +169,17 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
     return (h || 0) * 60 + (m || 0);
   };
 
-  // Detecta sobreposiÃ§Ã£o de horÃ¡rio para o mesmo dentista na mesma data
+  // Detecta sobreposição de horário para o mesmo dentista na mesma data
   const findConflito = (data: ConsultaFormData) => {
     const inicio = toMinutes(data.hora);
     const fim = inicio + (data.duracao || 60);
     return consultas.find((c) => {
-      if (editingConsulta && c.id === editingConsulta.id) return false;
+      // Ignora a própria consulta em edição
+      if (editingConsulta && (c.id === editingConsulta.id || c.id === editingConsulta._id)) return false;
+      // Ignora consultas canceladas ou remarcadas
       if (c.status === 'cancelado' || c.status === 'remarcado') return false;
+      // Se a consulta pertencer à MESMA paciente, permite editar e prolongar!
+      if (c.pacienteId && data.pacienteId && c.pacienteId === data.pacienteId) return false;
       if (!c.dentista || !data.dentista) return false;
       if (c.dentista !== data.dentista) return false;
       if (toISODate(c.data) !== toISODate(data.data)) return false;
@@ -192,7 +196,18 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
       return;
     }
 
-    const bloqueio = encontrarBloqueio(bloqueios, data.data, data.hora, data.duracao || 60, data.dentista);
+    const pacienteAtual = pacientes.find((p) => p.id === data.pacienteId);
+    const pacienteNome = pacienteAtual?.nome;
+
+    // Passa o nome da paciente para que o bloqueio gerado para ela mesma não impeça a edição/prolongamento
+    const bloqueio = encontrarBloqueio(
+      bloqueios,
+      data.data,
+      data.hora,
+      data.duracao || 60,
+      data.dentista,
+      pacienteNome
+    );
     if (bloqueio) {
       toast.error(`Horário bloqueado: ${bloqueio.titulo || 'indisponível'}.`);
       return;
@@ -221,8 +236,22 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
         valor: data.valor ?? undefined,
         confirmacaoStatus: 'pendente' as const,
       };
+
       if (editingConsulta?.id) {
         await updateConsulta(editingConsulta.id, consultaData);
+        // Se tinha bloqueio antigo gerado para esse paciente neste mesmo dia, limpa para atualizar
+        const dia = toISODate(data.data);
+        if (pacienteNome) {
+          try {
+            await supabase
+              .from('bloqueios_agenda')
+              .delete()
+              .eq('data_inicio', dia)
+              .ilike('titulo', `%${pacienteNome}%`);
+          } catch (e) {
+            console.warn('Aviso ao limpar bloqueio anterior:', e);
+          }
+        }
       } else {
         await addConsulta({ ...consultaData, userId: currentUserId || '' });
       }
@@ -231,9 +260,8 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
       const periodo = PERIODOS.find((p) => p.value === periodoSelecionado);
       if (periodo) {
         const dia = toISODate(data.data);
-        const pacienteNome = pacientes.find((p) => p.id === data.pacienteId)?.nome || 'Paciente';
         await addBloqueio({
-          titulo: `${periodo.label.split(' (')[0]} reservada - ${pacienteNome}`,
+          titulo: `${periodo.label.split(' (')[0]} reservada - ${pacienteNome || 'Paciente'}`,
           dentista: data.dentista || null,
           dataInicio: dia,
           dataFim: dia,
@@ -242,6 +270,8 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
           diaInteiro: false,
           observacoes: data.procedimento || null,
         });
+      } else {
+        reloadBloqueios();
       }
 
       // Avisar a dentista pelo WhatsApp
@@ -628,10 +658,10 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
                 name="observacoes"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>ObservaÃ§Ãµes</FormLabel>
+                    <FormLabel>Observações</FormLabel>
                     <FormControl>
                       <Textarea 
-                        placeholder="ObservaÃ§Ãµes adicionais..."
+                        placeholder="Observações adicionais..."
                         className="resize-none"
                         rows={3}
                         {...field}
@@ -648,7 +678,7 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
                 </Button>
                 <Button type="submit" disabled={isLoading} className="w-full sm:w-auto">
                   {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {editingConsulta ? 'Salvar RemarcaÃ§Ã£o' : 'Agendar Consulta'}
+                  {editingConsulta ? 'Salvar Alterações / Remarcação' : 'Agendar Consulta'}
                 </Button>
               </div>
             </form>

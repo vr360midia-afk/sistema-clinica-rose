@@ -47,16 +47,28 @@ export const encontrarBloqueio = (
   data: Date | string,
   hora?: string,
   duracao = 60,
-  dentista?: string
+  dentista?: string,
+  pacienteNome?: string
 ): BloqueioAgenda | null => {
   const dia = toISODate(data);
   const inicio = toMin(hora) ?? 0;
   const fim = inicio + duracao;
+  const nomeNorm = pacienteNome ? pacienteNome.trim().toLowerCase() : '';
 
   return (
     bloqueios.find((b) => {
       if (dia < b.dataInicio || dia > b.dataFim) return false;
       if (b.dentista && dentista && b.dentista !== dentista) return false;
+
+      // Se o bloqueio pertence a este mesmo paciente, permite editar e prolongar o agendamento!
+      if (nomeNorm && b.titulo) {
+        const tit = b.titulo.toLowerCase();
+        const primeiroNome = nomeNorm.split(' ')[0];
+        if (tit.includes(nomeNorm) || (primeiroNome.length > 2 && tit.includes(primeiroNome))) {
+          return false;
+        }
+      }
+
       if (b.diaInteiro) return true;
       const bi = toMin(b.horaInicio) ?? 0;
       const bf = toMin(b.horaFim) ?? 24 * 60;
