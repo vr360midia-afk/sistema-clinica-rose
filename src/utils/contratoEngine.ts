@@ -265,6 +265,7 @@ export const mapearDadosContrato = ({
     // Se ainda não foram criadas transações detalhadas no financeiro,
     // extrai a negociação das opções de parcelamento do orçamento
     const formas = orcamento?.formasPagamento || '';
+    const hoje = new Date();
 
     // 1. Detecta Entrada (ex: "Entrada de R$ 500,00", "Entrada: R$ 500", "Entrada: R$ 500,00 via PIX")
     const entradaMatch = formas.match(/entrada(?:\s*(?:de|:))?\s*(?:r\$)?\s*([\d.,]+)/i);
@@ -287,6 +288,24 @@ export const mapearDadosContrato = ({
     const parcelasMatch = formas.match(/(\d+)\s*x/i) || formas.match(/(\d+)\s*parcelas/i);
     const qtdParcelas = parcelasMatch ? Math.max(1, parseInt(parcelasMatch[1], 10)) : 1;
 
+    // Detecta se há datas específicas discriminadas:
+    // ex: "Vencimentos: 10/11/2026, 22/12/2026" ou "Vencimento todo dia 10: 10/11/2026, 10/12/2026"
+    const datasDetectadas: string[] = [];
+    const trechoVencimentos = formas.match(/vencimentos?(?:\s*todo\s*dia\s*\d{1,2})?:\s*([^\)]+)/i);
+    if (trechoVencimentos) {
+      const regexDatas = /\b\d{1,2}\/\d{1,2}\/\d{4}\b|\b\d{4}-\d{2}-\d{2}\b/g;
+      const matches = trechoVencimentos[1].match(regexDatas);
+      if (matches) {
+        datasDetectadas.push(...matches.map((d) => (d.includes('-') ? formatarData(d) : d)));
+      }
+    }
+
+    // Detecta se há data específica para a entrada: ex: "Entrada de R$ 1.000,00 (em 14/10/2026)" ou "em 14/10/2026"
+    const dataEntradaMatch = formas.match(/entrada[^\+]*?(?:em|\:)?\s*\(?em\s*(\d{1,2}\/\d{1,2}\/\d{4}|\d{4}-\d{2}-\d{2})\)?/i);
+    const dataEntradaFormatada = dataEntradaMatch
+      ? (dataEntradaMatch[1].includes('-') ? formatarData(dataEntradaMatch[1]) : dataEntradaMatch[1])
+      : formatarData(hoje);
+
     // 3. Detecta Dia do Vencimento: ex: "vencimento todo dia 10", "dia 15", "vencimento: dia 5"
     const diaMatch = formas.match(/(?:vencimento|dia)\s*(?:todo\s*dia)?\s*(\d{1,2})/i);
     const diaVencimento = diaMatch ? Math.min(28, Math.max(1, parseInt(diaMatch[1], 10))) : 10;
@@ -305,14 +324,13 @@ export const mapearDadosContrato = ({
     const valorParcela = saldo / qtdParcelas;
 
     const listaParcelas: ContratoParcela[] = [];
-    const hoje = new Date();
 
     // Se houver entrada, inclui a entrada como primeiro item do cronograma
     if (entrada > 0) {
       listaParcelas.push({
         numero: 1,
         descricao: `Entrada Inicial (${metodoEntrada.replace(' (Entrada)', '')})`,
-        vencimento: formatarData(hoje),
+        vencimento: dataEntradaFormatada,
         valor: entrada,
         metodo: metodoEntrada,
         status: 'A vencer',
@@ -320,17 +338,23 @@ export const mapearDadosContrato = ({
     }
 
     for (let idx = 0; idx < qtdParcelas; idx++) {
-      const targetMonth = hoje.getMonth() + (idx + 1);
-      const dataVenc = new Date(hoje.getFullYear(), targetMonth, 1);
-      const maxDiasNoMes = new Date(dataVenc.getFullYear(), dataVenc.getMonth() + 1, 0).getDate();
-      dataVenc.setDate(Math.min(diaVencimento, maxDiasNoMes));
+      let vencimentoFormatado = '';
+      if (datasDetectadas[idx]) {
+        vencimentoFormatado = datasDetectadas[idx];
+      } else {
+        const targetMonth = hoje.getMonth() + (idx + 1);
+        const dataVenc = new Date(hoje.getFullYear(), targetMonth, 1);
+        const maxDiasNoMes = new Date(dataVenc.getFullYear(), dataVenc.getMonth() + 1, 0).getDate();
+        dataVenc.setDate(Math.min(diaVencimento, maxDiasNoMes));
+        vencimentoFormatado = formatarData(dataVenc);
+      }
 
       listaParcelas.push({
         numero: listaParcelas.length + 1,
         descricao: qtdParcelas === 1 && entrada === 0
           ? `Pagamento Único (${metodoRestante})`
           : `Parcela ${idx + 1} de ${qtdParcelas} (${metodoRestante})`,
-        vencimento: formatarData(dataVenc),
+        vencimento: vencimentoFormatado,
         valor: valorParcela,
         metodo: metodoRestante,
         status: 'A vencer',

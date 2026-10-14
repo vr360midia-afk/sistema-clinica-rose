@@ -32,6 +32,37 @@ import {
   AlertDialogAction,
 } from '@/components/ui/alert-dialog';
 
+const formatIsoDate = (d: Date) => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const formatBrDate = (isoStr: string) => {
+  if (!isoStr) return '';
+  if (isoStr.includes('/')) return isoStr;
+  const partes = isoStr.split('-');
+  if (partes.length === 3) {
+    const [ano, mes, dia] = partes;
+    return `${dia}/${mes}/${ano}`;
+  }
+  return isoStr;
+};
+
+const gerarDatasPadrao = (qtdParcelas: number, dia: number) => {
+  const datas: string[] = [];
+  const hoje = new Date();
+  for (let i = 0; i < qtdParcelas; i++) {
+    const targetMonth = hoje.getMonth() + (i + 1);
+    const d = new Date(hoje.getFullYear(), targetMonth, 1);
+    const maxDias = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    d.setDate(Math.min(dia, maxDias));
+    datas.push(formatIsoDate(d));
+  }
+  return datas;
+};
+
 interface Props {
   patient: any;
 }
@@ -63,8 +94,10 @@ const PatientOrcamentos = ({ patient }: Props) => {
   // PIX Parcelado
   const [pixParceladoAtivo, setPixParceladoAtivo] = useState(false);
   const [pixEntrada, setPixEntrada] = useState<number>(0);
+  const [pixDataEntrada, setPixDataEntrada] = useState<string>(() => formatIsoDate(new Date()));
   const [pixParcelas, setPixParcelas] = useState<number>(3);
   const [pixDiaVencimento, setPixDiaVencimento] = useState<number>(10);
+  const [pixDatasParcelas, setPixDatasParcelas] = useState<string[]>(() => gerarDatasPadrao(3, 10));
 
   // Múltiplas Formas de Pagamento (Entrada + Cartão / Split)
   const [multiplasFormasAtivo, setMultiplasFormasAtivo] = useState(false);
@@ -167,14 +200,40 @@ const PatientOrcamentos = ({ patient }: Props) => {
     setFormasPagamento(montarTextoMultiplasFormas(novas));
   };
 
-  const montarTextoPixParcelado = (entradaVal: number, parcelasVal: number, diaVal: number, totalVal: number) => {
+  const montarTextoPixParcelado = (
+    entradaVal: number,
+    parcelasVal: number,
+    diaVal: number,
+    totalVal: number,
+    dataEntradaStr?: string,
+    datasParc?: string[]
+  ) => {
     const qtd = Math.max(1, parcelasVal);
     const saldo = Math.max(0, totalVal - entradaVal);
     const valorParc = saldo / qtd;
+
+    let textoEntrada = '';
     if (entradaVal > 0) {
-      return `PIX Parcelado: Entrada de ${formatMoney(entradaVal)} + ${qtd}x de ${formatMoney(valorParc)} (Vencimento todo dia ${diaVal})`;
+      const dataFormatada = dataEntradaStr ? ` (em ${formatBrDate(dataEntradaStr)})` : '';
+      textoEntrada = `Entrada de ${formatMoney(entradaVal)}${dataFormatada} + `;
     }
-    return `PIX Parcelado: ${qtd}x de ${formatMoney(valorParc)} (Vencimento todo dia ${diaVal})`;
+
+    const datasBr = (datasParc || []).filter(Boolean).map(formatBrDate);
+    const saoTodasMesmoDia =
+      datasBr.length > 0 &&
+      datasBr.every((d) => {
+        const [dia] = d.split('/');
+        return Number(dia) === diaVal;
+      });
+
+    let textoVencimento = `(Vencimento todo dia ${diaVal})`;
+    if (datasBr.length > 0 && !saoTodasMesmoDia) {
+      textoVencimento = `(Vencimentos: ${datasBr.join(', ')})`;
+    } else if (datasBr.length > 0 && datasBr.length <= 4) {
+      textoVencimento = `(Vencimento todo dia ${diaVal}: ${datasBr.join(', ')})`;
+    }
+
+    return `PIX Parcelado: ${textoEntrada}${qtd}x de ${formatMoney(valorParc)} ${textoVencimento}`;
   };
 
   const handleTogglePixParcelado = () => {
@@ -182,7 +241,9 @@ const PatientOrcamentos = ({ patient }: Props) => {
     setPixParceladoAtivo(novo);
     if (novo) {
       setMultiplasFormasAtivo(false);
-      setFormasPagamento(montarTextoPixParcelado(pixEntrada, pixParcelas, pixDiaVencimento, total));
+      const datas = gerarDatasPadrao(pixParcelas, pixDiaVencimento);
+      setPixDatasParcelas(datas);
+      setFormasPagamento(montarTextoPixParcelado(pixEntrada, pixParcelas, pixDiaVencimento, total, pixDataEntrada, datas));
     }
   };
 
@@ -190,7 +251,14 @@ const PatientOrcamentos = ({ patient }: Props) => {
     const clamped = Math.min(total, Math.max(0, valor));
     setPixEntrada(clamped);
     if (pixParceladoAtivo) {
-      setFormasPagamento(montarTextoPixParcelado(clamped, pixParcelas, pixDiaVencimento, total));
+      setFormasPagamento(montarTextoPixParcelado(clamped, pixParcelas, pixDiaVencimento, total, pixDataEntrada, pixDatasParcelas));
+    }
+  };
+
+  const handleAtualizarDataEntrada = (novaDataIso: string) => {
+    setPixDataEntrada(novaDataIso);
+    if (pixParceladoAtivo) {
+      setFormasPagamento(montarTextoPixParcelado(pixEntrada, pixParcelas, pixDiaVencimento, total, novaDataIso, pixDatasParcelas));
     }
   };
 
@@ -262,15 +330,40 @@ const PatientOrcamentos = ({ patient }: Props) => {
 
   const handleChangePixParcelas = (qtd: number) => {
     setPixParcelas(qtd);
+    const novasDatas: string[] = [];
+    const hoje = new Date();
+    for (let i = 0; i < qtd; i++) {
+      if (pixDatasParcelas[i]) {
+        novasDatas.push(pixDatasParcelas[i]);
+      } else {
+        const targetMonth = hoje.getMonth() + (i + 1);
+        const d = new Date(hoje.getFullYear(), targetMonth, 1);
+        const maxDias = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+        d.setDate(Math.min(pixDiaVencimento, maxDias));
+        novasDatas.push(formatIsoDate(d));
+      }
+    }
+    setPixDatasParcelas(novasDatas);
     if (pixParceladoAtivo) {
-      setFormasPagamento(montarTextoPixParcelado(pixEntrada, qtd, pixDiaVencimento, total));
+      setFormasPagamento(montarTextoPixParcelado(pixEntrada, qtd, pixDiaVencimento, total, pixDataEntrada, novasDatas));
     }
   };
 
   const handleChangePixDia = (dia: number) => {
     setPixDiaVencimento(dia);
+    const novasDatas = gerarDatasPadrao(pixParcelas, dia);
+    setPixDatasParcelas(novasDatas);
     if (pixParceladoAtivo) {
-      setFormasPagamento(montarTextoPixParcelado(pixEntrada, pixParcelas, dia, total));
+      setFormasPagamento(montarTextoPixParcelado(pixEntrada, pixParcelas, dia, total, pixDataEntrada, novasDatas));
+    }
+  };
+
+  const handleAtualizarDataParcela = (idx: number, novaDataIso: string) => {
+    const novas = [...pixDatasParcelas];
+    novas[idx] = novaDataIso;
+    setPixDatasParcelas(novas);
+    if (pixParceladoAtivo) {
+      setFormasPagamento(montarTextoPixParcelado(pixEntrada, pixParcelas, pixDiaVencimento, total, pixDataEntrada, novas));
     }
   };
 
@@ -326,8 +419,10 @@ const PatientOrcamentos = ({ patient }: Props) => {
     setFormasPagamento('');
     setPixParceladoAtivo(false);
     setPixEntrada(0);
+    setPixDataEntrada(formatIsoDate(new Date()));
     setPixParcelas(3);
     setPixDiaVencimento(10);
+    setPixDatasParcelas(gerarDatasPadrao(3, 10));
     setMultiplasFormasAtivo(false);
     setFormasMultiplas([
       { id: '1', rotulo: 'Entrada', metodo: 'pix', valor: 0, parcelas: 1, diaVencimento: 10 },
@@ -357,6 +452,8 @@ const PatientOrcamentos = ({ patient }: Props) => {
     ) {
       setMultiplasFormasAtivo(true);
       setPixParceladoAtivo(false);
+      setPixDataEntrada(formatIsoDate(new Date()));
+      setPixDatasParcelas(gerarDatasPadrao(3, 10));
 
       const entMatch = o.formasPagamento.match(/entrada(?:\s*(?:de|:))?\s*(?:r\$)?\s*([\d.,]+)/i);
       const entVal = entMatch ? Number(entMatch[1].replace(/\./g, '').replace(',', '.')) || 0 : 0;
@@ -394,25 +491,47 @@ const PatientOrcamentos = ({ patient }: Props) => {
       setMultiplasFormasAtivo(false);
       setPixParceladoAtivo(true);
       const entradaMatch = o.formasPagamento.match(/entrada(?:\s+de)?\s*(?:r\$)?\s*([\d.,]+)/i);
-      if (entradaMatch) {
-        setPixEntrada(Number(entradaMatch[1].replace(/\./g, '').replace(',', '.')) || 0);
+      const entVal = entradaMatch ? Number(entradaMatch[1].replace(/\./g, '').replace(',', '.')) || 0 : 0;
+      setPixEntrada(entVal);
+
+      const dataEntMatch = o.formasPagamento.match(/entrada[^\n]+?\(em\s*(\d{1,2}\/\d{1,2}\/\d{4})\)/i);
+      if (dataEntMatch) {
+        const [d, m, y] = dataEntMatch[1].split('/');
+        setPixDataEntrada(`${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`);
       } else {
-        setPixEntrada(0);
+        setPixDataEntrada(formatIsoDate(new Date()));
       }
+
       const parcMatch = o.formasPagamento.match(/(\d+)\s*x/i);
-      if (parcMatch) {
-        setPixParcelas(Number(parcMatch[1]) || 3);
-      }
+      const qtdParc = parcMatch ? Number(parcMatch[1]) || 3 : 3;
+      setPixParcelas(qtdParc);
+
       const diaMatch = o.formasPagamento.match(/(?:vencimento|dia)\s*(?:todo\s*dia)?\s*(\d{1,2})/i);
-      if (diaMatch) {
-        setPixDiaVencimento(Number(diaMatch[1]) || 10);
+      const diaVenc = diaMatch ? Number(diaMatch[1]) || 10 : 10;
+      setPixDiaVencimento(diaVenc);
+
+      // Extrai datas personalizadas de vencimento se houver
+      const trechoVenc = o.formasPagamento.match(/vencimentos?:\s*([^\)]+)/i);
+      let datasDetectadas: string[] = [];
+      if (trechoVenc) {
+        const regexDatas = /\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/g;
+        const matches = Array.from(trechoVenc[1].matchAll(regexDatas));
+        datasDetectadas = matches.map((m) => `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`);
+      }
+
+      if (datasDetectadas.length === qtdParc) {
+        setPixDatasParcelas(datasDetectadas);
+      } else {
+        setPixDatasParcelas(gerarDatasPadrao(qtdParc, diaVenc));
       }
     } else {
       setMultiplasFormasAtivo(false);
       setPixParceladoAtivo(false);
       setPixEntrada(0);
+      setPixDataEntrada(formatIsoDate(new Date()));
       setPixParcelas(3);
       setPixDiaVencimento(10);
+      setPixDatasParcelas(gerarDatasPadrao(3, 10));
     }
     setParceriaAtiva(!!o.parceiroId || !!o.parceiroNome);
     setParceiroId(o.parceiroId || '');
@@ -1065,7 +1184,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
                     </div>
 
                     <div className="space-y-1">
-                      <Label className="text-xs">Dia do Vencimento</Label>
+                      <Label className="text-xs">Dia do Vencimento Padrão</Label>
                       <Select
                         value={String(pixDiaVencimento)}
                         onValueChange={(v) => handleChangePixDia(Number(v) || 10)}
@@ -1084,6 +1203,73 @@ const PatientOrcamentos = ({ patient }: Props) => {
                     </div>
                   </div>
 
+                  {/* Vencimentos personalizados por pagamento (Entrada e Parcelas) */}
+                  <div className="space-y-2 pt-2 border-t border-primary/20">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                      <Label className="text-xs font-semibold flex items-center gap-1.5 text-foreground">
+                        <CalendarDays className="h-3.5 w-3.5 text-primary" />
+                        Datas de Vencimento dos Pagamentos (Personalizadas)
+                      </Label>
+                      <span className="text-[10px] text-muted-foreground">
+                        Selecione no calendário ou digite dia/mês/ano diretamente
+                      </span>
+                    </div>
+
+                    <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                      {pixEntrada > 0 && (
+                        <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-background/90 border border-emerald-500/30 text-xs shadow-sm">
+                          <div className="flex items-center gap-2">
+                            <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-500 font-bold text-[10px]">
+                              Entrada (PIX)
+                            </span>
+                            <span className="font-semibold text-emerald-600">
+                              {formatMoney(pixEntrada)}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] text-muted-foreground hidden sm:inline">Data:</span>
+                            <Input
+                              type="date"
+                              value={pixDataEntrada}
+                              onChange={(e) => handleAtualizarDataEntrada(e.target.value)}
+                              className="h-8 text-xs w-36 font-semibold bg-background"
+                              title="Data da entrada em PIX"
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {Array.from({ length: pixParcelas }).map((_, idx) => {
+                        const valorParc = Math.max(0, total - pixEntrada) / Math.max(1, pixParcelas);
+                        return (
+                          <div
+                            key={idx}
+                            className="flex items-center justify-between gap-2 p-2 rounded-lg bg-background/90 border border-border text-xs hover:border-primary/40 transition-colors shadow-sm"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="px-1.5 py-0.5 rounded bg-primary/10 text-primary font-bold text-[10px]">
+                                {idx + 1}ª Parcela PIX
+                              </span>
+                              <span className="font-semibold text-foreground">
+                                {formatMoney(valorParc)}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] text-muted-foreground hidden sm:inline">Vencimento:</span>
+                              <Input
+                                type="date"
+                                value={pixDatasParcelas[idx] || ''}
+                                onChange={(e) => handleAtualizarDataParcela(idx, e.target.value)}
+                                className="h-8 text-xs w-36 font-semibold bg-background"
+                                title={`Data de vencimento da parcela ${idx + 1}`}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                   {/* Resumo do Cálculo em tempo real */}
                   <div className="rounded-md bg-background/80 border border-border p-2.5 text-xs space-y-1">
                     <div className="flex justify-between text-muted-foreground">
@@ -1093,7 +1279,9 @@ const PatientOrcamentos = ({ patient }: Props) => {
                     {pixEntrada > 0 && (
                       <div className="flex justify-between text-muted-foreground">
                         <span>Entrada pactuada (PIX):</span>
-                        <span className="font-semibold text-emerald-600">+{formatMoney(pixEntrada)}</span>
+                        <span className="font-semibold text-emerald-600">
+                          +{formatMoney(pixEntrada)} {pixDataEntrada ? `(em ${formatBrDate(pixDataEntrada)})` : ''}
+                        </span>
                       </div>
                     )}
                     <div className="flex justify-between text-muted-foreground">
@@ -1106,9 +1294,17 @@ const PatientOrcamentos = ({ patient }: Props) => {
                         {pixParcelas}x de {formatMoney(Math.max(0, total - pixEntrada) / Math.max(1, pixParcelas))}
                       </span>
                     </div>
-                    <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground pt-0.5">
-                      <CalendarDays className="h-3.5 w-3.5 text-primary" />
-                      Vencimentos: Todo dia <strong>{pixDiaVencimento}</strong> de cada mês (gerará o cronograma do contrato).
+                    <div className="flex items-start gap-1.5 text-[11px] text-muted-foreground pt-1">
+                      <CalendarDays className="h-3.5 w-3.5 text-primary mt-0.5 shrink-0" />
+                      <div>
+                        <span className="font-medium text-foreground">Vencimentos configurados: </span>
+                        <span>
+                          {pixDatasParcelas.filter(Boolean).map(formatBrDate).join(', ') || `Todo dia ${pixDiaVencimento}`}
+                        </span>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                          Essas datas exatas serão usadas no contrato, no PDF e nas parcelas de Contas a Receber.
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
