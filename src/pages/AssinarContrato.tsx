@@ -22,6 +22,8 @@ import {
   CreditCard,
   QrCode,
   FileCheck,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatMoney } from '@/utils/exportCsv';
@@ -35,8 +37,8 @@ import { openWhatsApp } from '@/lib/whatsapp';
 import { supabase } from '@/integrations/supabase/client';
 
 const Shell = ({ children }: { children: React.ReactNode }) => (
-  <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-start py-8 px-4 sm:px-6">
-    <div className="w-full max-w-3xl space-y-6">{children}</div>
+  <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-start py-8 px-3 sm:px-6">
+    <div className="w-full max-w-4xl space-y-6">{children}</div>
   </div>
 );
 
@@ -52,6 +54,25 @@ export default function AssinarContrato() {
   const [concordouTermos, setConcordouTermos] = useState(false);
   const [baixandoPdf, setBaixandoPdf] = useState(false);
   const [copiouPix, setCopiouPix] = useState(false);
+  const [isFullScreen, setIsFullScreen] = useState(false);
+
+  // HTML oficial completo do contrato gerado na íntegra
+  const htmlContrato = useMemo(() => {
+    if (!snapshot) return '';
+    return gerarHtmlContrato(snapshot);
+  }, [snapshot]);
+
+  // Tecla ESC fecha a visualização em tela cheia
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isFullScreen) {
+        e.preventDefault();
+        setIsFullScreen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [isFullScreen]);
 
   // Carrega os dados do contrato
   useEffect(() => {
@@ -526,26 +547,78 @@ export default function AssinarContrato() {
             )}
           </div>
 
-          {/* Cláusulas Legais (Visualizador Retrátil / Scrollável) */}
-          <div className="border rounded-lg p-4 bg-slate-50 dark:bg-slate-900 text-xs space-y-3 max-h-60 overflow-y-auto">
-            <h4 className="font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wide text-xs">
-              Resumo das Cláusulas Contratuais (Art. 784, III CPC)
-            </h4>
-            <p className="text-slate-600 dark:text-slate-400">
-              <strong>CLÁUSULA 1ª — DO OBJETO:</strong> A CONTRATADA obriga-se a prestar assistência odontológica ao CONTRATANTE conforme os procedimentos discriminados neste termo e ficha clínica.
-            </p>
-            <p className="text-slate-600 dark:text-slate-400">
-              <strong>CLÁUSULA 2ª — DO VALOR TOTAL:</strong> Pelos serviços acordados, o CONTRATANTE pagará a quantia líquida total de {formatMoney(snapshot.financeiro.total)} ({snapshot.financeiro.totalExtenso}).
-            </p>
-            <p className="text-slate-600 dark:text-slate-400">
-              <strong>CLÁUSULA 3ª — DAS CONDIÇÕES E PIX:</strong> O pagamento seguirá as condições acordadas ({snapshot.financeiro.formaPagamento}), devendo os comprovantes ser encaminhados via canal oficial para quitação e baixa.
-            </p>
-            <p className="text-slate-600 dark:text-slate-400">
-              <strong>CLÁUSULA 4ª — DO TÍTULO EXECUTIVO EXTRAJUDICIAL:</strong> O presente contrato possui força executiva extrajudicial conforme previsto no Artigo 784, inciso III do Código de Processo Civil.
-            </p>
-            <p className="text-slate-600 dark:text-slate-400">
-              <strong>CLÁUSULA 5ª — DO FORO:</strong> As partes elegem o foro da Comarca de {snapshot.clinica.cidade || 'domicílio da clínica'} para dirimir quaisquer dúvidas oriundas deste instrumento.
-            </p>
+          {/* Visualizador Oficial do Contrato Completo na Íntegra (Padrão Oficial A4) */}
+          <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden flex flex-col">
+            <div className="bg-slate-100 dark:bg-slate-900/90 px-4 py-3 border-b border-border flex flex-wrap items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 shrink-0">
+                  <FileText className="h-4 w-4" />
+                </div>
+                <div className="min-w-0">
+                  <h4 className="font-bold text-xs sm:text-sm text-foreground flex items-center gap-2 truncate">
+                    <span>Contrato de Prestação de Serviços Odontológicos</span>
+                    <Badge variant="outline" className="hidden sm:inline-flex text-[10px] bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30">
+                      Texto Integral • Padrão A4
+                    </Badge>
+                  </h4>
+                  <p className="text-[11px] text-muted-foreground truncate">
+                    Documento oficial completo com todas as cláusulas jurídicas e cronograma financeiro
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs gap-1.5 border-border bg-background hover:bg-muted text-foreground"
+                  onClick={handleBaixarPdf}
+                  disabled={baixandoPdf}
+                  title="Baixar Contrato Completo em PDF"
+                >
+                  {baixandoPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />}
+                  <span className="hidden sm:inline">Baixar PDF</span>
+                </Button>
+
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-8 text-xs gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-xs"
+                  onClick={() => setIsFullScreen(true)}
+                  title="Ampliar visualização em tela cheia"
+                >
+                  <Maximize2 className="h-3.5 w-3.5" />
+                  <span>Modo Tela Cheia</span>
+                </Button>
+              </div>
+            </div>
+
+            {/* Container Iframe com visualização A4 limpa e rolagem perfeita */}
+            <div
+              className="p-2 sm:p-5 bg-slate-200/70 dark:bg-slate-950 flex justify-center items-start overflow-y-auto w-full min-h-[480px] h-[68vh] sm:h-[78vh]"
+              style={{ WebkitOverflowScrolling: 'touch' }}
+            >
+              <iframe
+                srcDoc={htmlContrato}
+                title="Contrato Completo na Íntegra"
+                className="w-full h-full max-w-[840px] rounded-lg border border-slate-300 dark:border-slate-800 bg-white shadow-xl min-h-[460px]"
+              />
+            </div>
+
+            <div className="bg-slate-50 dark:bg-slate-900/60 px-4 py-2 border-t border-border flex flex-wrap items-center justify-between text-xs text-muted-foreground gap-2">
+              <span className="flex items-center gap-1.5 text-[11px] sm:text-xs">
+                <FileCheck className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                Role o documento acima para ler todas as 10 cláusulas e condições na íntegra.
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsFullScreen(true)}
+                className="text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 font-medium text-[11px] sm:text-xs cursor-pointer"
+              >
+                <Maximize2 className="h-3 w-3" /> Expandir em Tela Cheia
+              </button>
+            </div>
           </div>
 
           {/* Área de Assinatura Interativa */}
@@ -562,7 +635,7 @@ export default function AssinarContrato() {
                   htmlFor="concordo"
                   className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 font-medium cursor-pointer select-none leading-relaxed"
                 >
-                  Declaro que li e estou de acordo com todos os termos, procedimentos odontológicos, valores e condições de pagamento estipulados neste Contrato de Prestação de Serviços Odontológicos.
+                  Declaro que li e conferi o contrato completo acima na íntegra, e estou de acordo com todos os termos, procedimentos odontológicos, valores e condições de pagamento estipulados neste Contrato de Prestação de Serviços Odontológicos.
                 </label>
               </div>
 
@@ -653,6 +726,85 @@ export default function AssinarContrato() {
               initialRg={snapshot.paciente.rg}
               onSignatureComplete={handleSignatureComplete}
               onCancel={() => setShowSignatureModal(false)}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Leitura em Tela Cheia do Contrato na Íntegra */}
+      {isFullScreen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex flex-col animate-in fade-in duration-200">
+          <div className="h-14 bg-slate-900 border-b border-slate-800 px-3 sm:px-6 flex items-center justify-between shrink-0 shadow-lg">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="p-1.5 rounded-lg bg-blue-500/20 text-blue-400 shrink-0">
+                <FileText className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-xs sm:text-sm font-bold text-slate-100 flex items-center gap-2 truncate">
+                  <span>Contrato de Prestação de Serviços Odontológicos</span>
+                  <span className="hidden sm:inline-flex text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 font-medium">
+                    Texto Integral Oficial
+                  </span>
+                </h2>
+                <p className="text-[10px] sm:text-[11px] text-slate-400 truncate">
+                  {snapshot.paciente.nome} • {formatMoney(snapshot.financeiro.total)}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs gap-1.5 border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white"
+                onClick={handleBaixarPdf}
+                disabled={baixandoPdf}
+                title="Baixar Contrato em PDF"
+              >
+                {baixandoPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-400" /> : <Download className="h-3.5 w-3.5 text-blue-400" />}
+                <span className="hidden sm:inline">Baixar PDF</span>
+              </Button>
+
+              {!isAssinado && (
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-8 text-xs gap-1.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow-sm"
+                  onClick={() => {
+                    setIsFullScreen(false);
+                    setConcordouTermos(true);
+                    setShowSignatureModal(true);
+                  }}
+                  title="Concordar e assinar contrato digitalmente"
+                >
+                  <CheckCircle className="h-3.5 w-3.5" />
+                  <span>Assinar Agora</span>
+                </Button>
+              )}
+
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-8 text-xs gap-1.5 text-slate-300 hover:bg-slate-800 hover:text-white"
+                onClick={() => setIsFullScreen(false)}
+                title="Fechar modo tela cheia (ESC)"
+              >
+                <Minimize2 className="h-4 w-4" />
+                <span className="hidden sm:inline">Fechar (ESC)</span>
+              </Button>
+            </div>
+          </div>
+
+          <div
+            className="flex-1 bg-slate-900/95 p-2 sm:p-6 flex justify-center items-start overflow-y-auto w-full"
+            style={{ WebkitOverflowScrolling: 'touch' }}
+          >
+            <iframe
+              srcDoc={htmlContrato}
+              title="Contrato Oficial Completo Tela Cheia"
+              className="w-full max-w-[860px] h-[calc(100vh-4.75rem)] rounded-md border border-slate-700/80 bg-white shadow-2xl"
             />
           </div>
         </div>
