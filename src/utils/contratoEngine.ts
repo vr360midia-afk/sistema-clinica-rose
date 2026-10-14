@@ -365,10 +365,34 @@ export const mapearDadosContrato = ({
           entradaDetectada += valorTotalParte;
         }
 
+        // Detecta situação se explicitada: ex: [Quitada], [A vencer], [Autorizado], [Pago]
+        const sitMatch = parte.match(/\[(?:situa[çc][aã]o:\s*)?([^\]]+)\]/i);
+        let situacaoDetectada = '';
+        const situacoesIndividuais: string[] = [];
+
+        if (sitMatch) {
+          const rawSit = sitMatch[1].trim();
+          if (rawSit.includes(',')) {
+            const partesSit = rawSit.split(',').map((s) => s.trim());
+            for (const ps of partesSit) {
+              if (/quitad|pago|paga/i.test(ps)) situacoesIndividuais.push('Quitada');
+              else if (/autoriz/i.test(ps)) situacoesIndividuais.push('Autorizado');
+              else if (/vencid/i.test(ps)) situacoesIndividuais.push('Vencida');
+              else situacoesIndividuais.push('A vencer');
+            }
+          } else {
+            if (/quitad|pago|paga/i.test(rawSit)) situacaoDetectada = 'Quitada';
+            else if (/autoriz/i.test(rawSit)) situacaoDetectada = 'Autorizado';
+            else if (/vencid/i.test(rawSit)) situacaoDetectada = 'Vencida';
+            else if (/vencer|pend/i.test(rawSit)) situacaoDetectada = 'A vencer';
+          }
+        }
+
+        const isCartao = /cart[aã]o/i.test(metodo);
+
         if (qtdParc > 1) {
           const diaMatch = conteudo.match(/(?:vencimento|dia)\s*(?:todo\s*dia)?\s*(\d{1,2})/i);
           const diaVenc = diaMatch ? Math.min(28, Math.max(1, parseInt(diaMatch[1], 10))) : 10;
-          const isCartao = /cart[aã]o/i.test(metodo);
 
           for (let i = 0; i < qtdParc; i++) {
             let venc = datasParte[i];
@@ -383,23 +407,25 @@ export const mapearDadosContrato = ({
                 venc = formatarData(dataVenc);
               }
             }
+            const sitFinal = situacoesIndividuais[i] || situacaoDetectada || (isCartao ? 'Autorizado' : 'A vencer');
             listaMultiplas.push({
               numero: listaMultiplas.length + 1,
               descricao: `${rotulo} (${i + 1}/${qtdParc} - ${metodo})`,
               vencimento: venc,
               valor: valorParc,
               metodo,
-              status: isCartao ? 'Autorizado' : 'A vencer',
+              status: sitFinal,
             });
           }
         } else {
+          const sitFinal = situacaoDetectada || (isCartao ? 'Autorizado' : 'A vencer');
           listaMultiplas.push({
             numero: listaMultiplas.length + 1,
             descricao: isEntrada ? `${rotulo} (${metodo})` : `${rotulo} (${metodo})`,
             vencimento: dataUnica,
             valor: valorTotalParte,
             metodo,
-            status: 'A vencer',
+            status: sitFinal,
           });
         }
       }
@@ -470,6 +496,9 @@ export const mapearDadosContrato = ({
 
       const listaParcelas: ContratoParcela[] = [];
 
+      const sitEntradaMatch = parteEntrada.match(/\[(?:situa[çc][aã]o:\s*)?([^\]]+)\]/i);
+      const sitEntrada = sitEntradaMatch && /quitad|pago|paga/i.test(sitEntradaMatch[1]) ? 'Quitada' : 'A vencer';
+
       if (entrada > 0) {
         listaParcelas.push({
           numero: 1,
@@ -477,11 +506,30 @@ export const mapearDadosContrato = ({
           vencimento: dataEntradaFormatada,
           valor: entrada,
           metodo: metodoEntrada,
-          status: 'A vencer',
+          status: sitEntrada,
         });
       }
 
       const isCartaoRestante = /cart[aã]o/i.test(metodoRestante);
+      const sitRestanteMatch = parteRestante.match(/\[(?:situa[çc][aã]o:\s*)?([^\]]+)\]/i);
+      let sitRestantePadrao = isCartaoRestante ? 'Autorizado' : 'A vencer';
+      const sitsRestanteIndividuais: string[] = [];
+
+      if (sitRestanteMatch) {
+        const rawSit = sitRestanteMatch[1].trim();
+        if (rawSit.includes(',')) {
+          const partesSit = rawSit.split(',').map((s) => s.trim());
+          for (const ps of partesSit) {
+            if (/quitad|pago|paga/i.test(ps)) sitsRestanteIndividuais.push('Quitada');
+            else if (/autoriz/i.test(ps)) sitsRestanteIndividuais.push('Autorizado');
+            else sitsRestanteIndividuais.push('A vencer');
+          }
+        } else {
+          if (/quitad|pago|paga/i.test(rawSit)) sitRestantePadrao = 'Quitada';
+          else if (/autoriz/i.test(rawSit)) sitRestantePadrao = 'Autorizado';
+          else if (/venc/i.test(rawSit)) sitRestantePadrao = 'A vencer';
+        }
+      }
 
       for (let idx = 0; idx < qtdParcelas; idx++) {
         let vencimentoFormatado = '';
@@ -497,6 +545,8 @@ export const mapearDadosContrato = ({
           vencimentoFormatado = formatarData(dataVenc);
         }
 
+        const statusFinal = sitsRestanteIndividuais[idx] || sitRestantePadrao;
+
         listaParcelas.push({
           numero: listaParcelas.length + 1,
           descricao: qtdParcelas === 1 && entrada === 0
@@ -505,7 +555,7 @@ export const mapearDadosContrato = ({
           vencimento: vencimentoFormatado,
           valor: valorParcela,
           metodo: metodoRestante,
-          status: isCartaoRestante ? 'Autorizado' : 'A vencer',
+          status: statusFinal,
         });
       }
 

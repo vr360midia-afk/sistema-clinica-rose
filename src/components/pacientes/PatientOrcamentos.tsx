@@ -95,9 +95,11 @@ const PatientOrcamentos = ({ patient }: Props) => {
   const [pixParceladoAtivo, setPixParceladoAtivo] = useState(false);
   const [pixEntrada, setPixEntrada] = useState<number>(0);
   const [pixDataEntrada, setPixDataEntrada] = useState<string>(() => formatIsoDate(new Date()));
+  const [pixEntradaSituacao, setPixEntradaSituacao] = useState<'A vencer' | 'Quitada'>('A vencer');
   const [pixParcelas, setPixParcelas] = useState<number>(3);
   const [pixDiaVencimento, setPixDiaVencimento] = useState<number>(10);
   const [pixDatasParcelas, setPixDatasParcelas] = useState<string[]>(() => gerarDatasPadrao(3, 10));
+  const [pixSituacoesParcelas, setPixSituacoesParcelas] = useState<Array<'A vencer' | 'Quitada'>>(() => ['A vencer', 'A vencer', 'A vencer']);
 
   // Múltiplas Formas de Pagamento (Entrada + Cartão / Split)
   const [multiplasFormasAtivo, setMultiplasFormasAtivo] = useState(false);
@@ -111,12 +113,14 @@ const PatientOrcamentos = ({ patient }: Props) => {
       diaVencimento: number;
       dataPagamento?: string;
       datasParcelas?: string[];
+      situacao?: 'A vencer' | 'Quitada' | 'Autorizado';
+      situacoesParcelas?: Array<'A vencer' | 'Quitada' | 'Autorizado'>;
     }>
   >(() => {
     const hoje = formatIsoDate(new Date());
     return [
-      { id: '1', rotulo: 'Entrada', metodo: 'pix', valor: 0, parcelas: 1, diaVencimento: 10, dataPagamento: hoje, datasParcelas: [hoje] },
-      { id: '2', rotulo: 'Restante', metodo: 'cartao', valor: 0, parcelas: 3, diaVencimento: 10, dataPagamento: hoje, datasParcelas: gerarDatasPadrao(3, 10) },
+      { id: '1', rotulo: 'Entrada', metodo: 'pix', valor: 0, parcelas: 1, diaVencimento: 10, dataPagamento: hoje, datasParcelas: [hoje], situacao: 'A vencer', situacoesParcelas: ['A vencer'] },
+      { id: '2', rotulo: 'Restante', metodo: 'cartao', valor: 0, parcelas: 3, diaVencimento: 10, dataPagamento: hoje, datasParcelas: gerarDatasPadrao(3, 10), situacao: 'Autorizado', situacoesParcelas: ['Autorizado', 'Autorizado', 'Autorizado'] },
     ];
   });
 
@@ -149,15 +153,29 @@ const PatientOrcamentos = ({ patient }: Props) => {
           ? 'PIX Parcelado'
           : 'Transferência';
 
+      const sitPadrao = f.situacao || (f.metodo === 'cartao' ? 'Autorizado' : 'A vencer');
+      const temSitsDiferentes =
+        (f.parcelas || 1) > 1 &&
+        f.situacoesParcelas &&
+        f.situacoesParcelas.length === f.parcelas &&
+        f.situacoesParcelas.some((s) => s !== f.situacoesParcelas![0]);
+
+      let sitStr = '';
+      if (temSitsDiferentes && f.situacoesParcelas) {
+        sitStr = ` [${f.situacoesParcelas.join(', ')}]`;
+      } else {
+        sitStr = ` [${sitPadrao}]`;
+      }
+
       if (f.metodo === 'cartao') {
         const valParc = (f.parcelas || 1) > 1 ? f.valor / f.parcelas : f.valor;
         if ((f.parcelas || 1) > 1) {
           partes.push(
-            `${f.rotulo}: ${formatMoney(f.valor)} em ${f.parcelas}x de ${formatMoney(valParc)} no Cartão de Crédito`
+            `${f.rotulo}: ${formatMoney(f.valor)} em ${f.parcelas}x de ${formatMoney(valParc)} no Cartão de Crédito${sitStr}`
           );
         } else {
           const dataStr = f.dataPagamento ? ` (em ${formatBrDate(f.dataPagamento)})` : '';
-          partes.push(`${f.rotulo}: ${formatMoney(f.valor)} via Cartão de Crédito${dataStr}`);
+          partes.push(`${f.rotulo}: ${formatMoney(f.valor)} via Cartão de Crédito${dataStr}${sitStr}`);
         }
       } else if ((f.parcelas || 1) > 1 && (f.metodo === 'pix_parcelado' || f.metodo === 'boleto')) {
         const valParc = f.valor / f.parcelas;
@@ -169,11 +187,11 @@ const PatientOrcamentos = ({ patient }: Props) => {
           infoDatas = ` (Vencimento todo dia ${f.diaVencimento || 10})`;
         }
         partes.push(
-          `${f.rotulo}: ${formatMoney(f.valor)} em ${f.parcelas}x de ${formatMoney(valParc)} no ${nomeMetodo}${infoDatas}`
+          `${f.rotulo}: ${formatMoney(f.valor)} em ${f.parcelas}x de ${formatMoney(valParc)} no ${nomeMetodo}${infoDatas}${sitStr}`
         );
       } else {
         const dataStr = f.dataPagamento ? ` (em ${formatBrDate(f.dataPagamento)})` : '';
-        partes.push(`${f.rotulo}: ${formatMoney(f.valor)} via ${nomeMetodo}${dataStr}`);
+        partes.push(`${f.rotulo}: ${formatMoney(f.valor)} via ${nomeMetodo}${dataStr}${sitStr}`);
       }
     }
     return partes.join(' + ');
@@ -197,6 +215,8 @@ const PatientOrcamentos = ({ patient }: Props) => {
           diaVencimento: 10,
           dataPagamento: hojeIso,
           datasParcelas: [hojeIso],
+          situacao: 'A vencer' as const,
+          situacoesParcelas: ['A vencer' as const],
         },
         {
           id: '2',
@@ -207,6 +227,8 @@ const PatientOrcamentos = ({ patient }: Props) => {
           diaVencimento: 10,
           dataPagamento: hojeIso,
           datasParcelas: gerarDatasPadrao(3, 10),
+          situacao: 'Autorizado' as const,
+          situacoesParcelas: ['Autorizado' as const, 'Autorizado' as const, 'Autorizado' as const],
         },
       ];
       setFormasMultiplas(inicial);
@@ -219,7 +241,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
       if (i !== idx) return item;
       const atualizado = { ...item, ...campos };
 
-      // Se alterou a quantidade de parcelas, ajusta o array de datas de vencimento
+      // Se alterou a quantidade de parcelas, ajusta o array de datas de vencimento e situações
       if (campos.parcelas !== undefined && campos.parcelas !== item.parcelas) {
         const qtd = campos.parcelas;
         const diaBase = atualizado.diaVencimento || 10;
@@ -237,6 +259,24 @@ const PatientOrcamentos = ({ patient }: Props) => {
           }
         }
         atualizado.datasParcelas = novasDatas;
+        const sitBase = item.situacao || (atualizado.metodo === 'cartao' ? 'Autorizado' : 'A vencer');
+        atualizado.situacoesParcelas = Array.from({ length: qtd }, (_, p) => item.situacoesParcelas?.[p] || sitBase);
+      }
+
+      // Se alterou a situação geral, sincroniza as parcelas
+      if (campos.situacao !== undefined && campos.situacao !== item.situacao) {
+        atualizado.situacoesParcelas = Array.from({ length: atualizado.parcelas || 1 }, () => campos.situacao!);
+      }
+
+      // Se alterou o método para cartão ou outro, ajusta situação padrão se apropriado
+      if (campos.metodo !== undefined && campos.metodo !== item.metodo) {
+        if (campos.metodo === 'cartao' && atualizado.situacao === 'A vencer') {
+          atualizado.situacao = 'Autorizado';
+          atualizado.situacoesParcelas = Array.from({ length: atualizado.parcelas || 1 }, () => 'Autorizado');
+        } else if (campos.metodo !== 'cartao' && atualizado.situacao === 'Autorizado') {
+          atualizado.situacao = 'A vencer';
+          atualizado.situacoesParcelas = Array.from({ length: atualizado.parcelas || 1 }, () => 'A vencer');
+        }
       }
 
       // Se alterou o dia base de vencimento, regenera as datas padrão
@@ -261,6 +301,17 @@ const PatientOrcamentos = ({ patient }: Props) => {
     setFormasPagamento(montarTextoMultiplasFormas(novas));
   };
 
+  const handleAtualizarSituacaoParcelaMultipla = (formaIdx: number, parcelaIdx: number, novaSit: 'A vencer' | 'Quitada' | 'Autorizado') => {
+    const novas = formasMultiplas.map((item, i) => {
+      if (i !== formaIdx) return item;
+      const arraySits = [...(item.situacoesParcelas || Array(item.parcelas).fill(item.situacao || 'A vencer'))];
+      arraySits[parcelaIdx] = novaSit;
+      return { ...item, situacoesParcelas: arraySits };
+    });
+    setFormasMultiplas(novas);
+    setFormasPagamento(montarTextoMultiplasFormas(novas));
+  };
+
   const handleAdicionarFormaMultipla = () => {
     const somaAtual = formasMultiplas.reduce((s, f) => s + (f.valor || 0), 0);
     const saldoFaltante = Math.max(0, total - somaAtual);
@@ -274,6 +325,8 @@ const PatientOrcamentos = ({ patient }: Props) => {
       diaVencimento: 10,
       dataPagamento: hojeIso,
       datasParcelas: [hojeIso],
+      situacao: 'Autorizado' as const,
+      situacoesParcelas: ['Autorizado' as const],
     };
     const novas = [...formasMultiplas, novoItem];
     setFormasMultiplas(novas);
@@ -292,7 +345,9 @@ const PatientOrcamentos = ({ patient }: Props) => {
     diaVal: number,
     totalVal: number,
     dataEntradaStr?: string,
-    datasParc?: string[]
+    datasParc?: string[],
+    entradaSit?: 'A vencer' | 'Quitada',
+    parcelasSits?: Array<'A vencer' | 'Quitada'>
   ) => {
     const qtd = Math.max(1, parcelasVal);
     const saldo = Math.max(0, totalVal - entradaVal);
@@ -301,7 +356,8 @@ const PatientOrcamentos = ({ patient }: Props) => {
     let textoEntrada = '';
     if (entradaVal > 0) {
       const dataFormatada = dataEntradaStr ? ` (em ${formatBrDate(dataEntradaStr)})` : '';
-      textoEntrada = `Entrada de ${formatMoney(entradaVal)}${dataFormatada} + `;
+      const sitEntradaStr = ` [${entradaSit || 'A vencer'}]`;
+      textoEntrada = `Entrada de ${formatMoney(entradaVal)}${dataFormatada}${sitEntradaStr} + `;
     }
 
     const datasBr = (datasParc || []).filter(Boolean).map(formatBrDate);
@@ -319,7 +375,17 @@ const PatientOrcamentos = ({ patient }: Props) => {
       textoVencimento = `(Vencimento todo dia ${diaVal}: ${datasBr.join(', ')})`;
     }
 
-    return `PIX Parcelado: ${textoEntrada}${qtd}x de ${formatMoney(valorParc)} ${textoVencimento}`;
+    const temSitsDiferentes = parcelasSits && parcelasSits.length === qtd && parcelasSits.some((s) => s !== parcelasSits[0]);
+    let sitParcStr = '';
+    if (temSitsDiferentes && parcelasSits) {
+      sitParcStr = ` [${parcelasSits.join(', ')}]`;
+    } else if (parcelasSits && parcelasSits[0]) {
+      sitParcStr = ` [${parcelasSits[0]}]`;
+    } else {
+      sitParcStr = ' [A vencer]';
+    }
+
+    return `PIX Parcelado: ${textoEntrada}${qtd}x de ${formatMoney(valorParc)} ${textoVencimento}${sitParcStr}`;
   };
 
   const handleTogglePixParcelado = () => {
@@ -329,7 +395,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
       setMultiplasFormasAtivo(false);
       const datas = gerarDatasPadrao(pixParcelas, pixDiaVencimento);
       setPixDatasParcelas(datas);
-      setFormasPagamento(montarTextoPixParcelado(pixEntrada, pixParcelas, pixDiaVencimento, total, pixDataEntrada, datas));
+      setFormasPagamento(montarTextoPixParcelado(pixEntrada, pixParcelas, pixDiaVencimento, total, pixDataEntrada, datas, pixEntradaSituacao, pixSituacoesParcelas));
     }
   };
 
@@ -337,14 +403,30 @@ const PatientOrcamentos = ({ patient }: Props) => {
     const clamped = Math.min(total, Math.max(0, valor));
     setPixEntrada(clamped);
     if (pixParceladoAtivo) {
-      setFormasPagamento(montarTextoPixParcelado(clamped, pixParcelas, pixDiaVencimento, total, pixDataEntrada, pixDatasParcelas));
+      setFormasPagamento(montarTextoPixParcelado(clamped, pixParcelas, pixDiaVencimento, total, pixDataEntrada, pixDatasParcelas, pixEntradaSituacao, pixSituacoesParcelas));
     }
   };
 
   const handleAtualizarDataEntrada = (novaDataIso: string) => {
     setPixDataEntrada(novaDataIso);
     if (pixParceladoAtivo) {
-      setFormasPagamento(montarTextoPixParcelado(pixEntrada, pixParcelas, pixDiaVencimento, total, novaDataIso, pixDatasParcelas));
+      setFormasPagamento(montarTextoPixParcelado(pixEntrada, pixParcelas, pixDiaVencimento, total, novaDataIso, pixDatasParcelas, pixEntradaSituacao, pixSituacoesParcelas));
+    }
+  };
+
+  const handleAtualizarPixEntradaSituacao = (novaSit: 'A vencer' | 'Quitada') => {
+    setPixEntradaSituacao(novaSit);
+    if (pixParceladoAtivo) {
+      setFormasPagamento(montarTextoPixParcelado(pixEntrada, pixParcelas, pixDiaVencimento, total, pixDataEntrada, pixDatasParcelas, novaSit, pixSituacoesParcelas));
+    }
+  };
+
+  const handleAtualizarPixSituacaoParcela = (idx: number, novaSit: 'A vencer' | 'Quitada') => {
+    const novas = [...pixSituacoesParcelas];
+    novas[idx] = novaSit;
+    setPixSituacoesParcelas(novas);
+    if (pixParceladoAtivo) {
+      setFormasPagamento(montarTextoPixParcelado(pixEntrada, pixParcelas, pixDiaVencimento, total, pixDataEntrada, pixDatasParcelas, pixEntradaSituacao, novas));
     }
   };
 
@@ -374,6 +456,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
         const parcelas = snap.financeiro.parcelas;
         for (const p of parcelas) {
           const isEntrada = p.descricao.toLowerCase().includes('entrada');
+          const isQuitada = (p.status || '').toLowerCase().includes('quitad') || (p.status || '').toLowerCase().includes('pago');
           
           let dataVenc: Date = new Date();
           if (p.vencimento && p.vencimento.includes('/')) {
@@ -407,7 +490,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
             pacienteId: patient.id,
             valor: p.valor,
             tipo: 'receita',
-            status: isEntrada ? 'pendente' : 'pendente',
+            status: isQuitada ? 'pago' : 'pendente',
             metodoPagamento: metodoFinal,
             data: new Date(),
             vencimento: dataVenc,
@@ -445,8 +528,10 @@ const PatientOrcamentos = ({ patient }: Props) => {
       }
     }
     setPixDatasParcelas(novasDatas);
+    const novasSits: Array<'A vencer' | 'Quitada'> = Array.from({ length: qtd }, (_, i) => pixSituacoesParcelas[i] || 'A vencer');
+    setPixSituacoesParcelas(novasSits);
     if (pixParceladoAtivo) {
-      setFormasPagamento(montarTextoPixParcelado(pixEntrada, qtd, pixDiaVencimento, total, pixDataEntrada, novasDatas));
+      setFormasPagamento(montarTextoPixParcelado(pixEntrada, qtd, pixDiaVencimento, total, pixDataEntrada, novasDatas, pixEntradaSituacao, novasSits));
     }
   };
 
@@ -455,7 +540,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
     const novasDatas = gerarDatasPadrao(pixParcelas, dia);
     setPixDatasParcelas(novasDatas);
     if (pixParceladoAtivo) {
-      setFormasPagamento(montarTextoPixParcelado(pixEntrada, pixParcelas, dia, total, pixDataEntrada, novasDatas));
+      setFormasPagamento(montarTextoPixParcelado(pixEntrada, pixParcelas, dia, total, pixDataEntrada, novasDatas, pixEntradaSituacao, pixSituacoesParcelas));
     }
   };
 
@@ -464,7 +549,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
     novas[idx] = novaDataIso;
     setPixDatasParcelas(novas);
     if (pixParceladoAtivo) {
-      setFormasPagamento(montarTextoPixParcelado(pixEntrada, pixParcelas, pixDiaVencimento, total, pixDataEntrada, novas));
+      setFormasPagamento(montarTextoPixParcelado(pixEntrada, pixParcelas, pixDiaVencimento, total, pixDataEntrada, novas, pixEntradaSituacao, pixSituacoesParcelas));
     }
   };
 
@@ -521,14 +606,16 @@ const PatientOrcamentos = ({ patient }: Props) => {
     setPixParceladoAtivo(false);
     setPixEntrada(0);
     setPixDataEntrada(formatIsoDate(new Date()));
+    setPixEntradaSituacao('A vencer');
     setPixParcelas(3);
     setPixDiaVencimento(10);
     setPixDatasParcelas(gerarDatasPadrao(3, 10));
+    setPixSituacoesParcelas(['A vencer', 'A vencer', 'A vencer']);
     setMultiplasFormasAtivo(false);
     const hojeIso = formatIsoDate(new Date());
     setFormasMultiplas([
-      { id: '1', rotulo: 'Entrada', metodo: 'pix', valor: 0, parcelas: 1, diaVencimento: 10, dataPagamento: hojeIso, datasParcelas: [hojeIso] },
-      { id: '2', rotulo: 'Restante', metodo: 'cartao', valor: 0, parcelas: 3, diaVencimento: 10, dataPagamento: hojeIso, datasParcelas: gerarDatasPadrao(3, 10) },
+      { id: '1', rotulo: 'Entrada', metodo: 'pix', valor: 0, parcelas: 1, diaVencimento: 10, dataPagamento: hojeIso, datasParcelas: [hojeIso], situacao: 'A vencer', situacoesParcelas: ['A vencer'] },
+      { id: '2', rotulo: 'Restante', metodo: 'cartao', valor: 0, parcelas: 3, diaVencimento: 10, dataPagamento: hojeIso, datasParcelas: gerarDatasPadrao(3, 10), situacao: 'Autorizado', situacoesParcelas: ['Autorizado', 'Autorizado', 'Autorizado'] },
     ]);
     setParceriaAtiva(false);
     setParceiroId('');
@@ -555,7 +642,9 @@ const PatientOrcamentos = ({ patient }: Props) => {
       setMultiplasFormasAtivo(true);
       setPixParceladoAtivo(false);
       setPixDataEntrada(formatIsoDate(new Date()));
+      setPixEntradaSituacao('A vencer');
       setPixDatasParcelas(gerarDatasPadrao(3, 10));
+      setPixSituacoesParcelas(['A vencer', 'A vencer', 'A vencer']);
 
       const partes = o.formasPagamento.split('+').map((p) => p.trim()).filter(Boolean);
       const formasCarregadas: typeof formasMultiplas = [];
@@ -613,6 +702,31 @@ const PatientOrcamentos = ({ patient }: Props) => {
           ? datasDetectadas
           : gerarDatasPadrao(qtdParc, diaVenc);
 
+        // Situação da forma e parcelas
+        const sitMatch = parte.match(/\[(?:situa[çc][aã]o:\s*)?([^\]]+)\]/i);
+        let situacaoForma: 'A vencer' | 'Quitada' | 'Autorizado' = metodo === 'cartao' ? 'Autorizado' : 'A vencer';
+        let situacoesParcelasForma: Array<'A vencer' | 'Quitada' | 'Autorizado'> = [];
+
+        if (sitMatch) {
+          const rawSit = sitMatch[1].trim();
+          if (rawSit.includes(',')) {
+            const arr = rawSit.split(',').map((s) => s.trim());
+            situacoesParcelasForma = arr.map((s) => {
+              if (/quitad|pago/i.test(s)) return 'Quitada';
+              if (/autoriz/i.test(s)) return 'Autorizado';
+              return 'A vencer';
+            });
+            situacaoForma = situacoesParcelasForma[0] || situacaoForma;
+          } else {
+            if (/quitad|pago/i.test(rawSit)) situacaoForma = 'Quitada';
+            else if (/autoriz/i.test(rawSit)) situacaoForma = 'Autorizado';
+            else if (/venc/i.test(rawSit)) situacaoForma = 'A vencer';
+            situacoesParcelasForma = Array(qtdParc).fill(situacaoForma);
+          }
+        } else {
+          situacoesParcelasForma = Array(qtdParc).fill(situacaoForma);
+        }
+
         formasCarregadas.push({
           id: String(i + 1),
           rotulo,
@@ -622,6 +736,8 @@ const PatientOrcamentos = ({ patient }: Props) => {
           diaVencimento: diaVenc,
           dataPagamento: dataPagIso,
           datasParcelas: datasFinais,
+          situacao: situacaoForma,
+          situacoesParcelas: situacoesParcelasForma,
         });
       }
 
@@ -641,6 +757,14 @@ const PatientOrcamentos = ({ patient }: Props) => {
         setPixDataEntrada(`${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`);
       } else {
         setPixDataEntrada(formatIsoDate(new Date()));
+      }
+
+      // Situação da Entrada PIX
+      const entSitMatch = o.formasPagamento.match(/entrada[^\+]+?\[(?:situa[çc][aã]o:\s*)?([^\]]+)\]/i);
+      if (entSitMatch && /quitad|pago/i.test(entSitMatch[1])) {
+        setPixEntradaSituacao('Quitada');
+      } else {
+        setPixEntradaSituacao('A vencer');
       }
 
       const parcMatch = o.formasPagamento.match(/(\d+)\s*x/i);
@@ -665,14 +789,29 @@ const PatientOrcamentos = ({ patient }: Props) => {
       } else {
         setPixDatasParcelas(gerarDatasPadrao(qtdParc, diaVenc));
       }
+
+      // Situação das Parcelas PIX
+      const parcSitMatch = o.formasPagamento.match(/x\s+de[^\n]+?\[(?:situa[çc][aã]o:\s*)?([^\]]+)\]/i) || o.formasPagamento.match(/\)\[(?:situa[çc][aã]o:\s*)?([^\]]+)\]/i);
+      let sitsParc: Array<'A vencer' | 'Quitada'> = Array(qtdParc).fill('A vencer');
+      if (parcSitMatch) {
+        const raw = parcSitMatch[1] ? parcSitMatch[1].trim() : '';
+        if (raw.includes(',')) {
+          sitsParc = raw.split(',').map((s) => (/quitad|pago/i.test(s.trim()) ? 'Quitada' : 'A vencer'));
+        } else if (/quitad|pago/i.test(raw)) {
+          sitsParc = Array(qtdParc).fill('Quitada');
+        }
+      }
+      setPixSituacoesParcelas(sitsParc);
     } else {
       setMultiplasFormasAtivo(false);
       setPixParceladoAtivo(false);
       setPixEntrada(0);
       setPixDataEntrada(formatIsoDate(new Date()));
+      setPixEntradaSituacao('A vencer');
       setPixParcelas(3);
       setPixDiaVencimento(10);
       setPixDatasParcelas(gerarDatasPadrao(3, 10));
+      setPixSituacoesParcelas(['A vencer', 'A vencer', 'A vencer']);
     }
     setParceriaAtiva(!!o.parceiroId || !!o.parceiroNome);
     setParceiroId(o.parceiroId || '');
@@ -1147,8 +1286,8 @@ const PatientOrcamentos = ({ patient }: Props) => {
                               <div
                                 className={`grid gap-2.5 ${
                                   !isParcelavel
-                                    ? 'grid-cols-1 sm:grid-cols-3'
-                                    : 'grid-cols-1 sm:grid-cols-2 md:grid-cols-4'
+                                    ? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-4'
+                                    : 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5'
                                 }`}
                               >
                                 <div className="space-y-1">
@@ -1275,6 +1414,29 @@ const PatientOrcamentos = ({ patient }: Props) => {
                                     />
                                   </div>
                                 )}
+
+                                <div className="space-y-1">
+                                  <Label className="text-[11px] text-muted-foreground">Situação</Label>
+                                  <Select
+                                    value={item.situacao || (item.metodo === 'cartao' ? 'Autorizado' : 'A vencer')}
+                                    onValueChange={(v: any) => handleAtualizarFormaMultipla(idx, { situacao: v })}
+                                  >
+                                    <SelectTrigger className="h-8 text-xs font-semibold">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="A vencer">
+                                        <span className="text-amber-500 font-medium">● A vencer</span>
+                                      </SelectItem>
+                                      <SelectItem value="Quitada">
+                                        <span className="text-emerald-500 font-medium">● Quitada</span>
+                                      </SelectItem>
+                                      <SelectItem value="Autorizado">
+                                        <span className="text-blue-500 font-medium">● Autorizado</span>
+                                      </SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
                               </div>
 
                               {/* Grade de vencimentos específicos para editar qualquer dia e data livremente - Apenas para Boleto Parcelado e PIX Parcelado */}
@@ -1283,10 +1445,10 @@ const PatientOrcamentos = ({ patient }: Props) => {
                                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                                     <span className="text-[11px] font-semibold text-foreground flex items-center gap-1.5">
                                       <CalendarDays className="h-3.5 w-3.5 text-emerald-400" />
-                                      Vencimentos das Parcelas ({item.rotulo})
+                                      Vencimentos e Situações das Parcelas ({item.rotulo})
                                     </span>
                                     <span className="text-[10px] text-muted-foreground">
-                                      Edite qualquer dia ou data individualmente
+                                      Edite data ou situação individual de cada parcela
                                     </span>
                                   </div>
 
@@ -1307,18 +1469,39 @@ const PatientOrcamentos = ({ patient }: Props) => {
                                               {formatMoney(valParc)}
                                             </span>
                                           </div>
-                                          <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/40">
-                                            <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-                                              <CalendarDays className="h-3 w-3 text-emerald-400" />
-                                              Vencimento:
-                                            </span>
-                                            <Input
-                                              type="date"
-                                              value={dataAtual}
-                                              onChange={(e) => handleAtualizarDataParcelaMultipla(idx, pIdx, e.target.value)}
-                                              className="h-7 text-xs w-32 font-semibold bg-background border-border/80"
-                                              title={`Data de vencimento da parcela ${pIdx + 1}`}
-                                            />
+                                          <div className="flex items-center justify-between gap-1.5 pt-1 border-t border-border/40">
+                                            <div className="flex items-center gap-1">
+                                              <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                                                <CalendarDays className="h-3 w-3 text-emerald-400" />
+                                                Venc:
+                                              </span>
+                                              <Input
+                                                type="date"
+                                                value={dataAtual}
+                                                onChange={(e) => handleAtualizarDataParcelaMultipla(idx, pIdx, e.target.value)}
+                                                className="h-7 text-xs w-28 font-semibold bg-background border-border/80"
+                                                title={`Data de vencimento da parcela ${pIdx + 1}`}
+                                              />
+                                            </div>
+                                            <Select
+                                              value={item.situacoesParcelas?.[pIdx] || item.situacao || 'A vencer'}
+                                              onValueChange={(v: any) => handleAtualizarSituacaoParcelaMultipla(idx, pIdx, v)}
+                                            >
+                                              <SelectTrigger className="h-7 text-[11px] w-28 font-semibold">
+                                                <SelectValue />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                <SelectItem value="A vencer">
+                                                  <span className="text-amber-500 font-medium">● A vencer</span>
+                                                </SelectItem>
+                                                <SelectItem value="Quitada">
+                                                  <span className="text-emerald-500 font-medium">● Quitada</span>
+                                                </SelectItem>
+                                                <SelectItem value="Autorizado">
+                                                  <span className="text-blue-500 font-medium">● Autorizado</span>
+                                                </SelectItem>
+                                              </SelectContent>
+                                            </Select>
                                           </div>
                                         </div>
                                       );
@@ -1479,17 +1662,38 @@ const PatientOrcamentos = ({ patient }: Props) => {
                               {formatMoney(pixEntrada)}
                             </span>
                           </div>
-                          <div className="flex items-center justify-between sm:justify-end gap-2">
-                            <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-                              <CalendarDays className="h-3 w-3 text-emerald-500" /> Data:
-                            </span>
-                            <Input
-                              type="date"
-                              value={pixDataEntrada}
-                              onChange={(e) => handleAtualizarDataEntrada(e.target.value)}
-                              className="h-8 text-xs w-36 font-semibold bg-background"
-                              title="Data da entrada em PIX"
-                            />
+                          <div className="flex items-center flex-wrap gap-2">
+                            <div className="flex items-center gap-1">
+                              <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                                <CalendarDays className="h-3 w-3 text-emerald-500" /> Data:
+                              </span>
+                              <Input
+                                type="date"
+                                value={pixDataEntrada}
+                                onChange={(e) => handleAtualizarDataEntrada(e.target.value)}
+                                className="h-8 text-xs w-32 font-semibold bg-background"
+                                title="Data da entrada em PIX"
+                              />
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <span className="text-[11px] text-muted-foreground">Situação:</span>
+                              <Select
+                                value={pixEntradaSituacao}
+                                onValueChange={(v: any) => handleAtualizarPixEntradaSituacao(v)}
+                              >
+                                <SelectTrigger className="h-8 text-xs w-28 font-semibold">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="A vencer">
+                                    <span className="text-amber-500 font-medium">● A vencer</span>
+                                  </SelectItem>
+                                  <SelectItem value="Quitada">
+                                    <span className="text-emerald-500 font-medium">● Quitada</span>
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
                           </div>
                         </div>
                       )}
@@ -1509,17 +1713,38 @@ const PatientOrcamentos = ({ patient }: Props) => {
                                 {formatMoney(valorParc)}
                               </span>
                             </div>
-                            <div className="flex items-center justify-between sm:justify-end gap-2">
-                              <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-                                <CalendarDays className="h-3 w-3 text-primary" /> Vencimento:
-                              </span>
-                              <Input
-                                type="date"
-                                value={pixDatasParcelas[idx] || ''}
-                                onChange={(e) => handleAtualizarDataParcela(idx, e.target.value)}
-                                className="h-8 text-xs w-36 font-semibold bg-background"
-                                title={`Data de vencimento da parcela ${idx + 1}`}
-                              />
+                            <div className="flex items-center flex-wrap gap-2">
+                              <div className="flex items-center gap-1">
+                                <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                                  <CalendarDays className="h-3 w-3 text-primary" /> Venc.:
+                                </span>
+                                <Input
+                                  type="date"
+                                  value={pixDatasParcelas[idx] || ''}
+                                  onChange={(e) => handleAtualizarDataParcela(idx, e.target.value)}
+                                  className="h-8 text-xs w-32 font-semibold bg-background"
+                                  title={`Data de vencimento da parcela ${idx + 1}`}
+                                />
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <span className="text-[11px] text-muted-foreground">Situação:</span>
+                                <Select
+                                  value={pixSituacoesParcelas[idx] || 'A vencer'}
+                                  onValueChange={(v: any) => handleAtualizarPixSituacaoParcela(idx, v)}
+                                >
+                                  <SelectTrigger className="h-8 text-xs w-28 font-semibold">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="A vencer">
+                                      <span className="text-amber-500 font-medium">● A vencer</span>
+                                    </SelectItem>
+                                    <SelectItem value="Quitada">
+                                      <span className="text-emerald-500 font-medium">● Quitada</span>
+                                    </SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
                             </div>
                           </div>
                         );

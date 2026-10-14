@@ -220,11 +220,13 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
           metodoFinal = 'transferencia';
         }
 
+        const isQuitada = (p.status || '').toLowerCase().includes('quitad') || (p.status || '').toLowerCase().includes('pago');
+
         await addTransacao({
           pacienteId: patient.id,
           valor: p.valor,
           tipo: 'receita',
-          status: 'pendente',
+          status: isQuitada ? 'pago' : 'pendente',
           metodoPagamento: metodoFinal,
           data: new Date(),
           vencimento: dataVenc,
@@ -1300,6 +1302,96 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                             className="h-8 text-xs border-border bg-background text-foreground"
                           />
                         </div>
+
+                        {/* Tabela de Parcelas e Situações do Contrato */}
+                        {snapshotAtual.financeiro.parcelas && snapshotAtual.financeiro.parcelas.length > 0 && (
+                          <div className="sm:col-span-2 md:col-span-4 pt-3 border-t border-border/70 space-y-2">
+                            <Label className="text-xs font-semibold text-foreground flex items-center justify-between">
+                              <span>Parcelas e Cronograma Oficial (Cláusula 3ª)</span>
+                              <span className="text-[10px] text-muted-foreground font-normal">Edite a data, valor ou situação de cada parcela</span>
+                            </Label>
+                            <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+                              {snapshotAtual.financeiro.parcelas.map((parc, pIdx) => (
+                                <div
+                                  key={pIdx}
+                                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2 rounded-md bg-muted/40 border border-border/70 text-xs hover:border-primary/40 transition-colors"
+                                >
+                                  <div className="flex items-center gap-2 min-w-36">
+                                    <span className="px-1.5 py-0.5 rounded bg-primary/10 text-primary font-bold text-[10px]">
+                                      {parc.numero}
+                                    </span>
+                                    <span className="font-medium text-foreground truncate max-w-[200px]" title={parc.descricao}>
+                                      {parc.descricao}
+                                    </span>
+                                  </div>
+
+                                  <div className="flex items-center flex-wrap gap-2">
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-[10px] text-muted-foreground">Valor:</span>
+                                      <Input
+                                        type="number"
+                                        step="0.01"
+                                        value={parc.valor || ''}
+                                        onChange={(e) => {
+                                          const val = parseFloat(e.target.value) || 0;
+                                          const novas = [...snapshotAtual.financeiro.parcelas];
+                                          novas[pIdx] = { ...novas[pIdx], valor: val };
+                                          handleUpdateSnapshotField('financeiro.parcelas', novas);
+                                        }}
+                                        className="h-7 text-xs w-24 border-border bg-background"
+                                      />
+                                    </div>
+
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-[10px] text-muted-foreground">Venc.:</span>
+                                      <Input
+                                        type="text"
+                                        value={parc.vencimento || ''}
+                                        onChange={(e) => {
+                                          const novas = [...snapshotAtual.financeiro.parcelas];
+                                          novas[pIdx] = { ...novas[pIdx], vencimento: e.target.value };
+                                          handleUpdateSnapshotField('financeiro.parcelas', novas);
+                                        }}
+                                        placeholder="DD/MM/AAAA ou Fatura"
+                                        className="h-7 text-xs w-28 border-border bg-background"
+                                      />
+                                    </div>
+
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-[10px] text-muted-foreground">Situação:</span>
+                                      <Select
+                                        value={parc.status || 'A vencer'}
+                                        onValueChange={(v) => {
+                                          const novas = [...snapshotAtual.financeiro.parcelas];
+                                          novas[pIdx] = { ...novas[pIdx], status: v as any };
+                                          handleUpdateSnapshotField('financeiro.parcelas', novas);
+                                        }}
+                                      >
+                                        <SelectTrigger className="h-7 text-xs w-28 font-semibold">
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="A vencer">
+                                            <span className="text-amber-500 font-medium">● A vencer</span>
+                                          </SelectItem>
+                                          <SelectItem value="Quitada">
+                                            <span className="text-emerald-500 font-medium">● Quitada</span>
+                                          </SelectItem>
+                                          <SelectItem value="Autorizado">
+                                            <span className="text-blue-500 font-medium">● Autorizado</span>
+                                          </SelectItem>
+                                          <SelectItem value="Vencida">
+                                            <span className="text-rose-500 font-medium">● Vencida</span>
+                                          </SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
 
                         <div className="space-y-1 sm:col-span-2 md:col-span-4">
                           <Label className="text-xs text-muted-foreground">Observações do Orçamento / Recomendações (Cláusula 1ª)</Label>
