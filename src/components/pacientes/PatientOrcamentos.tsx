@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ClipboardList, Plus, Trash2, MessageCircle, Check, X, Handshake, FileText, Pencil, FileSignature, Sparkles, CalendarDays, Link as LinkIcon, Layers, CreditCard, Wallet, CheckCircle2 } from 'lucide-react';
+import { ClipboardList, Plus, Trash2, MessageCircle, Check, X, Handshake, FileText, Pencil, FileSignature, Sparkles, CalendarDays, Link as LinkIcon, Layers, CreditCard, Wallet, CheckCircle2, RefreshCw } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { useOrcamentos, OrcamentoItem, Orcamento } from '@/hooks/useOrcamentos';
 import { useProcedimentos } from '@/hooks/useProcedimentos';
@@ -20,7 +20,7 @@ import { formatMoney } from '@/utils/exportCsv';
 import { toast } from 'sonner';
 import ContratoModal from '@/components/contratos/ContratoModal';
 import { useDentalSystem } from '@/context/DentalSystemContext';
-import { mapearDadosContrato, gerarLinkAssinaturaContrato } from '@/utils/contratoEngine';
+import { mapearDadosContrato, gerarLinkAssinaturaContrato, parseBrMoney } from '@/utils/contratoEngine';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -73,7 +73,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
   const { parceiros, addParceiro, refetch: refetchParceiros } = useParceiros();
   const { configuracoes } = useConfiguracoes();
   const { dentistas } = useDentistas();
-  const { addTransacao } = useDentalSystem();
+  const { transacoes, addTransacao, deleteTransacao } = useDentalSystem();
 
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -354,6 +354,16 @@ const PatientOrcamentos = ({ patient }: Props) => {
       await updateStatus(o.id, 'aprovado');
 
       if (lancarFinanceiro) {
+        // Remove quaisquer transações existentes vinculadas a este orçamento para garantir sincronismo e evitar valores obsoletos ou duplicados
+        const existentes = (transacoes || []).filter((t: any) => t.orcamentoId === o.id);
+        for (const t of existentes) {
+          try {
+            await deleteTransacao(t.id);
+          } catch (e) {
+            console.error('Erro ao remover transação antiga:', e);
+          }
+        }
+
         const snap = mapearDadosContrato({
           patient,
           orcamento: o,
@@ -370,7 +380,8 @@ const PatientOrcamentos = ({ patient }: Props) => {
             const [dia, mes, ano] = p.vencimento.split('/');
             dataVenc = new Date(Number(ano), Number(mes) - 1, Number(dia), 12, 0, 0);
           } else {
-            const mesOffset = typeof p.numero === 'number' ? p.numero : 1;
+            const parcIdxMatch = (p.descricao || '').match(/\((\d+)\/\d+/);
+            const mesOffset = parcIdxMatch ? Number(parcIdxMatch[1]) : (typeof p.numero === 'number' ? p.numero : 1);
             dataVenc = new Date();
             dataVenc.setMonth(dataVenc.getMonth() + mesOffset);
           }
@@ -546,63 +557,77 @@ const PatientOrcamentos = ({ patient }: Props) => {
       setPixDataEntrada(formatIsoDate(new Date()));
       setPixDatasParcelas(gerarDatasPadrao(3, 10));
 
-      const entMatch = o.formasPagamento.match(/entrada(?:\s*(?:de|:))?\s*(?:r\$)?\s*([\d.,]+)/i);
-      const entVal = entMatch ? Number(entMatch[1].replace(/\./g, '').replace(',', '.')) || 0 : 0;
-      const isPixEntrada = /pix/i.test(o.formasPagamento.split('+')[0] || '');
-      const isDinheiroEntrada = /dinheiro/i.test(o.formasPagamento.split('+')[0] || '');
+      const partes = o.formasPagamento.split('+').map((p) => p.trim()).filter(Boolean);
+      const formasCarregadas: typeof formasMultiplas = [];
 
-      // Extrai data personalizada da entrada se houver (em DD/MM/YYYY)
-      const dataEntMatch = o.formasPagamento.match(/entrada[^\+]*?\(em\s*(\d{1,2}\/\d{1,2}\/\d{4})\)/i);
-      let dataEntradaIso = formatIsoDate(new Date());
-      if (dataEntMatch) {
-        const [d, m, y] = dataEntMatch[1].split('/');
-        dataEntradaIso = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
-      }
+      for (let i = 0; i < partes.length; i++) {
+        const parte = partes[i];
+        const rotuloMatch = parte.match(/^([^:]+):/);
+        const rotulo = rotuloMatch ? rotuloMatch[1].trim() : (/entrada/i.test(parte) ? 'Entrada' : `Forma ${i + 1}`);
+        const conteudo = rotuloMatch ? parte.slice(rotuloMatch[0].length).trim() : parte.trim();
 
-      const parcMatch = o.formasPagamento.match(/(\d+)\s*x/i);
-      const qtdParc = parcMatch ? Number(parcMatch[1]) || 1 : 1;
-      const diaMatch = o.formasPagamento.match(/(?:vencimento|dia)\s*(?:todo\s*dia)?\s*(\d{1,2})/i);
-      const diaVenc = diaMatch ? Number(diaMatch[1]) || 10 : 10;
-      const isCartaoRestante = /cart[aã]o/i.test(o.formasPagamento);
-      const isBoletoRestante = /boleto/i.test(o.formasPagamento);
+        let metodo: 'pix' | 'cartao' | 'dinheiro' | 'boleto' | 'transferencia' | 'pix_parcelado' = 'pix';
+        if (/cart[aã]o/i.test(conteudo) || /cart[aã]o/i.test(parte)) metodo = 'cartao';
+        else if (/boleto/i.test(conteudo) || /boleto/i.test(parte)) metodo = 'boleto';
+        else if (/pix\s*parcelado/i.test(conteudo) || /pix\s*parcelado/i.test(parte)) metodo = 'pix_parcelado';
+        else if (/pix/i.test(conteudo) || /pix/i.test(parte)) metodo = 'pix';
+        else if (/dinheiro/i.test(conteudo) || /dinheiro/i.test(parte)) metodo = 'dinheiro';
+        else if (/transfer[eê]ncia/i.test(conteudo) || /transfer[eê]ncia/i.test(parte)) metodo = 'transferencia';
 
-      const saldoRestante = Math.max(0, o.total - entVal);
+        const parcMatch = conteudo.match(/(\d+)\s*x(?:\s+(?:de\s+)?(?:r\$)?\s*([\d.,]+))?/i);
+        const qtdParc = parcMatch ? Math.max(1, parseInt(parcMatch[1], 10)) : 1;
+        const valParcExpl = parcMatch && parcMatch[2] ? parseBrMoney(parcMatch[2]) : 0;
 
-      // Extrai datas personalizadas de vencimento do restante se houver
-      const trechoVenc = o.formasPagamento.match(/vencimentos?:\s*([^\)]+)/i);
-      let datasDetectadas: string[] = [];
-      if (trechoVenc) {
-        const regexDatas = /\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/g;
-        const matches = Array.from(trechoVenc[1].matchAll(regexDatas));
-        datasDetectadas = matches.map((m) => `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`);
-      }
+        const valComMoedaMatch = conteudo.match(/r\$\s*([\d.,]+)/i);
+        const valSemMoedaMatch = conteudo.match(/^([\d.,]+)/);
+        const valStr = valComMoedaMatch ? valComMoedaMatch[1] : (valSemMoedaMatch ? valSemMoedaMatch[1] : '');
+        let valorParte = parseBrMoney(valStr);
 
-      const datasFinaisRestante = datasDetectadas.length === qtdParc
-        ? datasDetectadas
-        : gerarDatasPadrao(qtdParc, diaVenc);
+        if (qtdParc > 1 && valParcExpl > 0) {
+          if (valorParte <= 0 || valorParte < valParcExpl) {
+            valorParte = valParcExpl * qtdParc;
+          }
+        }
 
-      setFormasMultiplas([
-        {
-          id: '1',
-          rotulo: 'Entrada',
-          metodo: isPixEntrada ? 'pix' : isDinheiroEntrada ? 'dinheiro' : 'cartao',
-          valor: entVal,
-          parcelas: 1,
-          diaVencimento: 10,
-          dataPagamento: dataEntradaIso,
-          datasParcelas: [dataEntradaIso],
-        },
-        {
-          id: '2',
-          rotulo: 'Restante',
-          metodo: isCartaoRestante ? 'cartao' : isBoletoRestante ? 'boleto' : 'pix_parcelado',
-          valor: saldoRestante,
+        const diaMatch = conteudo.match(/(?:vencimento|dia)\s*(?:todo\s*dia)?\s*(\d{1,2})/i);
+        const diaVenc = diaMatch ? Math.min(28, Math.max(1, parseInt(diaMatch[1], 10))) : 10;
+
+        // Data de pagamento única (em DD/MM/YYYY)
+        const dataPagMatch = conteudo.match(/\(em\s*(\d{1,2}\/\d{1,2}\/\d{4})\)/i);
+        let dataPagIso = formatIsoDate(new Date());
+        if (dataPagMatch) {
+          const [d, m, y] = dataPagMatch[1].split('/');
+          dataPagIso = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+        }
+
+        // Datas de parcelas personalizadas se houver
+        const trechoVenc = conteudo.match(/vencimentos?:\s*([^\)]+)/i);
+        let datasDetectadas: string[] = [];
+        if (trechoVenc) {
+          const regexDatas = /\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/g;
+          const matches = Array.from(trechoVenc[1].matchAll(regexDatas));
+          datasDetectadas = matches.map((m) => `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`);
+        }
+
+        const datasFinais = datasDetectadas.length === qtdParc
+          ? datasDetectadas
+          : gerarDatasPadrao(qtdParc, diaVenc);
+
+        formasCarregadas.push({
+          id: String(i + 1),
+          rotulo,
+          metodo,
+          valor: valorParte,
           parcelas: qtdParc,
           diaVencimento: diaVenc,
-          dataPagamento: dataEntradaIso,
-          datasParcelas: datasFinaisRestante,
-        },
-      ]);
+          dataPagamento: dataPagIso,
+          datasParcelas: datasFinais,
+        });
+      }
+
+      if (formasCarregadas.length > 0) {
+        setFormasMultiplas(formasCarregadas);
+      }
     } else if (o.formasPagamento && /pix\s*parcelado/i.test(o.formasPagamento)) {
       setMultiplasFormasAtivo(false);
       setPixParceladoAtivo(true);
@@ -893,15 +918,26 @@ const PatientOrcamentos = ({ patient }: Props) => {
                 </Button>
 
                 {o.status === 'aprovado' && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                    onClick={() => copiarLinkContrato(o)}
-                    title="Copiar link oficial para o paciente assinar digitalmente"
-                  >
-                    <LinkIcon className="h-4 w-4 mr-1" /> Copiar Link
-                  </Button>
+                  <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                      onClick={() => copiarLinkContrato(o)}
+                      title="Copiar link oficial para o paciente assinar digitalmente"
+                    >
+                      <LinkIcon className="h-4 w-4 mr-1" /> Copiar Link
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                      onClick={() => setAprovandoOrcamento(o)}
+                      title="Sincronizar ou relançar parcelas no Contas a Receber"
+                    >
+                      <RefreshCw className="h-4 w-4 mr-1" /> Financeiro
+                    </Button>
+                  </>
                 )}
 
                 {o.status !== 'aprovado' && o.status !== 'recusado' && (

@@ -124,6 +124,27 @@ const formatarDataPorExtenso = (d: Date = new Date(), cidade = 'São Paulo'): st
 };
 
 /**
+ * Converte com precisão strings monetárias em formato brasileiro (ex: "R$ 3.709,00", "370,90", "291") em números válidos.
+ */
+export const parseBrMoney = (valStr: string | number | undefined | null): number => {
+  if (typeof valStr === 'number') return isNaN(valStr) ? 0 : valStr;
+  if (!valStr) return 0;
+  const limpo = String(valStr).trim().replace(/[^\d.,-]/g, '');
+  if (!limpo) return 0;
+  if (limpo.includes(',')) {
+    return Number(limpo.replace(/\./g, '').replace(',', '.')) || 0;
+  }
+  const partesPonto = limpo.split('.');
+  if (partesPonto.length > 2) {
+    return Number(limpo.replace(/\./g, '')) || 0;
+  }
+  if (partesPonto.length === 2 && partesPonto[1].length === 3) {
+    return Number(limpo.replace(/\./g, '')) || 0;
+  }
+  return Number(limpo) || 0;
+};
+
+/**
  * Mapeia os dados existentes no sistema para o modelo padronizado do contrato.
  * NUNCA inventa dados fictícios; preserva rigorosamente a integridade dos registros.
  */
@@ -239,7 +260,15 @@ export const mapearDadosContrato = ({
   let parcelas: ContratoParcela[] = [];
   let entrada = 0;
 
-  if (transacoesOrcamento.length > 0) {
+  // Validação rigorosa de consistência das transações com o orçamento:
+  const somaTransacoes = transacoesOrcamento.reduce((acc, t) => acc + (Number(t.valor) || 0), 0);
+  const temValorZeradoOuSuspeito = transacoesOrcamento.some((t: any) => Number(t.valor) < 0.5 && total > 10);
+  const transacoesConsistentes =
+    transacoesOrcamento.length > 0 &&
+    Math.abs(somaTransacoes - total) < 0.5 &&
+    !temValorZeradoOuSuspeito;
+
+  if (transacoesConsistentes) {
     // Ordena por vencimento / data
     const ordenadas = [...transacoesOrcamento].sort(
       (a, b) => new Date(a.vencimento || a.data).getTime() - new Date(b.vencimento || b.data).getTime()
@@ -252,19 +281,24 @@ export const mapearDadosContrato = ({
         entrada = valor;
       }
 
+      const isCartao = (t.metodoPagamento || '').toLowerCase().includes('cartao') || (t.descricao || '').toLowerCase().includes('cartão');
+      const vencFormatado = isCartao ? 'Fatura do Cartão' : formatarData(t.vencimento || t.data);
+
       return {
         numero: idx + 1,
         descricao: t.descricao || `Parcela ${idx + 1}`,
-        vencimento: formatarData(t.vencimento || t.data),
+        vencimento: vencFormatado,
         valor,
         metodo: t.metodoPagamento || 'A definir',
-        status: t.status === 'pago' ? 'Quitada' : t.status === 'vencido' ? 'Vencida' : 'A vencer',
+        status: isCartao
+          ? (t.status === 'pago' ? 'Quitada' : 'Autorizado')
+          : (t.status === 'pago' ? 'Quitada' : t.status === 'vencido' ? 'Vencida' : 'A vencer'),
       };
     });
   } else {
-    // Se ainda não foram criadas transações detalhadas no financeiro,
-    // extrai a negociação das opções de parcelamento do orçamento
-    const formas = orcamento?.formasPagamento || '';
+    // Se ainda não foram criadas transações consistentes no financeiro,
+    // extrai a negociação das opções de parcelamento do orçamento de forma infalível
+    const formas = orcamento?.formasPagamento || orcamento?.formas_pagamento || '';
     const hoje = new Date();
 
     // Se possui múltiplas formas separadas por '+' (Compositor de Pagamento Misto)
@@ -274,27 +308,45 @@ export const mapearDadosContrato = ({
       let entradaDetectada = 0;
 
       for (const parte of partes) {
-        const isEntrada = /entrada/i.test(parte);
         const rotuloMatch = parte.match(/^([^:]+):/);
-        const rotulo = rotuloMatch ? rotuloMatch[1].trim() : (isEntrada ? 'Entrada' : 'Parcela');
+        const rotulo = rotuloMatch ? rotuloMatch[1].trim() : (/entrada/i.test(parte) ? 'Entrada' : 'Parcela');
+        const conteudo = rotuloMatch ? parte.slice(rotuloMatch[0].length).trim() : parte.trim();
 
-        const valMatch = parte.match(/(?:r\$)?\s*([\d.,]+)/i);
-        const valorTotalParte = valMatch ? Number(valMatch[1].replace(/\./g, '').replace(',', '.')) || 0 : 0;
+        const isEntrada = /entrada/i.test(rotulo) || (/entrada/i.test(parte) && !parte.includes('+'));
 
         let metodo = 'PIX';
-        if (/cart[aã]o/i.test(parte)) metodo = 'Cartão de Crédito';
-        else if (/boleto/i.test(parte)) metodo = 'Boleto Bancário';
-        else if (/pix\s*parcelado/i.test(parte)) metodo = 'PIX Parcelado';
-        else if (/pix/i.test(parte)) metodo = 'PIX';
-        else if (/dinheiro/i.test(parte)) metodo = 'Dinheiro';
-        else if (/transfer[eê]ncia/i.test(parte)) metodo = 'Transferência';
+        if (/cart[aã]o/i.test(conteudo) || /cart[aã]o/i.test(parte)) metodo = 'Cartão de Crédito';
+        else if (/boleto/i.test(conteudo) || /boleto/i.test(parte)) metodo = 'Boleto Bancário';
+        else if (/pix\s*parcelado/i.test(conteudo) || /pix\s*parcelado/i.test(parte)) metodo = 'PIX Parcelado';
+        else if (/pix/i.test(conteudo) || /pix/i.test(parte)) metodo = 'PIX';
+        else if (/dinheiro/i.test(conteudo) || /dinheiro/i.test(parte)) metodo = 'Dinheiro';
+        else if (/transfer[eê]ncia/i.test(conteudo) || /transfer[eê]ncia/i.test(parte)) metodo = 'Transferência';
 
-        const parcMatch = parte.match(/(\d+)\s*x/i);
+        // Detecta parcelas e valores explícitos no conteúdo (nunca no rótulo!)
+        const parcMatch = conteudo.match(/(\d+)\s*x(?:\s+(?:de\s+)?(?:r\$)?\s*([\d.,]+))?/i);
         const qtdParc = parcMatch ? Math.max(1, parseInt(parcMatch[1], 10)) : 1;
+        const valParcExpl = parcMatch && parcMatch[2] ? parseBrMoney(parcMatch[2]) : 0;
+
+        // Procura primeiro por "R$ valor" no conteúdo após o rótulo
+        const valComMoedaMatch = conteudo.match(/r\$\s*([\d.,]+)/i);
+        const valSemMoedaMatch = conteudo.match(/^([\d.,]+)/);
+        const valStr = valComMoedaMatch ? valComMoedaMatch[1] : (valSemMoedaMatch ? valSemMoedaMatch[1] : '');
+        let valorTotalParte = parseBrMoney(valStr);
+
+        // Se houver parcelamento explícito (ex: 10x de R$ 370,90) e o valor total não foi detectado ou for menor que a parcela:
+        if (qtdParc > 1 && valParcExpl > 0) {
+          if (valorTotalParte <= 0 || valorTotalParte < valParcExpl) {
+            valorTotalParte = valParcExpl * qtdParc;
+          }
+        }
+
+        const valorParc = qtdParc > 1
+          ? (valParcExpl > 0 ? valParcExpl : (valorTotalParte / qtdParc))
+          : valorTotalParte;
 
         // Datas de vencimento para essa parte
         const datasParte: string[] = [];
-        const trechoVenc = parte.match(/vencimentos?(?:\s*todo\s*dia\s*\d{1,2})?:\s*([^\)]+)/i);
+        const trechoVenc = conteudo.match(/vencimentos?(?:\s*todo\s*dia\s*\d{1,2})?:\s*([^\)]+)/i);
         if (trechoVenc) {
           const regexDatas = /\b\d{1,2}\/\d{1,2}\/\d{4}\b|\b\d{4}-\d{2}-\d{2}\b/g;
           const matches = trechoVenc[1].match(regexDatas);
@@ -304,18 +356,17 @@ export const mapearDadosContrato = ({
         }
 
         // Data única (em DD/MM/YYYY)
-        const dataUnicaMatch = parte.match(/\(em\s*(\d{1,2}\/\d{1,2}\/\d{4}|\d{4}-\d{2}-\d{2})\)/i);
+        const dataUnicaMatch = conteudo.match(/\(em\s*(\d{1,2}\/\d{1,2}\/\d{4}|\d{4}-\d{2}-\d{2})\)/i);
         const dataUnica = dataUnicaMatch
           ? (dataUnicaMatch[1].includes('-') ? formatarData(dataUnicaMatch[1]) : dataUnicaMatch[1])
           : formatarData(hoje);
 
         if (isEntrada) {
-          entradaDetectada = valorTotalParte;
+          entradaDetectada += valorTotalParte;
         }
 
         if (qtdParc > 1) {
-          const valorParc = valorTotalParte / qtdParc;
-          const diaMatch = parte.match(/(?:vencimento|dia)\s*(?:todo\s*dia)?\s*(\d{1,2})/i);
+          const diaMatch = conteudo.match(/(?:vencimento|dia)\s*(?:todo\s*dia)?\s*(\d{1,2})/i);
           const diaVenc = diaMatch ? Math.min(28, Math.max(1, parseInt(diaMatch[1], 10))) : 10;
           const isCartao = /cart[aã]o/i.test(metodo);
 
@@ -360,105 +411,105 @@ export const mapearDadosContrato = ({
     }
 
     if (parcelas.length === 0) {
-    // 1. Detecta Entrada (ex: "Entrada de R$ 500,00", "Entrada: R$ 500", "Entrada: R$ 500,00 via PIX")
-    const entradaMatch = formas.match(/entrada(?:\s*(?:de|:))?\s*(?:r\$)?\s*([\d.,]+)/i);
-    let entradaDetectada = 0;
-    if (entradaMatch) {
-      const valorLimpo = entradaMatch[1].replace(/\./g, '').replace(',', '.');
-      entradaDetectada = Number(valorLimpo) || 0;
-    }
-    entrada = entradaDetectada;
-
-    // Detecta método da entrada
-    const parteEntrada = formas.split(/\+|\be\b/i)[0] || '';
-    let metodoEntrada = 'PIX (Entrada)';
-    if (/cart[aã]o/i.test(parteEntrada)) metodoEntrada = 'Cartão (Entrada)';
-    else if (/dinheiro/i.test(parteEntrada)) metodoEntrada = 'Dinheiro (Entrada)';
-    else if (/transfer[eê]ncia/i.test(parteEntrada)) metodoEntrada = 'Transferência (Entrada)';
-    else if (/pix/i.test(parteEntrada)) metodoEntrada = 'PIX (Entrada)';
-
-    // 2. Detecta Qtd. de Parcelas: ex: "4x", "3x", "4 parcelas"
-    const parcelasMatch = formas.match(/(\d+)\s*x/i) || formas.match(/(\d+)\s*parcelas/i);
-    const qtdParcelas = parcelasMatch ? Math.max(1, parseInt(parcelasMatch[1], 10)) : 1;
-
-    // Detecta se há datas específicas discriminadas:
-    // ex: "Vencimentos: 10/11/2026, 22/12/2026" ou "Vencimento todo dia 10: 10/11/2026, 10/12/2026"
-    const datasDetectadas: string[] = [];
-    const trechoVencimentos = formas.match(/vencimentos?(?:\s*todo\s*dia\s*\d{1,2})?:\s*([^\)]+)/i);
-    if (trechoVencimentos) {
-      const regexDatas = /\b\d{1,2}\/\d{1,2}\/\d{4}\b|\b\d{4}-\d{2}-\d{2}\b/g;
-      const matches = trechoVencimentos[1].match(regexDatas);
-      if (matches) {
-        datasDetectadas.push(...matches.map((d) => (d.includes('-') ? formatarData(d) : d)));
+      // 1. Detecta Entrada (ex: "Entrada de R$ 500,00", "Entrada: R$ 500", "Entrada: R$ 500,00 via PIX")
+      const entradaComMoeda = formas.match(/entrada[^\d\n\r]*?(?:de|:)?\s*(?:r\$)\s*([\d.,]+)/i);
+      const entradaSemMoeda = formas.match(/entrada(?:\s*(?:de|:))?\s*([\d.,]+)/i);
+      const entradaMatch = entradaComMoeda || entradaSemMoeda;
+      let entradaDetectada = 0;
+      if (entradaMatch) {
+        entradaDetectada = parseBrMoney(entradaMatch[1]);
       }
-    }
+      entrada = entradaDetectada;
 
-    // Detecta se há data específica para a entrada: ex: "Entrada de R$ 1.000,00 (em 14/10/2026)" ou "em 14/10/2026"
-    const dataEntradaMatch = formas.match(/entrada[^\+]*?(?:em|\:)?\s*\(?em\s*(\d{1,2}\/\d{1,2}\/\d{4}|\d{4}-\d{2}-\d{2})\)?/i);
-    const dataEntradaFormatada = dataEntradaMatch
-      ? (dataEntradaMatch[1].includes('-') ? formatarData(dataEntradaMatch[1]) : dataEntradaMatch[1])
-      : formatarData(hoje);
+      // Detecta método da entrada
+      const parteEntrada = formas.split(/\+|\be\b/i)[0] || '';
+      let metodoEntrada = 'PIX (Entrada)';
+      if (/cart[aã]o/i.test(parteEntrada)) metodoEntrada = 'Cartão (Entrada)';
+      else if (/dinheiro/i.test(parteEntrada)) metodoEntrada = 'Dinheiro (Entrada)';
+      else if (/transfer[eê]ncia/i.test(parteEntrada)) metodoEntrada = 'Transferência (Entrada)';
+      else if (/pix/i.test(parteEntrada)) metodoEntrada = 'PIX (Entrada)';
 
-    // 3. Detecta Dia do Vencimento: ex: "vencimento todo dia 10", "dia 15", "vencimento: dia 5"
-    const diaMatch = formas.match(/(?:vencimento|dia)\s*(?:todo\s*dia)?\s*(\d{1,2})/i);
-    const diaVencimento = diaMatch ? Math.min(28, Math.max(1, parseInt(diaMatch[1], 10))) : 10;
+      // 2. Detecta Qtd. de Parcelas e Valor da Parcela: ex: "4x de R$ 250,00", "3x", "4 parcelas"
+      const parcValorMatch = formas.match(/(\d+)\s*x(?:\s+(?:de\s+)?(?:r\$)?\s*([\d.,]+))?/i) || formas.match(/(\d+)\s*parcelas/i);
+      const qtdParcelas = parcValorMatch ? Math.max(1, parseInt(parcValorMatch[1], 10)) : 1;
+      const valParcExpl = parcValorMatch && parcValorMatch[2] ? parseBrMoney(parcValorMatch[2]) : 0;
 
-    // Detecta método do restante/parcelas
-    const parteRestante = formas.includes('+') ? formas.split('+').slice(1).join('+') : formas;
-    let metodoRestante = 'A definir';
-    if (/cart[aã]o/i.test(parteRestante)) metodoRestante = 'Cartão de Crédito';
-    else if (/boleto/i.test(parteRestante)) metodoRestante = 'Boleto Bancário';
-    else if (/pix/i.test(parteRestante)) metodoRestante = 'PIX Parcelado';
-    else if (/dinheiro/i.test(parteRestante)) metodoRestante = 'Dinheiro';
-    else if (/transfer[eê]ncia/i.test(parteRestante)) metodoRestante = 'Transferência';
-
-    // 4. Saldo a parcelar e valor da parcela mensal
-    const saldo = Math.max(0, total - entrada);
-    const valorParcela = saldo / qtdParcelas;
-
-    const listaParcelas: ContratoParcela[] = [];
-
-    // Se houver entrada, inclui a entrada como primeiro item do cronograma
-    if (entrada > 0) {
-      listaParcelas.push({
-        numero: 1,
-        descricao: `Entrada Inicial (${metodoEntrada.replace(' (Entrada)', '')})`,
-        vencimento: dataEntradaFormatada,
-        valor: entrada,
-        metodo: metodoEntrada,
-        status: 'A vencer',
-      });
-    }
-
-    const isCartaoRestante = /cart[aã]o/i.test(metodoRestante);
-
-    for (let idx = 0; idx < qtdParcelas; idx++) {
-      let vencimentoFormatado = '';
-      if (datasDetectadas[idx]) {
-        vencimentoFormatado = datasDetectadas[idx];
-      } else if (isCartaoRestante) {
-        vencimentoFormatado = 'Fatura do Cartão';
-      } else {
-        const targetMonth = hoje.getMonth() + (idx + 1);
-        const dataVenc = new Date(hoje.getFullYear(), targetMonth, 1);
-        const maxDiasNoMes = new Date(dataVenc.getFullYear(), dataVenc.getMonth() + 1, 0).getDate();
-        dataVenc.setDate(Math.min(diaVencimento, maxDiasNoMes));
-        vencimentoFormatado = formatarData(dataVenc);
+      // Detecta se há datas específicas discriminadas:
+      const datasDetectadas: string[] = [];
+      const trechoVencimentos = formas.match(/vencimentos?(?:\s*todo\s*dia\s*\d{1,2})?:\s*([^\)]+)/i);
+      if (trechoVencimentos) {
+        const regexDatas = /\b\d{1,2}\/\d{1,2}\/\d{4}\b|\b\d{4}-\d{2}-\d{2}\b/g;
+        const matches = trechoVencimentos[1].match(regexDatas);
+        if (matches) {
+          datasDetectadas.push(...matches.map((d) => (d.includes('-') ? formatarData(d) : d)));
+        }
       }
 
-      listaParcelas.push({
-        numero: listaParcelas.length + 1,
-        descricao: qtdParcelas === 1 && entrada === 0
-          ? `Pagamento Único (${metodoRestante})`
-          : `Parcela ${idx + 1} de ${qtdParcelas} (${metodoRestante})`,
-        vencimento: vencimentoFormatado,
-        valor: valorParcela,
-        metodo: metodoRestante,
-        status: isCartaoRestante ? 'Autorizado' : 'A vencer',
-      });
-    }
+      // Detecta se há data específica para a entrada:
+      const dataEntradaMatch = formas.match(/entrada[^\+]*?(?:em|\:)?\s*\(?em\s*(\d{1,2}\/\d{1,2}\/\d{4}|\d{4}-\d{2}-\d{2})\)?/i);
+      const dataEntradaFormatada = dataEntradaMatch
+        ? (dataEntradaMatch[1].includes('-') ? formatarData(dataEntradaMatch[1]) : dataEntradaMatch[1])
+        : formatarData(hoje);
 
-    parcelas = listaParcelas;
+      // 3. Detecta Dia do Vencimento:
+      const diaMatch = formas.match(/(?:vencimento|dia)\s*(?:todo\s*dia)?\s*(\d{1,2})/i);
+      const diaVencimento = diaMatch ? Math.min(28, Math.max(1, parseInt(diaMatch[1], 10))) : 10;
+
+      // Detecta método do restante/parcelas
+      const parteRestante = formas.includes('+') ? formas.split('+').slice(1).join('+') : formas;
+      let metodoRestante = 'A definir';
+      if (/cart[aã]o/i.test(parteRestante)) metodoRestante = 'Cartão de Crédito';
+      else if (/boleto/i.test(parteRestante)) metodoRestante = 'Boleto Bancário';
+      else if (/pix/i.test(parteRestante)) metodoRestante = 'PIX Parcelado';
+      else if (/dinheiro/i.test(parteRestante)) metodoRestante = 'Dinheiro';
+      else if (/transfer[eê]ncia/i.test(parteRestante)) metodoRestante = 'Transferência';
+
+      // 4. Saldo a parcelar e valor da parcela mensal
+      const saldo = Math.max(0, total - entrada);
+      const valorParcela = valParcExpl > 0 ? valParcExpl : (saldo / qtdParcelas);
+
+      const listaParcelas: ContratoParcela[] = [];
+
+      if (entrada > 0) {
+        listaParcelas.push({
+          numero: 1,
+          descricao: `Entrada Inicial (${metodoEntrada.replace(' (Entrada)', '')})`,
+          vencimento: dataEntradaFormatada,
+          valor: entrada,
+          metodo: metodoEntrada,
+          status: 'A vencer',
+        });
+      }
+
+      const isCartaoRestante = /cart[aã]o/i.test(metodoRestante);
+
+      for (let idx = 0; idx < qtdParcelas; idx++) {
+        let vencimentoFormatado = '';
+        if (datasDetectadas[idx]) {
+          vencimentoFormatado = datasDetectadas[idx];
+        } else if (isCartaoRestante) {
+          vencimentoFormatado = 'Fatura do Cartão';
+        } else {
+          const targetMonth = hoje.getMonth() + (idx + 1);
+          const dataVenc = new Date(hoje.getFullYear(), targetMonth, 1);
+          const maxDiasNoMes = new Date(dataVenc.getFullYear(), dataVenc.getMonth() + 1, 0).getDate();
+          dataVenc.setDate(Math.min(diaVencimento, maxDiasNoMes));
+          vencimentoFormatado = formatarData(dataVenc);
+        }
+
+        listaParcelas.push({
+          numero: listaParcelas.length + 1,
+          descricao: qtdParcelas === 1 && entrada === 0
+            ? `Pagamento Único (${metodoRestante})`
+            : `Parcela ${idx + 1} de ${qtdParcelas} (${metodoRestante})`,
+          vencimento: vencimentoFormatado,
+          valor: valorParcela,
+          metodo: metodoRestante,
+          status: isCartaoRestante ? 'Autorizado' : 'A vencer',
+        });
+      }
+
+      parcelas = listaParcelas;
     }
   }
 

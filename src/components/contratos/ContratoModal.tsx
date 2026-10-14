@@ -39,6 +39,7 @@ import {
   Building2,
   CreditCard,
   X,
+  RefreshCw,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -79,7 +80,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
   const { configuracoes } = useConfiguracoes();
   const { configContrato } = useConfiguracoesContrato();
   const { dentistas } = useDentistas();
-  const { transacoes } = useDentalSystem();
+  const { transacoes, addTransacao, deleteTransacao } = useDentalSystem();
   const { documentos, salvarDocumento } = useDocumentosClinicos(patient?.id);
 
   // Estados principais
@@ -165,6 +166,82 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     if (!orcamentoAtual?.id) return [];
     return transacoes.filter((t: any) => t.orcamentoId === orcamentoAtual.id);
   }, [transacoes, orcamentoAtual]);
+
+  const somaTransacoesOrcamento = useMemo(() => {
+    return transacoesOrcamento.reduce((acc, t) => acc + (Number(t.valor) || 0), 0);
+  }, [transacoesOrcamento]);
+
+  const transacoesSuspeitasOuDivergentes = useMemo(() => {
+    if (!orcamentoAtual || transacoesOrcamento.length === 0) return false;
+    const temValorZerado = transacoesOrcamento.some((t: any) => Number(t.valor) < 0.5 && orcamentoAtual.total > 10);
+    const divergeTotal = Math.abs(somaTransacoesOrcamento - orcamentoAtual.total) > 0.5;
+    return temValorZerado || divergeTotal;
+  }, [orcamentoAtual, transacoesOrcamento, somaTransacoesOrcamento]);
+
+  const [sincronizandoFinanceiro, setSincronizandoFinanceiro] = useState(false);
+
+  const handleSincronizarFinanceiroComContrato = async () => {
+    if (!orcamentoAtual || !snapshotAtual) return;
+    try {
+      setSincronizandoFinanceiro(true);
+      for (const t of transacoesOrcamento) {
+        try {
+          await deleteTransacao(t.id);
+        } catch (e) {
+          console.error('Erro ao deletar transação antiga:', e);
+        }
+      }
+
+      for (const p of snapshotAtual.financeiro.parcelas) {
+        let dataVenc = new Date();
+        if (p.vencimento && p.vencimento.includes('/')) {
+          const [dia, mes, ano] = p.vencimento.split('/');
+          dataVenc = new Date(Number(ano), Number(mes) - 1, Number(dia), 12, 0, 0);
+        } else {
+          const parcIdxMatch = (p.descricao || '').match(/\((\d+)\/\d+/);
+          const mesOffset = parcIdxMatch ? Number(parcIdxMatch[1]) : (typeof p.numero === 'number' ? p.numero : 1);
+          dataVenc = new Date();
+          dataVenc.setMonth(dataVenc.getMonth() + mesOffset);
+        }
+
+        let metodoFinal: any = 'pix';
+        const descLower = (p.metodo || p.descricao || '').toLowerCase();
+        if (descLower.includes('cartao') || descLower.includes('cartão') || descLower.includes('crédito') || descLower.includes('debito')) {
+          metodoFinal = 'cartao';
+        } else if (descLower.includes('pix_parcelado') || descLower.includes('pix mensal') || descLower.includes('pix parcelado')) {
+          metodoFinal = 'pix_parcelado';
+        } else if (descLower.includes('pix')) {
+          metodoFinal = 'pix';
+        } else if (descLower.includes('dinheiro')) {
+          metodoFinal = 'dinheiro';
+        } else if (descLower.includes('boleto')) {
+          metodoFinal = 'boleto';
+        } else if (descLower.includes('transferencia') || descLower.includes('transferência')) {
+          metodoFinal = 'transferencia';
+        }
+
+        await addTransacao({
+          pacienteId: patient.id,
+          valor: p.valor,
+          tipo: 'receita',
+          status: 'pendente',
+          metodoPagamento: metodoFinal,
+          data: new Date(),
+          vencimento: dataVenc,
+          descricao: `${orcamentoAtual.titulo}: ${p.descricao}`,
+          categoria: 'Tratamentos',
+          orcamentoId: orcamentoAtual.id,
+        });
+      }
+
+      toast.success('Financeiro sincronizado com sucesso com as parcelas do orçamento!');
+    } catch (err) {
+      console.error('Erro ao sincronizar financeiro:', err);
+      toast.error('Erro ao sincronizar parcelas no Financeiro');
+    } finally {
+      setSincronizandoFinanceiro(false);
+    }
+  };
 
   // Inicializa ou atualiza o snapshot automaticamente (caso não tenha edições manuais ativas)
   useEffect(() => {
@@ -795,6 +872,35 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                         onClick={() => setActiveTab('editar')}
                       >
                         Preencher no Contrato
+                      </Button>
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {/* Alerta de Divergência Financeira vs Orçamento */}
+                {transacoesSuspeitasOuDivergentes && (
+                  <Alert variant="default" className="bg-rose-500/10 border-rose-500/30 text-rose-800 dark:text-rose-200 py-2.5">
+                    <AlertTriangle className="h-4 w-4 text-rose-600 dark:text-rose-400 shrink-0" />
+                    <AlertDescription className="text-xs flex flex-wrap items-center justify-between gap-2 w-full">
+                      <span className="flex-1 min-w-[240px]">
+                        <strong>Divergência Detectada no Financeiro:</strong> As parcelas lançadas anteriormente no Contas a Receber somam {formatMoney(somaTransacoesOrcamento)}, divergindo do orçamento de {formatMoney(orcamentoAtual?.total || 0)}. O contrato abaixo foi gerado com as parcelas e valores corretos ({snapshotAtual?.financeiro.parcelas.length} parcelas totalizando {formatMoney(snapshotAtual?.financeiro.total || 0)}).
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs border-rose-400 text-rose-700 hover:bg-rose-100 dark:text-rose-200 dark:hover:bg-rose-950 px-2.5 font-medium shrink-0"
+                        disabled={sincronizandoFinanceiro}
+                        onClick={handleSincronizarFinanceiroComContrato}
+                      >
+                        {sincronizandoFinanceiro ? (
+                          <>
+                            <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> Sincronizando...
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="h-3.5 w-3.5 mr-1" /> Sincronizar Financeiro
+                          </>
+                        )}
                       </Button>
                     </AlertDescription>
                   </Alert>
