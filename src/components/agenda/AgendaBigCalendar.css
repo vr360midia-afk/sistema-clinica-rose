@@ -92,8 +92,38 @@
   height: 2px;
 }
 
-/* Drag and Drop Styles */
+/* Drag and Drop & Resize Styles */
+.rbc-addons-dnd .rbc-event {
+  transition: box-shadow 0.15s ease, filter 0.15s ease !important;
+}
+
+.rbc-addons-dnd .rbc-event:hover {
+  transform: none !important;
+  filter: brightness(1.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25) !important;
+}
+
+.rbc-time-view .rbc-event {
+  overflow: visible !important;
+  padding: 0 !important;
+}
+
+.rbc-time-view .rbc-event-label {
+  padding: 5px 8px 0 8px !important;
+  font-size: 0.72rem !important;
+  font-weight: 600 !important;
+  opacity: 0.95 !important;
+  letter-spacing: -0.01em;
+}
+
+.rbc-time-view .rbc-event-content {
+  padding: 2px 8px 6px 8px !important;
+}
+
 .rbc-addons-dnd .rbc-addons-dnd-resizable {
+  position: relative !important;
+  width: 100% !important;
+  height: 100% !important;
   transition: none !important;
 }
 
@@ -101,12 +131,193 @@
   width: 98% !important;
 }
 
+/* ==========================================================================
+   ALÇAS DE REDIMENSIONAMENTO VERTICAIS (SETAS SUPERIOR E INFERIOR)
+   Permite aumentar ou diminuir a duração da consulta puxando diretamente as setas
+   ========================================================================== */
+
+.rbc-addons-dnd .rbc-addons-dnd-resize-ns-anchor {
+  position: absolute !important;
+  left: 0 !important;
+  right: 0 !important;
+  width: 100% !important;
+  height: 20px !important;
+  z-index: 50 !important;
+  cursor: ns-resize !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  user-select: none !important;
+  touch-action: none !important;
+  pointer-events: auto !important;
+  background: transparent !important;
+  transition: background-color 0.15s ease !important;
+}
+
+/* Alça Superior (Início da Consulta) */
+.rbc-addons-dnd .rbc-addons-dnd-resize-ns-anchor:first-child {
+  top: 0 !important;
+  border-top-left-radius: 6px !important;
+  border-top-right-radius: 6px !important;
+}
+
+/* Alça Inferior (Término da Consulta) */
+.rbc-addons-dnd .rbc-addons-dnd-resize-ns-anchor:last-child {
+  bottom: 0 !important;
+  border-bottom-left-radius: 6px !important;
+  border-bottom-right-radius: 6px !important;
+}
+
+/* Ícone central em formato de pílula grab com setas indicadoras */
+.rbc-addons-dnd .rbc-addons-dnd-resize-ns-anchor .rbc-addons-dnd-resize-ns-icon {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 42px !important;
+  height: 6px !important;
+  border: none !important;
+  border-radius: 9999px !important;
+  background-color: rgba(255, 255, 255, 0.8) !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45) !important;
+  cursor: ns-resize !important;
+  pointer-events: none !important;
+  position: relative !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  opacity: 0.6;
+}
+
+/* Seta para Cima (▲) na alça superior */
+.rbc-addons-dnd .rbc-addons-dnd-resize-ns-anchor:first-child .rbc-addons-dnd-resize-ns-icon::before {
+  content: '▲';
+  position: absolute;
+  top: -8px;
+  font-size: 8px;
+  line-height: 1;
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  opacity: 0.85;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+/* Seta para Baixo (▼) na alça inferior */
+.rbc-addons-dnd .rbc-addons-dnd-resize-ns-anchor:last-child .rbc-addons-dnd-resize-ns-icon::before {
+  content: '▼';
+  position: absolute;
+  bottom: -8px;
+  font-size: 8px;
+  line-height: 1;
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  opacity: 0.85;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+/* Quando o usuário passa o mouse sobre a consulta, as setas acendem e ficam bem evidentes */
+.rbc-addons-dnd .rbc-event:hover .rbc-addons-dnd-resize-ns-anchor .rbc-addons-dnd-resize-ns-icon {
+  opacity: 1 !important;
+  background-color: #ffffff !important;
+  width: 50px !important;
+  height: 7px !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.65) !important;
+}
+
+.rbc-addons-dnd .rbc-event:hover .rbc-addons-dnd-resize-ns-anchor:first-child .rbc-addons-dnd-resize-ns-icon::before {
+  opacity: 1 !important;
+  transform: translateY(-2px);
+}
+
+.rbc-addons-dnd .rbc-event:hover .rbc-addons-dnd-resize-ns-anchor:last-child .rbc-addons-dnd-resize-ns-icon::before {
+  opacity: 1 !important;
+  transform: translateY(2px);
+}
+
+/* Quando passa o mouse diretamente na alça de puxar: realce com fundo translúcido e escala */
+.rbc-addons-dnd .rbc-addons-dnd-resize-ns-anchor:hover {
+  background-color: rgba(255, 255, 255, 0.28) !important;
+}
+
+.rbc-addons-dnd .rbc-addons-dnd-resize-ns-anchor:hover .rbc-addons-dnd-resize-ns-icon {
+  background-color: #ffffff !important;
+  width: 60px !important;
+  height: 8px !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.85) !important;
+}
+
+.rbc-addons-dnd .rbc-addons-dnd-resize-ns-anchor:hover .rbc-addons-dnd-resize-ns-icon::before {
+  transform: scale(1.3);
+}
+
+/* ==========================================================================
+   ALÇAS DE REDIMENSIONAMENTO HORIZONTAIS (VISÃO DE MÊS)
+   ========================================================================== */
+
+.rbc-addons-dnd .rbc-addons-dnd-resize-ew-anchor {
+  position: absolute !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  height: 100% !important;
+  width: 16px !important;
+  z-index: 50 !important;
+  cursor: ew-resize !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  user-select: none !important;
+  touch-action: none !important;
+  pointer-events: auto !important;
+}
+
+.rbc-addons-dnd .rbc-addons-dnd-resize-ew-anchor:first-child {
+  left: 0 !important;
+}
+
+.rbc-addons-dnd .rbc-addons-dnd-resize-ew-anchor:last-child {
+  right: 0 !important;
+}
+
+.rbc-addons-dnd .rbc-addons-dnd-resize-ew-anchor .rbc-addons-dnd-resize-ew-icon {
+  display: flex !important;
+  width: 5px !important;
+  height: 24px !important;
+  border: none !important;
+  border-radius: 9999px !important;
+  background-color: rgba(255, 255, 255, 0.75) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5) !important;
+  cursor: ew-resize !important;
+  pointer-events: none !important;
+  transition: all 0.2s ease !important;
+  opacity: 0.6;
+}
+
+.rbc-addons-dnd .rbc-event:hover .rbc-addons-dnd-resize-ew-anchor .rbc-addons-dnd-resize-ew-icon {
+  opacity: 1 !important;
+  background-color: #ffffff !important;
+  width: 6px !important;
+  height: 28px !important;
+}
+
+.rbc-addons-dnd .rbc-addons-dnd-resize-ew-anchor:hover {
+  background-color: rgba(255, 255, 255, 0.25) !important;
+}
+
+/* ==========================================================================
+   ESTADOS DE ARRASTO E PRÉVIA
+   ========================================================================== */
+
 .rbc-addons-dnd-is-dragging {
-  opacity: 0.5;
+  cursor: ns-resize !important;
 }
 
 .rbc-addons-dnd-is-dragged {
-  opacity: 1;
-  box-shadow: 0 5px 15px rgba(0,0,0,0.3) !important;
+  opacity: 0.95 !important;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4) !important;
   z-index: 100 !important;
+}
+
+.rbc-addons-dnd-drag-preview {
+  opacity: 0.9 !important;
+  border: 2px dashed #ffffff !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35) !important;
+  filter: brightness(1.15) !important;
+  z-index: 9999 !important;
 }

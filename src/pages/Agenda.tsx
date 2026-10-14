@@ -159,7 +159,7 @@ const Agenda = () => {
     try {
       const novaData = format(start, 'yyyy-MM-dd');
       const novaHora = format(start, 'HH:mm');
-      const duracaoMinutos = Math.round((end.getTime() - start.getTime()) / 60000);
+      const duracaoMinutos = Math.max(15, Math.round((end.getTime() - start.getTime()) / 60000));
       
       await updateConsulta(event.id, {
         data: novaData,
@@ -167,7 +167,8 @@ const Agenda = () => {
         duracao: duracaoMinutos
       });
       
-      toast.success('Consulta reagendada com sucesso!');
+      const horaFim = format(end, 'HH:mm');
+      toast.success(`Horário atualizado: ${novaHora} às ${horaFim} (${duracaoMinutos} min)`);
     } catch (e) {
       toast.error('Erro ao reagendar consulta');
     }

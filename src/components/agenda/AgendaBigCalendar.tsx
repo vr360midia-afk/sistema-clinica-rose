@@ -46,20 +46,45 @@ export const AgendaBigCalendar = ({
   onSelectSlot
 }: AgendaBigCalendarProps) => {
   
-  // Custom Event component
-  const EventComponent = ({ event }: any) => {
+  // Propriedades visuais do evento (fundo, bordas, sombras)
+  const eventPropGetter = useCallback((event: any) => {
     const resource = event.resource;
     const isCancelled = resource?.status === 'cancelado' || resource?.status === 'faltou';
     const isConfirmed = resource?.confirmacaoStatus === 'confirmado' || resource?.status === 'realizado';
     
-    let bgClass = "bg-indigo-600";
-    if (isCancelled) bgClass = "bg-red-500 line-through opacity-70";
-    else if (isConfirmed) bgClass = "bg-emerald-600";
-    else if (resource?.confirmacaoStatus === 'recusado') bgClass = "bg-orange-500 opacity-80";
+    let backgroundColor = "#4f46e5"; // indigo-600
+    if (isCancelled) backgroundColor = "#ef4444"; // red-500
+    else if (isConfirmed) backgroundColor = "#059669"; // emerald-600
+    else if (resource?.confirmacaoStatus === 'recusado') backgroundColor = "#f97316"; // orange-500
+
+    return {
+      style: {
+        backgroundColor,
+        color: '#ffffff',
+        borderRadius: '6px',
+        border: '1px solid rgba(255, 255, 255, 0.25)',
+        boxShadow: '0 2px 6px rgba(0,0,0,0.18)',
+      }
+    };
+  }, []);
+
+  // Custom Event component
+  const EventComponent = ({ event }: any) => {
+    const resource = event.resource;
 
     return (
-      <div className={`h-full w-full ${bgClass} text-white px-1 overflow-hidden text-ellipsis whitespace-nowrap`} title={event.title}>
-        <strong className="font-semibold text-xs">{event.title}</strong>
+      <div
+        className="w-full h-full flex flex-col justify-between overflow-hidden select-none"
+        title={`${event.title} • Puxe a seta no topo ou base para ajustar a duração`}
+      >
+        <span className="font-semibold text-xs leading-tight truncate">
+          {event.title}
+        </span>
+        {resource?.duracao ? (
+          <span className="text-[10px] opacity-90 font-medium tracking-tight mt-0.5">
+            ⏱ {resource.duracao} min
+          </span>
+        ) : null}
       </div>
     );
   };
@@ -79,6 +104,7 @@ export const AgendaBigCalendar = ({
         onSelectSlot={onSelectSlot}
         selectable
         resizable
+        eventPropGetter={eventPropGetter}
         components={{
           event: EventComponent
         }}
@@ -97,8 +123,8 @@ export const AgendaBigCalendar = ({
           showMore: (total) => `+ ${total} consultas`
         }}
         toolbar={false}
-        step={30}
-        timeslots={1}
+        step={15}
+        timeslots={2}
         min={new Date(2020, 1, 1, 7, 0, 0)}
         max={new Date(2020, 1, 1, 20, 0, 0)}
       />
