@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, Stethoscope, Handshake, FileText, UploadCloud, Eye, Loader2, X } from 'lucide-react';
+import { CalendarIcon, Stethoscope, Handshake, FileText, UploadCloud, Eye, Loader2, X, Plus, Trash2, Layers, CheckCircle2, AlertCircle, CreditCard, Wallet, Split } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useDentalSystem } from '@/context/DentalSystemContext';
@@ -20,6 +20,8 @@ import { TipoTransacao, StatusTransacao, MetodoPagamento } from '@/types/shared'
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
+import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
 
 interface TransactionFormProps {
   isOpen: boolean;
@@ -57,6 +59,45 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId }: Tra
     orcamentoId: '',
     comprovantes: [] as string[]
   });
+
+  // Múltiplas Formas de Pagamento (Split / Entrada + Restante)
+  const [modoMultiplasFormas, setModoMultiplasFormas] = useState(false);
+  const [formasSplit, setFormasSplit] = useState<
+    Array<{
+      id: string;
+      rotulo: string;
+      metodo: MetodoPagamento;
+      valor: string;
+      parcelas: string;
+      taxaCartaoPercentual: string;
+      status: StatusTransacao;
+      data: Date;
+      vencimento: Date | null;
+    }>
+  >([
+    {
+      id: '1',
+      rotulo: 'Entrada PIX',
+      metodo: 'pix',
+      valor: '',
+      parcelas: '1',
+      taxaCartaoPercentual: '',
+      status: 'pago',
+      data: new Date(),
+      vencimento: null,
+    },
+    {
+      id: '2',
+      rotulo: 'Restante Cartão',
+      metodo: 'cartao',
+      valor: '',
+      parcelas: '3',
+      taxaCartaoPercentual: '',
+      status: 'pendente',
+      data: new Date(),
+      vencimento: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    },
+  ]);
 
   const emptyForm = {
     pacienteId: '',
@@ -112,6 +153,31 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId }: Tra
           ...emptyForm,
           pacienteId: transacao?.pacienteId || pacienteId || '',
         });
+        setModoMultiplasFormas(false);
+        setFormasSplit([
+          {
+            id: '1',
+            rotulo: 'Entrada PIX',
+            metodo: 'pix',
+            valor: '',
+            parcelas: '1',
+            taxaCartaoPercentual: '',
+            status: 'pago',
+            data: new Date(),
+            vencimento: null,
+          },
+          {
+            id: '2',
+            rotulo: 'Restante Cartão',
+            metodo: 'cartao',
+            valor: '',
+            parcelas: '3',
+            taxaCartaoPercentual: '',
+            status: 'pendente',
+            data: new Date(),
+            vencimento: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          },
+        ]);
       }
     }
 
@@ -213,15 +279,127 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId }: Tra
     e.preventDefault();
     
     const pid = formData.pacienteId || pacienteId;
-    if (!pid || !formData.valor || !formData.descricao) {
-      toast.error('Preencha todos os campos obrigatórios (Paciente, Valor e Descrição)');
+    if (!pid || !formData.descricao) {
+      toast.error('Preencha os campos obrigatórios (Paciente e Descrição)');
+      return;
+    }
+
+    const pacienteObj = pacientes.find(p => p.id === pid);
+    const pacienteNome = pacienteObj?.nome || (transacao as any)?.pacienteNome;
+
+    // ========================================================================
+    // CASO 1: MÚLTIPLAS FORMAS DE PAGAMENTO (SPLIT DE PAGAMENTO)
+    // ========================================================================
+    if (modoMultiplasFormas && !isEdit) {
+      const formasValidas = formasSplit.filter((f) => parseFloat(f.valor) > 0);
+      if (formasValidas.length === 0) {
+        toast.error('Informe o valor de pelo menos uma forma de pagamento');
+        return;
+      }
+
+      try {
+        let totalLancamentos = 0;
+        const descBase = formData.descricao?.trim() || 'Pagamento';
+
+        for (const forma of formasValidas) {
+          const valBrutoForma = parseFloat(forma.valor) || 0;
+          const fParcelas =
+            (forma.metodo === 'cartao' || forma.metodo === 'pix_parcelado' || forma.metodo === 'boleto')
+              ? Math.max(1, parseInt(forma.parcelas) || 1)
+              : 1;
+          const fTaxaPerc = forma.metodo === 'cartao' ? parseFloat(forma.taxaCartaoPercentual) || 0 : 0;
+          const fTaxaValor = (valBrutoForma * fTaxaPerc) / 100;
+          const fValorLiquido = valBrutoForma - fTaxaValor;
+          const fValorParcela = valBrutoForma / fParcelas;
+
+          if (fParcelas > 1) {
+            for (let i = 0; i < fParcelas; i++) {
+              const dataVenc = forma.vencimento ? new Date(forma.vencimento) : new Date(forma.data);
+              dataVenc.setMonth(dataVenc.getMonth() + i);
+
+              await addTransacao({
+                pacienteId: pid,
+                pacienteNome,
+                tipo: formData.tipo,
+                valor: fValorParcela,
+                valorLiquido: fValorParcela - (fTaxaValor / fParcelas),
+                status: i === 0 && forma.status === 'pago' ? 'pago' : 'pendente',
+                metodoPagamento: forma.metodo,
+                data: forma.data,
+                vencimento: dataVenc,
+                descricao: `${descBase} — ${forma.rotulo} (${i + 1}/${fParcelas})`,
+                categoria: formData.tipo === 'despesa' && parceiro ? 'parceria' : undefined,
+                taxaCartaoPercentual: fTaxaPerc,
+                taxaCartaoValor: fTaxaValor / fParcelas,
+                parcelas: 1,
+                valorParcela: fValorParcela,
+                orcamentoId: formData.orcamentoId || undefined,
+                comprovantes: formData.comprovantes?.length ? formData.comprovantes : undefined,
+              });
+              totalLancamentos++;
+            }
+          } else {
+            await addTransacao({
+              pacienteId: pid,
+              pacienteNome,
+              tipo: formData.tipo,
+              valor: valBrutoForma,
+              valorLiquido: fValorLiquido,
+              status: forma.status,
+              metodoPagamento: forma.metodo,
+              data: forma.data,
+              vencimento: forma.vencimento || undefined,
+              descricao: `${descBase} — ${forma.rotulo}`,
+              categoria: formData.tipo === 'despesa' && parceiro ? 'parceria' : undefined,
+              taxaCartaoPercentual: fTaxaPerc,
+              taxaCartaoValor: fTaxaValor,
+              parcelas: 1,
+              valorParcela: valBrutoForma,
+              orcamentoId: formData.orcamentoId || undefined,
+              comprovantes: formData.comprovantes?.length ? formData.comprovantes : undefined,
+            });
+            totalLancamentos++;
+          }
+        }
+
+        // Repasse ao parceiro entra como despesa/parceria se houver
+        if (parceiro && valorParceiro > 0 && formData.tipo === 'receita') {
+          await addTransacao({
+            pacienteId: pid,
+            tipo: 'despesa',
+            status: formData.status,
+            categoria: 'parceria',
+            metodoPagamento: 'pix',
+            data: formData.data,
+            descricao: `Repasse parceiro ${parceiro.nome} — ${formData.descricao}`,
+            valor: valorParceiro,
+            parceiroId: parceiro.id,
+            parceiroNome: parceiro.nome,
+            valorParceiro,
+          });
+        }
+
+        toast.success(`Pagamento combinado registrado: ${totalLancamentos} lançamentos gerados com sucesso!`);
+        onSave({});
+        setFormData(emptyForm);
+        setModoMultiplasFormas(false);
+      } catch (error) {
+        console.error('Erro ao salvar transações múltiplas:', error);
+        toast.error('Erro ao salvar pagamento com múltiplas formas');
+      }
+      return;
+    }
+
+    // ========================================================================
+    // CASO 2: FORMA ÚNICA (PADRÃO / EDIÇÃO)
+    // ========================================================================
+    if (!formData.valor) {
+      toast.error('Informe o valor da transação');
       return;
     }
 
     try {
       const { taxaCartaoPercentual, parcelas: _p, valorParceiro: _vp, orcamentoId: _oid, ...rest } = formData;
-      const pacienteObj = pacientes.find(p => p.id === pid);
-      const pacienteNome = pacienteObj?.nome || (transacao as any)?.pacienteNome;
 
       const transactionData = {
         ...rest,
@@ -244,7 +422,6 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId }: Tra
       if (isEdit) {
         await updateTransacao(transacao.id, transactionData);
 
-        // Mantém a despesa de repasse do parceiro sincronizada com a receita editada
         if (formData.tipo === 'receita') {
           const descAntiga = transacao.descricao || '';
           const repasseExistente = (transacoes as any[]).find(
@@ -300,7 +477,7 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId }: Tra
         } else {
           await addTransacao(transactionData);
         }
-        // Repasse ao parceiro entra automaticamente como despesa/parceria
+
         if (parceiro && valorParceiro > 0 && formData.tipo === 'receita') {
           await addTransacao({
             pacienteId: formData.pacienteId,
@@ -523,39 +700,353 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId }: Tra
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="status">Status</Label>
-              <Select value={formData.status} onValueChange={(value: StatusTransacao) => setFormData(prev => ({ ...prev, status: value }))}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="pago">Pago</SelectItem>
-                  <SelectItem value="pendente">Pendente</SelectItem>
-                  <SelectItem value="vencido">Vencido</SelectItem>
-                  <SelectItem value="cancelado">Cancelado</SelectItem>
-                </SelectContent>
-              </Select>
+          {/* Toggle de Múltiplas Formas de Pagamento */}
+          {!isEdit && formData.tipo === 'receita' && (
+            <div className="flex items-center justify-between p-3 rounded-lg border border-emerald-500/30 bg-emerald-950/20">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
+                  <Layers className="h-4 w-4" />
+                  Múltiplas Formas de Pagamento (Entrada + Cartão/PIX)
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Permite dividir o pagamento do paciente (ex: R$ 500 no PIX e o restante no Cartão).
+                </p>
+              </div>
+              <Switch
+                checked={modoMultiplasFormas}
+                onCheckedChange={(checked) => {
+                  setModoMultiplasFormas(checked);
+                  if (checked && valorBruto > 0) {
+                    const ent = Math.round(valorBruto * 0.3);
+                    const rest = Math.max(0, valorBruto - ent);
+                    setFormasSplit([
+                      {
+                        id: '1',
+                        rotulo: 'Entrada PIX',
+                        metodo: 'pix',
+                        valor: ent > 0 ? String(ent) : '',
+                        parcelas: '1',
+                        taxaCartaoPercentual: '',
+                        status: 'pago',
+                        data: new Date(),
+                        vencimento: null,
+                      },
+                      {
+                        id: '2',
+                        rotulo: 'Restante Cartão',
+                        metodo: 'cartao',
+                        valor: rest > 0 ? String(rest) : '',
+                        parcelas: '3',
+                        taxaCartaoPercentual: '',
+                        status: 'pendente',
+                        data: new Date(),
+                        vencimento: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+                      },
+                    ]);
+                  }
+                }}
+              />
             </div>
+          )}
 
-            <div>
-              <Label htmlFor="metodo">Método de Pagamento</Label>
-              <Select value={formData.metodoPagamento} onValueChange={(value: MetodoPagamento) => setFormData(prev => ({ ...prev, metodoPagamento: value }))}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="dinheiro">Dinheiro</SelectItem>
-                  <SelectItem value="cartao">Cartão</SelectItem>
-                  <SelectItem value="pix">PIX</SelectItem>
-                  <SelectItem value="pix_parcelado">PIX Parcelado</SelectItem>
-                  <SelectItem value="boleto">Boleto</SelectItem>
-                  <SelectItem value="transferencia">Transferência</SelectItem>
-                </SelectContent>
-              </Select>
+          {/* Seção Condicional: Múltiplas Formas vs Forma Única */}
+          {modoMultiplasFormas && !isEdit ? (
+            <div className="space-y-3 p-3.5 rounded-lg border border-emerald-500/40 bg-emerald-950/10">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-emerald-400 flex items-center gap-1.5">
+                  <Wallet className="h-4 w-4" /> Detalhamento das Formas de Pagamento
+                </span>
+                <span className="text-[11px] text-muted-foreground">
+                  Total da Venda: <strong className="text-foreground">{money(valorBruto)}</strong>
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                {formasSplit.map((forma, idx) => (
+                  <div key={forma.id} className="p-2.5 rounded-lg border border-border bg-background/90 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold flex items-center justify-center">
+                          {idx + 1}
+                        </span>
+                        <Input
+                          value={forma.rotulo}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setFormasSplit((prev) => prev.map((f, i) => (i === idx ? { ...f, rotulo: val } : f)));
+                          }}
+                          placeholder="Ex: Entrada PIX, Restante Cartão..."
+                          className="h-7 text-xs w-36 font-semibold"
+                        />
+                      </div>
+
+                      {formasSplit.length > 1 && (
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                          onClick={() => setFormasSplit((prev) => prev.filter((_, i) => i !== idx))}
+                          title="Remover forma"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-[11px] text-muted-foreground">Método</Label>
+                        <Select
+                          value={forma.metodo}
+                          onValueChange={(val: MetodoPagamento) =>
+                            setFormasSplit((prev) => prev.map((f, i) => (i === idx ? { ...f, metodo: val } : f)))
+                          }
+                        >
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pix">PIX</SelectItem>
+                            <SelectItem value="cartao">Cartão de Crédito</SelectItem>
+                            <SelectItem value="dinheiro">Dinheiro</SelectItem>
+                            <SelectItem value="boleto">Boleto Bancário</SelectItem>
+                            <SelectItem value="pix_parcelado">PIX Parcelado</SelectItem>
+                            <SelectItem value="transferencia">Transferência</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="flex justify-between items-center">
+                          <Label className="text-[11px] text-muted-foreground">Valor (R$)</Label>
+                          {idx === formasSplit.length - 1 && valorBruto > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const somaOutras = formasSplit
+                                  .filter((_, i) => i !== idx)
+                                  .reduce((s, f) => s + (parseFloat(f.valor) || 0), 0);
+                                const saldoFaltante = Math.max(0, valorBruto - somaOutras);
+                                setFormasSplit((prev) =>
+                                  prev.map((f, i) => (i === idx ? { ...f, valor: String(saldoFaltante.toFixed(2)) } : f))
+                                );
+                              }}
+                              className="text-[10px] text-emerald-400 hover:underline"
+                            >
+                              Preencher saldo
+                            </button>
+                          )}
+                        </div>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          placeholder="0.00"
+                          value={forma.valor}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setFormasSplit((prev) => prev.map((f, i) => (i === idx ? { ...f, valor: val } : f)));
+                          }}
+                          className="h-8 text-xs font-semibold"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-[11px] text-muted-foreground">Status</Label>
+                        <Select
+                          value={forma.status}
+                          onValueChange={(val: StatusTransacao) =>
+                            setFormasSplit((prev) => prev.map((f, i) => (i === idx ? { ...f, status: val } : f)))
+                          }
+                        >
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pago">Pago (Recebido agora)</SelectItem>
+                            <SelectItem value="pendente">Pendente (A receber)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-[11px] text-muted-foreground">
+                          {forma.status === 'pago' ? 'Data Recebimento' : '1º Vencimento'}
+                        </Label>
+                        <Input
+                          type="date"
+                          className="h-8 text-xs"
+                          value={forma.vencimento ? format(forma.vencimento, 'yyyy-MM-dd') : format(forma.data, 'yyyy-MM-dd')}
+                          onChange={(e) => {
+                            const d = e.target.value ? new Date(e.target.value + 'T12:00:00') : new Date();
+                            setFormasSplit((prev) =>
+                              prev.map((f, i) => (i === idx ? { ...f, vencimento: d, data: d } : f))
+                            );
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {(forma.metodo === 'cartao' || forma.metodo === 'pix_parcelado' || forma.metodo === 'boleto') && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-border/40">
+                        <div className="space-y-1">
+                          <Label className="text-[11px] text-muted-foreground">Parcelas</Label>
+                          <Select
+                            value={String(forma.parcelas || '1')}
+                            onValueChange={(val) =>
+                              setFormasSplit((prev) => prev.map((f, i) => (i === idx ? { ...f, parcelas: val } : f)))
+                            }
+                          >
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18, 24].map((n) => (
+                                <SelectItem key={n} value={String(n)}>
+                                  {n}x {n > 1 && parseFloat(forma.valor) > 0 ? `(${money(parseFloat(forma.valor) / n)})` : ''}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {forma.metodo === 'cartao' && (
+                          <div className="space-y-1">
+                            <Label className="text-[11px] text-muted-foreground">Taxa da Máquina (%)</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              placeholder="Ex: 3.5"
+                              value={forma.taxaCartaoPercentual}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setFormasSplit((prev) =>
+                                  prev.map((f, i) => (i === idx ? { ...f, taxaCartaoPercentual: val } : f))
+                                );
+                              }}
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const somaAtual = formasSplit.reduce((s, f) => s + (parseFloat(f.valor) || 0), 0);
+                    const saldoFaltante = Math.max(0, valorBruto - somaAtual);
+                    setFormasSplit((prev) => [
+                      ...prev,
+                      {
+                        id: String(Date.now()),
+                        rotulo: `Forma ${prev.length + 1}`,
+                        metodo: 'cartao',
+                        valor: saldoFaltante > 0 ? String(saldoFaltante.toFixed(2)) : '',
+                        parcelas: '1',
+                        taxaCartaoPercentual: '',
+                        status: 'pendente',
+                        data: new Date(),
+                        vencimento: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+                      },
+                    ]);
+                  }}
+                  className="w-full h-8 text-xs gap-1 border-dashed border-emerald-500/40 text-emerald-400 hover:bg-emerald-950/30"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Adicionar Outra Forma de Pagamento
+                </Button>
+
+                {/* Balanceador em tempo real */}
+                {(() => {
+                  const soma = formasSplit.reduce((s, f) => s + (parseFloat(f.valor) || 0), 0);
+                  const totalReferencia = valorBruto > 0 ? valorBruto : soma;
+                  const dif = valorBruto > 0 ? valorBruto - soma : 0;
+                  const bateu = valorBruto > 0 ? Math.abs(dif) < 0.01 : soma > 0;
+                  return (
+                    <div className="rounded-lg bg-background/90 border border-border p-2.5 text-xs space-y-1.5">
+                      <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">
+                          {valorBruto > 0 ? 'Total Previsto da Venda:' : 'Total Previsto (Soma das Formas):'}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-foreground">{money(totalReferencia)}</span>
+                          {valorBruto === 0 && soma > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setFormData((prev) => ({ ...prev, valor: String(soma.toFixed(2)) }))}
+                              className="text-[10px] text-emerald-400 hover:underline"
+                            >
+                              Fixar no Total
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">Soma das Formas:</span>
+                        <span className="font-semibold">{money(soma)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pt-1 border-t border-border/60">
+                        <span className="font-medium">Status da Distribuição:</span>
+                        {bateu ? (
+                          <Badge className="bg-emerald-600/90 text-white text-[10px] gap-1">
+                            <CheckCircle2 className="h-3 w-3" /> 100% Distribuído
+                          </Badge>
+                        ) : dif > 0 ? (
+                          <span className="text-amber-500 font-semibold text-[11px]">
+                            Faltam distribuir {money(dif)}
+                          </span>
+                        ) : (
+                          <span className="text-red-500 font-semibold text-[11px]">
+                            A soma excede o total em {money(Math.abs(dif))}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
             </div>
-          </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="status">Status</Label>
+                  <Select value={formData.status} onValueChange={(value: StatusTransacao) => setFormData(prev => ({ ...prev, status: value }))}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pago">Pago</SelectItem>
+                      <SelectItem value="pendente">Pendente</SelectItem>
+                      <SelectItem value="vencido">Vencido</SelectItem>
+                      <SelectItem value="cancelado">Cancelado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="metodo">Método de Pagamento</Label>
+                  <Select value={formData.metodoPagamento} onValueChange={(value: MetodoPagamento) => setFormData(prev => ({ ...prev, metodoPagamento: value }))}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="dinheiro">Dinheiro</SelectItem>
+                      <SelectItem value="cartao">Cartão</SelectItem>
+                      <SelectItem value="pix">PIX</SelectItem>
+                      <SelectItem value="pix_parcelado">PIX Parcelado</SelectItem>
+                      <SelectItem value="boleto">Boleto</SelectItem>
+                      <SelectItem value="transferencia">Transferência</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </>
+          )}
 
           {permiteParcelamento && (
             <div className="space-y-3 rounded-lg border p-3">

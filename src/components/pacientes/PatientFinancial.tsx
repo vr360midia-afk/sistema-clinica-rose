@@ -25,6 +25,58 @@ interface PatientFinancialProps {
 
 const brl = (v: number) => `${formatMoney(Number(v || 0))}`;
 
+const renderMetodoBadge = (metodo?: string) => {
+  if (!metodo) return null;
+  const m = metodo.toLowerCase();
+  if (m === 'pix') {
+    return (
+      <Badge variant="outline" className="text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 border-emerald-500/30">
+        PIX
+      </Badge>
+    );
+  }
+  if (m === 'cartao') {
+    return (
+      <Badge variant="outline" className="text-[10px] font-semibold bg-blue-500/10 text-blue-600 border-blue-500/30">
+        Cartão
+      </Badge>
+    );
+  }
+  if (m === 'dinheiro') {
+    return (
+      <Badge variant="outline" className="text-[10px] font-semibold bg-green-500/10 text-green-600 border-green-500/30">
+        Dinheiro
+      </Badge>
+    );
+  }
+  if (m === 'boleto') {
+    return (
+      <Badge variant="outline" className="text-[10px] font-semibold bg-amber-500/10 text-amber-600 border-amber-500/30">
+        Boleto
+      </Badge>
+    );
+  }
+  if (m === 'pix_parcelado') {
+    return (
+      <Badge variant="outline" className="text-[10px] font-semibold bg-purple-500/10 text-purple-600 border-purple-500/30">
+        PIX Parcelado
+      </Badge>
+    );
+  }
+  if (m === 'transferencia') {
+    return (
+      <Badge variant="outline" className="text-[10px] font-semibold bg-cyan-500/10 text-cyan-600 border-cyan-500/30">
+        Transferência
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant="outline" className="text-[10px] font-semibold">
+      {metodo}
+    </Badge>
+  );
+};
+
 const PatientFinancial = ({ patient }: PatientFinancialProps) => {
   const { consultas, prontuarios, transacoes, deleteTransacao } = useDentalSystem();
   const { orcamentos } = useOrcamentos(patient?.id);
@@ -210,18 +262,20 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-        <p className="text-sm text-muted-foreground">Resumo financeiro e tratamento do paciente</p>
+        <div>
+          <p className="text-sm font-medium text-foreground">Resumo financeiro e tratamento do paciente</p>
+          <p className="text-xs text-muted-foreground">Registre recebimentos, consultas ou pagamentos combinados (PIX + Cartão/Boleto)</p>
+        </div>
         <div className="flex flex-col sm:flex-row gap-2">
           <Button
             size="sm"
-            variant="outline"
             onClick={() => { setEditingTransacao(null); setShowTransactionForm(true); }}
-            className="w-full sm:w-auto"
+            className="w-full sm:w-auto shadow-sm"
           >
-            <Plus className="h-4 w-4 mr-1" />
-            Novo
+            <Plus className="h-4 w-4 mr-1.5" />
+            Novo Pagamento
           </Button>
-          <Button onClick={enviarParaAssinar} disabled={enviando} className="w-full sm:w-auto">
+          <Button onClick={enviarParaAssinar} disabled={enviando} variant="outline" className="w-full sm:w-auto">
             {enviando ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <MessageCircle className="h-4 w-4 mr-2" />}
             Enviar para assinar (WhatsApp)
           </Button>
@@ -420,35 +474,52 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
             />
           ) : (
             lancamentos.map((t: any) => (
-              <div key={t.id} className="flex items-center justify-between gap-2 border rounded-md p-2">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">{t.descricao || 'Pagamento'}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {new Date(t.data).toLocaleDateString('pt-BR')}
-                    {t.metodoPagamento ? ` • ${t.metodoPagamento}` : ''}
-                    {t.parcelas && t.parcelas > 1 ? ` • ${t.parcelas}x ${brl(t.valorParcela || 0)}` : ''}
-                  </p>
+              <div key={t.id} className="flex items-center justify-between gap-3 border rounded-lg p-2.5 sm:p-3 hover:bg-muted/30 transition-colors">
+                <div className="min-w-0 space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-semibold truncate text-foreground">{t.descricao || 'Pagamento'}</p>
+                    {renderMetodoBadge(t.metodoPagamento)}
+                  </div>
+                  <div className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap">
+                    <span>{new Date(t.data).toLocaleDateString('pt-BR')}</span>
+                    {t.vencimento && (
+                      <span className="text-[11px] text-muted-foreground/90">
+                        • Venc: {new Date(t.vencimento).toLocaleDateString('pt-BR')}
+                      </span>
+                    )}
+                    {t.parcelas && t.parcelas > 1 ? (
+                      <span className="font-medium text-foreground/80">
+                        • {t.parcelas}x {brl(t.valorParcela || (t.valor / t.parcelas))}
+                      </span>
+                    ) : null}
+                    {t.taxaCartaoPercentual ? (
+                      <span className="text-[10px] text-muted-foreground">
+                        (Taxa: {t.taxaCartaoPercentual}%)
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <Badge
                     variant={t.status === 'pago' ? 'default' : t.status === 'vencido' ? 'destructive' : 'secondary'}
-                    className="text-[10px]"
+                    className="text-[10px] capitalize font-medium"
                   >
                     {t.status}
                   </Badge>
-                  <span className="text-sm font-semibold">{brl(t.valor)}</span>
+                  <span className="text-sm sm:text-base font-bold">{brl(t.valor)}</span>
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="h-7 w-7"
+                    className="h-7 w-7 text-muted-foreground hover:text-foreground"
                     onClick={() => { setEditingTransacao(t); setShowTransactionForm(true); }}
+                    title="Editar lançamento"
                   >
                     <Pencil className="h-3.5 w-3.5" />
                   </Button>
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="h-7 w-7 text-destructive"
+                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
                     onClick={async () => {
                       const autorizado = await requireMasterPassword('O lançamento será movido para a lixeira por 30 dias.');
                       if (!autorizado) return;
@@ -459,6 +530,7 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
                         toast.error('Erro ao excluir lançamento');
                       }
                     }}
+                    title="Excluir lançamento"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>

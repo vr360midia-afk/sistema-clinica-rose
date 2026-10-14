@@ -264,8 +264,8 @@ export const mapearDadosContrato = ({
     // extrai a negociação das opções de parcelamento do orçamento
     const formas = orcamento?.formasPagamento || '';
 
-    // 1. Detecta Entrada (ex: "Entrada de R$ 500,00" ou "Entrada: R$ 500")
-    const entradaMatch = formas.match(/entrada(?:\s+de)?\s*(?:r\$)?\s*([\d.,]+)/i);
+    // 1. Detecta Entrada (ex: "Entrada de R$ 500,00", "Entrada: R$ 500", "Entrada: R$ 500,00 via PIX")
+    const entradaMatch = formas.match(/entrada(?:\s*(?:de|:))?\s*(?:r\$)?\s*([\d.,]+)/i);
     let entradaDetectada = 0;
     if (entradaMatch) {
       const valorLimpo = entradaMatch[1].replace(/\./g, '').replace(',', '.');
@@ -273,13 +273,30 @@ export const mapearDadosContrato = ({
     }
     entrada = entradaDetectada;
 
-    // 2. Detecta Qtd. de Parcelas: ex: "4x" ou "4 parcelas"
+    // Detecta método da entrada
+    const parteEntrada = formas.split(/\+|\be\b/i)[0] || '';
+    let metodoEntrada = 'PIX (Entrada)';
+    if (/cart[aã]o/i.test(parteEntrada)) metodoEntrada = 'Cartão (Entrada)';
+    else if (/dinheiro/i.test(parteEntrada)) metodoEntrada = 'Dinheiro (Entrada)';
+    else if (/transfer[eê]ncia/i.test(parteEntrada)) metodoEntrada = 'Transferência (Entrada)';
+    else if (/pix/i.test(parteEntrada)) metodoEntrada = 'PIX (Entrada)';
+
+    // 2. Detecta Qtd. de Parcelas: ex: "4x", "3x", "4 parcelas"
     const parcelasMatch = formas.match(/(\d+)\s*x/i) || formas.match(/(\d+)\s*parcelas/i);
     const qtdParcelas = parcelasMatch ? Math.max(1, parseInt(parcelasMatch[1], 10)) : 1;
 
     // 3. Detecta Dia do Vencimento: ex: "vencimento todo dia 10", "dia 15", "vencimento: dia 5"
     const diaMatch = formas.match(/(?:vencimento|dia)\s*(?:todo\s*dia)?\s*(\d{1,2})/i);
     const diaVencimento = diaMatch ? Math.min(28, Math.max(1, parseInt(diaMatch[1], 10))) : 10;
+
+    // Detecta método do restante/parcelas
+    const parteRestante = formas.includes('+') ? formas.split('+').slice(1).join('+') : formas;
+    let metodoRestante = 'A definir';
+    if (/cart[aã]o/i.test(parteRestante)) metodoRestante = 'Cartão de Crédito';
+    else if (/boleto/i.test(parteRestante)) metodoRestante = 'Boleto Bancário';
+    else if (/pix/i.test(parteRestante)) metodoRestante = 'PIX Parcelado';
+    else if (/dinheiro/i.test(parteRestante)) metodoRestante = 'Dinheiro';
+    else if (/transfer[eê]ncia/i.test(parteRestante)) metodoRestante = 'Transferência';
 
     // 4. Saldo a parcelar e valor da parcela mensal
     const saldo = Math.max(0, total - entrada);
@@ -292,15 +309,13 @@ export const mapearDadosContrato = ({
     if (entrada > 0) {
       listaParcelas.push({
         numero: 1,
-        descricao: 'Entrada Inicial (PIX / À vista)',
+        descricao: `Entrada Inicial (${metodoEntrada.replace(' (Entrada)', '')})`,
         vencimento: formatarData(hoje),
         valor: entrada,
-        metodo: 'PIX (Entrada)',
+        metodo: metodoEntrada,
         status: 'A vencer',
       });
     }
-
-    const isPix = /pix/i.test(formas);
 
     for (let idx = 0; idx < qtdParcelas; idx++) {
       const targetMonth = hoje.getMonth() + (idx + 1);
@@ -311,11 +326,11 @@ export const mapearDadosContrato = ({
       listaParcelas.push({
         numero: listaParcelas.length + 1,
         descricao: qtdParcelas === 1 && entrada === 0
-          ? 'Pagamento Único'
-          : `Parcela ${idx + 1} de ${qtdParcelas} ${isPix ? '(PIX Mensal)' : ''}`,
+          ? `Pagamento Único (${metodoRestante})`
+          : `Parcela ${idx + 1} de ${qtdParcelas} (${metodoRestante})`,
         vencimento: formatarData(dataVenc),
         valor: valorParcela,
-        metodo: isPix ? 'PIX Parcelado' : orcamento?.formasPagamento || 'A definir',
+        metodo: metodoRestante,
         status: 'A vencer',
       });
     }

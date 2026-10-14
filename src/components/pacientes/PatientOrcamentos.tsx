@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ClipboardList, Plus, Trash2, MessageCircle, Check, X, Handshake, FileText, Pencil, FileSignature, Sparkles, CalendarDays, Link as LinkIcon } from 'lucide-react';
+import { ClipboardList, Plus, Trash2, MessageCircle, Check, X, Handshake, FileText, Pencil, FileSignature, Sparkles, CalendarDays, Link as LinkIcon, Layers, CreditCard, Wallet, CheckCircle2 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { useOrcamentos, OrcamentoItem, Orcamento } from '@/hooks/useOrcamentos';
 import { useProcedimentos } from '@/hooks/useProcedimentos';
@@ -66,6 +66,22 @@ const PatientOrcamentos = ({ patient }: Props) => {
   const [pixParcelas, setPixParcelas] = useState<number>(3);
   const [pixDiaVencimento, setPixDiaVencimento] = useState<number>(10);
 
+  // Múltiplas Formas de Pagamento (Entrada + Cartão / Split)
+  const [multiplasFormasAtivo, setMultiplasFormasAtivo] = useState(false);
+  const [formasMultiplas, setFormasMultiplas] = useState<
+    Array<{
+      id: string;
+      rotulo: string;
+      metodo: 'pix' | 'cartao' | 'dinheiro' | 'boleto' | 'transferencia' | 'pix_parcelado';
+      valor: number;
+      parcelas: number;
+      diaVencimento: number;
+    }>
+  >([
+    { id: '1', rotulo: 'Entrada', metodo: 'pix', valor: 0, parcelas: 1, diaVencimento: 10 },
+    { id: '2', rotulo: 'Restante', metodo: 'cartao', valor: 0, parcelas: 3, diaVencimento: 10 },
+  ]);
+
 
   // Parceria
   const [parceriaAtiva, setParceriaAtiva] = useState(false);
@@ -77,6 +93,79 @@ const PatientOrcamentos = ({ patient }: Props) => {
 
   const subtotal = itens.reduce((s, i) => s + i.valor * i.quantidade, 0);
   const total = Math.max(0, subtotal - desconto);
+
+  const montarTextoMultiplasFormas = (lista: typeof formasMultiplas) => {
+    const partes: string[] = [];
+    for (const f of lista) {
+      if (!f.valor || f.valor <= 0) continue;
+      const nomeMetodo =
+        f.metodo === 'pix'
+          ? 'PIX'
+          : f.metodo === 'cartao'
+          ? 'Cartão de Crédito'
+          : f.metodo === 'dinheiro'
+          ? 'Dinheiro'
+          : f.metodo === 'boleto'
+          ? 'Boleto Bancário'
+          : f.metodo === 'pix_parcelado'
+          ? 'PIX Parcelado'
+          : 'Transferência';
+
+      if (f.parcelas > 1 && (f.metodo === 'cartao' || f.metodo === 'pix_parcelado' || f.metodo === 'boleto')) {
+        const valParc = f.valor / f.parcelas;
+        partes.push(
+          `${f.rotulo}: ${formatMoney(f.valor)} em ${f.parcelas}x de ${formatMoney(valParc)} no ${nomeMetodo} (Vencimento todo dia ${f.diaVencimento})`
+        );
+      } else {
+        partes.push(`${f.rotulo}: ${formatMoney(f.valor)} via ${nomeMetodo} (À vista)`);
+      }
+    }
+    return partes.join(' + ');
+  };
+
+  const handleToggleMultiplasFormas = () => {
+    const novo = !multiplasFormasAtivo;
+    setMultiplasFormasAtivo(novo);
+    if (novo) {
+      setPixParceladoAtivo(false);
+      const entradaSugerida = Math.round(total * 0.2);
+      const restanteSugerido = Math.max(0, total - entradaSugerida);
+      const inicial = [
+        { id: '1', rotulo: 'Entrada', metodo: 'pix' as const, valor: entradaSugerida, parcelas: 1, diaVencimento: 10 },
+        { id: '2', rotulo: 'Restante', metodo: 'cartao' as const, valor: restanteSugerido, parcelas: 3, diaVencimento: 10 },
+      ];
+      setFormasMultiplas(inicial);
+      setFormasPagamento(montarTextoMultiplasFormas(inicial));
+    }
+  };
+
+  const handleAtualizarFormaMultipla = (idx: number, campos: Partial<(typeof formasMultiplas)[number]>) => {
+    const novas = formasMultiplas.map((item, i) => (i === idx ? { ...item, ...campos } : item));
+    setFormasMultiplas(novas);
+    setFormasPagamento(montarTextoMultiplasFormas(novas));
+  };
+
+  const handleAdicionarFormaMultipla = () => {
+    const somaAtual = formasMultiplas.reduce((s, f) => s + (f.valor || 0), 0);
+    const saldoFaltante = Math.max(0, total - somaAtual);
+    const novoItem = {
+      id: String(Date.now()),
+      rotulo: `Forma ${formasMultiplas.length + 1}`,
+      metodo: 'cartao' as const,
+      valor: saldoFaltante,
+      parcelas: 1,
+      diaVencimento: 10,
+    };
+    const novas = [...formasMultiplas, novoItem];
+    setFormasMultiplas(novas);
+    setFormasPagamento(montarTextoMultiplasFormas(novas));
+  };
+
+  const handleRemoverFormaMultipla = (idx: number) => {
+    const novas = formasMultiplas.filter((_, i) => i !== idx);
+    setFormasMultiplas(novas);
+    setFormasPagamento(montarTextoMultiplasFormas(novas));
+  };
 
   const montarTextoPixParcelado = (entradaVal: number, parcelasVal: number, diaVal: number, totalVal: number) => {
     const qtd = Math.max(1, parcelasVal);
@@ -92,6 +181,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
     const novo = !pixParceladoAtivo;
     setPixParceladoAtivo(novo);
     if (novo) {
+      setMultiplasFormasAtivo(false);
       setFormasPagamento(montarTextoPixParcelado(pixEntrada, pixParcelas, pixDiaVencimento, total));
     }
   };
@@ -127,12 +217,29 @@ const PatientOrcamentos = ({ patient }: Props) => {
             dataVenc = new Date(Number(ano), Number(mes) - 1, Number(dia), 12, 0, 0);
           }
 
+          // Identifica o método específico desta parcela dinamicamente
+          let metodoFinal: any = 'pix';
+          const descLower = (p.metodo || p.descricao || '').toLowerCase();
+          if (descLower.includes('cartao') || descLower.includes('cartão') || descLower.includes('crédito') || descLower.includes('debito')) {
+            metodoFinal = 'cartao';
+          } else if (descLower.includes('pix_parcelado') || descLower.includes('pix mensal') || descLower.includes('pix parcelado')) {
+            metodoFinal = 'pix_parcelado';
+          } else if (descLower.includes('pix')) {
+            metodoFinal = 'pix';
+          } else if (descLower.includes('dinheiro')) {
+            metodoFinal = 'dinheiro';
+          } else if (descLower.includes('boleto')) {
+            metodoFinal = 'boleto';
+          } else if (descLower.includes('transferencia') || descLower.includes('transferência')) {
+            metodoFinal = 'transferencia';
+          }
+
           await addTransacao({
             pacienteId: patient.id,
             valor: p.valor,
             tipo: 'receita',
             status: isEntrada ? 'pendente' : 'pendente',
-            metodoPagamento: 'pix_parcelado',
+            metodoPagamento: metodoFinal,
             data: new Date(),
             vencimento: dataVenc,
             descricao: `${o.titulo}: ${p.descricao}`,
@@ -140,7 +247,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
             orcamentoId: o.id,
           });
         }
-        toast.success('Orçamento aprovado e parcelas lançadas no Contas a Receber!');
+        toast.success('Orçamento aprovado e parcelas lançadas no Contas a Receber com as formas corretas!');
       } else {
         toast.success('Orçamento aprovado com sucesso!');
       }
@@ -221,6 +328,11 @@ const PatientOrcamentos = ({ patient }: Props) => {
     setPixEntrada(0);
     setPixParcelas(3);
     setPixDiaVencimento(10);
+    setMultiplasFormasAtivo(false);
+    setFormasMultiplas([
+      { id: '1', rotulo: 'Entrada', metodo: 'pix', valor: 0, parcelas: 1, diaVencimento: 10 },
+      { id: '2', rotulo: 'Restante', metodo: 'cartao', valor: 0, parcelas: 3, diaVencimento: 10 },
+    ]);
     setParceriaAtiva(false);
     setParceiroId('');
     setValorRepasse(0);
@@ -236,7 +348,50 @@ const PatientOrcamentos = ({ patient }: Props) => {
     setObservacoes(o.observacoes || '');
     setFormasPagamento(o.formasPagamento || '');
 
-    if (o.formasPagamento && /pix\s*parcelado/i.test(o.formasPagamento)) {
+    // Verifica se possui múltiplas formas de pagamento (ex: Entrada PIX + Restante Cartão)
+    if (
+      o.formasPagamento &&
+      (o.formasPagamento.includes('+') ||
+        /entrada.*cart[aã]o/i.test(o.formasPagamento) ||
+        /entrada.*via/i.test(o.formasPagamento))
+    ) {
+      setMultiplasFormasAtivo(true);
+      setPixParceladoAtivo(false);
+
+      const entMatch = o.formasPagamento.match(/entrada(?:\s*(?:de|:))?\s*(?:r\$)?\s*([\d.,]+)/i);
+      const entVal = entMatch ? Number(entMatch[1].replace(/\./g, '').replace(',', '.')) || 0 : 0;
+      const isPixEntrada = /pix/i.test(o.formasPagamento.split('+')[0] || '');
+      const isDinheiroEntrada = /dinheiro/i.test(o.formasPagamento.split('+')[0] || '');
+
+      const parcMatch = o.formasPagamento.match(/(\d+)\s*x/i);
+      const qtdParc = parcMatch ? Number(parcMatch[1]) || 1 : 1;
+      const diaMatch = o.formasPagamento.match(/(?:vencimento|dia)\s*(?:todo\s*dia)?\s*(\d{1,2})/i);
+      const diaVenc = diaMatch ? Number(diaMatch[1]) || 10 : 10;
+      const isCartaoRestante = /cart[aã]o/i.test(o.formasPagamento);
+      const isBoletoRestante = /boleto/i.test(o.formasPagamento);
+
+      const saldoRestante = Math.max(0, o.total - entVal);
+
+      setFormasMultiplas([
+        {
+          id: '1',
+          rotulo: 'Entrada',
+          metodo: isPixEntrada ? 'pix' : isDinheiroEntrada ? 'dinheiro' : 'cartao',
+          valor: entVal,
+          parcelas: 1,
+          diaVencimento: 10,
+        },
+        {
+          id: '2',
+          rotulo: 'Restante',
+          metodo: isCartaoRestante ? 'cartao' : isBoletoRestante ? 'boleto' : 'pix_parcelado',
+          valor: saldoRestante,
+          parcelas: qtdParc,
+          diaVencimento: diaVenc,
+        },
+      ]);
+    } else if (o.formasPagamento && /pix\s*parcelado/i.test(o.formasPagamento)) {
+      setMultiplasFormasAtivo(false);
       setPixParceladoAtivo(true);
       const entradaMatch = o.formasPagamento.match(/entrada(?:\s+de)?\s*(?:r\$)?\s*([\d.,]+)/i);
       if (entradaMatch) {
@@ -253,6 +408,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
         setPixDiaVencimento(Number(diaMatch[1]) || 10);
       }
     } else {
+      setMultiplasFormasAtivo(false);
       setPixParceladoAtivo(false);
       setPixEntrada(0);
       setPixParcelas(3);
@@ -612,7 +768,26 @@ const PatientOrcamentos = ({ patient }: Props) => {
             </div>
 
             <div className="space-y-2">
-              <Label>Formas de pagamento</Label>
+              <div className="flex items-center justify-between">
+                <Label>Formas de pagamento</Label>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={multiplasFormasAtivo ? 'default' : 'outline'}
+                    className={`h-7 text-xs gap-1.5 ${
+                      multiplasFormasAtivo
+                        ? 'bg-emerald-600 text-white font-semibold shadow-xs'
+                        : 'border-emerald-500/40 text-emerald-600 dark:text-emerald-400'
+                    }`}
+                    onClick={handleToggleMultiplasFormas}
+                  >
+                    <Layers className="h-3.5 w-3.5" />
+                    Múltiplas Formas (Entrada + Cartão/Boleto)
+                  </Button>
+                </div>
+              </div>
+
               <div className="flex flex-wrap gap-1.5">
                 {['À vista (PIX)', 'PIX Parcelado', 'Dinheiro', 'Cartão de crédito', 'Cartão de débito', '2x sem juros', '3x sem juros', '6x', '12x', 'Boleto'].map((f) => {
                   const isPixParcelado = f === 'PIX Parcelado';
@@ -637,6 +812,201 @@ const PatientOrcamentos = ({ patient }: Props) => {
                   );
                 })}
               </div>
+
+              {/* Compositor de Múltiplas Formas de Pagamento (Ex: Entrada PIX + Restante Cartão) */}
+              {multiplasFormasAtivo && (
+                <div className="rounded-lg border border-emerald-500/40 bg-emerald-950/20 p-3.5 space-y-3 animate-in fade-in duration-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
+                      <Layers className="h-4 w-4" />
+                      Compositor de Pagamento Misto (Entrada + Cartão/Boleto)
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 px-1.5 text-xs text-muted-foreground hover:text-foreground"
+                      onClick={() => setMultiplasFormasAtivo(false)}
+                    >
+                      <X className="h-3.5 w-3.5 mr-1" /> Fechar
+                    </Button>
+                  </div>
+
+                  <div className="space-y-3">
+                    {formasMultiplas.map((item, idx) => (
+                      <div
+                        key={item.id}
+                        className="p-2.5 rounded-lg border border-border/70 bg-background/90 space-y-2"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold flex items-center justify-center">
+                              {idx + 1}
+                            </span>
+                            <Input
+                              value={item.rotulo}
+                              onChange={(e) => handleAtualizarFormaMultipla(idx, { rotulo: e.target.value })}
+                              placeholder="Ex: Entrada, Restante..."
+                              className="h-7 text-xs w-36 font-semibold"
+                            />
+                          </div>
+
+                          {formasMultiplas.length > 1 && (
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                              onClick={() => handleRemoverFormaMultipla(idx)}
+                              title="Remover forma"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                          <div className="space-y-1">
+                            <Label className="text-[11px] text-muted-foreground">Método</Label>
+                            <Select
+                              value={item.metodo}
+                              onValueChange={(v: any) => handleAtualizarFormaMultipla(idx, { metodo: v })}
+                            >
+                              <SelectTrigger className="h-8 text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="pix">PIX</SelectItem>
+                                <SelectItem value="cartao">Cartão de Crédito</SelectItem>
+                                <SelectItem value="dinheiro">Dinheiro</SelectItem>
+                                <SelectItem value="boleto">Boleto Bancário</SelectItem>
+                                <SelectItem value="pix_parcelado">PIX Parcelado</SelectItem>
+                                <SelectItem value="transferencia">Transferência</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="space-y-1">
+                            <div className="flex justify-between items-center">
+                              <Label className="text-[11px] text-muted-foreground">Valor (R$)</Label>
+                              {idx === formasMultiplas.length - 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const somaOutras = formasMultiplas
+                                      .filter((_, i) => i !== idx)
+                                      .reduce((s, f) => s + (f.valor || 0), 0);
+                                    handleAtualizarFormaMultipla(idx, { valor: Math.max(0, total - somaOutras) });
+                                  }}
+                                  className="text-[10px] text-emerald-400 hover:underline"
+                                >
+                                  Preencher saldo
+                                </button>
+                              )}
+                            </div>
+                            <Input
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              value={item.valor || ''}
+                              onChange={(e) => handleAtualizarFormaMultipla(idx, { valor: Number(e.target.value) || 0 })}
+                              placeholder="0,00"
+                              className="h-8 text-xs font-semibold"
+                            />
+                          </div>
+
+                          {(item.metodo === 'cartao' || item.metodo === 'pix_parcelado' || item.metodo === 'boleto') && (
+                            <>
+                              <div className="space-y-1">
+                                <Label className="text-[11px] text-muted-foreground">Parcelas</Label>
+                                <Select
+                                  value={String(item.parcelas || 1)}
+                                  onValueChange={(v) => handleAtualizarFormaMultipla(idx, { parcelas: Number(v) || 1 })}
+                                >
+                                  <SelectTrigger className="h-8 text-xs">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18, 24].map((n) => (
+                                      <SelectItem key={n} value={String(n)}>
+                                        {n}x {n > 1 && item.valor > 0 ? `(${formatMoney(item.valor / n)})` : ''}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+
+                              <div className="space-y-1">
+                                <Label className="text-[11px] text-muted-foreground">Dia Vencimento</Label>
+                                <Select
+                                  value={String(item.diaVencimento || 10)}
+                                  onValueChange={(v) => handleAtualizarFormaMultipla(idx, { diaVencimento: Number(v) || 10 })}
+                                >
+                                  <SelectTrigger className="h-8 text-xs">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {[1, 5, 10, 15, 20, 25, 28, 30].map((d) => (
+                                      <SelectItem key={d} value={String(d)}>
+                                        Todo dia {d}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleAdicionarFormaMultipla}
+                      className="w-full h-8 text-xs gap-1 border-dashed border-emerald-500/40 text-emerald-400 hover:bg-emerald-950/30"
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Adicionar Outra Forma de Pagamento
+                    </Button>
+
+                    {/* Balanceador em tempo real */}
+                    {(() => {
+                      const soma = formasMultiplas.reduce((s, f) => s + (f.valor || 0), 0);
+                      const dif = total - soma;
+                      const bateu = Math.abs(dif) < 0.01;
+                      return (
+                        <div className="rounded-lg bg-background/90 border border-border p-2.5 text-xs space-y-1.5">
+                          <div className="flex justify-between items-center">
+                            <span className="text-muted-foreground">Total do Orçamento:</span>
+                            <span className="font-bold text-foreground">{formatMoney(total)}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-muted-foreground">Soma das Formas:</span>
+                            <span className="font-semibold">{formatMoney(soma)}</span>
+                          </div>
+                          <div className="flex justify-between items-center pt-1 border-t border-border/60">
+                            <span className="font-medium">Status da Composição:</span>
+                            {bateu ? (
+                              <Badge className="bg-emerald-600/90 text-white text-[10px] gap-1">
+                                <CheckCircle2 className="h-3 w-3" /> 100% Coberto
+                              </Badge>
+                            ) : dif > 0 ? (
+                              <span className="text-amber-500 font-semibold text-[11px]">
+                                Faltam distribuir {formatMoney(dif)}
+                              </span>
+                            ) : (
+                              <span className="text-red-500 font-semibold text-[11px]">
+                                Excede em {formatMoney(Math.abs(dif))}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+              )}
 
               {pixParceladoAtivo && (
                 <div className="rounded-lg border border-primary/30 bg-primary/5 p-3.5 space-y-3 animate-in fade-in duration-200">
