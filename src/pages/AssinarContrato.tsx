@@ -505,6 +505,18 @@ export default function AssinarContrato() {
                 </tbody>
               </table>
             </div>
+
+            {snapshot.orcamento.observacoes && snapshot.orcamento.observacoes.trim() && (
+              <div className="mt-3 p-3.5 rounded-lg bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/60 text-xs">
+                <div className="flex items-center gap-1.5 font-semibold text-blue-800 dark:text-blue-300 uppercase tracking-wide text-[11px] mb-1">
+                  <FileText className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                  Observações do Orçamento / Recomendações:
+                </div>
+                <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
+                  {snapshot.orcamento.observacoes}
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Cláusulas Legais (Visualizador Retrátil / Scrollável) */}

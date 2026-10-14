@@ -66,6 +66,7 @@ export interface ContratoDadosOrcamento {
   validade: string;
   dataAprovacao: string;
   itens: ContratoItem[];
+  observacoes?: string;
 }
 
 export interface ContratoDadosFinanceiro {
@@ -226,6 +227,7 @@ export const mapearDadosContrato = ({
     validade: formatarData(orcamento?.validade),
     dataAprovacao: formatarData(orcamento?.atualizadoEm || orcamento?.criadoEm),
     itens: itensOrcamento,
+    observacoes: orcamento?.observacoes || undefined,
   };
 
   // 4. Dados Financeiros e Cronograma de Parcelas
@@ -365,6 +367,7 @@ export const mapearDadosContrato = ({
     clinica: dadosClinica,
     orcamento: dadosOrcamento,
     financeiro: dadosFinanceiro,
+    observacoesCustomizadas: orcamento?.observacoes || undefined,
     assinaturaPaciente: null,
     assinaturaDentista: null,
   };
@@ -664,6 +667,13 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
         </tbody>
       </table>
 
+      ${orcamento.observacoes && orcamento.observacoes.trim() ? `
+      <div style="margin: 12px 0 10px; padding: 10px 14px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #0284c7; border-radius: 4px; font-family: Arial, sans-serif; font-size: 11px; line-height: 1.5; color: #334155;">
+        <strong style="color: #0369a1; text-transform: uppercase; font-size: 10px; letter-spacing: 0.5px;">Observações do Orçamento / Especificações Clínicas:</strong><br/>
+        <span style="display: block; margin-top: 4px; white-space: pre-wrap;">${orcamento.observacoes.trim()}</span>
+      </div>
+      ` : ''}
+
       <p class="paragrafo" style="font-size: 11px; color: #4b5563;">
         <strong>Parágrafo Único:</strong> Modificações clínicas decorrentes de diagnósticos imprevistos durante o decorrer do tratamento, bem como necessidades adicionais não contempladas nesta relação, serão previamente comunicadas e orçadas à parte em termo aditivo.
       </p>
@@ -827,7 +837,7 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
       </p>
     </div>
 
-    ${snapshot.observacoesCustomizadas && snapshot.observacoesCustomizadas.trim() ? `
+    ${snapshot.observacoesCustomizadas && snapshot.observacoesCustomizadas.trim() && snapshot.observacoesCustomizadas.trim() !== orcamento.observacoes?.trim() ? `
     <!-- Cláusula Especial / Observações Complementares -->
     <div class="clausula-bloco">
       <div class="clausula-titulo">CLÁUSULA ESPECIAL — DAS DISPOSIÇÕES COMPLEMENTARES E CONVENCIONADAS</div>

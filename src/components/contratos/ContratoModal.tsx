@@ -1115,6 +1115,17 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                             className="h-8 text-xs border-border bg-background text-foreground"
                           />
                         </div>
+
+                        <div className="space-y-1 sm:col-span-2 md:col-span-4">
+                          <Label className="text-xs text-muted-foreground">Observações do Orçamento / Recomendações (Cláusula 1ª)</Label>
+                          <Textarea
+                            value={snapshotAtual.orcamento.observacoes || ''}
+                            onChange={(e) => handleUpdateSnapshotField('orcamento.observacoes', e.target.value)}
+                            placeholder="Observações do plano de tratamento ou especificações clínicas..."
+                            rows={2}
+                            className="text-xs border-border bg-background text-foreground"
+                          />
+                        </div>
                       </div>
                     </div>
 
