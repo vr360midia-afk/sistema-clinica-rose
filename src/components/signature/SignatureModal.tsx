@@ -19,6 +19,11 @@ interface SignatureModalProps {
   documentType: 'anamnese' | 'orcamento' | 'contrato' | 'consentimento' | 'prescricao' | 'atestado';
   onSignatureComplete: (signatureData: SignatureData) => void;
   required?: boolean;
+  requireIdentificationFields?: boolean;
+  requireSelfie?: boolean;
+  initialEmail?: string;
+  initialCpf?: string;
+  initialRg?: string;
 }
 
 const SignatureModal = ({
@@ -30,7 +35,12 @@ const SignatureModal = ({
   signerRole,
   documentType,
   onSignatureComplete,
-  required = true
+  required = true,
+  requireIdentificationFields,
+  requireSelfie,
+  initialEmail,
+  initialCpf,
+  initialRg,
 }: SignatureModalProps) => {
   
   const handleSignatureComplete = (signatureData: SignatureData) => {
@@ -55,7 +65,7 @@ const SignatureModal = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription className="text-sm text-muted-foreground">
@@ -63,7 +73,7 @@ const SignatureModal = ({
           </DialogDescription>
         </DialogHeader>
         
-        <div className="mt-4">
+        <div className="mt-2">
           <DigitalSignature
             title={`Assinatura - ${documentType.charAt(0).toUpperCase() + documentType.slice(1)}`}
             signerName={signerName}
@@ -72,6 +82,11 @@ const SignatureModal = ({
             onSignatureComplete={handleSignatureComplete}
             onCancel={onClose}
             required={required}
+            requireIdentificationFields={requireIdentificationFields}
+            requireSelfie={requireSelfie}
+            initialEmail={initialEmail}
+            initialCpf={initialCpf}
+            initialRg={initialRg}
           />
         </div>
       </DialogContent>

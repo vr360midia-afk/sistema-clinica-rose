@@ -606,6 +606,10 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                 assinaturaData: sigData.signature,
                 nome: sigData.signerName,
                 dataHora: new Date().toISOString(),
+                email: sigData.signerInfo?.email || patient?.email,
+                cpf: sigData.signerInfo?.cpf || patient?.cpf,
+                rg: sigData.signerInfo?.rg || patient?.rg,
+                selfie: sigData.selfie || sigData.signerInfo?.selfie,
               },
             }
           : null
@@ -1704,6 +1708,11 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
         signerName={signerRole === 'paciente' ? patient?.nome || 'Paciente' : selectedDentistaNome || 'Cirurgião-Dentista'}
         signerRole={signerRole}
         documentType="contrato"
+        requireIdentificationFields={signerRole === 'paciente'}
+        requireSelfie={signerRole === 'paciente'}
+        initialEmail={patient?.email}
+        initialCpf={patient?.cpf}
+        initialRg={patient?.rg}
         onSignatureComplete={handleAssinaturaConcluida}
       />
     </>

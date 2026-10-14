@@ -161,6 +161,10 @@ export default function AssinarContrato() {
           assinaturaData: sigData.signature,
           nome: sigData.signerName || snapshot.paciente.nome,
           dataHora: dataHoraIso,
+          email: sigData.signerInfo?.email || snapshot.paciente.email,
+          cpf: sigData.signerInfo?.cpf || snapshot.paciente.cpf,
+          rg: sigData.signerInfo?.rg || snapshot.paciente.rg,
+          selfie: sigData.selfie || sigData.signerInfo?.selfie,
         },
       };
 
@@ -183,6 +187,9 @@ export default function AssinarContrato() {
               id,
               signature: sigData.signature,
               signerName: sigData.signerName || snapshot.paciente.nome,
+              selfie: sigData.selfie,
+              signerInfo: sigData.signerInfo,
+              snapshot: updatedSnapshot,
             },
           });
           if (!signErr && signRes?.ok) {
@@ -584,17 +591,36 @@ export default function AssinarContrato() {
                     ? new Date(snapshot.assinaturaPaciente.dataHora).toLocaleString('pt-BR')
                     : 'data registrada'}
                 </p>
+                <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-0.5">
+                  CPF: {snapshot.assinaturaPaciente?.cpf || snapshot.paciente.cpf}{' '}
+                  {snapshot.assinaturaPaciente?.rg ? `• RG: ${snapshot.assinaturaPaciente.rg}` : ''}
+                  {snapshot.assinaturaPaciente?.email ? ` • E-mail: ${snapshot.assinaturaPaciente.email}` : ''}
+                </p>
               </div>
 
-              {snapshot.assinaturaPaciente?.assinaturaData && (
-                <div className="inline-block p-2 bg-white rounded border border-emerald-200 mt-2">
-                  <img
-                    src={snapshot.assinaturaPaciente.assinaturaData}
-                    alt="Assinatura do Paciente"
-                    className="max-h-20 object-contain mx-auto"
-                  />
-                </div>
-              )}
+              <div className="flex flex-wrap items-center justify-center gap-3 mt-2">
+                {snapshot.assinaturaPaciente?.selfie && (
+                  <div className="inline-block p-1 bg-white rounded-lg border border-emerald-300 shadow-xs">
+                    <img
+                      src={snapshot.assinaturaPaciente.selfie}
+                      alt="Selfie Biométrica"
+                      className="w-20 h-20 object-cover rounded-md mx-auto"
+                    />
+                    <span className="text-[9px] text-emerald-700 font-bold block text-center mt-0.5">Selfie Biométrica</span>
+                  </div>
+                )}
+
+                {snapshot.assinaturaPaciente?.assinaturaData && (
+                  <div className="inline-block p-2 bg-white rounded-lg border border-emerald-200 shadow-xs">
+                    <img
+                      src={snapshot.assinaturaPaciente.assinaturaData}
+                      alt="Assinatura do Paciente"
+                      className="max-h-16 object-contain mx-auto"
+                    />
+                    <span className="text-[9px] text-muted-foreground block text-center mt-0.5">Assinatura Digital</span>
+                  </div>
+                )}
+              </div>
 
               <div className="flex flex-wrap justify-center gap-3 pt-2">
                 <Button onClick={handleBaixarPdf} disabled={baixandoPdf} variant="outline" className="border-emerald-300">
@@ -613,13 +639,18 @@ export default function AssinarContrato() {
 
       {/* Modal de Assinatura Digital do Canvas */}
       {showSignatureModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-xl overflow-hidden shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="w-full max-w-xl bg-white dark:bg-slate-900 rounded-xl overflow-hidden shadow-2xl my-auto">
             <DigitalSignature
               title="Assinatura Digital do Contrato"
               signerName={snapshot.paciente.nome}
               signerRole="paciente"
               documentType="contrato"
+              requireIdentificationFields={true}
+              requireSelfie={true}
+              initialEmail={snapshot.paciente.email}
+              initialCpf={snapshot.paciente.cpf}
+              initialRg={snapshot.paciente.rg}
               onSignatureComplete={handleSignatureComplete}
               onCancel={() => setShowSignatureModal(false)}
             />

@@ -97,6 +97,10 @@ export interface ContratoSnapshot {
     assinaturaData: string;
     nome: string;
     dataHora: string;
+    email?: string;
+    cpf?: string;
+    rg?: string;
+    selfie?: string;
   } | null;
   assinaturaDentista?: {
     assinaturaData: string;
@@ -1128,14 +1132,25 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
         <!-- Assinatura Contratante -->
         <div class="campo-assinatura">
           ${snapshot.assinaturaPaciente?.assinaturaData ? `
-            <img src="${snapshot.assinaturaPaciente.assinaturaData}" alt="Assinatura Paciente" />
+            <div style="display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 6px;">
+              ${snapshot.assinaturaPaciente?.selfie ? `
+                <div style="text-align: center;">
+                  <img src="${snapshot.assinaturaPaciente.selfie}" alt="Selfie do Paciente" style="width: 54px; height: 54px; object-fit: cover; border-radius: 6px; border: 1.5px solid #10b981; box-shadow: 0 1px 3px rgba(0,0,0,0.12);" />
+                  <div style="font-size: 8px; color: #059669; font-weight: bold; margin-top: 1px;">Selfie Biométrica</div>
+                </div>
+              ` : ''}
+              <img src="${snapshot.assinaturaPaciente.assinaturaData}" alt="Assinatura Paciente" style="max-height: 52px; max-width: 170px;" />
+            </div>
           ` : '<div style="height: 50px;"></div>'}
           <div class="linha-assinatura"></div>
-          <div class="assinatura-nome">${paciente.nome}</div>
+          <div class="assinatura-nome">${snapshot.assinaturaPaciente?.nome || paciente.nome}</div>
           <div class="assinatura-papel">Contratante / Paciente</div>
-          <div class="assinatura-detalhes">CPF: ${paciente.cpf}</div>
+          <div class="assinatura-detalhes">CPF: ${snapshot.assinaturaPaciente?.cpf || paciente.cpf} ${snapshot.assinaturaPaciente?.rg ? `• RG: ${snapshot.assinaturaPaciente.rg}` : (paciente.rg ? `• RG: ${paciente.rg}` : '')}</div>
+          ${snapshot.assinaturaPaciente?.email ? `
+            <div class="assinatura-detalhes">E-mail: ${snapshot.assinaturaPaciente.email}</div>
+          ` : ''}
           ${snapshot.assinaturaPaciente?.dataHora ? `
-            <div class="assinatura-detalhes">Assinado digitalmente em ${new Date(snapshot.assinaturaPaciente.dataHora).toLocaleString('pt-BR')}</div>
+            <div class="assinatura-detalhes" style="color: #059669; font-weight: 500;">✓ Assinado digitalmente em ${new Date(snapshot.assinaturaPaciente.dataHora).toLocaleString('pt-BR')}</div>
           ` : ''}
         </div>
 
