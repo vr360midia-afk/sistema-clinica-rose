@@ -554,6 +554,19 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
   const { paciente, clinica, orcamento, financeiro } = snapshot;
   const dataHojeExtenso = formatarDataPorExtenso(new Date(snapshot.emitidoEm), clinica.cidade || 'Local');
 
+  const parcelasSemEntrada = financeiro.parcelas.filter(
+    (p) => !p.descricao.toLowerCase().includes('entrada')
+  );
+  const todasIguais =
+    parcelasSemEntrada.length > 0 &&
+    parcelasSemEntrada.every(
+      (p) => Math.abs(p.valor - parcelasSemEntrada[0].valor) < 0.05
+    );
+  const temAlgumPix =
+    financeiro.parcelas.some((p) =>
+      (p.metodo || p.descricao || '').toLowerCase().includes('pix')
+    ) || /pix/i.test(financeiro.formaPagamento);
+
   return `<!doctype html>
 <html lang="pt-BR">
 <head>
@@ -918,14 +931,23 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
 
       ${financeiro.entrada > 0 ? `
         <p class="paragrafo">
-          O plano financeiro pactuado compreende o pagamento de uma <strong>Entrada inicial de ${formatMoney(financeiro.entrada)}</strong> efetuada via PIX na assinatura/aprovação deste termo, e o saldo remanescente de <strong>${formatMoney(financeiro.total - financeiro.entrada)}</strong> dividido em <strong>${financeiro.quantidadeParcelas} (${financeiro.quantidadeParcelas === 1 ? 'uma única parcela' : `${financeiro.quantidadeParcelas} parcelas mensais sucessivas`})</strong> no valor de <strong>${formatMoney(financeiro.valorParcela)}</strong> cada, com vencimentos mensais discriminados no cronograma oficial a seguir:
+          ${todasIguais ? `
+            O plano financeiro pactuado compreende o pagamento de uma <strong>Entrada inicial de ${formatMoney(financeiro.entrada)}</strong> e o saldo remanescente de <strong>${formatMoney(financeiro.total - financeiro.entrada)}</strong> dividido em <strong>${financeiro.quantidadeParcelas} (${financeiro.quantidadeParcelas === 1 ? 'uma única parcela' : `${financeiro.quantidadeParcelas} parcelas mensais sucessivas`})</strong> no valor de <strong>${formatMoney(financeiro.valorParcela)}</strong> cada, com vencimentos discriminados no cronograma oficial a seguir:
+          ` : `
+            O plano financeiro pactuado compreende o pagamento de uma <strong>Entrada inicial de ${formatMoney(financeiro.entrada)}</strong> e o saldo remanescente de <strong>${formatMoney(financeiro.total - financeiro.entrada)}</strong>, distribuído nas etapas e formas discriminadas detalhadamente no cronograma oficial a seguir:
+          `}
         </p>
       ` : `
         <p class="paragrafo">
-          O plano financeiro compreende a quitação em <strong>${financeiro.quantidadeParcelas} (${financeiro.quantidadeParcelas === 1 ? 'uma única' : `${financeiro.quantidadeParcelas} parcelas mensais sucessivas`})</strong>, no valor de <strong>${formatMoney(financeiro.valorParcela)}</strong> cada, com vencimentos mensais conforme discriminado no cronograma a seguir:
+          ${todasIguais ? `
+            O plano financeiro compreende a quitação em <strong>${financeiro.quantidadeParcelas} (${financeiro.quantidadeParcelas === 1 ? 'uma única' : `${financeiro.quantidadeParcelas} parcelas mensais sucessivas`})</strong>, no valor de <strong>${formatMoney(financeiro.valorParcela)}</strong> cada, com vencimentos conforme discriminado no cronograma a seguir:
+          ` : `
+            O plano financeiro compreende as etapas e parcelas discriminadas detalhadamente com seus respectivos valores, vencimentos e formas no cronograma a seguir:
+          `}
         </p>
       `}
 
+      ${temAlgumPix ? `
       <!-- Detalhamento Oficial para Pagamento Mensal via PIX com QR Code -->
       <div style="margin: 12px 0; padding: 12px 14px; border: 1px dashed #0284c7; background-color: #f0f9ff; border-radius: 6px; font-family: Arial, sans-serif; font-size: 12px; color: #0369a1;">
         <div style="font-weight: bold; margin-bottom: 6px; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px;">
@@ -952,6 +974,7 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
           </div>
         </div>
       </div>
+      ` : ''}
 
       <p class="paragrafo">
         Segue o cronograma oficial com as parcelas, vencimentos e formas de pagamento estabelecidas:
