@@ -348,7 +348,7 @@ export default function CRM() {
 
   return (
     <Layout>
-      <div className="flex flex-col h-[calc(100vh-5.5rem)] overflow-hidden space-y-2.5">
+      <div className="flex flex-col h-[calc(100dvh-8rem)] lg:h-[calc(100vh-5.5rem)] overflow-hidden space-y-2.5">
         {/* Topo do CRM com Título e Ações Principais */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shrink-0">
           <div>
@@ -421,7 +421,7 @@ export default function CRM() {
               title="Atualizar lista"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline">Atualizar</span>
+              <span>Atualizar</span>
             </Button>
 
             <Button onClick={handleNew} size="sm" className="h-8 gap-1.5 shadow-sm">

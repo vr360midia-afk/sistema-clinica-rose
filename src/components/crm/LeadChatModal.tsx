@@ -493,7 +493,7 @@ export const LeadChatModal: React.FC<LeadChatModalProps> = ({
                 title="Regerar sugestões com ChatGPT"
               >
                 <RefreshCw className={`h-3 w-3 ${gerandoIa ? 'animate-spin' : ''}`} />
-                <span className="hidden sm:inline">Novas Opções</span>
+                <span>Novas Opções</span>
               </Button>
             )}
           </div>
@@ -577,14 +577,14 @@ export const LeadChatModal: React.FC<LeadChatModalProps> = ({
             type="submit"
             size="sm"
             disabled={enviando || !textoResposta.trim()}
-            className="h-10 px-4 gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm font-semibold text-xs"
+            className="h-10 px-3.5 gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs font-semibold text-xs"
           >
             {enviando ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <Send className="h-4 w-4" />
             )}
-            <span className="hidden sm:inline">Enviar</span>
+            <span>Enviar</span>
           </Button>
         </form>
       </DialogContent>

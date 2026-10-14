@@ -57,12 +57,13 @@ const Header = ({ onMenuToggle }: HeaderProps) => {
         <div className="flex items-center gap-1 sm:gap-3 min-w-0">
           <Button
             variant="ghost"
-            size="icon"
+            size="sm"
             onClick={onMenuToggle}
-            className="lg:hidden h-10 w-10"
+            className="lg:hidden h-9 px-2.5 text-xs font-semibold gap-1.5 border-border bg-background text-foreground shadow-xs hover:bg-muted"
             aria-label="Abrir menu"
           >
-            <Menu className="h-5 w-5" />
+            <Menu className="h-4 w-4 text-primary" />
+            <span>Menu</span>
           </Button>
 
                     <div className="flex items-center gap-2 min-w-0">

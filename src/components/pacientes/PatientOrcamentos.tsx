@@ -1414,7 +1414,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
                             </span>
                           </div>
                           <div className="flex items-center gap-2">
-                            <span className="text-[11px] text-muted-foreground hidden sm:inline">Data:</span>
+                            <span className="text-[11px] text-muted-foreground">Data:</span>
                             <Input
                               type="date"
                               value={pixDataEntrada}
@@ -1442,7 +1442,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
                               </span>
                             </div>
                             <div className="flex items-center gap-2">
-                              <span className="text-[11px] text-muted-foreground hidden sm:inline">Vencimento:</span>
+                              <span className="text-[11px] text-muted-foreground">Vencimento:</span>
                               <Input
                                 type="date"
                                 value={pixDatasParcelas[idx] || ''}

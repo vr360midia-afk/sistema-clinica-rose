@@ -69,9 +69,9 @@ const LembretesWhatsApp = () => {
                 <Badge variant={consulta.confirmacaoStatus === 'confirmado' ? 'default' : 'secondary'}>
                   {consulta.confirmacaoStatus === 'confirmado' ? 'Confirmado' : 'Pendente'}
                 </Badge>
-                <Button size="sm" variant="outline" onClick={() => enviar({ consulta, paciente })}>
-                  <MessageCircle className="h-4 w-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Lembrar</span>
+                <Button size="sm" variant="outline" onClick={() => enviar({ consulta, paciente })} className="gap-1.5 h-8 text-xs">
+                  <MessageCircle className="h-3.5 w-3.5" />
+                  <span>Lembrar</span>
                 </Button>
               </div>
             </div>

@@ -93,38 +93,38 @@ const PatientDetails = ({ patient, onClose, onEdit, onSchedule, onAddProcediment
       </div>
 
       <Tabs defaultValue="personal" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 h-auto">
-          <TabsTrigger value="personal" className="flex items-center gap-2">
+        <TabsList className="flex overflow-x-auto sm:grid w-full sm:grid-cols-4 lg:grid-cols-8 h-auto p-1 gap-1 border border-border bg-muted/60">
+          <TabsTrigger value="personal" className="flex items-center gap-1.5 shrink-0 text-xs py-2">
             <User className="h-4 w-4" />
-            Dados Pessoais
+            <span>Dados Pessoais</span>
           </TabsTrigger>
-          <TabsTrigger value="records" className="flex items-center gap-2">
+          <TabsTrigger value="records" className="flex items-center gap-1.5 shrink-0 text-xs py-2">
             <FileText className="h-4 w-4" />
-            Prontuários
+            <span>Prontuários</span>
           </TabsTrigger>
-          <TabsTrigger value="anamnesis" className="flex items-center gap-2">
+          <TabsTrigger value="anamnesis" className="flex items-center gap-1.5 shrink-0 text-xs py-2">
             <ClipboardList className="h-4 w-4" />
-            Anamneses
+            <span>Anamneses</span>
           </TabsTrigger>
-          <TabsTrigger value="timeline" className="flex items-center gap-2">
+          <TabsTrigger value="timeline" className="flex items-center gap-1.5 shrink-0 text-xs py-2">
             <History className="h-4 w-4" />
-            Linha do tempo
+            <span>Linha do tempo</span>
           </TabsTrigger>
-          <TabsTrigger value="financial" className="flex items-center gap-2">
+          <TabsTrigger value="financial" className="flex items-center gap-1.5 shrink-0 text-xs py-2">
             <DollarSign className="h-4 w-4" />
-            Financeiro
+            <span>Financeiro</span>
           </TabsTrigger>
-          <TabsTrigger value="orcamentos" className="flex items-center gap-2">
+          <TabsTrigger value="orcamentos" className="flex items-center gap-1.5 shrink-0 text-xs py-2">
             <ListChecks className="h-4 w-4" />
-            <span className="hidden sm:inline">Orçamentos</span>
+            <span>Orçamentos</span>
           </TabsTrigger>
-          <TabsTrigger value="clinicos" className="flex items-center gap-2">
+          <TabsTrigger value="clinicos" className="flex items-center gap-1.5 shrink-0 text-xs py-2">
             <Stethoscope className="h-4 w-4" />
-            <span className="hidden sm:inline">Receitas</span>
+            <span>Receitas</span>
           </TabsTrigger>
-          <TabsTrigger value="documents" className="flex items-center gap-2">
+          <TabsTrigger value="documents" className="flex items-center gap-1.5 shrink-0 text-xs py-2">
             <FolderOpen className="h-4 w-4" />
-            Documentos
+            <span>Documentos</span>
           </TabsTrigger>
         </TabsList>
 

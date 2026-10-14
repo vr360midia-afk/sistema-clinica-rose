@@ -498,6 +498,7 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Contrato de Prestação de Serviços Odontológicos - ${paciente.nome}</title>
   <style>
     * { box-sizing: border-box; }
@@ -690,6 +691,30 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
       font-size: 10px;
       color: #9ca3af;
       font-family: Arial, sans-serif;
+    }
+    @media screen and (max-width: 640px) {
+      body {
+        padding: 16px 12px;
+        font-size: 12px;
+      }
+      .cabecalho {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+      }
+      .cabecalho-doc-id {
+        text-align: left;
+      }
+      .tabela-procedimentos, .tabela-parcelas {
+        display: block;
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+      .grid-assinaturas {
+        flex-direction: column;
+        gap: 24px;
+      }
     }
     @media print {
       body {

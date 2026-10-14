@@ -543,80 +543,80 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
           className={cn(
             "flex flex-col p-0 overflow-hidden bg-background text-foreground transition-all duration-200",
             isFullScreen
-              ? "fixed inset-0 z-50 w-screen h-screen max-w-none max-h-none rounded-none m-0 border-0"
-              : "max-w-5xl w-full max-h-[92vh] rounded-lg border border-border shadow-2xl"
+              ? "!fixed !inset-0 !z-50 !w-screen !h-[100dvh] !max-w-none !max-h-none !rounded-none !m-0 !p-0 !border-0 !top-0 !left-0 !translate-x-0 !translate-y-0"
+              : "!max-w-5xl !w-[calc(100vw-1rem)] sm:!w-full !max-h-[94dvh] !h-[94dvh] sm:!h-[90vh] rounded-lg border border-border shadow-2xl !translate-x-[-50%] !translate-y-[-50%]"
           )}
         >
           {/* Header do Modal */}
-          <div className="p-4 sm:p-5 border-b border-border bg-card flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-lg bg-primary/10 text-primary">
-                <FileText className="h-6 w-6" />
+          <div className="p-3 sm:p-5 border-b border-border bg-card flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 shrink-0">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="p-2 sm:p-2.5 rounded-lg bg-primary/10 text-primary shrink-0">
+                <FileText className="h-5 w-5 sm:h-6 sm:w-6" />
               </div>
-              <div>
-                <DialogTitle className="text-lg sm:text-xl font-bold flex items-center gap-2 text-foreground">
-                  Contrato de Prestação de Serviços
-                  <Badge variant="outline" className="font-semibold text-xs border-primary/30 text-primary bg-primary/10">
+              <div className="min-w-0">
+                <DialogTitle className="text-base sm:text-xl font-bold flex flex-wrap items-center gap-1.5 sm:gap-2 text-foreground">
+                  <span>Contrato de Serviços</span>
+                  <Badge variant="outline" className="font-semibold text-[10px] sm:text-xs border-primary/30 text-primary bg-primary/10">
                     Motor Integrado
                   </Badge>
                   {isManuallyEdited && (
-                    <Badge variant="secondary" className="font-semibold text-xs bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                    <Badge variant="secondary" className="font-semibold text-[10px] sm:text-xs bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30">
                       Edição Manual
                     </Badge>
                   )}
                 </DialogTitle>
-                <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-                  Paciente: <strong className="text-foreground">{patient?.nome}</strong> • Vínculo com orçamentos e financeiro
+                <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5 truncate">
+                  Paciente: <strong className="text-foreground">{patient?.nome}</strong>
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              {/* Botão de Tela Cheia */}
+            <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0 w-full sm:w-auto">
+              {/* Botão de Tela Cheia com texto visível */}
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-9 px-2.5 text-xs gap-1.5 border-border text-foreground hover:bg-muted"
+                className="h-8 sm:h-9 px-2 sm:px-2.5 text-xs gap-1.5 border-border text-foreground hover:bg-muted shrink-0"
                 onClick={() => setIsFullScreen(!isFullScreen)}
                 title={isFullScreen ? "Sair da Tela Cheia" : "Visualizar em Tela Cheia"}
               >
                 {isFullScreen ? (
                   <>
-                    <Minimize2 className="h-4 w-4 text-primary" />
-                    <span className="hidden sm:inline">Reduzir</span>
+                    <Minimize2 className="h-3.5 w-3.5 text-primary shrink-0" />
+                    <span className="font-medium">Reduzir</span>
                   </>
                 ) : (
                   <>
-                    <Maximize2 className="h-4 w-4 text-primary" />
-                    <span className="hidden sm:inline">Tela Cheia</span>
+                    <Maximize2 className="h-3.5 w-3.5 text-primary shrink-0" />
+                    <span className="font-medium">Tela Cheia</span>
                   </>
                 )}
               </Button>
 
               {/* Abas */}
-              <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="w-auto">
-                <TabsList className="grid grid-cols-3 h-9 bg-muted p-1">
+              <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="flex-1 sm:w-auto">
+                <TabsList className="grid grid-cols-3 h-8 sm:h-9 bg-muted p-0.5 sm:p-1 w-full">
                   <TabsTrigger
                     value="gerar"
-                    className="text-xs flex items-center gap-1.5 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm font-medium"
+                    className="text-[11px] sm:text-xs flex items-center justify-center gap-1 sm:gap-1.5 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm font-medium px-1 sm:px-2"
                   >
-                    <Eye className="h-3.5 w-3.5" />
-                    Visualizar
+                    <Eye className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />
+                    <span>Visualizar</span>
                   </TabsTrigger>
                   <TabsTrigger
                     value="editar"
-                    className="text-xs flex items-center gap-1.5 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm font-medium"
+                    className="text-[11px] sm:text-xs flex items-center justify-center gap-1 sm:gap-1.5 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm font-medium px-1 sm:px-2"
                   >
-                    <Pencil className="h-3.5 w-3.5 text-amber-500" />
-                    Editar Campos
+                    <Pencil className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-amber-500 shrink-0" />
+                    <span>Editar</span>
                   </TabsTrigger>
                   <TabsTrigger
                     value="historico"
-                    className="text-xs flex items-center gap-1.5 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm font-medium"
+                    className="text-[11px] sm:text-xs flex items-center justify-center gap-1 sm:gap-1.5 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm font-medium px-1 sm:px-2"
                   >
-                    <History className="h-3.5 w-3.5" />
-                    Emitidos ({contratosEmitidos.length})
+                    <History className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />
+                    <span>Emitidos ({contratosEmitidos.length})</span>
                   </TabsTrigger>
                 </TabsList>
               </Tabs>
@@ -820,15 +820,13 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                   </div>
 
                   <div
-                    className={cn(
-                      "p-2 sm:p-4 bg-slate-200/70 dark:bg-slate-950/80 flex flex-col items-center justify-center transition-all",
-                      isFullScreen ? "h-[calc(100vh-210px)]" : "h-[56vh]"
-                    )}
+                    className="p-1 sm:p-4 bg-slate-200/70 dark:bg-slate-950/80 flex flex-col items-center justify-start overflow-auto w-full transition-all min-h-[380px] h-[58vh] sm:h-[68vh] flex-1"
+                    style={{ WebkitOverflowScrolling: 'touch' }}
                   >
                     <iframe
                       srcDoc={htmlContratoAtual}
                       title="Contrato Oficial A4"
-                      className="w-full h-full max-w-[820px] rounded border border-border bg-white shadow-xl"
+                      className="w-full h-full max-w-[840px] rounded border border-border bg-white shadow-xl min-h-[360px]"
                     />
                   </div>
                 </div>
@@ -1307,15 +1305,13 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                     </div>
 
                     <div
-                      className={cn(
-                        "p-2 sm:p-4 bg-slate-200/70 dark:bg-slate-950/80 rounded flex flex-col items-center justify-center transition-all",
-                        isFullScreen ? "h-[calc(100vh-220px)]" : "h-[54vh]"
-                      )}
+                      className="p-1 sm:p-4 bg-slate-200/70 dark:bg-slate-950/80 rounded flex flex-col items-center justify-start overflow-auto w-full transition-all min-h-[380px] h-[58vh] sm:h-[68vh] flex-1"
+                      style={{ WebkitOverflowScrolling: 'touch' }}
                     >
                       <iframe
                         srcDoc={contratoVisualizacao.conteudo || ''}
                         title="Visualização do Contrato Gravado"
-                        className="w-full h-full max-w-[820px] rounded border border-border bg-white shadow-xl"
+                        className="w-full h-full max-w-[840px] rounded border border-border bg-white shadow-xl min-h-[360px]"
                       />
                     </div>
                   </div>
@@ -1325,18 +1321,18 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
           </div>
 
           {/* Rodapé de Ações do Modal */}
-          <div className="p-3 sm:p-4 border-t border-border bg-card flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="text-xs text-muted-foreground flex items-center gap-1.5">
+          <div className="p-2.5 sm:p-4 border-t border-border bg-card flex flex-col sm:flex-row items-center justify-between gap-2.5 shrink-0">
+            <div className="text-xs text-muted-foreground hidden lg:flex items-center gap-1.5">
               <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0" />
               <span>Gera documento com validade jurídica perante o CFO, CDC e Código Civil.</span>
             </div>
 
-            <div className="flex flex-wrap items-center justify-end gap-2 w-full sm:w-auto">
+            <div className="flex flex-wrap items-center justify-center sm:justify-end gap-1.5 sm:gap-2 w-full sm:w-auto">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-9 border-border text-foreground hover:bg-muted"
+                className="h-8 sm:h-9 text-xs border-border text-foreground hover:bg-muted"
                 onClick={onClose}
               >
                 Fechar
@@ -1346,73 +1342,73 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-9 gap-1.5 border-border text-foreground hover:bg-muted"
+                className="h-8 sm:h-9 text-xs gap-1.5 border-border text-foreground hover:bg-muted"
                 onClick={() => handleImprimir()}
                 disabled={!snapshotAtual}
               >
-                <Printer className="h-4 w-4" />
-                Imprimir
+                <Printer className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <span>Imprimir</span>
               </Button>
 
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-9 gap-1.5 border-border text-foreground hover:bg-muted"
+                className="h-8 sm:h-9 text-xs gap-1.5 border-border text-foreground hover:bg-muted"
                 onClick={() => handleDownloadPdf()}
                 disabled={baixandoPdf || !snapshotAtual}
               >
-                {baixandoPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                Baixar PDF
+                {baixandoPdf ? <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" /> : <Download className="h-3.5 w-3.5 sm:h-4 sm:w-4" />}
+                <span>Baixar PDF</span>
               </Button>
 
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-9 gap-1.5 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/30 hover:bg-blue-100 dark:hover:bg-blue-900/50"
+                className="h-8 sm:h-9 text-xs gap-1.5 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/30 hover:bg-blue-100 dark:hover:bg-blue-900/50"
                 onClick={handleCopiarLinkAssinatura}
                 disabled={!snapshotAtual}
                 title="Copiar link para o paciente assinar online pelo celular"
               >
-                {copiouLink ? <Check className="h-4 w-4 text-emerald-600" /> : <LinkIcon className="h-4 w-4" />}
-                {copiouLink ? 'Link Copiado!' : 'Copiar Link'}
+                {copiouLink ? <Check className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-emerald-600" /> : <LinkIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />}
+                <span>{copiouLink ? 'Link Copiado!' : 'Copiar Link'}</span>
               </Button>
 
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-9 gap-1.5 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-950/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50"
+                className="h-8 sm:h-9 text-xs gap-1.5 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-950/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50"
                 onClick={handleAbrirPaginaAssinatura}
                 disabled={!snapshotAtual}
                 title="Abrir página pública de assinatura digital em nova aba"
               >
-                <ExternalLink className="h-4 w-4" />
-                Abrir Assinatura
+                <ExternalLink className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <span>Assinatura</span>
               </Button>
 
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-9 gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-sm hover:shadow border-transparent"
+                className="h-8 sm:h-9 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-xs border-transparent"
                 onClick={handleEnviarWhatsApp}
                 disabled={!patient?.telefone || !snapshotAtual}
               >
-                <MessageCircle className="h-4 w-4" />
-                WhatsApp (com Link)
+                <MessageCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <span>WhatsApp</span>
               </Button>
 
               <Button
                 type="button"
                 size="sm"
-                className="h-9 gap-1.5 font-semibold bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm hover:shadow"
+                className="h-8 sm:h-9 text-xs gap-1.5 font-semibold bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs"
                 onClick={handleEmitirContrato}
                 disabled={salvando || !snapshotAtual || !orcamentoAtual}
               >
-                {salvando ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                {documentoIdSendoEditado ? 'Salvar Alterações' : 'Emitir e Gravar Contrato'}
+                {salvando ? <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />}
+                <span>{documentoIdSendoEditado ? 'Salvar' : 'Gravar Contrato'}</span>
               </Button>
             </div>
           </div>

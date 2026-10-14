@@ -4,7 +4,9 @@ import Sidebar from './Sidebar';
 import { useBackupAutomatico } from '@/hooks/useBackupAutomatico';
 import { CommandPalette } from './CommandPalette';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useLocation } from 'react-router-dom';
+import { useLocation, Link } from 'react-router-dom';
+import { Home, Users, Calendar, Target, Menu } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -24,7 +26,7 @@ const Layout = ({ children }: LayoutProps) => {
 
       <div className="flex-1 flex flex-col min-w-0 w-full lg:pl-60">
         <Header onMenuToggle={toggleSidebar} />
-        <main className="flex-1 overflow-x-hidden w-full px-3 sm:px-4 lg:px-6 py-3 sm:py-4 pb-10 safe-bottom">
+        <main className="flex-1 overflow-x-hidden w-full px-3 sm:px-4 lg:px-6 py-3 sm:py-4 pb-20 lg:pb-10 safe-bottom">
           <AnimatePresence mode="wait">
             <motion.div
               key={location.pathname}
@@ -39,6 +41,73 @@ const Layout = ({ children }: LayoutProps) => {
           </AnimatePresence>
         </main>
       </div>
+
+      {/* Barra de Navegação Inferior no Mobile (Símbolo + Texto sempre visíveis) */}
+      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-card/95 backdrop-blur-md border-t border-border flex items-center justify-around h-14 px-1 lg:hidden safe-bottom shadow-lg">
+        <Link
+          to="/"
+          className={cn(
+            "flex flex-col items-center justify-center flex-1 h-full py-1 text-[10px] font-medium transition-colors",
+            location.pathname === '/' || location.pathname === '/dashboard'
+              ? "text-primary font-bold"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <Home className="h-4 w-4 mb-0.5 shrink-0" />
+          <span>Início</span>
+        </Link>
+
+        <Link
+          to="/pacientes"
+          className={cn(
+            "flex flex-col items-center justify-center flex-1 h-full py-1 text-[10px] font-medium transition-colors",
+            location.pathname.startsWith('/pacientes')
+              ? "text-primary font-bold"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <Users className="h-4 w-4 mb-0.5 shrink-0" />
+          <span>Pacientes</span>
+        </Link>
+
+        <Link
+          to="/agenda"
+          className={cn(
+            "flex flex-col items-center justify-center flex-1 h-full py-1 text-[10px] font-medium transition-colors",
+            location.pathname.startsWith('/agenda')
+              ? "text-primary font-bold"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <Calendar className="h-4 w-4 mb-0.5 shrink-0" />
+          <span>Agenda</span>
+        </Link>
+
+        <Link
+          to="/crm"
+          className={cn(
+            "flex flex-col items-center justify-center flex-1 h-full py-1 text-[10px] font-medium transition-colors",
+            location.pathname.startsWith('/crm')
+              ? "text-primary font-bold"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <Target className="h-4 w-4 mb-0.5 shrink-0" />
+          <span>CRM</span>
+        </Link>
+
+        <button
+          type="button"
+          onClick={toggleSidebar}
+          className={cn(
+            "flex flex-col items-center justify-center flex-1 h-full py-1 text-[10px] font-medium transition-colors",
+            sidebarOpen ? "text-primary font-bold" : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <Menu className="h-4 w-4 mb-0.5 shrink-0" />
+          <span>Menu</span>
+        </button>
+      </nav>
     </div>
   );
 };

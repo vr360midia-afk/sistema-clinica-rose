@@ -101,17 +101,18 @@ const Inadimplencia = () => {
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="font-semibold">{formatMoney(Number(item.t.valor || 0))}</span>
-                    <Button size="sm" variant="outline" onClick={() => cobrar(item)}>
-                      <MessageCircle className="h-4 w-4 sm:mr-1" />
-                      <span className="hidden sm:inline">Cobrar</span>
+                    <Button size="sm" variant="outline" onClick={() => cobrar(item)} className="gap-1 h-8 text-xs">
+                      <MessageCircle className="h-3.5 w-3.5" />
+                      <span>Cobrar</span>
                     </Button>
                     <Button
                       size="sm"
                       disabled={salvando === item.t.id}
                       onClick={() => marcarPago(item.t.id)}
+                      className="gap-1 h-8 text-xs"
                     >
-                      <CheckCircle2 className="h-4 w-4 sm:mr-1" />
-                      <span className="hidden sm:inline">Pago</span>
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      <span>Pago</span>
                     </Button>
                   </div>
                 </div>
