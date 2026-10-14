@@ -1,5 +1,6 @@
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { calcularHoraFim } from '@/utils/horarioConsulta';
 
 /** Converte um telefone brasileiro em formato E.164 sem símbolos (ex.: 5511999998888) */
 export const normalizePhone = (phone?: string | null): string | null => {
@@ -28,12 +29,16 @@ export const buildConsultaMessage = (info: ConsultaWhatsAppInfo): string => {
     ? String(info.data)
     : format(dataObj, "EEEE, dd/MM/yyyy", { locale: ptBR });
 
+  const horarioTexto = info.hora
+    ? `Horário: ${info.hora}${info.duracao ? ` às ${calcularHoraFim(info.hora, info.duracao)} (${info.duracao} min)` : ''}`
+    : null;
+
   const linhas = [
     '*Nova consulta agendada*',
     info.dentistaNome ? `Dentista: ${info.dentistaNome}` : null,
     info.pacienteNome ? `Paciente: ${info.pacienteNome}` : null,
     `Data: ${dataFmt}`,
-    info.hora ? `Horário: ${info.hora}${info.duracao ? ` (${info.duracao} min)` : ''}` : null,
+    horarioTexto,
     info.procedimento ? `Procedimento: ${info.procedimento}` : null,
     info.observacoes ? `Observações: ${info.observacoes}` : null,
   ].filter(Boolean);

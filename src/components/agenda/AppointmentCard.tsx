@@ -4,6 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { User, Clock, Phone, AlertTriangle } from 'lucide-react';
 import { StatusConsulta } from '@/types/shared';
+import { calcularHoraFim } from '@/utils/horarioConsulta';
 
 interface AppointmentCardProps {
   appointment: {
@@ -68,9 +69,14 @@ const AppointmentCard = ({ appointment, onClick }: AppointmentCardProps) => {
         <div className="flex items-start justify-between">
           <div className="flex items-start gap-4 flex-1">
             {/* Horário */}
-            <div className="text-center shrink-0">
-              <div className="font-bold text-lg text-foreground">{appointment.time}</div>
-              <div className="text-sm text-muted-foreground">{appointment.duration}</div>
+            <div className="text-center shrink-0 min-w-[70px]">
+              <div className="font-bold text-base text-foreground leading-tight">{appointment.time}</div>
+              <div className="text-[11px] text-muted-foreground font-medium">
+                às {calcularHoraFim(appointment.time, parseInt(appointment.duration, 10) || 60)}
+              </div>
+              <div className="text-[10px] text-muted-foreground/80 mt-0.5">
+                ({appointment.duration})
+              </div>
             </div>
 
             {/* Informações principais */}

@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { StatusConsulta } from '@/types/shared';
+import { calcularHoraFim, formatarDuracaoAmigavel } from '@/utils/horarioConsulta';
 
 interface AppointmentDetailsModalProps {
   isOpen: boolean;
@@ -245,10 +246,12 @@ const AppointmentDetailsModal = ({
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-muted-foreground" />
+                  <Clock className="h-4 w-4 text-primary" />
                   <div>
                     <p className="text-sm text-muted-foreground">Horário</p>
-                    <p className="font-medium">{appointment.time}</p>
+                    <p className="font-semibold text-foreground">
+                      {appointment.time} às {calcularHoraFim(appointment.time, appointment.duracao || (typeof appointment.duration === 'string' ? parseInt(appointment.duration, 10) : Number(appointment.duration)) || 60)}
+                    </p>
                   </div>
                 </div>
                 
@@ -256,7 +259,9 @@ const AppointmentDetailsModal = ({
                   <Clock className="h-4 w-4 text-muted-foreground" />
                   <div>
                     <p className="text-sm text-muted-foreground">Duração</p>
-                    <p className="font-medium">{appointment.duration}</p>
+                    <p className="font-medium">
+                      {formatarDuracaoAmigavel(appointment.duracao || (typeof appointment.duration === 'string' ? parseInt(appointment.duration, 10) : Number(appointment.duration)) || 60)}
+                    </p>
                   </div>
                 </div>
                 

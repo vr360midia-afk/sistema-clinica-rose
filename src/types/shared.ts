@@ -62,6 +62,7 @@ export interface Consulta extends BaseEntity {
   pacienteId: string;
   data: Date;
   hora: string;
+  horaFim?: string;
   duracao: number;
   procedimento: string;
   status: StatusConsulta;
