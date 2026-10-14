@@ -149,7 +149,17 @@ const PatientOrcamentos = ({ patient }: Props) => {
           ? 'PIX Parcelado'
           : 'Transferência';
 
-      if (f.parcelas > 1 && (f.metodo === 'cartao' || f.metodo === 'pix_parcelado' || f.metodo === 'boleto')) {
+      if (f.metodo === 'cartao') {
+        const valParc = (f.parcelas || 1) > 1 ? f.valor / f.parcelas : f.valor;
+        if ((f.parcelas || 1) > 1) {
+          partes.push(
+            `${f.rotulo}: ${formatMoney(f.valor)} em ${f.parcelas}x de ${formatMoney(valParc)} no Cartão de Crédito`
+          );
+        } else {
+          const dataStr = f.dataPagamento ? ` (em ${formatBrDate(f.dataPagamento)})` : '';
+          partes.push(`${f.rotulo}: ${formatMoney(f.valor)} via Cartão de Crédito${dataStr}`);
+        }
+      } else if ((f.parcelas || 1) > 1 && (f.metodo === 'pix_parcelado' || f.metodo === 'boleto')) {
         const valParc = f.valor / f.parcelas;
         const datasBr = (f.datasParcelas || []).filter(Boolean).map(formatBrDate);
         let infoDatas = '';
@@ -359,6 +369,10 @@ const PatientOrcamentos = ({ patient }: Props) => {
           if (p.vencimento && p.vencimento.includes('/')) {
             const [dia, mes, ano] = p.vencimento.split('/');
             dataVenc = new Date(Number(ano), Number(mes) - 1, Number(dia), 12, 0, 0);
+          } else {
+            const mesOffset = typeof p.numero === 'number' ? p.numero : 1;
+            dataVenc = new Date();
+            dataVenc.setMonth(dataVenc.getMonth() + mesOffset);
           }
 
           // Identifica o método específico desta parcela dinamicamente
@@ -1088,7 +1102,8 @@ const PatientOrcamentos = ({ patient }: Props) => {
 
                         {(() => {
                           const isParcelavel = item.metodo === 'cartao' || item.metodo === 'pix_parcelado' || item.metodo === 'boleto';
-                          const isParcelado = isParcelavel && (item.parcelas || 1) > 1;
+                          const isCartao = item.metodo === 'cartao';
+                          const requerDatasParcelas = (item.metodo === 'pix_parcelado' || item.metodo === 'boleto') && (item.parcelas || 1) > 1;
                           const isEntrada = item.rotulo.toLowerCase().includes('entrada') || idx === 0;
 
                           return (
@@ -1170,21 +1185,24 @@ const PatientOrcamentos = ({ patient }: Props) => {
                                   </div>
                                 )}
 
-                                {!isParcelado ? (
+                                {isCartao ? (
                                   <div className="space-y-1">
-                                    <Label className="text-[11px] text-muted-foreground flex items-center gap-1">
-                                      <CalendarDays className="h-3 w-3 text-emerald-400" />
-                                      {isEntrada ? 'Data da Entrada' : 'Data do Pagamento'}
-                                    </Label>
+                                    <div className="flex items-center justify-between">
+                                      <Label className="text-[11px] text-muted-foreground flex items-center gap-1">
+                                        <CalendarDays className="h-3 w-3 text-emerald-400" />
+                                        {isEntrada ? 'Data da Entrada' : 'Data do Pagamento'}
+                                      </Label>
+                                      <span className="text-[10px] text-emerald-400 font-medium">Fatura automática</span>
+                                    </div>
                                     <Input
                                       type="date"
                                       value={item.dataPagamento || formatIsoDate(new Date())}
                                       onChange={(e) => handleAtualizarFormaMultipla(idx, { dataPagamento: e.target.value })}
                                       className="h-8 text-xs font-semibold bg-background"
-                                      title="Digite dia/mês/ano ou escolha no calendário"
+                                      title="Data da transação (as parcelas são cobradas automaticamente na fatura do cartão)"
                                     />
                                   </div>
-                                ) : (
+                                ) : requerDatasParcelas ? (
                                   <div className="space-y-1">
                                     <div className="flex items-center justify-between">
                                       <Label className="text-[11px] text-muted-foreground">Dia Base Venc.</Label>
@@ -1206,11 +1224,25 @@ const PatientOrcamentos = ({ patient }: Props) => {
                                       </SelectContent>
                                     </Select>
                                   </div>
+                                ) : (
+                                  <div className="space-y-1">
+                                    <Label className="text-[11px] text-muted-foreground flex items-center gap-1">
+                                      <CalendarDays className="h-3 w-3 text-emerald-400" />
+                                      {isEntrada ? 'Data da Entrada' : item.metodo === 'boleto' ? 'Data de Vencimento' : 'Data do Pagamento'}
+                                    </Label>
+                                    <Input
+                                      type="date"
+                                      value={item.dataPagamento || formatIsoDate(new Date())}
+                                      onChange={(e) => handleAtualizarFormaMultipla(idx, { dataPagamento: e.target.value })}
+                                      className="h-8 text-xs font-semibold bg-background"
+                                      title="Digite dia/mês/ano ou escolha no calendário"
+                                    />
+                                  </div>
                                 )}
                               </div>
 
-                              {/* Grade de vencimentos específicos para editar qualquer dia e data livremente */}
-                              {isParcelado && (
+                              {/* Grade de vencimentos específicos para editar qualquer dia e data livremente - Apenas para Boleto Parcelado e PIX Parcelado */}
+                              {requerDatasParcelas && (
                                 <div className="pt-2.5 border-t border-border/60 space-y-2">
                                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                                     <span className="text-[11px] font-semibold text-foreground flex items-center gap-1.5">

@@ -317,15 +317,20 @@ export const mapearDadosContrato = ({
           const valorParc = valorTotalParte / qtdParc;
           const diaMatch = parte.match(/(?:vencimento|dia)\s*(?:todo\s*dia)?\s*(\d{1,2})/i);
           const diaVenc = diaMatch ? Math.min(28, Math.max(1, parseInt(diaMatch[1], 10))) : 10;
+          const isCartao = /cart[aã]o/i.test(metodo);
 
           for (let i = 0; i < qtdParc; i++) {
             let venc = datasParte[i];
             if (!venc) {
-              const targetMonth = hoje.getMonth() + (i + 1);
-              const dataVenc = new Date(hoje.getFullYear(), targetMonth, 1);
-              const maxDias = new Date(dataVenc.getFullYear(), dataVenc.getMonth() + 1, 0).getDate();
-              dataVenc.setDate(Math.min(diaVenc, maxDias));
-              venc = formatarData(dataVenc);
+              if (isCartao) {
+                venc = 'Fatura do Cartão';
+              } else {
+                const targetMonth = hoje.getMonth() + (i + 1);
+                const dataVenc = new Date(hoje.getFullYear(), targetMonth, 1);
+                const maxDias = new Date(dataVenc.getFullYear(), dataVenc.getMonth() + 1, 0).getDate();
+                dataVenc.setDate(Math.min(diaVenc, maxDias));
+                venc = formatarData(dataVenc);
+              }
             }
             listaMultiplas.push({
               numero: listaMultiplas.length + 1,
@@ -333,7 +338,7 @@ export const mapearDadosContrato = ({
               vencimento: venc,
               valor: valorParc,
               metodo,
-              status: 'A vencer',
+              status: isCartao ? 'Autorizado' : 'A vencer',
             });
           }
         } else {
@@ -425,10 +430,14 @@ export const mapearDadosContrato = ({
       });
     }
 
+    const isCartaoRestante = /cart[aã]o/i.test(metodoRestante);
+
     for (let idx = 0; idx < qtdParcelas; idx++) {
       let vencimentoFormatado = '';
       if (datasDetectadas[idx]) {
         vencimentoFormatado = datasDetectadas[idx];
+      } else if (isCartaoRestante) {
+        vencimentoFormatado = 'Fatura do Cartão';
       } else {
         const targetMonth = hoje.getMonth() + (idx + 1);
         const dataVenc = new Date(hoje.getFullYear(), targetMonth, 1);
@@ -445,7 +454,7 @@ export const mapearDadosContrato = ({
         vencimento: vencimentoFormatado,
         valor: valorParcela,
         metodo: metodoRestante,
-        status: 'A vencer',
+        status: isCartaoRestante ? 'Autorizado' : 'A vencer',
       });
     }
 
