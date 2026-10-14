@@ -132,6 +132,19 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     }
   }, [dentistas, selectedDentistaNome]);
 
+  // Atalho para sair da tela cheia com a tecla ESC
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isFullScreen) {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsFullScreen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [isFullScreen]);
+
   // Orçamento ativo
   const orcamentoAtual = useMemo(() => {
     return (
@@ -543,56 +556,124 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
           className={cn(
             "flex flex-col p-0 overflow-hidden bg-background text-foreground transition-all duration-200",
             isFullScreen
-              ? "!fixed !inset-0 !z-50 !w-screen !h-[100dvh] !max-w-none !max-h-none !rounded-none !m-0 !p-0 !border-0 !top-0 !left-0 !translate-x-0 !translate-y-0"
+              ? "!fixed !inset-0 !z-50 !w-screen !h-[100dvh] !max-w-none !max-h-none !rounded-none !m-0 !p-0 !border-0 !top-0 !left-0 !translate-x-0 !translate-y-0 [&>button:last-child]:hidden"
               : "!max-w-5xl !w-[calc(100vw-1rem)] sm:!w-full !max-h-[94dvh] !h-[94dvh] sm:!h-[90vh] rounded-lg border border-border shadow-2xl !translate-x-[-50%] !translate-y-[-50%]"
           )}
         >
-          {/* Header do Modal */}
-          <div className="p-3 sm:p-5 border-b border-border bg-card flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 shrink-0">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="p-2 sm:p-2.5 rounded-lg bg-primary/10 text-primary shrink-0">
-                <FileText className="h-5 w-5 sm:h-6 sm:w-6" />
+          {isFullScreen ? (
+            /* Modo Tela Cheia: Exclusivo para o Visualizador do Contrato (sem o popup todo) */
+            <div className="w-full h-full flex flex-col bg-slate-950 text-white select-none">
+              {/* Barra Superior Exclusiva do Visualizador em Tela Cheia */}
+              <div className="h-12 sm:h-14 bg-slate-900 border-b border-slate-800 px-3 sm:px-6 flex items-center justify-between shrink-0 shadow-md">
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                  <div className="p-1.5 sm:p-2 rounded-lg bg-emerald-500/20 text-emerald-400 shrink-0">
+                    <FileText className="h-4 w-4 sm:h-5 sm:w-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <DialogTitle className="text-xs sm:text-sm font-bold text-slate-100 flex items-center gap-2 truncate">
+                      <span>Visualização Oficial do Contrato</span>
+                      <span className="hidden sm:inline-flex text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-medium">
+                        Padrão A4
+                      </span>
+                    </DialogTitle>
+                    <p className="text-[10px] sm:text-[11px] text-slate-400 truncate">
+                      Paciente: <strong className="text-slate-200">{patient?.nome}</strong>
+                      {orcamentoAtual?.titulo ? ` — ${orcamentoAtual.titulo}` : ''}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs gap-1.5 border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white"
+                    onClick={() => handleDownloadPdf()}
+                    disabled={baixandoPdf || (!snapshotAtual && !contratoVisualizacao)}
+                    title="Baixar Contrato em PDF"
+                  >
+                    {baixandoPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-400" /> : <Download className="h-3.5 w-3.5 text-emerald-400" />}
+                    <span className="hidden sm:inline">Baixar PDF</span>
+                  </Button>
+
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs gap-1.5 border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white"
+                    onClick={() => handleImprimir()}
+                    disabled={!snapshotAtual && !contratoVisualizacao}
+                    title="Imprimir Contrato"
+                  >
+                    <Printer className="h-3.5 w-3.5 text-blue-400" />
+                    <span className="hidden sm:inline">Imprimir</span>
+                  </Button>
+
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-8 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-sm"
+                    onClick={() => setIsFullScreen(false)}
+                    title="Sair do modo tela cheia (ESC)"
+                  >
+                    <Minimize2 className="h-3.5 w-3.5" />
+                    <span>Sair da Tela Cheia</span>
+                  </Button>
+                </div>
               </div>
-              <div className="min-w-0">
-                <DialogTitle className="text-base sm:text-xl font-bold flex flex-wrap items-center gap-1.5 sm:gap-2 text-foreground">
-                  <span>Contrato de Serviços</span>
-                  <Badge variant="outline" className="font-semibold text-[10px] sm:text-xs border-primary/30 text-primary bg-primary/10">
-                    Motor Integrado
-                  </Badge>
-                  {isManuallyEdited && (
-                    <Badge variant="secondary" className="font-semibold text-[10px] sm:text-xs bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30">
-                      Edição Manual
-                    </Badge>
-                  )}
-                </DialogTitle>
-                <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5 truncate">
-                  Paciente: <strong className="text-foreground">{patient?.nome}</strong>
-                </p>
+
+              {/* Área do Iframe com visualização A4 limpa e rolagem perfeita */}
+              <div
+                className="flex-1 bg-slate-900/90 dark:bg-slate-950 p-2 sm:p-5 flex justify-center items-start overflow-y-auto w-full"
+                style={{ WebkitOverflowScrolling: 'touch' }}
+              >
+                <iframe
+                  srcDoc={contratoVisualizacao?.conteudo || htmlContratoAtual}
+                  title="Contrato Oficial A4"
+                  className="w-full max-w-[860px] h-[calc(100vh-4.5rem)] rounded-md border border-slate-700/80 bg-white shadow-2xl"
+                />
               </div>
             </div>
+          ) : (
+            <>
+              {/* Header do Modal */}
+              <div className="p-3 sm:p-5 border-b border-border bg-card flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 shrink-0">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="p-2 sm:p-2.5 rounded-lg bg-primary/10 text-primary shrink-0">
+                    <FileText className="h-5 w-5 sm:h-6 sm:w-6" />
+                  </div>
+                  <div className="min-w-0">
+                    <DialogTitle className="text-base sm:text-xl font-bold flex flex-wrap items-center gap-1.5 sm:gap-2 text-foreground">
+                      <span>Contrato de Serviços</span>
+                      <Badge variant="outline" className="font-semibold text-[10px] sm:text-xs border-primary/30 text-primary bg-primary/10">
+                        Motor Integrado
+                      </Badge>
+                      {isManuallyEdited && (
+                        <Badge variant="secondary" className="font-semibold text-[10px] sm:text-xs bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                          Edição Manual
+                        </Badge>
+                      )}
+                    </DialogTitle>
+                    <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5 truncate">
+                      Paciente: <strong className="text-foreground">{patient?.nome}</strong>
+                    </p>
+                  </div>
+                </div>
 
-            <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0 w-full sm:w-auto">
-              {/* Botão de Tela Cheia com texto visível */}
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-8 sm:h-9 px-2 sm:px-2.5 text-xs gap-1.5 border-border text-foreground hover:bg-muted shrink-0"
-                onClick={() => setIsFullScreen(!isFullScreen)}
-                title={isFullScreen ? "Sair da Tela Cheia" : "Visualizar em Tela Cheia"}
-              >
-                {isFullScreen ? (
-                  <>
-                    <Minimize2 className="h-3.5 w-3.5 text-primary shrink-0" />
-                    <span className="font-medium">Reduzir</span>
-                  </>
-                ) : (
-                  <>
+                <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0 w-full sm:w-auto">
+                  {/* Botão de Tela Cheia com texto visível */}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 sm:h-9 px-2 sm:px-2.5 text-xs gap-1.5 border-border text-foreground hover:bg-muted shrink-0"
+                    onClick={() => setIsFullScreen(true)}
+                    title="Visualizar Contrato em Tela Cheia"
+                  >
                     <Maximize2 className="h-3.5 w-3.5 text-primary shrink-0" />
                     <span className="font-medium">Tela Cheia</span>
-                  </>
-                )}
-              </Button>
+                  </Button>
 
               {/* Abas */}
               <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="flex-1 sm:w-auto">
@@ -789,10 +870,10 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                         size="sm"
                         variant="outline"
                         className="h-7 text-xs gap-1.5 text-foreground hover:bg-muted border-border"
-                        onClick={() => setIsFullScreen(!isFullScreen)}
+                        onClick={() => setIsFullScreen(true)}
                       >
-                        {isFullScreen ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
-                        {isFullScreen ? 'Reduzir' : 'Tela Cheia'}
+                        <Maximize2 className="h-3 w-3" />
+                        Tela Cheia
                       </Button>
                     </div>
                   </div>
@@ -811,10 +892,10 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                         variant="ghost"
                         size="sm"
                         className="h-6 text-[11px] gap-1 px-1.5 text-muted-foreground hover:text-foreground"
-                        onClick={() => setIsFullScreen(!isFullScreen)}
+                        onClick={() => setIsFullScreen(true)}
                       >
-                        {isFullScreen ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
-                        {isFullScreen ? 'Sair da Tela Cheia' : 'Modo Tela Cheia'}
+                        <Maximize2 className="h-3 w-3" />
+                        Modo Tela Cheia
                       </Button>
                     </span>
                   </div>
@@ -1287,10 +1368,10 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                           size="sm"
                           variant="outline"
                           className="h-7 text-xs gap-1 border-border text-foreground hover:bg-muted"
-                          onClick={() => setIsFullScreen(!isFullScreen)}
+                          onClick={() => setIsFullScreen(true)}
                         >
-                          {isFullScreen ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
-                          {isFullScreen ? 'Reduzir' : 'Tela Cheia'}
+                          <Maximize2 className="h-3 w-3" />
+                          Tela Cheia
                         </Button>
                         <Button
                           size="sm"
@@ -1412,7 +1493,9 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
               </Button>
             </div>
           </div>
-        </DialogContent>
+        </>
+      )}
+    </DialogContent>
       </Dialog>
 
       {/* Modal de Assinatura Digital Integrado */}
