@@ -910,7 +910,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
       </CardContent>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto w-full">
           <DialogHeader>
             <DialogTitle>{editingId ? 'Editar orçamento' : 'Novo orçamento'}</DialogTitle>
           </DialogHeader>
@@ -1093,14 +1093,20 @@ const PatientOrcamentos = ({ patient }: Props) => {
 
                           return (
                             <>
-                              <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                              <div
+                                className={`grid gap-2.5 ${
+                                  !isParcelavel
+                                    ? 'grid-cols-1 sm:grid-cols-3'
+                                    : 'grid-cols-1 sm:grid-cols-2 md:grid-cols-4'
+                                }`}
+                              >
                                 <div className="space-y-1">
                                   <Label className="text-[11px] text-muted-foreground">Método</Label>
                                   <Select
                                     value={item.metodo}
                                     onValueChange={(v: any) => handleAtualizarFormaMultipla(idx, { metodo: v })}
                                   >
-                                    <SelectTrigger className="h-8 text-xs">
+                                    <SelectTrigger className="h-8 text-xs font-medium">
                                       <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -1126,7 +1132,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
                                             .reduce((s, f) => s + (f.valor || 0), 0);
                                           handleAtualizarFormaMultipla(idx, { valor: Math.max(0, total - somaOutras) });
                                         }}
-                                        className="text-[10px] text-emerald-400 hover:underline"
+                                        className="text-[10px] text-emerald-400 hover:underline font-medium"
                                       >
                                         Preencher saldo
                                       </button>
@@ -1143,14 +1149,14 @@ const PatientOrcamentos = ({ patient }: Props) => {
                                   />
                                 </div>
 
-                                {isParcelavel ? (
+                                {isParcelavel && (
                                   <div className="space-y-1">
                                     <Label className="text-[11px] text-muted-foreground">Parcelas</Label>
                                     <Select
                                       value={String(item.parcelas || 1)}
                                       onValueChange={(v) => handleAtualizarFormaMultipla(idx, { parcelas: Number(v) || 1 })}
                                     >
-                                      <SelectTrigger className="h-8 text-xs">
+                                      <SelectTrigger className="h-8 text-xs font-medium">
                                         <SelectValue />
                                       </SelectTrigger>
                                       <SelectContent>
@@ -1162,10 +1168,10 @@ const PatientOrcamentos = ({ patient }: Props) => {
                                       </SelectContent>
                                     </Select>
                                   </div>
-                                ) : null}
+                                )}
 
                                 {!isParcelado ? (
-                                  <div className={`space-y-1 ${!isParcelavel ? 'sm:col-span-2' : ''}`}>
+                                  <div className="space-y-1">
                                     <Label className="text-[11px] text-muted-foreground flex items-center gap-1">
                                       <CalendarDays className="h-3 w-3 text-emerald-400" />
                                       {isEntrada ? 'Data da Entrada' : 'Data do Pagamento'}
@@ -1180,80 +1186,72 @@ const PatientOrcamentos = ({ patient }: Props) => {
                                   </div>
                                 ) : (
                                   <div className="space-y-1">
-                                    <Label className="text-[11px] text-muted-foreground flex items-center justify-between">
-                                      <span>Dia Base Venc.</span>
-                                      <span className="text-[10px] text-muted-foreground">(1 a 31)</span>
-                                    </Label>
-                                    <div className="flex gap-1.5">
-                                      <Input
-                                        type="number"
-                                        min={1}
-                                        max={31}
-                                        value={item.diaVencimento || 10}
-                                        onChange={(e) => {
-                                          const d = Math.max(1, Math.min(31, Number(e.target.value) || 10));
-                                          handleAtualizarFormaMultipla(idx, { diaVencimento: d });
-                                        }}
-                                        className="h-8 text-xs font-semibold w-16"
-                                        title="Digite qualquer dia do mês desejado"
-                                      />
-                                      <Select
-                                        value={String(item.diaVencimento || 10)}
-                                        onValueChange={(v) => handleAtualizarFormaMultipla(idx, { diaVencimento: Number(v) || 10 })}
-                                      >
-                                        <SelectTrigger className="h-8 text-xs flex-1">
-                                          <SelectValue placeholder="Predefinição" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          {[1, 5, 10, 15, 20, 25, 28, 30].map((d) => (
-                                            <SelectItem key={d} value={String(d)}>
-                                              Dia {d}
-                                            </SelectItem>
-                                          ))}
-                                        </SelectContent>
-                                      </Select>
+                                    <div className="flex items-center justify-between">
+                                      <Label className="text-[11px] text-muted-foreground">Dia Base Venc.</Label>
+                                      <span className="text-[10px] text-muted-foreground">1 a 31</span>
                                     </div>
+                                    <Select
+                                      value={String(item.diaVencimento || 10)}
+                                      onValueChange={(v) => handleAtualizarFormaMultipla(idx, { diaVencimento: Number(v) || 10 })}
+                                    >
+                                      <SelectTrigger className="h-8 text-xs font-semibold">
+                                        <SelectValue placeholder="Selecione o dia" />
+                                      </SelectTrigger>
+                                      <SelectContent className="max-h-56">
+                                        {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                                          <SelectItem key={d} value={String(d)}>
+                                            Todo dia {d}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
                                   </div>
                                 )}
                               </div>
 
                               {/* Grade de vencimentos específicos para editar qualquer dia e data livremente */}
                               {isParcelado && (
-                                <div className="pt-2 border-t border-border/60 space-y-2">
+                                <div className="pt-2.5 border-t border-border/60 space-y-2">
                                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                                     <span className="text-[11px] font-semibold text-foreground flex items-center gap-1.5">
                                       <CalendarDays className="h-3.5 w-3.5 text-emerald-400" />
-                                      Vencimentos das Parcelas de {item.rotulo} (Edite qualquer dia ou data livremente)
+                                      Vencimentos das Parcelas ({item.rotulo})
                                     </span>
                                     <span className="text-[10px] text-muted-foreground">
-                                      Selecione no calendário ou digite dia/mês/ano diretamente
+                                      Edite qualquer dia ou data individualmente
                                     </span>
                                   </div>
 
-                                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-48 overflow-y-auto pr-1">
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-52 overflow-y-auto overflow-x-hidden pr-1">
                                     {Array.from({ length: item.parcelas }).map((_, pIdx) => {
                                       const valParc = item.valor > 0 ? item.valor / item.parcelas : 0;
                                       const dataAtual = item.datasParcelas?.[pIdx] || '';
                                       return (
                                         <div
                                           key={pIdx}
-                                          className="flex items-center justify-between gap-2 p-2 rounded-md bg-muted/40 border border-border/70 text-xs shadow-xs hover:border-emerald-500/40 transition-colors"
+                                          className="p-2.5 rounded-lg bg-card/60 border border-border/80 text-xs shadow-xs hover:border-emerald-500/40 transition-colors space-y-1.5"
                                         >
-                                          <div className="flex flex-col">
-                                            <span className="font-semibold text-[11px] text-foreground">
+                                          <div className="flex items-center justify-between">
+                                            <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-bold text-[10px]">
                                               {pIdx + 1}ª Parcela
                                             </span>
-                                            <span className="text-[10px] text-muted-foreground font-medium">
+                                            <span className="font-semibold text-xs text-foreground">
                                               {formatMoney(valParc)}
                                             </span>
                                           </div>
-                                          <Input
-                                            type="date"
-                                            value={dataAtual}
-                                            onChange={(e) => handleAtualizarDataParcelaMultipla(idx, pIdx, e.target.value)}
-                                            className="h-7 text-xs w-32 font-medium bg-background"
-                                            title={`Data de vencimento da parcela ${pIdx + 1}`}
-                                          />
+                                          <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/40">
+                                            <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                              <CalendarDays className="h-3 w-3 text-emerald-400" />
+                                              Vencimento:
+                                            </span>
+                                            <Input
+                                              type="date"
+                                              value={dataAtual}
+                                              onChange={(e) => handleAtualizarDataParcelaMultipla(idx, pIdx, e.target.value)}
+                                              className="h-7 text-xs w-32 font-semibold bg-background border-border/80"
+                                              title={`Data de vencimento da parcela ${pIdx + 1}`}
+                                            />
+                                          </div>
                                         </div>
                                       );
                                     })}
@@ -1404,8 +1402,8 @@ const PatientOrcamentos = ({ patient }: Props) => {
 
                     <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
                       {pixEntrada > 0 && (
-                        <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-background/90 border border-emerald-500/30 text-xs shadow-sm">
-                          <div className="flex items-center gap-2">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-lg bg-background/90 border border-emerald-500/30 text-xs shadow-xs">
+                          <div className="flex items-center justify-between sm:justify-start gap-2">
                             <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-500 font-bold text-[10px]">
                               Entrada (PIX)
                             </span>
@@ -1413,8 +1411,10 @@ const PatientOrcamentos = ({ patient }: Props) => {
                               {formatMoney(pixEntrada)}
                             </span>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[11px] text-muted-foreground">Data:</span>
+                          <div className="flex items-center justify-between sm:justify-end gap-2">
+                            <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                              <CalendarDays className="h-3 w-3 text-emerald-500" /> Data:
+                            </span>
                             <Input
                               type="date"
                               value={pixDataEntrada}
@@ -1431,9 +1431,9 @@ const PatientOrcamentos = ({ patient }: Props) => {
                         return (
                           <div
                             key={idx}
-                            className="flex items-center justify-between gap-2 p-2 rounded-lg bg-background/90 border border-border text-xs hover:border-primary/40 transition-colors shadow-sm"
+                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-lg bg-background/90 border border-border text-xs hover:border-primary/40 transition-colors shadow-xs"
                           >
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center justify-between sm:justify-start gap-2">
                               <span className="px-1.5 py-0.5 rounded bg-primary/10 text-primary font-bold text-[10px]">
                                 {idx + 1}ª Parcela PIX
                               </span>
@@ -1441,8 +1441,10 @@ const PatientOrcamentos = ({ patient }: Props) => {
                                 {formatMoney(valorParc)}
                               </span>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-[11px] text-muted-foreground">Vencimento:</span>
+                            <div className="flex items-center justify-between sm:justify-end gap-2">
+                              <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                                <CalendarDays className="h-3 w-3 text-primary" /> Vencimento:
+                              </span>
                               <Input
                                 type="date"
                                 value={pixDatasParcelas[idx] || ''}
