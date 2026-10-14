@@ -95,9 +95,32 @@ export const useQuickPatientForm = (onPatientCreated: (patientId: string) => voi
       onClose();
       form.reset();
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro detalhado ao criar paciente:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      let errorMessage = 'Erro desconhecido';
+      if (typeof error === 'string') {
+        errorMessage = error;
+      } else if (error?.message) {
+        if (error.code === '42501' || error.message.includes('policy') || error.message.includes('security')) {
+          errorMessage = 'Permissão negada (RLS). Verifique sua sessão de login.';
+        } else if (error.code === '23505' || error.message.includes('unique') || error.message.includes('duplicate')) {
+          if (error.message.includes('cpf') || error.details?.includes('cpf')) {
+            errorMessage = 'Já existe um paciente cadastrado com este CPF.';
+          } else if (error.message.includes('email') || error.details?.includes('email')) {
+            errorMessage = 'Já existe um paciente cadastrado com este Email.';
+          } else if (error.message.includes('telefone') || error.details?.includes('telefone')) {
+            errorMessage = 'Já existe um paciente cadastrado com este Telefone.';
+          } else {
+            errorMessage = 'Já existe um paciente cadastrado com estes dados (duplicidade).';
+          }
+        } else {
+          errorMessage = error.message;
+        }
+      } else if (error?.details) {
+        errorMessage = error.details;
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
       toast.error(`Erro ao salvar paciente: ${errorMessage}`);
     } finally {
       setIsLoading(false);

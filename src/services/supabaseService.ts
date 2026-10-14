@@ -252,6 +252,11 @@ class SupabaseService {
           const d = value instanceof Date ? value : new Date(String(value));
           newValue = isNaN(d.getTime()) ? null : d.toISOString();
         }
+      } else if (typeof value === 'string' && !value.trim()) {
+        const requiredFields = ['nome', 'telefone'];
+        if (!requiredFields.includes(newKey)) {
+          newValue = null;
+        }
       }
       result[newKey] = newValue;
     }
@@ -273,30 +278,73 @@ class SupabaseService {
   }
 
   async savePaciente(paciente: Omit<Paciente, 'id' | 'criadoEm' | 'atualizadoEm'>): Promise<Paciente> {
+    const { data: { session } } = await supabase.auth.getSession();
+    const sessionUserId = session?.user?.id || (await supabase.auth.getUser()).data.user?.id;
+    if (!sessionUserId) throw new Error('Usuário não autenticado');
+
     const userId = await this.getCurrentUserId();
     const pacienteData = this.transformLocalToSupabase({ ...paciente, user_id: userId }, 'pacientes');
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('pacientes')
       .insert([pacienteData])
       .select()
       .single();
 
-    if (error) throw error;
+    // Se falhou por violação de RLS (42501) e estávamos usando clinica_id diferente do sessionUserId,
+    // tenta salvar com sessionUserId
+    if (error && (error.code === '42501' || error.message?.includes('policy')) && userId !== sessionUserId) {
+      console.warn('[supabaseService] RLS falhou com clinica_id, tentando com sessionUserId...', error);
+      const retryData = { ...pacienteData, user_id: sessionUserId };
+      const retry = await supabase
+        .from('pacientes')
+        .insert([retryData])
+        .select()
+        .single();
+      if (!retry.error && retry.data) {
+        data = retry.data;
+        error = null;
+      } else if (retry.error) {
+        error = retry.error;
+      }
+    }
+
+    if (error) {
+      console.error('[supabaseService] Erro ao salvar paciente no Supabase:', error);
+      throw error;
+    }
     return this.transformSupabaseToLocal(data);
   }
 
   async updatePaciente(id: string, updates: Partial<Paciente>): Promise<Paciente | null> {
+    const { data: { session } } = await supabase.auth.getSession();
+    const sessionUserId = session?.user?.id || (await supabase.auth.getUser()).data.user?.id;
+    if (!sessionUserId) throw new Error('Usuário não autenticado');
+
     const userId = await this.getCurrentUserId();
     const updateData = this.transformLocalToSupabase(updates, 'pacientes');
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('pacientes')
       .update(updateData)
       .eq('id', id)
       .eq('user_id', userId)
       .select()
-      .single();
+      .maybeSingle();
+
+    if (!data && userId !== sessionUserId) {
+      const retry = await supabase
+        .from('pacientes')
+        .update(updateData)
+        .eq('id', id)
+        .eq('user_id', sessionUserId)
+        .select()
+        .maybeSingle();
+      if (retry.data) {
+        data = retry.data;
+        error = null;
+      }
+    }
 
     if (error) throw error;
     return data ? this.transformSupabaseToLocal(data) : null;

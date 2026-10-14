@@ -96,41 +96,38 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
       
       // Filtrar apenas os campos que existem na tabela pacientes
       const cleanPacienteData = {
-        nome: pacienteData.nome,
-        email: pacienteData.email,
-        telefone: pacienteData.telefone,
+        nome: pacienteData.nome?.trim(),
+        email: pacienteData.email?.trim() || null,
+        telefone: pacienteData.telefone?.trim(),
         dataNascimento: pacienteData.dataNascimento,
         idade: pacienteData.idade ?? calcularIdade(pacienteData.dataNascimento) ?? 0,
-        convenio: pacienteData.convenio,
-        origemLead: pacienteData.origemLead,
+        convenio: pacienteData.convenio || 'particular',
+        origemLead: pacienteData.origemLead || null,
         status: pacienteData.status || 'Ativo',
-        // Campos opcionais que podem ser undefined
-        ...(pacienteData.foto && { foto: pacienteData.foto }),
-        ...(pacienteData.ultimaConsulta && { ultimaConsulta: pacienteData.ultimaConsulta }),
-        ...(pacienteData.proximaConsulta && { proximaConsulta: pacienteData.proximaConsulta }),
-        ...(pacienteData.historicoMedico && { historicoMedico: pacienteData.historicoMedico }),
-        ...(pacienteData.alergias && { alergias: pacienteData.alergias }),
-        ...(pacienteData.medicamentos && { medicamentos: pacienteData.medicamentos }),
-        ...(pacienteData.observacoes && { observacoes: pacienteData.observacoes }),
-        ...(pacienteData.endereco && { endereco: pacienteData.endereco }),
-        ...(pacienteData.cpf && { cpf: pacienteData.cpf }),
-        ...(pacienteData.rg && { rg: pacienteData.rg }),
-        ...(pacienteData.profissao && { profissao: pacienteData.profissao }),
-        ...(pacienteData.estadoCivil && { estadoCivil: pacienteData.estadoCivil }),
-        ...(pacienteData.dataArquivamento && { dataArquivamento: pacienteData.dataArquivamento }),
-        ...(pacienteData.motivoArquivamento && { motivoArquivamento: pacienteData.motivoArquivamento })
+        foto: pacienteData.foto || null,
+        ultimaConsulta: pacienteData.ultimaConsulta || null,
+        proximaConsulta: pacienteData.proximaConsulta || null,
+        historicoMedico: pacienteData.historicoMedico?.trim() || null,
+        alergias: pacienteData.alergias?.trim() || null,
+        medicamentos: pacienteData.medicamentos?.trim() || null,
+        observacoes: pacienteData.observacoes?.trim() || null,
+        endereco: pacienteData.endereco?.trim() || null,
+        cpf: pacienteData.cpf?.trim() || null,
+        rg: pacienteData.rg?.trim() || null,
+        profissao: pacienteData.profissao?.trim() || null,
+        estadoCivil: pacienteData.estadoCivil || null,
+        dataArquivamento: pacienteData.dataArquivamento || null,
+        motivoArquivamento: pacienteData.motivoArquivamento || null
       };
       
       console.log('Dados limpos para salvar:', cleanPacienteData);
-      const novoPaciente = await supabaseService.savePaciente(cleanPacienteData);
+      const novoPaciente = await supabaseService.savePaciente(cleanPacienteData as any);
       console.log('Paciente salvo no Supabase:', novoPaciente);
       
       setPacientes(prev => [novoPaciente, ...prev]);
-      toast.success('Paciente adicionado com sucesso!');
       return novoPaciente;
     } catch (error) {
       console.error('Erro ao adicionar paciente:', error);
-      toast.error('Erro ao adicionar paciente');
       throw error;
     }
   };
