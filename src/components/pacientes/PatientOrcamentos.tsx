@@ -109,11 +109,16 @@ const PatientOrcamentos = ({ patient }: Props) => {
       valor: number;
       parcelas: number;
       diaVencimento: number;
+      dataPagamento?: string;
+      datasParcelas?: string[];
     }>
-  >([
-    { id: '1', rotulo: 'Entrada', metodo: 'pix', valor: 0, parcelas: 1, diaVencimento: 10 },
-    { id: '2', rotulo: 'Restante', metodo: 'cartao', valor: 0, parcelas: 3, diaVencimento: 10 },
-  ]);
+  >(() => {
+    const hoje = formatIsoDate(new Date());
+    return [
+      { id: '1', rotulo: 'Entrada', metodo: 'pix', valor: 0, parcelas: 1, diaVencimento: 10, dataPagamento: hoje, datasParcelas: [hoje] },
+      { id: '2', rotulo: 'Restante', metodo: 'cartao', valor: 0, parcelas: 3, diaVencimento: 10, dataPagamento: hoje, datasParcelas: gerarDatasPadrao(3, 10) },
+    ];
+  });
 
 
   // Parceria
@@ -146,11 +151,19 @@ const PatientOrcamentos = ({ patient }: Props) => {
 
       if (f.parcelas > 1 && (f.metodo === 'cartao' || f.metodo === 'pix_parcelado' || f.metodo === 'boleto')) {
         const valParc = f.valor / f.parcelas;
+        const datasBr = (f.datasParcelas || []).filter(Boolean).map(formatBrDate);
+        let infoDatas = '';
+        if (datasBr.length > 0) {
+          infoDatas = ` (Vencimentos: ${datasBr.join(', ')})`;
+        } else {
+          infoDatas = ` (Vencimento todo dia ${f.diaVencimento || 10})`;
+        }
         partes.push(
-          `${f.rotulo}: ${formatMoney(f.valor)} em ${f.parcelas}x de ${formatMoney(valParc)} no ${nomeMetodo} (Vencimento todo dia ${f.diaVencimento})`
+          `${f.rotulo}: ${formatMoney(f.valor)} em ${f.parcelas}x de ${formatMoney(valParc)} no ${nomeMetodo}${infoDatas}`
         );
       } else {
-        partes.push(`${f.rotulo}: ${formatMoney(f.valor)} via ${nomeMetodo} (À vista)`);
+        const dataStr = f.dataPagamento ? ` (em ${formatBrDate(f.dataPagamento)})` : '';
+        partes.push(`${f.rotulo}: ${formatMoney(f.valor)} via ${nomeMetodo}${dataStr}`);
       }
     }
     return partes.join(' + ');
@@ -163,9 +176,28 @@ const PatientOrcamentos = ({ patient }: Props) => {
       setPixParceladoAtivo(false);
       const entradaSugerida = Math.round(total * 0.2);
       const restanteSugerido = Math.max(0, total - entradaSugerida);
+      const hojeIso = formatIsoDate(new Date());
       const inicial = [
-        { id: '1', rotulo: 'Entrada', metodo: 'pix' as const, valor: entradaSugerida, parcelas: 1, diaVencimento: 10 },
-        { id: '2', rotulo: 'Restante', metodo: 'cartao' as const, valor: restanteSugerido, parcelas: 3, diaVencimento: 10 },
+        {
+          id: '1',
+          rotulo: 'Entrada',
+          metodo: 'pix' as const,
+          valor: entradaSugerida,
+          parcelas: 1,
+          diaVencimento: 10,
+          dataPagamento: hojeIso,
+          datasParcelas: [hojeIso],
+        },
+        {
+          id: '2',
+          rotulo: 'Restante',
+          metodo: 'cartao' as const,
+          valor: restanteSugerido,
+          parcelas: 3,
+          diaVencimento: 10,
+          dataPagamento: hojeIso,
+          datasParcelas: gerarDatasPadrao(3, 10),
+        },
       ];
       setFormasMultiplas(inicial);
       setFormasPagamento(montarTextoMultiplasFormas(inicial));
@@ -173,7 +205,48 @@ const PatientOrcamentos = ({ patient }: Props) => {
   };
 
   const handleAtualizarFormaMultipla = (idx: number, campos: Partial<(typeof formasMultiplas)[number]>) => {
-    const novas = formasMultiplas.map((item, i) => (i === idx ? { ...item, ...campos } : item));
+    const novas = formasMultiplas.map((item, i) => {
+      if (i !== idx) return item;
+      const atualizado = { ...item, ...campos };
+
+      // Se alterou a quantidade de parcelas, ajusta o array de datas de vencimento
+      if (campos.parcelas !== undefined && campos.parcelas !== item.parcelas) {
+        const qtd = campos.parcelas;
+        const diaBase = atualizado.diaVencimento || 10;
+        const hoje = new Date();
+        const novasDatas: string[] = [];
+        for (let p = 0; p < qtd; p++) {
+          if (item.datasParcelas?.[p]) {
+            novasDatas.push(item.datasParcelas[p]);
+          } else {
+            const targetMonth = hoje.getMonth() + (p + 1);
+            const d = new Date(hoje.getFullYear(), targetMonth, 1);
+            const maxDias = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+            d.setDate(Math.min(diaBase, maxDias));
+            novasDatas.push(formatIsoDate(d));
+          }
+        }
+        atualizado.datasParcelas = novasDatas;
+      }
+
+      // Se alterou o dia base de vencimento, regenera as datas padrão
+      if (campos.diaVencimento !== undefined && campos.diaVencimento !== item.diaVencimento) {
+        atualizado.datasParcelas = gerarDatasPadrao(atualizado.parcelas, campos.diaVencimento);
+      }
+
+      return atualizado;
+    });
+    setFormasMultiplas(novas);
+    setFormasPagamento(montarTextoMultiplasFormas(novas));
+  };
+
+  const handleAtualizarDataParcelaMultipla = (formaIdx: number, parcelaIdx: number, novaDataIso: string) => {
+    const novas = formasMultiplas.map((item, i) => {
+      if (i !== formaIdx) return item;
+      const arrayDatas = [...(item.datasParcelas || gerarDatasPadrao(item.parcelas, item.diaVencimento || 10))];
+      arrayDatas[parcelaIdx] = novaDataIso;
+      return { ...item, datasParcelas: arrayDatas };
+    });
     setFormasMultiplas(novas);
     setFormasPagamento(montarTextoMultiplasFormas(novas));
   };
@@ -181,6 +254,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
   const handleAdicionarFormaMultipla = () => {
     const somaAtual = formasMultiplas.reduce((s, f) => s + (f.valor || 0), 0);
     const saldoFaltante = Math.max(0, total - somaAtual);
+    const hojeIso = formatIsoDate(new Date());
     const novoItem = {
       id: String(Date.now()),
       rotulo: `Forma ${formasMultiplas.length + 1}`,
@@ -188,6 +262,8 @@ const PatientOrcamentos = ({ patient }: Props) => {
       valor: saldoFaltante,
       parcelas: 1,
       diaVencimento: 10,
+      dataPagamento: hojeIso,
+      datasParcelas: [hojeIso],
     };
     const novas = [...formasMultiplas, novoItem];
     setFormasMultiplas(novas);
@@ -424,9 +500,10 @@ const PatientOrcamentos = ({ patient }: Props) => {
     setPixDiaVencimento(10);
     setPixDatasParcelas(gerarDatasPadrao(3, 10));
     setMultiplasFormasAtivo(false);
+    const hojeIso = formatIsoDate(new Date());
     setFormasMultiplas([
-      { id: '1', rotulo: 'Entrada', metodo: 'pix', valor: 0, parcelas: 1, diaVencimento: 10 },
-      { id: '2', rotulo: 'Restante', metodo: 'cartao', valor: 0, parcelas: 3, diaVencimento: 10 },
+      { id: '1', rotulo: 'Entrada', metodo: 'pix', valor: 0, parcelas: 1, diaVencimento: 10, dataPagamento: hojeIso, datasParcelas: [hojeIso] },
+      { id: '2', rotulo: 'Restante', metodo: 'cartao', valor: 0, parcelas: 3, diaVencimento: 10, dataPagamento: hojeIso, datasParcelas: gerarDatasPadrao(3, 10) },
     ]);
     setParceriaAtiva(false);
     setParceiroId('');
@@ -460,6 +537,14 @@ const PatientOrcamentos = ({ patient }: Props) => {
       const isPixEntrada = /pix/i.test(o.formasPagamento.split('+')[0] || '');
       const isDinheiroEntrada = /dinheiro/i.test(o.formasPagamento.split('+')[0] || '');
 
+      // Extrai data personalizada da entrada se houver (em DD/MM/YYYY)
+      const dataEntMatch = o.formasPagamento.match(/entrada[^\+]*?\(em\s*(\d{1,2}\/\d{1,2}\/\d{4})\)/i);
+      let dataEntradaIso = formatIsoDate(new Date());
+      if (dataEntMatch) {
+        const [d, m, y] = dataEntMatch[1].split('/');
+        dataEntradaIso = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+      }
+
       const parcMatch = o.formasPagamento.match(/(\d+)\s*x/i);
       const qtdParc = parcMatch ? Number(parcMatch[1]) || 1 : 1;
       const diaMatch = o.formasPagamento.match(/(?:vencimento|dia)\s*(?:todo\s*dia)?\s*(\d{1,2})/i);
@@ -469,6 +554,19 @@ const PatientOrcamentos = ({ patient }: Props) => {
 
       const saldoRestante = Math.max(0, o.total - entVal);
 
+      // Extrai datas personalizadas de vencimento do restante se houver
+      const trechoVenc = o.formasPagamento.match(/vencimentos?:\s*([^\)]+)/i);
+      let datasDetectadas: string[] = [];
+      if (trechoVenc) {
+        const regexDatas = /\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/g;
+        const matches = Array.from(trechoVenc[1].matchAll(regexDatas));
+        datasDetectadas = matches.map((m) => `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`);
+      }
+
+      const datasFinaisRestante = datasDetectadas.length === qtdParc
+        ? datasDetectadas
+        : gerarDatasPadrao(qtdParc, diaVenc);
+
       setFormasMultiplas([
         {
           id: '1',
@@ -477,6 +575,8 @@ const PatientOrcamentos = ({ patient }: Props) => {
           valor: entVal,
           parcelas: 1,
           diaVencimento: 10,
+          dataPagamento: dataEntradaIso,
+          datasParcelas: [dataEntradaIso],
         },
         {
           id: '2',
@@ -485,6 +585,8 @@ const PatientOrcamentos = ({ patient }: Props) => {
           valor: saldoRestante,
           parcelas: qtdParc,
           diaVencimento: diaVenc,
+          dataPagamento: dataEntradaIso,
+          datasParcelas: datasFinaisRestante,
         },
       ]);
     } else if (o.formasPagamento && /pix\s*parcelado/i.test(o.formasPagamento)) {
@@ -984,98 +1086,183 @@ const PatientOrcamentos = ({ patient }: Props) => {
                           )}
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
-                          <div className="space-y-1">
-                            <Label className="text-[11px] text-muted-foreground">Método</Label>
-                            <Select
-                              value={item.metodo}
-                              onValueChange={(v: any) => handleAtualizarFormaMultipla(idx, { metodo: v })}
-                            >
-                              <SelectTrigger className="h-8 text-xs">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="pix">PIX</SelectItem>
-                                <SelectItem value="cartao">Cartão de Crédito</SelectItem>
-                                <SelectItem value="dinheiro">Dinheiro</SelectItem>
-                                <SelectItem value="boleto">Boleto Bancário</SelectItem>
-                                <SelectItem value="pix_parcelado">PIX Parcelado</SelectItem>
-                                <SelectItem value="transferencia">Transferência</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
+                        {(() => {
+                          const isParcelavel = item.metodo === 'cartao' || item.metodo === 'pix_parcelado' || item.metodo === 'boleto';
+                          const isParcelado = isParcelavel && (item.parcelas || 1) > 1;
+                          const isEntrada = item.rotulo.toLowerCase().includes('entrada') || idx === 0;
 
-                          <div className="space-y-1">
-                            <div className="flex justify-between items-center">
-                              <Label className="text-[11px] text-muted-foreground">Valor (R$)</Label>
-                              {idx === formasMultiplas.length - 1 && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const somaOutras = formasMultiplas
-                                      .filter((_, i) => i !== idx)
-                                      .reduce((s, f) => s + (f.valor || 0), 0);
-                                    handleAtualizarFormaMultipla(idx, { valor: Math.max(0, total - somaOutras) });
-                                  }}
-                                  className="text-[10px] text-emerald-400 hover:underline"
-                                >
-                                  Preencher saldo
-                                </button>
-                              )}
-                            </div>
-                            <Input
-                              type="number"
-                              min={0}
-                              step="0.01"
-                              value={item.valor || ''}
-                              onChange={(e) => handleAtualizarFormaMultipla(idx, { valor: Number(e.target.value) || 0 })}
-                              placeholder="0,00"
-                              className="h-8 text-xs font-semibold"
-                            />
-                          </div>
-
-                          {(item.metodo === 'cartao' || item.metodo === 'pix_parcelado' || item.metodo === 'boleto') && (
+                          return (
                             <>
-                              <div className="space-y-1">
-                                <Label className="text-[11px] text-muted-foreground">Parcelas</Label>
-                                <Select
-                                  value={String(item.parcelas || 1)}
-                                  onValueChange={(v) => handleAtualizarFormaMultipla(idx, { parcelas: Number(v) || 1 })}
-                                >
-                                  <SelectTrigger className="h-8 text-xs">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18, 24].map((n) => (
-                                      <SelectItem key={n} value={String(n)}>
-                                        {n}x {n > 1 && item.valor > 0 ? `(${formatMoney(item.valor / n)})` : ''}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
+                              <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                                <div className="space-y-1">
+                                  <Label className="text-[11px] text-muted-foreground">Método</Label>
+                                  <Select
+                                    value={item.metodo}
+                                    onValueChange={(v: any) => handleAtualizarFormaMultipla(idx, { metodo: v })}
+                                  >
+                                    <SelectTrigger className="h-8 text-xs">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="pix">PIX</SelectItem>
+                                      <SelectItem value="cartao">Cartão de Crédito</SelectItem>
+                                      <SelectItem value="dinheiro">Dinheiro</SelectItem>
+                                      <SelectItem value="boleto">Boleto Bancário</SelectItem>
+                                      <SelectItem value="pix_parcelado">PIX Parcelado</SelectItem>
+                                      <SelectItem value="transferencia">Transferência</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+
+                                <div className="space-y-1">
+                                  <div className="flex justify-between items-center">
+                                    <Label className="text-[11px] text-muted-foreground">Valor (R$)</Label>
+                                    {idx === formasMultiplas.length - 1 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const somaOutras = formasMultiplas
+                                            .filter((_, i) => i !== idx)
+                                            .reduce((s, f) => s + (f.valor || 0), 0);
+                                          handleAtualizarFormaMultipla(idx, { valor: Math.max(0, total - somaOutras) });
+                                        }}
+                                        className="text-[10px] text-emerald-400 hover:underline"
+                                      >
+                                        Preencher saldo
+                                      </button>
+                                    )}
+                                  </div>
+                                  <Input
+                                    type="number"
+                                    min={0}
+                                    step="0.01"
+                                    value={item.valor || ''}
+                                    onChange={(e) => handleAtualizarFormaMultipla(idx, { valor: Number(e.target.value) || 0 })}
+                                    placeholder="0,00"
+                                    className="h-8 text-xs font-semibold"
+                                  />
+                                </div>
+
+                                {isParcelavel ? (
+                                  <div className="space-y-1">
+                                    <Label className="text-[11px] text-muted-foreground">Parcelas</Label>
+                                    <Select
+                                      value={String(item.parcelas || 1)}
+                                      onValueChange={(v) => handleAtualizarFormaMultipla(idx, { parcelas: Number(v) || 1 })}
+                                    >
+                                      <SelectTrigger className="h-8 text-xs">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18, 24].map((n) => (
+                                          <SelectItem key={n} value={String(n)}>
+                                            {n === 1 ? '1x (À vista)' : `${n}x ${item.valor > 0 ? `(${formatMoney(item.valor / n)})` : ''}`}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                ) : null}
+
+                                {!isParcelado ? (
+                                  <div className={`space-y-1 ${!isParcelavel ? 'sm:col-span-2' : ''}`}>
+                                    <Label className="text-[11px] text-muted-foreground flex items-center gap-1">
+                                      <CalendarDays className="h-3 w-3 text-emerald-400" />
+                                      {isEntrada ? 'Data da Entrada' : 'Data do Pagamento'}
+                                    </Label>
+                                    <Input
+                                      type="date"
+                                      value={item.dataPagamento || formatIsoDate(new Date())}
+                                      onChange={(e) => handleAtualizarFormaMultipla(idx, { dataPagamento: e.target.value })}
+                                      className="h-8 text-xs font-semibold bg-background"
+                                      title="Digite dia/mês/ano ou escolha no calendário"
+                                    />
+                                  </div>
+                                ) : (
+                                  <div className="space-y-1">
+                                    <Label className="text-[11px] text-muted-foreground flex items-center justify-between">
+                                      <span>Dia Base Venc.</span>
+                                      <span className="text-[10px] text-muted-foreground">(1 a 31)</span>
+                                    </Label>
+                                    <div className="flex gap-1.5">
+                                      <Input
+                                        type="number"
+                                        min={1}
+                                        max={31}
+                                        value={item.diaVencimento || 10}
+                                        onChange={(e) => {
+                                          const d = Math.max(1, Math.min(31, Number(e.target.value) || 10));
+                                          handleAtualizarFormaMultipla(idx, { diaVencimento: d });
+                                        }}
+                                        className="h-8 text-xs font-semibold w-16"
+                                        title="Digite qualquer dia do mês desejado"
+                                      />
+                                      <Select
+                                        value={String(item.diaVencimento || 10)}
+                                        onValueChange={(v) => handleAtualizarFormaMultipla(idx, { diaVencimento: Number(v) || 10 })}
+                                      >
+                                        <SelectTrigger className="h-8 text-xs flex-1">
+                                          <SelectValue placeholder="Predefinição" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {[1, 5, 10, 15, 20, 25, 28, 30].map((d) => (
+                                            <SelectItem key={d} value={String(d)}>
+                                              Dia {d}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
 
-                              <div className="space-y-1">
-                                <Label className="text-[11px] text-muted-foreground">Dia Vencimento</Label>
-                                <Select
-                                  value={String(item.diaVencimento || 10)}
-                                  onValueChange={(v) => handleAtualizarFormaMultipla(idx, { diaVencimento: Number(v) || 10 })}
-                                >
-                                  <SelectTrigger className="h-8 text-xs">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {[1, 5, 10, 15, 20, 25, 28, 30].map((d) => (
-                                      <SelectItem key={d} value={String(d)}>
-                                        Todo dia {d}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
+                              {/* Grade de vencimentos específicos para editar qualquer dia e data livremente */}
+                              {isParcelado && (
+                                <div className="pt-2 border-t border-border/60 space-y-2">
+                                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                                    <span className="text-[11px] font-semibold text-foreground flex items-center gap-1.5">
+                                      <CalendarDays className="h-3.5 w-3.5 text-emerald-400" />
+                                      Vencimentos das Parcelas de {item.rotulo} (Edite qualquer dia ou data livremente)
+                                    </span>
+                                    <span className="text-[10px] text-muted-foreground">
+                                      Selecione no calendário ou digite dia/mês/ano diretamente
+                                    </span>
+                                  </div>
+
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-48 overflow-y-auto pr-1">
+                                    {Array.from({ length: item.parcelas }).map((_, pIdx) => {
+                                      const valParc = item.valor > 0 ? item.valor / item.parcelas : 0;
+                                      const dataAtual = item.datasParcelas?.[pIdx] || '';
+                                      return (
+                                        <div
+                                          key={pIdx}
+                                          className="flex items-center justify-between gap-2 p-2 rounded-md bg-muted/40 border border-border/70 text-xs shadow-xs hover:border-emerald-500/40 transition-colors"
+                                        >
+                                          <div className="flex flex-col">
+                                            <span className="font-semibold text-[11px] text-foreground">
+                                              {pIdx + 1}ª Parcela
+                                            </span>
+                                            <span className="text-[10px] text-muted-foreground font-medium">
+                                              {formatMoney(valParc)}
+                                            </span>
+                                          </div>
+                                          <Input
+                                            type="date"
+                                            value={dataAtual}
+                                            onChange={(e) => handleAtualizarDataParcelaMultipla(idx, pIdx, e.target.value)}
+                                            className="h-7 text-xs w-32 font-medium bg-background"
+                                            title={`Data de vencimento da parcela ${pIdx + 1}`}
+                                          />
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
                             </>
-                          )}
-                        </div>
+                          );
+                        })()}
                       </div>
                     ))}
 

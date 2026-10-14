@@ -267,6 +267,94 @@ export const mapearDadosContrato = ({
     const formas = orcamento?.formasPagamento || '';
     const hoje = new Date();
 
+    // Se possui múltiplas formas separadas por '+' (Compositor de Pagamento Misto)
+    if (formas.includes('+')) {
+      const partes = formas.split('+').map((p) => p.trim()).filter(Boolean);
+      const listaMultiplas: ContratoParcela[] = [];
+      let entradaDetectada = 0;
+
+      for (const parte of partes) {
+        const isEntrada = /entrada/i.test(parte);
+        const rotuloMatch = parte.match(/^([^:]+):/);
+        const rotulo = rotuloMatch ? rotuloMatch[1].trim() : (isEntrada ? 'Entrada' : 'Parcela');
+
+        const valMatch = parte.match(/(?:r\$)?\s*([\d.,]+)/i);
+        const valorTotalParte = valMatch ? Number(valMatch[1].replace(/\./g, '').replace(',', '.')) || 0 : 0;
+
+        let metodo = 'PIX';
+        if (/cart[aã]o/i.test(parte)) metodo = 'Cartão de Crédito';
+        else if (/boleto/i.test(parte)) metodo = 'Boleto Bancário';
+        else if (/pix\s*parcelado/i.test(parte)) metodo = 'PIX Parcelado';
+        else if (/pix/i.test(parte)) metodo = 'PIX';
+        else if (/dinheiro/i.test(parte)) metodo = 'Dinheiro';
+        else if (/transfer[eê]ncia/i.test(parte)) metodo = 'Transferência';
+
+        const parcMatch = parte.match(/(\d+)\s*x/i);
+        const qtdParc = parcMatch ? Math.max(1, parseInt(parcMatch[1], 10)) : 1;
+
+        // Datas de vencimento para essa parte
+        const datasParte: string[] = [];
+        const trechoVenc = parte.match(/vencimentos?(?:\s*todo\s*dia\s*\d{1,2})?:\s*([^\)]+)/i);
+        if (trechoVenc) {
+          const regexDatas = /\b\d{1,2}\/\d{1,2}\/\d{4}\b|\b\d{4}-\d{2}-\d{2}\b/g;
+          const matches = trechoVenc[1].match(regexDatas);
+          if (matches) {
+            datasParte.push(...matches.map((d) => (d.includes('-') ? formatarData(d) : d)));
+          }
+        }
+
+        // Data única (em DD/MM/YYYY)
+        const dataUnicaMatch = parte.match(/\(em\s*(\d{1,2}\/\d{1,2}\/\d{4}|\d{4}-\d{2}-\d{2})\)/i);
+        const dataUnica = dataUnicaMatch
+          ? (dataUnicaMatch[1].includes('-') ? formatarData(dataUnicaMatch[1]) : dataUnicaMatch[1])
+          : formatarData(hoje);
+
+        if (isEntrada) {
+          entradaDetectada = valorTotalParte;
+        }
+
+        if (qtdParc > 1) {
+          const valorParc = valorTotalParte / qtdParc;
+          const diaMatch = parte.match(/(?:vencimento|dia)\s*(?:todo\s*dia)?\s*(\d{1,2})/i);
+          const diaVenc = diaMatch ? Math.min(28, Math.max(1, parseInt(diaMatch[1], 10))) : 10;
+
+          for (let i = 0; i < qtdParc; i++) {
+            let venc = datasParte[i];
+            if (!venc) {
+              const targetMonth = hoje.getMonth() + (i + 1);
+              const dataVenc = new Date(hoje.getFullYear(), targetMonth, 1);
+              const maxDias = new Date(dataVenc.getFullYear(), dataVenc.getMonth() + 1, 0).getDate();
+              dataVenc.setDate(Math.min(diaVenc, maxDias));
+              venc = formatarData(dataVenc);
+            }
+            listaMultiplas.push({
+              numero: listaMultiplas.length + 1,
+              descricao: `${rotulo} (${i + 1}/${qtdParc} - ${metodo})`,
+              vencimento: venc,
+              valor: valorParc,
+              metodo,
+              status: 'A vencer',
+            });
+          }
+        } else {
+          listaMultiplas.push({
+            numero: listaMultiplas.length + 1,
+            descricao: isEntrada ? `${rotulo} (${metodo})` : `${rotulo} (${metodo})`,
+            vencimento: dataUnica,
+            valor: valorTotalParte,
+            metodo,
+            status: 'A vencer',
+          });
+        }
+      }
+
+      if (listaMultiplas.length > 0) {
+        entrada = entradaDetectada;
+        parcelas = listaMultiplas;
+      }
+    }
+
+    if (parcelas.length === 0) {
     // 1. Detecta Entrada (ex: "Entrada de R$ 500,00", "Entrada: R$ 500", "Entrada: R$ 500,00 via PIX")
     const entradaMatch = formas.match(/entrada(?:\s*(?:de|:))?\s*(?:r\$)?\s*([\d.,]+)/i);
     let entradaDetectada = 0;
@@ -362,6 +450,7 @@ export const mapearDadosContrato = ({
     }
 
     parcelas = listaParcelas;
+    }
   }
 
   const parcelasSemEntrada = parcelas.filter((p) => !p.descricao.toLowerCase().includes('entrada'));
