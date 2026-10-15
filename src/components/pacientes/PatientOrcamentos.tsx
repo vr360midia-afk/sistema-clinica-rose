@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,7 +7,6 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ClipboardList, Plus, Trash2, MessageCircle, Check, X, Handshake, FileText, Pencil, FileSignature, Sparkles, CalendarDays, Link as LinkIcon, Layers, CreditCard, Wallet, CheckCircle2, RefreshCw, Search, ChevronsUpDown, Calculator } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { useOrcamentos, OrcamentoItem, Orcamento } from '@/hooks/useOrcamentos';
@@ -139,6 +138,33 @@ const PatientOrcamentos = ({ patient }: Props) => {
   // Busca e seleção rápida de procedimentos pré-cadastrados por nome
   const [openBuscaProcedimento, setOpenBuscaProcedimento] = useState(false);
   const [buscaProcedimento, setBuscaProcedimento] = useState('');
+  const [selectedProcedimentoIndex, setSelectedProcedimentoIndex] = useState(0);
+  const comboboxProcedimentoRef = useRef<HTMLDivElement>(null);
+  const inputBuscaProcedimentoRef = useRef<HTMLInputElement>(null);
+  const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        comboboxProcedimentoRef.current &&
+        !comboboxProcedimentoRef.current.contains(e.target as Node)
+      ) {
+        setOpenBuscaProcedimento(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (openBuscaProcedimento && itemRefs.current[selectedProcedimentoIndex]) {
+      itemRefs.current[selectedProcedimentoIndex]?.scrollIntoView({
+        block: 'nearest',
+      });
+    }
+  }, [selectedProcedimentoIndex, openBuscaProcedimento]);
 
   // Parceria
   const [parceriaAtiva, setParceriaAtiva] = useState(false);
@@ -827,6 +853,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
     setValorRepasse(0);
     setBuscaProcedimento('');
     setOpenBuscaProcedimento(false);
+    setSelectedProcedimentoIndex(0);
     setModoCalculoValor('desconto');
     setInputValorFinal('');
     setOpen(true);
@@ -842,6 +869,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
     setFormasPagamento(o.formasPagamento || '');
     setBuscaProcedimento('');
     setOpenBuscaProcedimento(false);
+    setSelectedProcedimentoIndex(0);
     setModoCalculoValor('desconto');
     setInputValorFinal(o.total ? String(o.total) : '');
 
@@ -1371,76 +1399,126 @@ const PatientOrcamentos = ({ patient }: Props) => {
                 </span>
               </div>
 
-              {/* Combobox Pesquisável com Busca em Tempo Real por Nome */}
-              <Popover open={openBuscaProcedimento} onOpenChange={setOpenBuscaProcedimento}>
-                <PopoverTrigger asChild>
+            {/* Combobox Pesquisável com Busca em Tempo Real e Rolagem Nativa (sem conflito com Dialog) */}
+            <div className="space-y-1.5 relative" ref={comboboxProcedimentoRef}>
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium">Adicionar procedimento</Label>
+                <span className="text-[11px] text-muted-foreground font-normal">
+                  {procedimentosAtivos.length} pré-cadastrado{procedimentosAtivos.length === 1 ? '' : 's'}
+                </span>
+              </div>
+
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                <Input
+                  ref={inputBuscaProcedimentoRef}
+                  placeholder="Digite o nome do procedimento (ex: canal, resina, limpeza)..."
+                  value={buscaProcedimento}
+                  onChange={(e) => {
+                    setBuscaProcedimento(e.target.value);
+                    setOpenBuscaProcedimento(true);
+                    setSelectedProcedimentoIndex(0);
+                  }}
+                  onFocus={() => {
+                    setOpenBuscaProcedimento(true);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'ArrowDown') {
+                      e.preventDefault();
+                      setOpenBuscaProcedimento(true);
+                      setSelectedProcedimentoIndex((prev) =>
+                        Math.min(prev + 1, Math.max(0, procedimentosFiltrados.length - 1))
+                      );
+                    } else if (e.key === 'ArrowUp') {
+                      e.preventDefault();
+                      setSelectedProcedimentoIndex((prev) => Math.max(0, prev - 1));
+                    } else if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (procedimentosFiltrados.length > 0) {
+                        const idx = Math.min(
+                          selectedProcedimentoIndex,
+                          procedimentosFiltrados.length - 1
+                        );
+                        const p = procedimentosFiltrados[idx] || procedimentosFiltrados[0];
+                        if (p) {
+                          addProcedimento(p.id);
+                          setBuscaProcedimento('');
+                          setOpenBuscaProcedimento(false);
+                          toast.success(`Procedimento "${p.nome}" adicionado!`);
+                        }
+                      } else if (buscaProcedimento.trim()) {
+                        setItens((prev) => [
+                          ...prev,
+                          { nome: buscaProcedimento.trim(), quantidade: 1, valor: 0 },
+                        ]);
+                        const nomeAdicionado = buscaProcedimento.trim();
+                        setBuscaProcedimento('');
+                        setOpenBuscaProcedimento(false);
+                        toast.success(`"${nomeAdicionado}" adicionado como item manual!`);
+                      }
+                    } else if (e.key === 'Escape') {
+                      setOpenBuscaProcedimento(false);
+                    }
+                  }}
+                  className="pl-9 pr-16 h-10 text-sm bg-background border-input focus-visible:ring-1 focus-visible:ring-primary"
+                />
+
+                <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                  {buscaProcedimento && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                      onClick={() => {
+                        setBuscaProcedimento('');
+                        setSelectedProcedimentoIndex(0);
+                        inputBuscaProcedimentoRef.current?.focus();
+                      }}
+                      title="Limpar busca"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
                   <Button
                     type="button"
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={openBuscaProcedimento}
-                    className="w-full justify-between h-10 px-3 font-normal text-sm bg-background border-input hover:bg-accent hover:text-accent-foreground text-left"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                    onClick={() => {
+                      setOpenBuscaProcedimento((prev) => !prev);
+                      inputBuscaProcedimentoRef.current?.focus();
+                    }}
+                    title={openBuscaProcedimento ? 'Fechar lista' : 'Abrir lista'}
                   >
-                    <span className="flex items-center gap-2 truncate text-muted-foreground">
-                      <Search className="h-4 w-4 shrink-0 text-muted-foreground/70" />
-                      <span>{buscaProcedimento ? `Buscando: ${buscaProcedimento}` : 'Selecione ou busque por nome do procedimento...'}</span>
-                    </span>
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    <ChevronsUpDown className="h-4 w-4 opacity-70" />
                   </Button>
-                </PopoverTrigger>
-                <PopoverContent
-                  className="w-[calc(100vw-2.5rem)] sm:w-[580px] p-0 z-[70] shadow-2xl border border-border bg-popover"
-                  align="start"
-                  sideOffset={4}
-                >
-                  <div className="p-2 border-b border-border bg-muted/30">
-                    <div className="relative">
-                      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Digite o nome do procedimento (ex: canal, resina, limpeza)..."
-                        value={buscaProcedimento}
-                        onChange={(e) => setBuscaProcedimento(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && procedimentosFiltrados.length > 0) {
-                            e.preventDefault();
-                            const p = procedimentosFiltrados[0];
-                            addProcedimento(p.id);
-                            setBuscaProcedimento('');
-                            setOpenBuscaProcedimento(false);
-                            toast.success(`Procedimento "${p.nome}" adicionado!`);
-                          }
-                        }}
-                        className="pl-9 pr-8 h-9 text-xs sm:text-sm bg-background"
-                        autoFocus
-                      />
-                      {buscaProcedimento && (
-                        <button
-                          type="button"
-                          onClick={() => setBuscaProcedimento('')}
-                          className="absolute right-2 top-2 text-muted-foreground hover:text-foreground p-0.5 rounded"
-                          title="Limpar busca"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                    </div>
-                    {buscaProcedimento && (
-                      <div className="mt-1.5 flex items-center justify-between px-1 text-[11px] text-muted-foreground">
-                        <span>
-                          {procedimentosFiltrados.length === 1
-                            ? '1 procedimento encontrado'
-                            : `${procedimentosFiltrados.length} procedimentos encontrados`}
-                        </span>
-                        <span className="text-[10px] text-primary">Pressione Enter ou clique para adicionar</span>
-                      </div>
-                    )}
+                </div>
+              </div>
+
+              {/* Dropdown renderizado DIRETAMENTE dentro do Dialog (sem Portal, sem foco travado, com scroll fluido nativo) */}
+              {openBuscaProcedimento && (
+                <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-popover rounded-lg border border-border shadow-2xl overflow-hidden animate-in fade-in-0 zoom-in-95">
+                  <div className="px-3 py-1.5 border-b border-border bg-muted/40 flex items-center justify-between text-[11px] text-muted-foreground">
+                    <span>
+                      {procedimentosFiltrados.length === 1
+                        ? '1 procedimento encontrado'
+                        : `${procedimentosFiltrados.length} procedimentos encontrados`}
+                    </span>
+                    <span className="text-[10px] text-primary hidden sm:inline">
+                      ↑↓ navega • Enter seleciona • Esc fecha
+                    </span>
                   </div>
 
-                  <div className="max-h-64 sm:max-h-72 overflow-y-auto divide-y divide-border/40">
+                  <div
+                    className="max-h-60 sm:max-h-72 overflow-y-auto divide-y divide-border/40 overscroll-contain"
+                    tabIndex={-1}
+                  >
                     {procedimentosFiltrados.length === 0 ? (
-                      <div className="p-5 text-center space-y-2">
+                      <div className="p-4 text-center space-y-2">
                         <p className="text-xs text-muted-foreground">
-                          Nenhum procedimento pré-cadastrado encontrado para <strong className="text-foreground">"{buscaProcedimento}"</strong>.
+                          Nenhum procedimento encontrado para{' '}
+                          <strong className="text-foreground">"{buscaProcedimento}"</strong>.
                         </p>
                         {buscaProcedimento.trim() && (
                           <Button
@@ -1449,10 +1527,14 @@ const PatientOrcamentos = ({ patient }: Props) => {
                             size="sm"
                             className="text-xs gap-1.5 border-dashed"
                             onClick={() => {
-                              setItens((prev) => [...prev, { nome: buscaProcedimento.trim(), quantidade: 1, valor: 0 }]);
+                              setItens((prev) => [
+                                ...prev,
+                                { nome: buscaProcedimento.trim(), quantidade: 1, valor: 0 },
+                              ]);
+                              const nome = buscaProcedimento.trim();
                               setBuscaProcedimento('');
                               setOpenBuscaProcedimento(false);
-                              toast.success(`"${buscaProcedimento.trim()}" adicionado como item manual!`);
+                              toast.success(`"${nome}" adicionado como item manual!`);
                             }}
                           >
                             <Plus className="h-3.5 w-3.5" /> Adicionar "{buscaProcedimento.trim()}" como item manual
@@ -1460,46 +1542,62 @@ const PatientOrcamentos = ({ patient }: Props) => {
                         )}
                       </div>
                     ) : (
-                      procedimentosFiltrados.map((p) => (
-                        <button
-                          key={p.id}
-                          type="button"
-                          onClick={() => {
-                            addProcedimento(p.id);
-                            setBuscaProcedimento('');
-                            setOpenBuscaProcedimento(false);
-                            toast.success(`Procedimento "${p.nome}" adicionado!`);
-                          }}
-                          className="w-full text-left px-3.5 py-2.5 hover:bg-accent/80 transition-colors flex items-center justify-between gap-3 group focus:outline-none focus:bg-accent"
-                        >
-                          <div className="flex-1 min-w-0">
-                            <div className="text-xs sm:text-sm font-medium text-foreground group-hover:text-primary transition-colors truncate">
-                              {p.nome}
+                      procedimentosFiltrados.map((p, index) => {
+                        const isSelected = index === selectedProcedimentoIndex;
+                        return (
+                          <button
+                            key={p.id}
+                            ref={(el) => {
+                              itemRefs.current[index] = el;
+                            }}
+                            type="button"
+                            onMouseEnter={() => setSelectedProcedimentoIndex(index)}
+                            onClick={() => {
+                              addProcedimento(p.id);
+                              setBuscaProcedimento('');
+                              setOpenBuscaProcedimento(false);
+                              toast.success(`Procedimento "${p.nome}" adicionado!`);
+                            }}
+                            className={`w-full text-left px-3.5 py-2.5 transition-colors flex items-center justify-between gap-3 group focus:outline-none ${
+                              isSelected
+                                ? 'bg-accent/90 text-accent-foreground'
+                                : 'hover:bg-accent/60'
+                            }`}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div
+                                className={`text-xs sm:text-sm font-medium truncate ${
+                                  isSelected ? 'text-primary' : 'text-foreground'
+                                }`}
+                              >
+                                {p.nome}
+                              </div>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                {p.categoria && (
+                                  <span className="text-[10px] text-muted-foreground capitalize bg-muted/80 px-1.5 py-0.2 rounded border border-border/50">
+                                    {p.categoria}
+                                  </span>
+                                )}
+                                {p.duracaoMinutos && (
+                                  <span className="text-[10px] text-muted-foreground">
+                                    ⏱ {p.duracaoMinutos} min
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              {p.categoria && (
-                                <span className="text-[10px] text-muted-foreground capitalize bg-muted/80 px-1.5 py-0.2 rounded border border-border/50">
-                                  {p.categoria}
-                                </span>
-                              )}
-                              {p.duracaoMinutos && (
-                                <span className="text-[10px] text-muted-foreground">
-                                  ⏱ {p.duracaoMinutos} min
-                                </span>
-                              )}
+                            <div className="text-right shrink-0">
+                              <span className="text-xs sm:text-sm font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
+                                {formatMoney(p.preco)}
+                              </span>
                             </div>
-                          </div>
-                          <div className="text-right shrink-0">
-                            <span className="text-xs sm:text-sm font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
-                              {formatMoney(p.preco)}
-                            </span>
-                          </div>
-                        </button>
-                      ))
+                          </button>
+                        );
+                      })
                     )}
                   </div>
-                </PopoverContent>
-              </Popover>
+                </div>
+              )}
+            </div>
 
               <Button type="button" variant="outline" size="sm" className="w-full" onClick={addItemManual}>
                 <Plus className="h-4 w-4 mr-1" /> Adicionar item manual
