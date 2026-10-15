@@ -62,6 +62,7 @@ import {
   gerarLinkAssinaturaContrato,
   isContratoLenteResina,
   identificarTipoDocumento,
+  isMetodoCartao,
 } from '@/utils/contratoEngine';
 import { downloadTcleLentesResinaPdf } from '@/utils/tcleLentesResina';
 import { somarMesesSeguro } from '@/utils/documentoFormat';
@@ -312,6 +313,16 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     for (let i = 0; i < parcelas.length - 1; i++) {
       const p1 = parcelas[i];
       const p2 = parcelas[i + 1];
+
+      // Quando for cartão de crédito ou constar 'Fatura do Cartão', não possui vencimento fixo pela clínica e não deve alertar intervalo
+      const isCartao = (p: typeof p1) =>
+        isMetodoCartao(p.metodo, p.descricao) ||
+        (p.vencimento && /fatura/i.test(p.vencimento));
+
+      if (isCartao(p1) || isCartao(p2)) {
+        continue;
+      }
+
       if (p1.vencimento && p2.vencimento && p1.vencimento.includes('/') && p2.vencimento.includes('/')) {
         const [, m1, a1] = p1.vencimento.split('/').map(Number);
         const [, m2, a2] = p2.vencimento.split('/').map(Number);
@@ -378,7 +389,16 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
   // Carrega contrato do histórico para edição
   const handleCarregarContratoParaEdicao = (doc: DocumentoClinico) => {
     if (doc.itens && typeof doc.itens === 'object' && doc.itens.paciente) {
-      setSnapshotAtual(doc.itens as ContratoSnapshot);
+      const snap = { ...(doc.itens as ContratoSnapshot) };
+      if (snap.financeiro?.parcelas) {
+        snap.financeiro.parcelas = snap.financeiro.parcelas.map((p) => {
+          if (isMetodoCartao(p.metodo, p.descricao)) {
+            return { ...p, vencimento: 'Fatura do Cartão' };
+          }
+          return p;
+        });
+      }
+      setSnapshotAtual(snap);
       setDocumentoIdSendoEditado(doc.id);
       setIsManuallyEdited(true);
       setActiveTab('editar');
@@ -397,6 +417,14 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
 
     try {
       setSalvando(true);
+      if (snapshotAtual.financeiro?.parcelas) {
+        snapshotAtual.financeiro.parcelas = snapshotAtual.financeiro.parcelas.map((p) => {
+          if (isMetodoCartao(p.metodo, p.descricao)) {
+            return { ...p, vencimento: 'Fatura do Cartão' };
+          }
+          return p;
+        });
+      }
       const htmlFinal = gerarHtmlContrato(snapshotAtual);
 
       const docCriado = await salvarDocumento({
@@ -1449,17 +1477,26 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
 
                                     <div className="flex items-center gap-1">
                                       <span className="text-[10px] text-muted-foreground">Venc.:</span>
-                                      <Input
-                                        type="text"
-                                        value={parc.vencimento || ''}
-                                        onChange={(e) => {
-                                          const novas = [...snapshotAtual.financeiro.parcelas];
-                                          novas[pIdx] = { ...novas[pIdx], vencimento: e.target.value };
-                                          handleUpdateSnapshotField('financeiro.parcelas', novas);
-                                        }}
-                                        placeholder="DD/MM/AAAA ou Fatura"
-                                        className="h-7 text-xs w-28 border-border bg-background"
-                                      />
+                                      {isMetodoCartao(parc.metodo, parc.descricao) || (parc.vencimento && /fatura/i.test(parc.vencimento)) ? (
+                                        <div
+                                          className="h-7 px-2 flex items-center justify-center text-[11px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded w-28 select-none truncate"
+                                          title="Cartão de crédito não requer vencimento (cobrado diretamente na fatura do cartão)"
+                                        >
+                                          Fatura do Cartão
+                                        </div>
+                                      ) : (
+                                        <Input
+                                          type="text"
+                                          value={parc.vencimento || ''}
+                                          onChange={(e) => {
+                                            const novas = [...snapshotAtual.financeiro.parcelas];
+                                            novas[pIdx] = { ...novas[pIdx], vencimento: e.target.value };
+                                            handleUpdateSnapshotField('financeiro.parcelas', novas);
+                                          }}
+                                          placeholder="DD/MM/AAAA"
+                                          className="h-7 text-xs w-28 border-border bg-background"
+                                        />
+                                      )}
                                     </div>
 
                                     <div className="flex items-center gap-1">

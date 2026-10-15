@@ -164,6 +164,15 @@ export const parseBrMoney = (valStr: string | number | undefined | null): number
 };
 
 /**
+ * Verifica se o método de pagamento ou a descrição corresponde a Cartão de Crédito
+ */
+export const isMetodoCartao = (metodo?: string | null, descricao?: string | null): boolean => {
+  const m = metodo || '';
+  const d = descricao || '';
+  return /cart[aã]o|cr[eé]dito/i.test(m) || /cart[aã]o|cr[eé]dito/i.test(d);
+};
+
+/**
  * Verifica se o contrato abrange tratamento com lentes em resina composta,
  * facetas em resina, laminados em resina ou restaurações estéticas similares.
  */
@@ -353,7 +362,7 @@ export const mapearDadosContrato = ({
         entrada = valor;
       }
 
-      const isCartao = (t?.metodoPagamento || '').toLowerCase().includes('cartao') || (t?.descricao || '').toLowerCase().includes('cartão');
+      const isCartao = isMetodoCartao(t?.metodoPagamento, t?.descricao);
       const vencFormatado = isCartao ? 'Fatura do Cartão' : formatarData(t?.vencimento || t?.data);
 
       return {
@@ -460,18 +469,19 @@ export const mapearDadosContrato = ({
           }
         }
 
-        const isCartao = /cart[aã]o/i.test(metodo);
+        const isCartao = isMetodoCartao(metodo, rotulo) || isMetodoCartao(metodo, conteudo);
 
         if (qtdParc > 1) {
           const diaMatch = conteudo.match(/(?:vencimento|dia)\s*(?:todo\s*dia)?\s*(\d{1,2})/i);
           const diaVenc = diaMatch ? Math.min(28, Math.max(1, parseInt(diaMatch[1], 10))) : 10;
 
           for (let i = 0; i < qtdParc; i++) {
-            let venc = datasParte[i];
-            if (!venc) {
-              if (isCartao) {
-                venc = 'Fatura do Cartão';
-              } else {
+            let venc = '';
+            if (isCartao) {
+              venc = 'Fatura do Cartão';
+            } else {
+              venc = datasParte[i];
+              if (!venc) {
                 const dataVenc = somarMesesSeguro(hoje, i + 1, diaVenc);
                 venc = formatarData(dataVenc);
               }
@@ -491,7 +501,7 @@ export const mapearDadosContrato = ({
           listaMultiplas.push({
             numero: listaMultiplas.length + 1,
             descricao: isEntrada ? `${rotulo} (${metodo})` : `${rotulo} (${metodo})`,
-            vencimento: dataUnica,
+            vencimento: isCartao && !isEntrada ? 'Fatura do Cartão' : dataUnica,
             valor: valorTotalParte,
             metodo,
             status: sitFinal,
@@ -579,7 +589,7 @@ export const mapearDadosContrato = ({
         });
       }
 
-      const isCartaoRestante = /cart[aã]o/i.test(metodoRestante);
+      const isCartaoRestante = isMetodoCartao(metodoRestante);
       const sitRestanteMatch = parteRestante.match(/\[(?:situa[çc][aã]o:\s*)?([^\]]+)\]/i);
       let sitRestantePadrao = isCartaoRestante ? 'Autorizado' : 'A vencer';
       const sitsRestanteIndividuais: string[] = [];
@@ -602,10 +612,10 @@ export const mapearDadosContrato = ({
 
       for (let idx = 0; idx < qtdParcelas; idx++) {
         let vencimentoFormatado = '';
-        if (datasDetectadas[idx]) {
-          vencimentoFormatado = datasDetectadas[idx];
-        } else if (isCartaoRestante) {
+        if (isCartaoRestante) {
           vencimentoFormatado = 'Fatura do Cartão';
+        } else if (datasDetectadas[idx]) {
+          vencimentoFormatado = datasDetectadas[idx];
         } else {
           const dataVenc = somarMesesSeguro(hoje, idx + 1, diaVencimento);
           vencimentoFormatado = formatarData(dataVenc);
@@ -628,6 +638,17 @@ export const mapearDadosContrato = ({
       parcelas = listaParcelas;
     }
   }
+
+  // Garante que nenhuma parcela em Cartão de Crédito retenha vencimento de calendário fixo
+  parcelas = parcelas.map((parc) => {
+    if (isMetodoCartao(parc.metodo, parc.descricao)) {
+      return {
+        ...parc,
+        vencimento: 'Fatura do Cartão',
+      };
+    }
+    return parc;
+  });
 
   const parcelasSemEntrada = parcelas.filter((p) => !p.descricao.toLowerCase().includes('entrada'));
   const quantidadeParcelas = parcelasSemEntrada.length || parcelas.length;
@@ -691,6 +712,22 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
     financeiro.parcelas.some((p) =>
       (p.metodo || p.descricao || '').toLowerCase().includes('pix')
     ) || /pix/i.test(financeiro.formaPagamento);
+  const temAlgumCartao =
+    financeiro.parcelas.some((p) => isMetodoCartao(p.metodo, p.descricao)) ||
+    isMetodoCartao(financeiro.formaPagamento);
+  const apenasCartao =
+    temAlgumCartao &&
+    !temAlgumPix &&
+    !financeiro.parcelas.some((p) => /boleto|dinheiro|transfer/i.test(p.metodo || ''));
+
+  let tituloClausulaPagamento = 'DO PAGAMENTO, PARCELAMENTO E CONDIÇÕES ACORDADAS';
+  if (apenasCartao) {
+    tituloClausulaPagamento = 'DO PAGAMENTO VIA CARTÃO DE CRÉDITO E CONDIÇÕES ACORDADAS';
+  } else if (temAlgumPix && !temAlgumCartao) {
+    tituloClausulaPagamento = 'DO PAGAMENTO MENSAL VIA PIX E FORMAS ACORDADAS NO ORÇAMENTO';
+  } else if (temAlgumPix && temAlgumCartao) {
+    tituloClausulaPagamento = 'DO PAGAMENTO (PIX, CARTÃO DE CRÉDITO E DEMAIS FORMAS ACORDADAS)';
+  }
 
   const tipoDocClinica = identificarTipoDocumento(clinica.cnpj);
   const labelDocClinica = tipoDocClinica === 'cpf' ? 'CPF' : 'CNPJ';
@@ -1085,9 +1122,9 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
       </p>
     </div>
 
-    <!-- CLÁUSULA — DO PAGAMENTO MENSAL VIA PIX E FORMAS ACORDADAS NO ORÇAMENTO -->
+    <!-- CLÁUSULA — DO PAGAMENTO E FORMAS ACORDADAS NO ORÇAMENTO -->
     <div class="clausula-bloco">
-      <div class="clausula-titulo">${numClausula()} — DO PAGAMENTO MENSAL VIA PIX E FORMAS ACORDADAS NO ORÇAMENTO</div>
+      <div class="clausula-titulo">${numClausula()} — ${tituloClausulaPagamento}</div>
       <p class="paragrafo">
         O adimplemento do valor total avençado na Cláusula 2ª dar-se-á estritamente em conformidade com o acordado no <strong>Orçamento nº #${orcamento.numeroIdentificador}</strong> e com as formas de pagamento convencionadas entre as partes, registradas como: <strong>"${financeiro.formaPagamento}"</strong>.
       </p>
@@ -1095,7 +1132,7 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
       ${financeiro.entrada > 0 ? `
         <p class="paragrafo">
           ${todasIguais ? `
-            O plano financeiro pactuado compreende o pagamento de uma <strong>Entrada inicial de ${formatMoney(financeiro.entrada)}</strong> e o saldo remanescente de <strong>${formatMoney(financeiro.total - financeiro.entrada)}</strong> dividido em <strong>${financeiro.quantidadeParcelas} (${financeiro.quantidadeParcelas === 1 ? 'uma única parcela' : `${financeiro.quantidadeParcelas} parcelas mensais sucessivas`})</strong> no valor de <strong>${formatMoney(financeiro.valorParcela)}</strong> cada, com vencimentos discriminados no cronograma oficial a seguir:
+            O plano financeiro pactuado compreende o pagamento de uma <strong>Entrada inicial de ${formatMoney(financeiro.entrada)}</strong> e o saldo remanescente de <strong>${formatMoney(financeiro.total - financeiro.entrada)}</strong> dividido em <strong>${financeiro.quantidadeParcelas} (${financeiro.quantidadeParcelas === 1 ? 'uma única parcela' : `${financeiro.quantidadeParcelas} parcelas mensais sucessivas`})</strong> no valor de <strong>${formatMoney(financeiro.valorParcela)}</strong> cada, ${apenasCartao ? 'com lançamentos processados na fatura do cartão conforme cronograma oficial a seguir:' : 'com vencimentos discriminados no cronograma oficial a seguir:'}
           ` : `
             O plano financeiro pactuado compreende o pagamento de uma <strong>Entrada inicial de ${formatMoney(financeiro.entrada)}</strong> e o saldo remanescente de <strong>${formatMoney(financeiro.total - financeiro.entrada)}</strong>, distribuído nas etapas e formas discriminadas detalhadamente no cronograma oficial a seguir:
           `}
@@ -1103,7 +1140,7 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
       ` : `
         <p class="paragrafo">
           ${todasIguais ? `
-            O plano financeiro compreende a quitação em <strong>${financeiro.quantidadeParcelas} (${financeiro.quantidadeParcelas === 1 ? 'uma única' : `${financeiro.quantidadeParcelas} parcelas mensais sucessivas`})</strong>, no valor de <strong>${formatMoney(financeiro.valorParcela)}</strong> cada, com vencimentos conforme discriminado no cronograma a seguir:
+            O plano financeiro compreende a quitação em <strong>${financeiro.quantidadeParcelas} (${financeiro.quantidadeParcelas === 1 ? 'uma única' : `${financeiro.quantidadeParcelas} parcelas mensais sucessivas`})</strong>, no valor de <strong>${formatMoney(financeiro.valorParcela)}</strong> cada, ${apenasCartao ? 'com cobrança na fatura do cartão conforme discriminado no cronograma a seguir:' : 'com vencimentos conforme discriminado no cronograma a seguir:'}
           ` : `
             O plano financeiro compreende as etapas e parcelas discriminadas detalhadamente com seus respectivos valores, vencimentos e formas no cronograma a seguir:
           `}
@@ -1152,23 +1189,33 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
           <tr>
             <th class="col-num">Parc.</th>
             <th>Descrição / Forma de Pagamento</th>
-            <th style="width: 120px; text-align: center;">Data de Vencimento</th>
+            <th style="width: 130px; text-align: center;">Vencimento</th>
             <th class="col-money">Valor da Parcela</th>
             <th style="width: 90px; text-align: center;">Situação</th>
           </tr>
         </thead>
         <tbody>
-          ${financeiro.parcelas.map((parc) => `
+          ${financeiro.parcelas.map((parc) => {
+            const isCartao = isMetodoCartao(parc.metodo, parc.descricao) || (parc.vencimento && /fatura/i.test(parc.vencimento));
+            const vencTexto = isCartao ? 'Fatura do Cartão' : (parc.vencimento || '-');
+            return `
             <tr>
               <td class="col-num">${parc.numero}</td>
               <td><strong>${parc.descricao || `Parcela ${parc.numero}`}</strong> ${parc.metodo ? `— ${parc.metodo}` : ''}</td>
-              <td style="text-align: center;"><strong>${parc.vencimento}</strong></td>
+              <td style="text-align: center;"><strong>${vencTexto}</strong></td>
               <td class="col-money"><strong>${formatMoney(parc.valor)}</strong></td>
-              <td style="text-align: center; font-size: 11px;">${parc.status || 'A vencer'}</td>
+              <td style="text-align: center; font-size: 11px;">${parc.status || (isCartao ? 'Autorizado' : 'A vencer')}</td>
             </tr>
-          `).join('')}
+          `;
+          }).join('')}
         </tbody>
       </table>
+
+      ${temAlgumCartao ? `
+      <p class="paragrafo" style="font-size: 11px; color: #4b5563;">
+        <strong>Parágrafo (Cobrança via Cartão de Crédito):</strong> Para as parcelas ajustadas na modalidade Cartão de Crédito, os lançamentos ocorrem de forma continuada na fatura emitida pela administradora do cartão do(a) <strong>CONTRATANTE</strong>, dispensando emissão de boletos ou controle de vencimento com datas clínicas pré-fixadas por parte da <strong>CONTRATADA</strong>.
+      </p>
+      ` : ''}
 
       <p class="paragrafo" style="font-size: 11px; color: #4b5563;">
         <strong>Parágrafo Primeiro (Mora e Encargos):</strong> O não pagamento de qualquer das parcelas mensais na data de seus respectivos vencimentos sujeitará o(a) <strong>CONTRATANTE</strong> à incidência de multa moratória de 2% (dois por cento) sobre o montante em atraso, acrescida de juros de mora legais de 1% (um por cento) ao mês calculados <em>pro rata die</em>, nos termos do art. 52, § 1º do Código de Defesa do Consumidor e art. 406 do Código Civil.
