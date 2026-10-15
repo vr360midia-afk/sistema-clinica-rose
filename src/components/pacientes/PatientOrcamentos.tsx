@@ -74,7 +74,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
   const { parceiros, addParceiro, refetch: refetchParceiros } = useParceiros();
   const { configuracoes } = useConfiguracoes();
   const { dentistas } = useDentistas();
-  const { transacoes, addTransacao, deleteTransacao } = useDentalSystem();
+  const { transacoes, addTransacao, deleteTransacao, updatePaciente } = useDentalSystem();
   const { operadoras, operadoraPadrao, config: configMaquinas } = useMaquinasCartao();
 
   const [open, setOpen] = useState(false);
@@ -536,6 +536,13 @@ const PatientOrcamentos = ({ patient }: Props) => {
     try {
       setLancandoFinanceiro(true);
       await updateStatus(o.id, 'aprovado');
+      if (updatePaciente && patient?.id) {
+        try {
+          await updatePaciente(patient.id, { status: 'Em Tratamento' });
+        } catch (errP) {
+          console.error('Erro ao atualizar status do paciente para Em Tratamento:', errP);
+        }
+      }
 
       if (lancarFinanceiro) {
         // Remove quaisquer transações existentes vinculadas a este orçamento para garantir sincronismo e evitar valores obsoletos ou duplicados
@@ -1066,6 +1073,13 @@ const PatientOrcamentos = ({ patient }: Props) => {
       parceiroTipoRepasse: parceriaAtiva ? tipoRepasse : null,
       parceiroValorRepasse: parceriaAtiva ? valorRepasse || 0 : 0,
     });
+    if (statusEdicao === 'aprovado' && updatePaciente && patient?.id) {
+      try {
+        await updatePaciente(patient.id, { status: 'Em Tratamento' });
+      } catch (errP) {
+        console.error('Erro ao atualizar status do paciente para Em Tratamento:', errP);
+      }
+    }
     setOpen(false);
     setEditingId(null);
     setStatusEdicao('rascunho');

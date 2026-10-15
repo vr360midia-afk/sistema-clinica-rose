@@ -111,6 +111,20 @@ export const useOrcamentos = (pacienteId?: string) => {
       toast.error('Erro ao salvar orçamento');
       return;
     }
+    if (payload.status === 'aprovado' && payload.paciente_id) {
+      try {
+        await supabase
+          .from('pacientes')
+          .update({
+            status: 'Em Tratamento',
+            atualizado_em: new Date().toISOString(),
+          })
+          .eq('id', payload.paciente_id);
+      } catch (errPac) {
+        console.error('Erro ao atualizar status do paciente para Em Tratamento:', errPac);
+      }
+    }
+
     await registrarAuditoria({
       acao: o.id ? 'atualizou' : 'criou',
       entidade: 'orcamento',
@@ -131,6 +145,33 @@ export const useOrcamentos = (pacienteId?: string) => {
       return;
     }
     await registrarAuditoria({ acao: 'status', entidade: 'orcamento', entidadeId: id, descricao: status });
+
+    if (status === 'aprovado') {
+      try {
+        const orcAlvo = orcamentos.find((o) => o.id === id);
+        let pId = orcAlvo?.pacienteId || pacienteId;
+        if (!pId) {
+          const { data: orcDb } = await supabase
+            .from('orcamentos')
+            .select('paciente_id')
+            .eq('id', id)
+            .maybeSingle();
+          pId = orcDb?.paciente_id;
+        }
+        if (pId) {
+          await supabase
+            .from('pacientes')
+            .update({
+              status: 'Em Tratamento',
+              atualizado_em: new Date().toISOString(),
+            })
+            .eq('id', pId);
+        }
+      } catch (errPac) {
+        console.error('Erro ao atualizar status do paciente para Em Tratamento:', errPac);
+      }
+    }
+
     load();
   };
 

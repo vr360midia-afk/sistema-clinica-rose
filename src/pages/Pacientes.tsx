@@ -306,14 +306,15 @@ const Pacientes = () => {
   }
 
   if (selectedPatient) {
+    const currentPatient = (pacientes || []).find((p: any) => p.id === (selectedPatient as any).id) || selectedPatient;
     return (
       <Layout>
         <PatientDetails
-          patient={selectedPatient}
+          patient={currentPatient}
           onClose={handleClosePatientDetails}
-          onEdit={() => handleEditPatient(selectedPatient)}
-          onSchedule={() => setSchedulingPatient(selectedPatient)}
-          onAddProcedimento={() => setProcedimentoPatient(selectedPatient)}
+          onEdit={() => handleEditPatient(currentPatient)}
+          onSchedule={() => setSchedulingPatient(currentPatient)}
+          onAddProcedimento={() => setProcedimentoPatient(currentPatient)}
         />
         <ConsultaModal
           isOpen={Boolean(schedulingPatient)}
