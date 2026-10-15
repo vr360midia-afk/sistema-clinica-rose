@@ -30,6 +30,7 @@ import {
   ChevronDown,
   ChevronUp,
   Sparkles,
+  Stethoscope,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -40,6 +41,7 @@ import {
   gerarHtmlContrato,
   identificarTipoDocumento,
   isContratoLenteResina,
+  isContratoEndodontia,
 } from '@/utils/contratoEngine';
 import { downloadHtmlAsPdf } from '@/utils/pdfDownload';
 import { openWhatsApp } from '@/lib/whatsapp';
@@ -411,8 +413,19 @@ export default function AssinarContrato() {
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-white/15 backdrop-blur-sm text-blue-100 mb-2">
                 <ShieldCheck className="h-3.5 w-3.5" /> Documento Oficial e Válido (Art. 784, III CPC)
               </span>
-              <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
-                Contrato de Prestação de Serviços Odontológicos
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight flex flex-wrap items-center gap-2">
+                <span>
+                  {isContratoEndodontia(snapshot)
+                    ? 'Contrato de Prestação de Serviços — Tratamento de Canal (Endodontia)'
+                    : isContratoLenteResina(snapshot)
+                    ? 'Contrato de Prestação de Serviços — Lentes em Resina Composta'
+                    : 'Contrato de Prestação de Serviços Odontológicos'}
+                </span>
+                {isContratoEndodontia(snapshot) && (
+                  <Badge className="bg-purple-500 hover:bg-purple-600 text-white border-0 text-[11px] font-semibold">
+                    Endodontia
+                  </Badge>
+                )}
               </h1>
               <p className="text-blue-200 text-xs sm:text-sm mt-0.5">
                 {snapshot.clinica.nome} • Identificador: #{snapshot.contratoId}
@@ -472,7 +485,12 @@ export default function AssinarContrato() {
 
         <CardContent className="p-5 sm:p-6 space-y-6">
           {/* Identificação das Partes */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className={cn(
+            "grid grid-cols-1 gap-4",
+            isContratoEndodontia(snapshot) && snapshot.dadosEndodontia?.executorTipo === 'parceiro' && snapshot.dadosEndodontia.parceiro?.nome
+              ? "md:grid-cols-3"
+              : "md:grid-cols-2"
+          )}>
             <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
               <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
                 <User className="h-3.5 w-3.5 text-primary" /> Contratante (Paciente)
@@ -500,6 +518,20 @@ export default function AssinarContrato() {
               </p>
               <p className="text-xs text-muted-foreground mt-0.5 truncate">Endereço: {snapshot.clinica.endereco}</p>
             </div>
+
+            {isContratoEndodontia(snapshot) && snapshot.dadosEndodontia?.executorTipo === 'parceiro' && snapshot.dadosEndodontia.parceiro?.nome && (
+              <div className="p-4 rounded-lg bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800">
+                <div className="flex items-center gap-2 text-xs font-semibold text-purple-700 dark:text-purple-300 uppercase tracking-wider mb-2">
+                  <Stethoscope className="h-3.5 w-3.5 text-purple-600" /> Profissional Executor Parceiro
+                </div>
+                <p className="font-bold text-base text-slate-800 dark:text-slate-100">{snapshot.dadosEndodontia.parceiro.nome}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  CRO: <span className="font-medium text-slate-700 dark:text-slate-300">{snapshot.dadosEndodontia.parceiro.croUf}</span>
+                  {snapshot.dadosEndodontia.parceiro.documento ? ` • Documento: ${snapshot.dadosEndodontia.parceiro.documento}` : ''}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">Executor dos atos clínicos do tratamento de canal</p>
+              </div>
+            )}
           </div>
 
           {/* Resumo Financeiro e Condições de Pagamento */}

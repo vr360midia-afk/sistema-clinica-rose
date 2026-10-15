@@ -43,6 +43,7 @@ import {
   Sparkles,
   Camera,
   EyeOff,
+  Stethoscope,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -55,6 +56,7 @@ import { useDentistas } from '@/hooks/useDentistas';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import { useDocumentosClinicos, DocumentoClinico } from '@/hooks/useDocumentosClinicos';
 import { useSignatures } from '@/hooks/useSignatures';
+import { useParceiros } from '@/hooks/useParceiros';
 import SignatureModal from '@/components/signature/SignatureModal';
 import type { SignatureData } from '@/components/signature/DigitalSignature';
 import {
@@ -63,6 +65,8 @@ import {
   ContratoSnapshot,
   gerarLinkAssinaturaContrato,
   isContratoLenteResina,
+  isContratoEndodontia,
+  downloadContratoEndodontiaPdf,
   identificarTipoDocumento,
   isMetodoCartao,
 } from '@/utils/contratoEngine';
@@ -92,6 +96,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
   const { dentistas } = useDentistas();
   const { transacoes, addTransacao, deleteTransacao } = useDentalSystem();
   const { documentos, salvarDocumento } = useDocumentosClinicos(patient?.id);
+  const { parceiros } = useParceiros();
 
   // Estados principais
   const [activeTab, setActiveTab] = useState<'gerar' | 'editar' | 'historico'>('gerar');
@@ -290,6 +295,12 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
   const temLentesResinaNoContrato = useMemo(() => {
     if (!snapshotAtual) return false;
     return isContratoLenteResina(snapshotAtual);
+  }, [snapshotAtual]);
+
+  // Identifica se o contrato é específico para Tratamento Endodôntico (Tratamento de Canal)
+  const temEndodontiaNoContrato = useMemo(() => {
+    if (!snapshotAtual) return false;
+    return isContratoEndodontia(snapshotAtual);
   }, [snapshotAtual]);
 
   // HTML renderizado do contrato atual
@@ -1023,6 +1034,255 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                       }}
                     />
                   </div>
+                </div>
+
+                {/* Opção: Contrato de Tratamento Endodôntico (Tratamento de Canal) com Parceiro Executor */}
+                <div className="p-3 bg-card rounded-lg border border-border shadow-sm flex flex-col gap-3 text-xs">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-1.5 rounded-md bg-purple-500/10 text-purple-600 dark:text-purple-400 shrink-0">
+                        <Stethoscope className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <div className="font-semibold text-foreground flex items-center gap-2">
+                          <span>Contrato de Tratamento de Canal (Endodontia)</span>
+                          <Badge
+                            variant={temEndodontiaNoContrato ? 'default' : 'outline'}
+                            className={cn(
+                              "text-[10px] h-4 px-1.5 font-medium",
+                              temEndodontiaNoContrato ? "bg-purple-600 text-white hover:bg-purple-700" : ""
+                            )}
+                          >
+                            {temEndodontiaNoContrato ? '✓ 17 Cláusulas Endodontia Ativo' : 'Padrão / Desativado'}
+                          </Badge>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          Modelo oficial com 17 cláusulas para Tratamento Endodôntico personalizado para a Dra. Rosângela Santos Pereira, com suporte à identificação de cirurgião-dentista parceiro cadastrado.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                      <Label htmlFor="toggleEndodontia" className="text-xs text-muted-foreground cursor-pointer select-none">
+                        {temEndodontiaNoContrato ? 'Modelo Ativo' : 'Ativar Modelo'}
+                      </Label>
+                      <Switch
+                        id="toggleEndodontia"
+                        checked={temEndodontiaNoContrato}
+                        onCheckedChange={(checked) => {
+                          setIsManuallyEdited(true);
+                          setSnapshotAtual((prev) => {
+                            if (!prev) return prev;
+                            const dentesOrcamento = prev.orcamento.itens?.map((i) => i.denteOuRegiao).filter(Boolean).join(', ') || '';
+                            const procsOrcamento = prev.orcamento.itens?.map((i) => `${i.nome}${i.denteOuRegiao ? ` (${i.denteOuRegiao})` : ''}`).join(', ') || prev.orcamento.titulo;
+                            return {
+                              ...prev,
+                              tipoModeloContrato: checked ? 'endodontia' : 'geral',
+                              dadosEndodontia: {
+                                ativo: checked,
+                                executorTipo: prev.dadosEndodontia?.executorTipo || 'dentista_titular',
+                                parceiro: prev.dadosEndodontia?.parceiro || null,
+                                dentes: prev.dadosEndodontia?.dentes || dentesOrcamento || 'Elemento(s) dentário(s) indicado(s) na avaliação clínica',
+                                procedimentosAprovados: prev.dadosEndodontia?.procedimentosAprovados || procsOrcamento,
+                                diagnostico: prev.dadosEndodontia?.diagnostico || 'Avaliação clínica compatível com necessidade de intervenção endodôntica',
+                                etapasPrevistas: prev.dadosEndodontia?.etapasPrevistas || 'Abertura coronária, localização dos canais, limpeza, instrumentação biomecânica, desinfecção e obturação radicular',
+                                procedimentosIncluidos: prev.dadosEndodontia?.procedimentosIncluidos || 'Tratamento endodôntico (canal), instrumentação, medicação intracanal (quando indicada) e obturação dos canais radiculares',
+                                procedimentosNaoIncluidos: prev.dadosEndodontia?.procedimentosNaoIncluidos || 'Restaurações definitivas, coroas protéticas, pinos/núcleos intracanais, reconstruções estéticas ou cirurgias parendodônticas',
+                              },
+                            };
+                          });
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {temEndodontiaNoContrato && (
+                    <div className="pt-2.5 border-t border-border/80 space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs font-semibold text-foreground">Profissional Executor</Label>
+                          <Select
+                            value={snapshotAtual?.dadosEndodontia?.executorTipo || 'dentista_titular'}
+                            onValueChange={(val: 'dentista_titular' | 'parceiro') => {
+                              setIsManuallyEdited(true);
+                              setSnapshotAtual((prev) => {
+                                if (!prev) return prev;
+                                return {
+                                  ...prev,
+                                  dadosEndodontia: {
+                                    ...prev.dadosEndodontia!,
+                                    ativo: true,
+                                    executorTipo: val,
+                                  },
+                                };
+                              });
+                            }}
+                          >
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="dentista_titular">Dra. Rosângela Santos Pereira (CRO-AL 06267)</SelectItem>
+                              <SelectItem value="parceiro">Cirurgião-Dentista Parceiro Cadastrado</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {snapshotAtual?.dadosEndodontia?.executorTipo === 'parceiro' && (
+                          <>
+                            <div className="space-y-1">
+                              <Label className="text-xs font-semibold text-foreground">Selecionar Parceiro</Label>
+                              <Select
+                                value={snapshotAtual?.dadosEndodontia?.parceiro?.id || 'manual'}
+                                onValueChange={(pId) => {
+                                  setIsManuallyEdited(true);
+                                  const parcEncontrado = parceiros.find((p) => p.id === pId);
+                                  setSnapshotAtual((prev) => {
+                                    if (!prev) return prev;
+                                    return {
+                                      ...prev,
+                                      dadosEndodontia: {
+                                        ...prev.dadosEndodontia!,
+                                        ativo: true,
+                                        executorTipo: 'parceiro',
+                                        parceiro: parcEncontrado ? {
+                                          id: parcEncontrado.id,
+                                          nome: parcEncontrado.nome,
+                                          croUf: (prev.dadosEndodontia?.parceiro?.croUf) || '',
+                                          documento: (prev.dadosEndodontia?.parceiro?.documento) || '',
+                                          especialidade: parcEncontrado.especialidade || '',
+                                          telefone: parcEncontrado.telefone || '',
+                                        } : prev.dadosEndodontia?.parceiro,
+                                      },
+                                    };
+                                  });
+                                }}
+                              >
+                                <SelectTrigger className="h-8 text-xs">
+                                  <SelectValue placeholder="Selecione um parceiro cadastrado" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="manual">-- Outro parceiro / Digitação direta --</SelectItem>
+                                  {parceiros.map((p) => (
+                                    <SelectItem key={p.id} value={p.id}>
+                                      {p.nome} {p.especialidade ? `(${p.especialidade})` : ''}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="space-y-1">
+                              <Label className="text-xs font-semibold text-foreground">Nome do Parceiro</Label>
+                              <Input
+                                value={snapshotAtual?.dadosEndodontia?.parceiro?.nome || ''}
+                                onChange={(e) => {
+                                  setIsManuallyEdited(true);
+                                  const val = e.target.value;
+                                  setSnapshotAtual((prev) => prev ? {
+                                    ...prev,
+                                    dadosEndodontia: {
+                                      ...prev.dadosEndodontia!,
+                                      ativo: true,
+                                      executorTipo: 'parceiro',
+                                      parceiro: {
+                                        ...(prev.dadosEndodontia?.parceiro || { nome: '', croUf: '' }),
+                                        nome: val,
+                                      },
+                                    },
+                                  } : prev);
+                                }}
+                                placeholder="Dr(a). Nome do Cirurgião Parceiro"
+                                className="h-8 text-xs"
+                              />
+                            </div>
+
+                            <div className="space-y-1">
+                              <Label className="text-xs font-semibold text-foreground">CRO / UF do Parceiro</Label>
+                              <Input
+                                value={snapshotAtual?.dadosEndodontia?.parceiro?.croUf || ''}
+                                onChange={(e) => {
+                                  setIsManuallyEdited(true);
+                                  const val = e.target.value;
+                                  setSnapshotAtual((prev) => prev ? {
+                                    ...prev,
+                                    dadosEndodontia: {
+                                      ...prev.dadosEndodontia!,
+                                      ativo: true,
+                                      executorTipo: 'parceiro',
+                                      parceiro: {
+                                        ...(prev.dadosEndodontia?.parceiro || { nome: '', croUf: '' }),
+                                        croUf: val,
+                                      },
+                                    },
+                                  } : prev);
+                                }}
+                                placeholder="Ex: CRO-AL 12345"
+                                className="h-8 text-xs"
+                              />
+                            </div>
+
+                            <div className="space-y-1">
+                              <Label className="text-xs font-semibold text-foreground">CPF / CNPJ do Parceiro</Label>
+                              <Input
+                                value={snapshotAtual?.dadosEndodontia?.parceiro?.documento || ''}
+                                onChange={(e) => {
+                                  setIsManuallyEdited(true);
+                                  const val = e.target.value;
+                                  setSnapshotAtual((prev) => prev ? {
+                                    ...prev,
+                                    dadosEndodontia: {
+                                      ...prev.dadosEndodontia!,
+                                      ativo: true,
+                                      executorTipo: 'parceiro',
+                                      parceiro: {
+                                        ...(prev.dadosEndodontia?.parceiro || { nome: '', croUf: '' }),
+                                        documento: val,
+                                      },
+                                    },
+                                  } : prev);
+                                }}
+                                placeholder="000.000.000-00 (quando pertinente)"
+                                className="h-8 text-xs"
+                              />
+                            </div>
+                          </>
+                        )}
+
+                        <div className="space-y-1">
+                          <Label className="text-xs font-semibold text-foreground">Dente(s) Tratado(s)</Label>
+                          <Input
+                            value={snapshotAtual?.dadosEndodontia?.dentes || ''}
+                            onChange={(e) => {
+                              setIsManuallyEdited(true);
+                              const val = e.target.value;
+                              setSnapshotAtual((prev) => prev ? {
+                                ...prev,
+                                dadosEndodontia: {
+                                  ...prev.dadosEndodontia!,
+                                  ativo: true,
+                                  executorTipo: prev.dadosEndodontia?.executorTipo || 'dentista_titular',
+                                  dentes: val,
+                                },
+                              } : prev);
+                            }}
+                            placeholder="Ex: Dente 16, Elemento 21..."
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                      </div>
+
+                      {snapshotAtual?.dadosEndodontia?.executorTipo === 'dentista_titular' && (
+                        <p className="text-[11px] text-muted-foreground bg-muted/40 p-2 rounded border border-border">
+                          ℹ️ <strong>Executor Designado:</strong> O procedimento será executado pela Dra. Rosângela Santos Pereira (CRO-AL 06267). Os campos e assinaturas de cirurgião parceiro serão omitidos automaticamente no contrato oficial e no PDF.
+                        </p>
+                      )}
+                      {snapshotAtual?.dadosEndodontia?.executorTipo === 'parceiro' && (
+                        <p className="text-[11px] text-muted-foreground bg-purple-500/10 text-purple-900 dark:text-purple-200 p-2 rounded border border-purple-500/20">
+                          ℹ️ <strong>Parceiro Executor Vinculado:</strong> O contrato identificará o profissional parceiro acima nas Partes, na Cláusula 2ª e incluirá seu campo específico para assinatura profissional.
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Alerta de Pendências Cadastrais do Paciente */}
@@ -1788,6 +2048,145 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                       )}
                     </div>
 
+                    {/* Seção 7: Tratamento Endodôntico (Canal) & Profissional Parceiro */}
+                    <div className="p-4 bg-card rounded-lg border border-border shadow-sm space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                          <Stethoscope className="h-3.5 w-3.5 text-purple-500" />
+                          7. Tratamento Endodôntico (Canal) & Profissional Parceiro
+                        </h4>
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="toggleEndoEditTab" className="text-xs text-muted-foreground cursor-pointer select-none">
+                            {snapshotAtual.dadosEndodontia?.ativo ? 'Ativo (17 Cláusulas)' : 'Inativo'}
+                          </Label>
+                          <Switch
+                            id="toggleEndoEditTab"
+                            checked={Boolean(snapshotAtual.dadosEndodontia?.ativo)}
+                            onCheckedChange={(checked) => {
+                              handleUpdateSnapshotField('dadosEndodontia.ativo', checked);
+                              handleUpdateSnapshotField('tipoModeloContrato', checked ? 'endodontia' : 'geral');
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      {snapshotAtual.dadosEndodontia?.ativo && (
+                        <div className="space-y-3 pt-2 border-t border-border">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                            <div className="space-y-1">
+                              <Label className="text-xs text-muted-foreground">Executor do Tratamento</Label>
+                              <Select
+                                value={snapshotAtual.dadosEndodontia.executorTipo || 'dentista_titular'}
+                                onValueChange={(v) => handleUpdateSnapshotField('dadosEndodontia.executorTipo', v)}
+                              >
+                                <SelectTrigger className="h-8 text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="dentista_titular">Dra. Rosângela Santos Pereira (CRO-AL 06267)</SelectItem>
+                                  <SelectItem value="parceiro">Cirurgião-Dentista Parceiro Cadastrado</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            {snapshotAtual.dadosEndodontia.executorTipo === 'parceiro' && (
+                              <>
+                                <div className="space-y-1">
+                                  <Label className="text-xs text-muted-foreground">Nome do Parceiro</Label>
+                                  <Input
+                                    value={snapshotAtual.dadosEndodontia.parceiro?.nome || ''}
+                                    onChange={(e) => handleUpdateSnapshotField('dadosEndodontia.parceiro.nome', e.target.value)}
+                                    placeholder="Nome do cirurgião parceiro"
+                                    className="h-8 text-xs"
+                                  />
+                                </div>
+
+                                <div className="space-y-1">
+                                  <Label className="text-xs text-muted-foreground">CRO / UF do Parceiro</Label>
+                                  <Input
+                                    value={snapshotAtual.dadosEndodontia.parceiro?.croUf || ''}
+                                    onChange={(e) => handleUpdateSnapshotField('dadosEndodontia.parceiro.croUf', e.target.value)}
+                                    placeholder="Ex: CRO-AL 06267"
+                                    className="h-8 text-xs"
+                                  />
+                                </div>
+
+                                <div className="space-y-1">
+                                  <Label className="text-xs text-muted-foreground">CPF / CNPJ do Parceiro</Label>
+                                  <Input
+                                    value={snapshotAtual.dadosEndodontia.parceiro?.documento || ''}
+                                    onChange={(e) => handleUpdateSnapshotField('dadosEndodontia.parceiro.documento', e.target.value)}
+                                    placeholder="000.000.000-00 (quando pertinente)"
+                                    className="h-8 text-xs"
+                                  />
+                                </div>
+                              </>
+                            )}
+
+                            <div className="space-y-1">
+                              <Label className="text-xs text-muted-foreground">Dente(s) Envolvido(s)</Label>
+                              <Input
+                                value={snapshotAtual.dadosEndodontia.dentes || ''}
+                                onChange={(e) => handleUpdateSnapshotField('dadosEndodontia.dentes', e.target.value)}
+                                placeholder="Dente 16, Elemento 21..."
+                                className="h-8 text-xs"
+                              />
+                            </div>
+
+                            <div className="space-y-1 sm:col-span-2 md:col-span-3">
+                              <Label className="text-xs text-muted-foreground">Procedimento(s) Aprovado(s)</Label>
+                              <Input
+                                value={snapshotAtual.dadosEndodontia.procedimentosAprovados || ''}
+                                onChange={(e) => handleUpdateSnapshotField('dadosEndodontia.procedimentosAprovados', e.target.value)}
+                                placeholder="Tratamento endodôntico (canal)..."
+                                className="h-8 text-xs"
+                              />
+                            </div>
+
+                            <div className="space-y-1 sm:col-span-2 md:col-span-3">
+                              <Label className="text-xs text-muted-foreground">Diagnóstico Clínico</Label>
+                              <Input
+                                value={snapshotAtual.dadosEndodontia.diagnostico || ''}
+                                onChange={(e) => handleUpdateSnapshotField('dadosEndodontia.diagnostico', e.target.value)}
+                                placeholder="Diagnóstico do elemento dental..."
+                                className="h-8 text-xs"
+                              />
+                            </div>
+
+                            <div className="space-y-1 sm:col-span-2 md:col-span-3">
+                              <Label className="text-xs text-muted-foreground">Etapas Previstas</Label>
+                              <Input
+                                value={snapshotAtual.dadosEndodontia.etapasPrevistas || ''}
+                                onChange={(e) => handleUpdateSnapshotField('dadosEndodontia.etapasPrevistas', e.target.value)}
+                                placeholder="Abertura coronária, instrumentação biomecânica, desinfecção e obturação..."
+                                className="h-8 text-xs"
+                              />
+                            </div>
+
+                            <div className="space-y-1 sm:col-span-2 md:col-span-3">
+                              <Label className="text-xs text-muted-foreground">Procedimentos Incluídos</Label>
+                              <Input
+                                value={snapshotAtual.dadosEndodontia.procedimentosIncluidos || ''}
+                                onChange={(e) => handleUpdateSnapshotField('dadosEndodontia.procedimentosIncluidos', e.target.value)}
+                                placeholder="Tratamento endodôntico (canal), medicação intracanal..."
+                                className="h-8 text-xs"
+                              />
+                            </div>
+
+                            <div className="space-y-1 sm:col-span-2 md:col-span-3">
+                              <Label className="text-xs text-muted-foreground">Procedimentos Não Incluídos</Label>
+                              <Input
+                                value={snapshotAtual.dadosEndodontia.procedimentosNaoIncluidos || ''}
+                                onChange={(e) => handleUpdateSnapshotField('dadosEndodontia.procedimentosNaoIncluidos', e.target.value)}
+                                placeholder="Restauração definitiva, coroas, pinos, reconstrução protética..."
+                                className="h-8 text-xs"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
                     {/* Botões de Ação na Aba de Edição */}
                     <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
                       <Button
@@ -2048,6 +2447,29 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                 >
                   <Camera className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-emerald-600" />
                   <span>Termo Imagem (PDF)</span>
+                </Button>
+              )}
+
+              {temEndodontiaNoContrato && snapshotAtual && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 sm:h-9 text-xs gap-1.5 border-purple-300 dark:border-purple-800 text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/40 hover:bg-purple-100 dark:hover:bg-purple-900/50"
+                  onClick={async () => {
+                    try {
+                      if (!snapshotAtual) return;
+                      await downloadContratoEndodontiaPdf(snapshotAtual);
+                      toast.success('Contrato de Endodontia (Canal) baixado em PDF!');
+                    } catch (e) {
+                      toast.error('Erro ao gerar Contrato de Endodontia em PDF');
+                    }
+                  }}
+                  disabled={!snapshotAtual}
+                  title="Baixar Contrato Oficial de Tratamento de Canal (Endodontia) em formato PDF A4"
+                >
+                  <Stethoscope className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-purple-600" />
+                  <span>Contrato Canal (PDF)</span>
                 </Button>
               )}
 

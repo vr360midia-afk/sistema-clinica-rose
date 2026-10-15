@@ -11,13 +11,39 @@ import type { Orcamento } from '@/hooks/useOrcamentos';
 import type { ConfiguracoesGerais } from '@/hooks/useConfiguracoes';
 import { carregarConfiguracoesContratoSync, type ConfiguracoesContrato } from '@/hooks/useConfiguracoesContrato';
 import { gerarFragmentoHtmlTermoUsoImagem } from './termoUsoImagem';
+import { gerarHtmlContratoEndodontia, downloadContratoEndodontiaPdf } from './contratoEndodontia';
 
 export {
   identificarTipoDocumento,
   obterRotuloDocumento,
   formatarDocumento,
   somarMesesSeguro,
+  gerarHtmlContratoEndodontia,
+  downloadContratoEndodontiaPdf,
 };
+
+export type TipoModeloContrato = 'geral' | 'lentes_resina' | 'endodontia';
+
+export interface ContratoDadosParceiro {
+  id?: string;
+  nome: string;
+  croUf: string;
+  documento?: string; // CPF ou CNPJ
+  especialidade?: string;
+  telefone?: string;
+}
+
+export interface ContratoDadosEndodontia {
+  ativo: boolean;
+  executorTipo: 'dentista_titular' | 'parceiro';
+  parceiro?: ContratoDadosParceiro | null;
+  dentes?: string;
+  diagnostico?: string;
+  etapasPrevistas?: string;
+  procedimentosIncluidos?: string;
+  procedimentosNaoIncluidos?: string;
+  procedimentosAprovados?: string;
+}
 
 export interface ContratoItem {
   nome: string;
@@ -117,6 +143,7 @@ export interface ContratoSnapshot {
   versao: string;
   status: 'emitido' | 'assinado' | 'cancelado';
   emitidoEm: string;
+  tipoModeloContrato?: TipoModeloContrato;
   paciente: ContratoDadosPaciente;
   clinica: ContratoDadosClinica;
   orcamento: ContratoDadosOrcamento;
@@ -124,6 +151,7 @@ export interface ContratoSnapshot {
   observacoesCustomizadas?: string;
   incluiLentesResina?: boolean;
   dadosRestauracoesPreexistentes?: AvaliacaoRestauracoesPreexistentes;
+  dadosEndodontia?: ContratoDadosEndodontia;
   termoUsoImagem?: ContratoTermoUsoImagem;
   assinaturaPaciente?: {
     assinaturaData: string;
@@ -239,6 +267,50 @@ export const isContratoLenteResina = (snapshot?: ContratoSnapshot | null): boole
 };
 
 /**
+ * Verifica se o contrato abrange tratamento endodôntico (tratamento de canal).
+ */
+export const isContratoEndodontia = (snapshot?: ContratoSnapshot | null): boolean => {
+  if (!snapshot) return false;
+
+  // 1. Se explicitamente sinalizado pelo tipo de modelo
+  if (snapshot.tipoModeloContrato === 'endodontia') return true;
+  if (snapshot.tipoModeloContrato === 'lentes_resina' || snapshot.tipoModeloContrato === 'geral') return false;
+
+  // 2. Se explicitamente configurado no objeto de endodontia
+  if (snapshot.dadosEndodontia?.ativo === true) return true;
+  if (snapshot.dadosEndodontia?.ativo === false) return false;
+
+  // 3. Se o contrato já foi assinado sem indicação explícita, não altera retroativamente
+  if (snapshot.status === 'assinado') return false;
+
+  // 4. Auto-detecção por palavras-chave no orçamento, itens ou observações
+  const itens = snapshot.orcamento?.itens || [];
+  const textao = [
+    snapshot.orcamento?.titulo || '',
+    snapshot.orcamento?.observacoes || '',
+    snapshot.observacoesCustomizadas || '',
+    ...itens.map((i) => `${i.nome} ${i.denteOuRegiao || ''}`),
+  ]
+    .join(' ')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  if (
+    textao.includes('canal') ||
+    textao.includes('endodont') ||
+    textao.includes('retratamento endod') ||
+    textao.includes('biopulpectomia') ||
+    textao.includes('necropulpectomia') ||
+    textao.includes('pulpotomia')
+  ) {
+    return true;
+  }
+
+  return false;
+};
+
+/**
  * Mapeia os dados existentes no sistema para o modelo padronizado do contrato.
  * NUNCA inventa dados fictícios; preserva rigorosamente a integridade dos registros.
  */
@@ -252,7 +324,10 @@ export const mapearDadosContrato = ({
   dentistaCro,
   cidadeLocal = 'São Paulo',
   incluiLentesResina,
+  tipoModeloContrato,
   dadosRestauracoesPreexistentes,
+  dadosEndodontia,
+  parceiro,
   termoUsoImagem,
 }: {
   patient: Partial<Paciente> | any;
@@ -264,7 +339,10 @@ export const mapearDadosContrato = ({
   dentistaCro?: string;
   cidadeLocal?: string;
   incluiLentesResina?: boolean;
+  tipoModeloContrato?: TipoModeloContrato;
   dadosRestauracoesPreexistentes?: AvaliacaoRestauracoesPreexistentes;
+  dadosEndodontia?: ContratoDadosEndodontia;
+  parceiro?: ContratoDadosParceiro;
   termoUsoImagem?: ContratoTermoUsoImagem;
 }): ContratoSnapshot => {
   const emitidoEmData = new Date();
@@ -685,6 +763,54 @@ export const mapearDadosContrato = ({
     valorParcela,
   };
 
+  // Detecção e estruturação do modelo de contrato (Endodontia / Lentes / Geral)
+  const itensDesc = (orcamento?.itens || []).map((i: any) => `${i?.nome || ''} ${i?.denteOuRegiao || ''}`).join(' ');
+  const textoDetectarEndo = `${orcamento?.titulo || ''} ${orcamento?.observacoes || ''} ${itensDesc}`
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  const temPalavrasEndo =
+    textoDetectarEndo.includes('canal') ||
+    textoDetectarEndo.includes('endodont') ||
+    textoDetectarEndo.includes('pulpotomia') ||
+    textoDetectarEndo.includes('biopulpectomia');
+
+  const modeloFinal: TipoModeloContrato = tipoModeloContrato || (dadosEndodontia?.ativo ? 'endodontia' : (temPalavrasEndo ? 'endodontia' : (incluiLentesResina ? 'lentes_resina' : 'geral')));
+
+  // Identificação do profissional parceiro
+  const parceiroFinal: ContratoDadosParceiro | undefined = parceiro || (orcamento?.parceiroNome ? {
+    id: orcamento?.parceiroId,
+    nome: orcamento?.parceiroNome,
+    croUf: '',
+    documento: '',
+  } : undefined);
+
+  const dentesExtraidos = (orcamento?.itens || [])
+    .map((i: any) => i?.denteOuRegiao)
+    .filter(Boolean)
+    .join(', ');
+
+  const procedimentosAprovadosExtraidos = (orcamento?.itens || [])
+    .map((i: any) => `${i?.nome || ''}${i?.denteOuRegiao ? ` (${i.denteOuRegiao})` : ''}`)
+    .filter(Boolean)
+    .join(', ') || orcamento?.titulo || 'Tratamento Endodôntico';
+
+  const dadosEndodontiaFinal: ContratoDadosEndodontia | undefined = dadosEndodontia ? {
+    ...dadosEndodontia,
+    ativo: dadosEndodontia.ativo ?? (modeloFinal === 'endodontia'),
+    parceiro: dadosEndodontia.parceiro || parceiroFinal,
+  } : (modeloFinal === 'endodontia' ? {
+    ativo: true,
+    executorTipo: parceiroFinal?.nome ? 'parceiro' : 'dentista_titular',
+    parceiro: parceiroFinal || null,
+    dentes: dentesExtraidos || 'Elemento(s) dentário(s) indicado(s) na avaliação clínica',
+    diagnostico: 'Avaliação clínica compatível com necessidade de intervenção endodôntica',
+    etapasPrevistas: 'Abertura coronária, localização dos canais, limpeza, instrumentação biomecânica, desinfecção e obturação radicular',
+    procedimentosIncluidos: 'Tratamento endodôntico (canal), instrumentação, medicação intracanal (quando indicada) e obturação dos canais radiculares',
+    procedimentosNaoIncluidos: 'Restaurações definitivas, coroas protéticas, pinos/núcleos intracanais, reconstruções estéticas ou cirurgias parendodônticas',
+    procedimentosAprovados: procedimentosAprovadosExtraidos,
+  } : undefined);
+
   return {
     contratoId,
     orcamentoId: orcamento?.id || '',
@@ -692,13 +818,15 @@ export const mapearDadosContrato = ({
     versao: '1.0',
     status: 'emitido',
     emitidoEm,
+    tipoModeloContrato: modeloFinal,
     paciente: dadosPaciente,
     clinica: dadosClinica,
     orcamento: dadosOrcamento,
     financeiro: dadosFinanceiro,
     observacoesCustomizadas: orcamento?.observacoes || undefined,
-    incluiLentesResina: incluiLentesResina !== undefined ? incluiLentesResina : undefined,
+    incluiLentesResina: modeloFinal === 'lentes_resina' ? true : (incluiLentesResina !== undefined ? incluiLentesResina : undefined),
     dadosRestauracoesPreexistentes: dadosRestauracoesPreexistentes || patient?.restauracoesPreexistentes || undefined,
+    dadosEndodontia: dadosEndodontiaFinal,
     termoUsoImagem: termoUsoImagem !== undefined ? termoUsoImagem : {
       ativo: true,
       autorizado: false, // Por padrão facultativo: aguarda manifestação de autorização do paciente
@@ -717,6 +845,11 @@ export const mapearDadosContrato = ({
  * pré-visualização, impressão (window.print) e conversão para PDF A4 via html2canvas/jsPDF.
  */
 export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
+  // Se o contrato for do modelo de Endodontia (Canal), renderiza o documento específico
+  if (isContratoEndodontia(snapshot)) {
+    return gerarHtmlContratoEndodontia(snapshot);
+  }
+
   const { paciente, clinica, orcamento, financeiro } = snapshot;
   const dataHojeExtenso = formatarDataPorExtenso(new Date(snapshot.emitidoEm), clinica.cidade || 'Local');
 
