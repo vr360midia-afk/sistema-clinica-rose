@@ -21,6 +21,7 @@ import { FinanceiroDRE } from '@/components/financeiro/FinanceiroDRE';
 import { gerarRecibo } from '@/utils/recibo';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { useOrcamentos } from '@/hooks/useOrcamentos';
+import { useMaquinasCartao, calcularTaxaCartao } from '@/hooks/useMaquinasCartao';
 import { calcularSaldosOrcamentos } from '@/utils/orcamentoSaldo';
 import { toast } from 'sonner';
 import { formatMoney } from '@/utils/exportCsv';
@@ -31,6 +32,7 @@ const Financeiro = () => {
   const { requireMasterPassword } = useSecurityGate();
   const { configuracoes } = useConfiguracoes();
   const { orcamentos } = useOrcamentos();
+  const { operadoras, operadoraPadrao } = useMaquinasCartao();
 
   const [showTransactionForm, setShowTransactionForm] = useState(false);
   const [editingTransacao, setEditingTransacao] = useState<any | null>(null);
@@ -92,14 +94,53 @@ const Financeiro = () => {
     .filter(t => t?.categoria === 'Taxas de Cartão' || (typeof t?.descricao === 'string' && (t.descricao.toLowerCase().includes('taxa da máquina') || t.descricao.toLowerCase().includes('taxa cartão'))))
     .reduce((sum, t) => sum + Number(t?.valor || 0), 0);
 
+  const getDetalhesCartao = (t: any) => {
+    const descLower = (t?.descricao || '').toLowerCase();
+    const isCartao =
+      t?.metodoPagamento === 'cartao' ||
+      descLower.includes('cartão') ||
+      descLower.includes('cartao') ||
+      descLower.includes('crédito') ||
+      descLower.includes('debito');
+
+    if (!isCartao || t?.tipo !== 'receita') return null;
+
+    const valorBruto = Number(t?.valor || 0);
+    const parcelas = Math.max(1, parseInt(t?.parcelas) || 1);
+
+    let taxaPerc = Number(t?.taxaCartaoPercentual || 0);
+    let taxaValor = Number(t?.taxaCartaoValor || 0);
+    let valorLiquido = Number(t?.valorLiquido || 0);
+
+    // Se a taxa não foi salva explicitamente no banco, calcula dinamicamente com base nas operadoras cadastradas
+    if (taxaValor <= 0 && valorBruto > 0) {
+      const calc = calcularTaxaCartao(operadoraPadrao, parcelas, valorBruto, false);
+      taxaPerc = calc.taxaPercentual;
+      taxaValor = calc.taxaValor;
+      valorLiquido = calc.valorLiquido;
+    } else if (valorLiquido <= 0) {
+      valorLiquido = Math.max(0, Number((valorBruto - taxaValor).toFixed(2)));
+    }
+
+    return {
+      valorBruto,
+      parcelas,
+      taxaPerc,
+      taxaValor,
+      valorLiquido,
+    };
+  };
+
   // Identifica taxas de cartão embutidas em receitas pagas que ainda NÃO possuem transação de despesa separada (retrocompatibilidade imediata)
   const taxasEmbutidasSemDespesa = receitasPagas
-    .filter(r => Number(r?.taxaCartaoValor || 0) > 0)
     .filter(r => !despesas.some(d => 
       (typeof d?.descricao === 'string' && d.descricao.includes(r.descricao || '')) ||
       (r.orcamentoId && d.orcamentoId === r.orcamentoId && (d.categoria === 'Taxas de Cartão' || d.descricao?.toLowerCase().includes('taxa')))
     ))
-    .reduce((sum, r) => sum + Number(r?.taxaCartaoValor || 0), 0);
+    .reduce((sum, r) => {
+      const det = getDetalhesCartao(r);
+      return sum + (det ? det.taxaValor : 0);
+    }, 0);
 
   const totalTaxasCartao = taxasLancadasComoDespesa + taxasEmbutidasSemDespesa;
   const totalDespesas = despesas.reduce((sum, t) => sum + Number(t?.valor || 0), 0) + taxasEmbutidasSemDespesa;
@@ -491,6 +532,7 @@ const Financeiro = () => {
                       const isReceita = transacao.tipo === 'receita';
                       const isPago = transacao.status === 'pago';
                       const pacNome = getPacienteName(transacao.pacienteId);
+                      const detalhesCartao = getDetalhesCartao(transacao);
 
                       return (
                         <div
@@ -540,27 +582,60 @@ const Financeiro = () => {
                           </div>
 
                           <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0">
-                            <div className="text-left sm:text-right space-y-0.5">
-                              <p className={`font-bold text-base ${isReceita ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
-                                {isReceita ? '+' : '-'} {formatMoney(transacao.valor || 0)}
-                              </p>
-                              {isReceita && Number(transacao.taxaCartaoValor || 0) > 0 && (
-                                <p className="text-[10px] text-muted-foreground font-medium">
-                                  Taxa máq: <span className="text-red-500 font-semibold">-{formatMoney(transacao.taxaCartaoValor)}</span> • Líq: <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{formatMoney(transacao.valorLiquido || transacao.valor - transacao.taxaCartaoValor)}</span>
-                                </p>
-                              )}
-                              <div>
-                                {isPago ? (
-                                  <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 text-[10px] font-semibold gap-1">
-                                    <Check className="h-3 w-3" /> No Caixa
-                                  </Badge>
-                                ) : (
-                                  <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400 text-[10px] font-semibold gap-1">
-                                    <Clock className="h-3 w-3" /> Pendente
-                                  </Badge>
-                                )}
+                            {detalhesCartao && isReceita ? (
+                              <div className="text-left sm:text-right space-y-1">
+                                <div className="flex items-center gap-2 flex-wrap sm:justify-end">
+                                  {/* Valor Cobrado */}
+                                  <div className="flex items-center gap-1 text-xs text-muted-foreground bg-muted/60 px-2 py-0.5 rounded border border-border/60">
+                                    <span className="text-[11px] font-normal text-muted-foreground">Cobrado:</span>
+                                    <span className="font-semibold text-foreground/90">{formatMoney(detalhesCartao.valorBruto)}</span>
+                                  </div>
+
+                                  <span className="text-muted-foreground/60 text-xs font-bold">➔</span>
+
+                                  {/* Saldo Líquido Descontando as Taxas */}
+                                  <div className="flex items-center gap-1 bg-emerald-500/10 dark:bg-emerald-950/40 px-2.5 py-0.5 rounded border border-emerald-500/30">
+                                    <span className="text-[11px] font-medium text-emerald-700 dark:text-emerald-300">Líquido:</span>
+                                    <span className="font-black text-sm sm:text-base text-emerald-600 dark:text-emerald-400">
+                                      +{formatMoney(detalhesCartao.valorLiquido)}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-1.5 sm:justify-end text-[11px] text-muted-foreground">
+                                  <span className="text-rose-600 dark:text-rose-400 font-medium">
+                                    Taxa máq: -{formatMoney(detalhesCartao.taxaValor)} ({detalhesCartao.taxaPerc}%)
+                                  </span>
+                                  <span>•</span>
+                                  {isPago ? (
+                                    <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 text-[10px] font-semibold gap-1 py-0 px-1.5">
+                                      <Check className="h-3 w-3" /> No Caixa
+                                    </Badge>
+                                  ) : (
+                                    <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400 text-[10px] font-semibold gap-1 py-0 px-1.5">
+                                      <Clock className="h-3 w-3" /> Pendente
+                                    </Badge>
+                                  )}
+                                </div>
                               </div>
-                            </div>
+                            ) : (
+                              <div className="text-left sm:text-right space-y-0.5">
+                                <p className={`font-bold text-base ${isReceita ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                                  {isReceita ? '+' : '-'} {formatMoney(transacao.valor || 0)}
+                                </p>
+                                <div>
+                                  {isPago ? (
+                                    <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 text-[10px] font-semibold gap-1">
+                                      <Check className="h-3 w-3" /> No Caixa
+                                    </Badge>
+                                  ) : (
+                                    <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400 text-[10px] font-semibold gap-1">
+                                      <Clock className="h-3 w-3" /> Pendente
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                            )}
 
                             <div className="flex items-center gap-1">
                               {/* Botão rápido para dar baixa no Caixa se pendente */}

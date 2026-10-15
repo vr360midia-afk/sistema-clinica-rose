@@ -19,6 +19,7 @@ import { useOrcamentos } from '@/hooks/useOrcamentos';
 import { calcularSaldosOrcamentos } from '@/utils/orcamentoSaldo';
 import { FinanceiroComprovantes } from '@/components/financeiro/FinanceiroComprovantes';
 import { EditProcedimentoValorModal } from './EditProcedimentoValorModal';
+import { useMaquinasCartao, calcularTaxaCartao } from '@/hooks/useMaquinasCartao';
 
 interface PatientFinancialProps {
   patient: any;
@@ -84,6 +85,43 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
   const { requireMasterPassword } = useSecurityGate();
   const { user } = useAuth();
   const { configuracoes } = useConfiguracoes();
+  const { operadoraPadrao } = useMaquinasCartao();
+
+  const getDetalhesCartao = (t: any) => {
+    const descLower = (t?.descricao || '').toLowerCase();
+    const isCartao =
+      t?.metodoPagamento === 'cartao' ||
+      descLower.includes('cartão') ||
+      descLower.includes('cartao') ||
+      descLower.includes('crédito') ||
+      descLower.includes('debito');
+
+    if (!isCartao || t?.tipo !== 'receita') return null;
+
+    const valorBruto = Number(t?.valor || 0);
+    const parcelas = Math.max(1, parseInt(t?.parcelas) || 1);
+
+    let taxaPerc = Number(t?.taxaCartaoPercentual || 0);
+    let taxaValor = Number(t?.taxaCartaoValor || 0);
+    let valorLiquido = Number(t?.valorLiquido || 0);
+
+    if (taxaValor <= 0 && valorBruto > 0) {
+      const calc = calcularTaxaCartao(operadoraPadrao, parcelas, valorBruto, false);
+      taxaPerc = calc.taxaPercentual;
+      taxaValor = calc.taxaValor;
+      valorLiquido = calc.valorLiquido;
+    } else if (valorLiquido <= 0) {
+      valorLiquido = Math.max(0, Number((valorBruto - taxaValor).toFixed(2)));
+    }
+
+    return {
+      valorBruto,
+      parcelas,
+      taxaPerc,
+      taxaValor,
+      valorLiquido,
+    };
+  };
   const [enviando, setEnviando] = useState(false);
   const [showTransactionForm, setShowTransactionForm] = useState(false);
   const [editingTransacao, setEditingTransacao] = useState<any | null>(null);
@@ -509,7 +547,22 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
                   >
                     {t?.status || 'pendente'}
                   </Badge>
-                  <span className="text-sm sm:text-base font-bold">{brl(t?.valor || 0)}</span>
+                  {(() => {
+                    const detCartao = getDetalhesCartao(t);
+                    if (detCartao) {
+                      return (
+                        <div className="flex items-center gap-1.5 text-right">
+                          <span className="text-xs text-muted-foreground line-through">
+                            {brl(detCartao.valorBruto)}
+                          </span>
+                          <span className="text-xs sm:text-sm font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                            Líq: {brl(detCartao.valorLiquido)}
+                          </span>
+                        </div>
+                      );
+                    }
+                    return <span className="text-sm sm:text-base font-bold">{brl(t?.valor || 0)}</span>;
+                  })()}
 
                   {t?.status !== 'pago' && t?.tipo === 'receita' && (
                     <Button
