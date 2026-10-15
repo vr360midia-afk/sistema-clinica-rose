@@ -27,23 +27,25 @@ const Relatorios = () => {
       const mes = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
       const mesNome = mes.toLocaleDateString('pt-BR', { month: 'short' });
       
-      const receitaMes = transacoes
+      const receitaMes = (transacoes || [])
         .filter(t => {
+          if (!t?.data) return false;
           const tData = new Date(t.data);
           return tData.getMonth() === mes.getMonth() && 
                  tData.getFullYear() === mes.getFullYear() &&
-                 t.tipo === 'receita' && t.status === 'pago';
+                 t?.tipo === 'receita' && t?.status === 'pago';
         })
-        .reduce((sum, t) => sum + t.valor, 0);
+        .reduce((sum, t) => sum + Number(t?.valor || 0), 0);
 
-      const despesasMes = transacoes
+      const despesasMes = (transacoes || [])
         .filter(t => {
+          if (!t?.data) return false;
           const tData = new Date(t.data);
           return tData.getMonth() === mes.getMonth() && 
                  tData.getFullYear() === mes.getFullYear() &&
-                 t.tipo === 'despesa' && t.status === 'pago';
+                 t?.tipo === 'despesa' && t?.status === 'pago';
         })
-        .reduce((sum, t) => sum + t.valor, 0);
+        .reduce((sum, t) => sum + Number(t?.valor || 0), 0);
 
       meses.push({
         mes: mesNome,
@@ -59,9 +61,10 @@ const Relatorios = () => {
   const procedimentosMaisRealizados = useMemo(() => {
     const procedimentos: { [key: string]: number } = {};
     
-    consultas
-      .filter(c => c.status === 'realizado')
+    (consultas || [])
+      .filter(c => c?.status === 'realizado')
       .forEach(c => {
+        if (!c?.procedimento) return;
         procedimentos[c.procedimento] = (procedimentos[c.procedimento] || 0) + 1;
       });
 
@@ -193,24 +196,24 @@ const Relatorios = () => {
     };
 
     // Conversão de orçamento
-    const orcPeriodo = orcamentos.filter((o) => noPeriodo(o.criadoEm));
-    const enviados = orcPeriodo.filter((o) => o.status !== 'rascunho');
-    const aprovados = orcPeriodo.filter((o) => o.status === 'aprovado');
-    const recusados = orcPeriodo.filter((o) => o.status === 'recusado');
+    const orcPeriodo = (orcamentos || []).filter((o) => o && noPeriodo(o.criadoEm));
+    const enviados = orcPeriodo.filter((o) => o?.status !== 'rascunho');
+    const aprovados = orcPeriodo.filter((o) => o?.status === 'aprovado');
+    const recusados = orcPeriodo.filter((o) => o?.status === 'recusado');
     const taxaConversao = enviados.length ? (aprovados.length / enviados.length) * 100 : 0;
-    const valorAprovado = aprovados.reduce((s, o) => s + (o.total || 0), 0);
+    const valorAprovado = aprovados.reduce((s, o) => s + (o?.total || 0), 0);
     const valorEmAberto = orcPeriodo
-      .filter((o) => o.status === 'enviado')
-      .reduce((s, o) => s + (o.total || 0), 0);
+      .filter((o) => o?.status === 'enviado')
+      .reduce((s, o) => s + (o?.total || 0), 0);
 
     // Faltas por período
-    const consultasPeriodo = consultas.filter((c: any) => noPeriodo(c.data));
-    const faltas = consultasPeriodo.filter((c: any) => c.status === 'faltou');
-    const cancelamentos = consultasPeriodo.filter((c: any) => c.status === 'cancelado');
+    const consultasPeriodo = (consultas || []).filter((c: any) => c && noPeriodo(c.data));
+    const faltas = consultasPeriodo.filter((c: any) => c?.status === 'faltou');
+    const cancelamentos = consultasPeriodo.filter((c: any) => c?.status === 'cancelado');
     const taxaFalta = consultasPeriodo.length ? (faltas.length / consultasPeriodo.length) * 100 : 0;
     const faltasPorDentista = Object.values(
       faltas.reduce((acc: any, c: any) => {
-        const key = c.dentista || 'não informado';
+        const key = c?.dentista || 'não informado';
         acc[key] = acc[key] || { chave: key, qtd: 0 };
         acc[key].qtd += 1;
         return acc;
@@ -218,7 +221,7 @@ const Relatorios = () => {
     ).sort((a: any, b: any) => b.qtd - a.qtd) as any[];
 
     // Ticket médio por dentista (consultas realizadas com valor) e por parceiro (receitas)
-    const realizadas = consultasPeriodo.filter((c: any) => c.status === 'realizado');
+    const realizadas = consultasPeriodo.filter((c: any) => c?.status === 'realizado');
     const ticketDentista = Object.values(
       realizadas.reduce((acc: any, c: any) => {
         const key = c.dentista || 'não informado';

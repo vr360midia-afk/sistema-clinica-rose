@@ -45,8 +45,8 @@ export const useNotificacoes = () => {
     });
 
     // Orçamentos vencendo (validade em até 7 dias) ou já vencidos e não aprovados
-    orcamentos.forEach((o) => {
-      if (!o.validade || o.status === 'aprovado' || o.status === 'recusado') return;
+    (orcamentos || []).forEach((o) => {
+      if (!o || !o.validade || o?.status === 'aprovado' || o?.status === 'recusado') return;
       const validade = new Date(o.validade);
       if (isNaN(validade.getTime())) return;
       const dias = diffDias(validade, hoje);
@@ -55,15 +55,15 @@ export const useNotificacoes = () => {
           id: `orc-${o.id}`,
           tipo: 'orcamento',
           titulo: dias < 0 ? `Orçamento vencido: ${o.titulo}` : `Orçamento vence em ${dias} dia(s)`,
-          descricao: `${o.pacienteNome || 'Paciente'} — ${o.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`,
+          descricao: `${o.pacienteNome || 'Paciente'} — ${Number(o.total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`,
           link: '/pacientes',
         });
       }
     });
 
     // Inadimplentes (receitas pendentes vencidas)
-    transacoes.forEach((t: any) => {
-      if (t.tipo !== 'receita' || t.status === 'pago') return;
+    (transacoes || []).forEach((t: any) => {
+      if (!t || t.tipo !== 'receita' || t?.status === 'pago') return;
       const venc = t.vencimento ? new Date(t.vencimento) : t.data ? new Date(t.data) : null;
       if (!venc || isNaN(venc.getTime())) return;
       const dias = diffDias(hoje, venc);

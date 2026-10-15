@@ -35,42 +35,44 @@ const Dashboard = () => {
   }
 
   // Calcular estatísticas reais
-  const pacientesAtivos = pacientes.filter(p => p.status !== 'Arquivado' && p.status !== 'Inativo').length;
+  const pacientesAtivos = (pacientes || []).filter(p => p && p.status !== 'Arquivado' && p.status !== 'Inativo').length;
   
   const today = new Date();
-  const consultasHojeList = consultas.filter(consulta => {
+  const consultasHojeList = (consultas || []).filter(consulta => {
+    if (!consulta?.data) return false;
     const consultaDate = new Date(consulta.data);
     return consultaDate.toDateString() === today.toDateString();
   });
   const consultasHoje = consultasHojeList.length;
 
-  const consultasPendentes = consultasHojeList.filter(c => c.status === 'agendado').length;
-  const consultasCanceladas = consultasHojeList.filter(c => c.status === 'cancelado').length;
-  const consultasFaltou = consultasHojeList.filter(c => c.status === 'faltou').length;
-  const consultasRemarcadas = consultasHojeList.filter(c => c.status === 'remarcado').length;
+  const consultasPendentes = consultasHojeList.filter(c => c?.status === 'agendado').length;
+  const consultasCanceladas = consultasHojeList.filter(c => c?.status === 'cancelado').length;
+  const consultasFaltou = consultasHojeList.filter(c => c?.status === 'faltou').length;
+  const consultasRemarcadas = consultasHojeList.filter(c => c?.status === 'remarcado').length;
 
   // Receita mensal atual (Transações pagas)
   const currentMonth = today.getMonth();
   const currentYear = today.getFullYear();
-  const receitaMensal = transacoes
+  const receitaMensal = (transacoes || [])
     .filter(t => {
+      if (!t?.data) return false;
       const transacaoDate = new Date(t.data);
       return transacaoDate.getMonth() === currentMonth && 
              transacaoDate.getFullYear() === currentYear &&
-             t.tipo === 'receita' && t.status === 'pago';
+             t?.tipo === 'receita' && t?.status === 'pago';
     })
-    .reduce((sum, t) => sum + t.valor, 0);
+    .reduce((sum, t) => sum + Number(t?.valor || 0), 0);
 
   const { orcamentos } = useOrcamentos();
   
   // Orçamentos Fechados (Vendas)
-  const vendasMes = orcamentos
+  const vendasMes = (orcamentos || [])
     .filter(o => {
-      if (o.status?.toLowerCase() !== 'aprovado') return false;
+      if (!o || o.status?.toLowerCase() !== 'aprovado') return false;
       const data = new Date(o.atualizadoEm || o.criadoEm);
       return data.getMonth() === currentMonth && data.getFullYear() === currentYear;
     })
-    .reduce((sum, o) => sum + Number(o.total || 0), 0);
+    .reduce((sum, o) => sum + Number(o?.total || 0), 0);
 
 
   return (

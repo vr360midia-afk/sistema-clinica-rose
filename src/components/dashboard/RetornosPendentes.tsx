@@ -12,10 +12,10 @@ export const RetornosPendentes = () => {
   const seisMesesAtras = new Date();
   seisMesesAtras.setMonth(seisMesesAtras.getMonth() - 6);
 
-  const retornosPendentes = pacientes.map(paciente => {
+  const retornosPendentes = (pacientes || []).filter(Boolean).map(paciente => {
     // Pega todas as consultas realizadas deste paciente
-    const consultasPaciente = consultas
-      .filter(c => c.pacienteId === paciente.id && c.status === 'realizado')
+    const consultasPaciente = (consultas || [])
+      .filter(c => c && c.pacienteId === paciente?.id && c?.status === 'realizado')
       .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
     
     const ultimaConsulta = consultasPaciente[0];

@@ -21,8 +21,8 @@ export const useAgendaViews = (selectedDate: Date) => {
   };
 
   const transformedConsultas = useMemo(() => {
-    return consultas.map(consulta => {
-      const paciente = pacientes.find(p => p.id === consulta.pacienteId);
+    return (consultas || []).filter(Boolean).map(consulta => {
+      const paciente = (pacientes || []).find(p => p?.id === consulta?.pacienteId);
       const idade = paciente ? (calcularIdade(paciente.dataNascimento) ?? paciente.idade ?? 0) : 0;
       return {
         id: consulta.id,
@@ -31,7 +31,7 @@ export const useAgendaViews = (selectedDate: Date) => {
         hora: consulta.hora,
         duracao: consulta.duracao,
         procedimento: consulta.procedimento,
-        status: consulta.status,
+        status: consulta?.status || 'agendado',
         confirmacaoStatus: consulta.confirmacaoStatus || 'pendente',
         dentista: consulta.dentista,
         observacoes: consulta.observacoes,

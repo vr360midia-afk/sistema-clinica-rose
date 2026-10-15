@@ -60,13 +60,13 @@ const Financeiro = () => {
 
   const filteredOrcamentos = orcamentos;
 
-  const totalReceived = filteredTransacoes.filter(t => t.status === 'pago' && t.tipo === 'receita').reduce((sum, t) => sum + Number(t.valor || 0), 0);
-  const totalPending = filteredTransacoes.filter(t => t.status === 'pendente' && t.tipo === 'receita').reduce((sum, t) => sum + Number(t.valor || 0), 0);
-  const despesas = filteredTransacoes.filter(t => t.tipo === 'despesa');
-  const totalDespesas = despesas.reduce((sum, t) => sum + Number(t.valor || 0), 0);
+  const totalReceived = filteredTransacoes.filter(t => t?.status === 'pago' && t?.tipo === 'receita').reduce((sum, t) => sum + Number(t?.valor || 0), 0);
+  const totalPending = filteredTransacoes.filter(t => t?.status === 'pendente' && t?.tipo === 'receita').reduce((sum, t) => sum + Number(t?.valor || 0), 0);
+  const despesas = filteredTransacoes.filter(t => t?.tipo === 'despesa');
+  const totalDespesas = despesas.reduce((sum, t) => sum + Number(t?.valor || 0), 0);
   const totalRepasses = despesas
-    .filter(t => t.parceiroId || t.parceiroNome || t.categoria === 'parceria')
-    .reduce((sum, t) => sum + Number(t.valor || 0), 0);
+    .filter(t => t?.parceiroId || t?.parceiroNome || t?.categoria === 'parceria')
+    .reduce((sum, t) => sum + Number(t?.valor || 0), 0);
   const saldoLiquido = totalReceived - totalDespesas;
 
   // Função para verificar se a data pertence ao mês selecionado
@@ -77,21 +77,21 @@ const Financeiro = () => {
   };
 
   // Vendas (Orçamentos Fechados no Mês Selecionado)
-  const orcamentosFechadosNoMes = orcamentos.filter(o => 
-    o.status?.toLowerCase() === 'aprovado' && isNoMes(new Date(o.atualizadoEm || o.criadoEm))
+  const orcamentosFechadosNoMes = (orcamentos || []).filter(o => 
+    o && o.status?.toLowerCase() === 'aprovado' && isNoMes(new Date(o.atualizadoEm || o.criadoEm))
   );
-  const totalFechadoMes = orcamentosFechadosNoMes.reduce((sum, o) => sum + Number(o.total || 0), 0);
+  const totalFechadoMes = orcamentosFechadosNoMes.reduce((sum, o) => sum + Number(o?.total || 0), 0);
 
   // Projeção (Orçamentos Abertos no Mês Selecionado)
-  const orcamentosPendentes = orcamentos.filter(o => 
-    o.status?.toLowerCase() !== 'aprovado' && o.status?.toLowerCase() !== 'recusado' && isNoMes(new Date(o.atualizadoEm || o.criadoEm))
+  const orcamentosPendentes = (orcamentos || []).filter(o => 
+    o && o.status?.toLowerCase() !== 'aprovado' && o.status?.toLowerCase() !== 'recusado' && isNoMes(new Date(o.atualizadoEm || o.criadoEm))
   );
-  const totalProjecao = orcamentosPendentes.reduce((sum, o) => sum + Number(o.total || 0), 0);
+  const totalProjecao = orcamentosPendentes.reduce((sum, o) => sum + Number(o?.total || 0), 0);
 
   // A Receber (Todo o saldo em aberto, independente do mês, mais pendentes do mês)
   const saldosOrcamentos = calcularSaldosOrcamentos(orcamentos, transacoes);
-  const totalOrcamentosAberto = orcamentos
-    .filter((o) => o.status?.toLowerCase() === 'aprovado')
+  const totalOrcamentosAberto = (orcamentos || [])
+    .filter((o) => o?.status?.toLowerCase() === 'aprovado')
     .reduce((sum, o) => sum + (saldosOrcamentos.get(o.id)?.saldo || 0), 0);
   const totalAReceber = totalPending + totalOrcamentosAberto;
 
@@ -157,14 +157,14 @@ const Financeiro = () => {
                     </div>
                   </div>
                   <div className="text-right space-y-1">
-                    <div className="font-semibold">{formatMoney(transacao.valor)}</div>
+                    <div className="font-semibold">{formatMoney(transacao?.valor || 0)}</div>
                     <Badge 
-                      className={transacao.status === 'pago' 
+                      className={transacao?.status === 'pago' 
                         ? 'bg-green-100 text-green-800' 
                         : 'bg-yellow-100 text-yellow-800'
                       }
                     >
-                      {transacao.status === 'pago' ? 'Pago' : 'Pendente'}
+                      {transacao?.status === 'pago' ? 'Pago' : 'Pendente'}
                     </Badge>
                     <div className="flex flex-wrap justify-end gap-1 pt-1">
                       {transacao.tipo === 'receita' && (

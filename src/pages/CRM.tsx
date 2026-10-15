@@ -283,7 +283,7 @@ export default function CRM() {
 
       // 3. Filtro de etapa rápida
       if (filtroEtapa !== 'todos') {
-        const st = (lead.stage || lead.status || 'novo_lead').toLowerCase();
+        const st = (lead?.stage || lead?.status || 'novo_lead').toLowerCase();
         if (filtroEtapa === 'novos' && st !== 'novo_lead' && st !== 'novo') return false;
         if (filtroEtapa === 'primeiro_contato' && st !== 'primeiro_contato' && st !== '1_contato')
           return false;
@@ -309,17 +309,18 @@ export default function CRM() {
 
   // Métricas do Funil
   const metricas = useMemo(() => {
-    const total = leads.length;
-    const novos = leads.filter((l) => {
-      const st = l.stage || l.status;
+    const validLeads = (leads || []).filter(Boolean);
+    const total = validLeads.length;
+    const novos = validLeads.filter((l) => {
+      const st = l?.stage || l?.status;
       return st === 'novo_lead' || st === 'novo' || !st;
     }).length;
-    const primeiroContato = leads.filter((l) => {
-      const st = l.stage || l.status;
+    const primeiroContato = validLeads.filter((l) => {
+      const st = l?.stage || l?.status;
       return st === 'primeiro_contato' || st === '1_contato';
     }).length;
-    const followups = leads.filter((l) => {
-      const st = l.stage || l.status;
+    const followups = validLeads.filter((l) => {
+      const st = l?.stage || l?.status;
       return (
         st === 'followup_1' ||
         st === 'followup_2' ||
@@ -329,15 +330,15 @@ export default function CRM() {
         st === 'mensal'
       );
     }).length;
-    const agendados = leads.filter((l) => {
-      const st = l.stage || l.status;
+    const agendados = validLeads.filter((l) => {
+      const st = l?.stage || l?.status;
       return st === 'agendado' || st === 'consulta_agendada';
     }).length;
-    const perdidos = leads.filter((l) => {
-      const st = l.stage || l.status;
+    const perdidos = validLeads.filter((l) => {
+      const st = l?.stage || l?.status;
       return st === 'perdido';
     }).length;
-    const valorTotal = leads.reduce(
+    const valorTotal = validLeads.reduce(
       (acc, l) => acc + (Number(l.valor_estimado) || 0),
       0
     );

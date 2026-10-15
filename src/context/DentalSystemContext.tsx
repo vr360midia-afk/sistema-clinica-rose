@@ -74,12 +74,12 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
       load('documentos', () => supabaseService.getDocumentos(), []),
     ]);
 
-    setPacientes(pac.data);
-    setConsultas(con.data);
-    setTransacoes(tra.data);
-    setProntuarios(pro.data);
-    setAnamneses(ana.data);
-    setDocumentos(doc.data);
+    setPacientes((pac.data || []).filter(Boolean));
+    setConsultas((con.data || []).filter(Boolean));
+    setTransacoes((tra.data || []).filter(Boolean));
+    setProntuarios((pro.data || []).filter(Boolean));
+    setAnamneses((ana.data || []).filter(Boolean));
+    setDocumentos((doc.data || []).filter(Boolean));
 
     const falhas = [pac, con, tra, pro, ana, doc].filter(r => !r.ok).map(r => r.nome);
     if (falhas.length) {

@@ -201,8 +201,8 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId }: Tra
   const valorParceiro = parseFloat(formData.valorParceiro) || 0;
   const money = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-  const orcamentosDisponiveis = orcamentos.filter((o) => {
-    if (o.status !== 'aprovado') return false;
+  const orcamentosDisponiveis = (orcamentos || []).filter((o) => {
+    if (!o || o.status !== 'aprovado') return false;
     if (o.id === formData.orcamentoId) return true;
     if (formData.pacienteId && o.pacienteId && o.pacienteId !== formData.pacienteId) return false;
     return calcularSaldoOrcamento(o, transacoes as any[], orcamentos as any[]).saldo > 0;

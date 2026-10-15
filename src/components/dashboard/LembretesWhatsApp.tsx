@@ -14,13 +14,14 @@ const LembretesWhatsApp = () => {
   const amanha = addDays(new Date(), 1);
 
   const lembretes = useMemo(() => {
-    return consultas
+    return (consultas || [])
       .filter((c) => {
+        if (!c?.data) return false;
         const d = new Date(c.data);
         return (
           (isSameDay(d, new Date()) || isSameDay(d, amanha)) &&
-          c.status !== 'cancelado' &&
-          c.status !== 'realizado'
+          c?.status !== 'cancelado' &&
+          c?.status !== 'realizado'
         );
       })
       .sort((a, b) => new Date(a.data).getTime() - new Date(b.data).getTime() || (a.hora || '').localeCompare(b.hora || ''))

@@ -25,18 +25,19 @@ export const calcularSaldosOrcamentos = (
   transacoes: any[]
 ): Map<string, SaldoOrcamento> => {
   const resultado = new Map<string, SaldoOrcamento>();
-  const lista = orcamentos || [];
-  const trans = (transacoes || []).filter(ehReceitaConsiderada);
+  const lista = (orcamentos || []).filter(Boolean);
+  const trans = (transacoes || []).filter(Boolean).filter(ehReceitaConsiderada);
 
-  const idsOrcamentos = new Set(lista.map((o) => o.id));
+  const idsOrcamentos = new Set(lista.map((o) => o?.id).filter(Boolean));
 
   // saldo inicial (só com pagamentos vinculados)
   const restante = new Map<string, number>();
   lista.forEach((o) => {
+    if (!o?.id) return;
     const total = Number(o.total || 0);
     const vinculado = trans
-      .filter((t) => t.orcamentoId === o.id)
-      .reduce((s, t) => s + Number(t.valor || 0), 0);
+      .filter((t) => t?.orcamentoId === o.id)
+      .reduce((s, t) => s + Number(t?.valor || 0), 0);
     restante.set(o.id, Math.max(0, total - vinculado));
     resultado.set(o.id, {
       total,
@@ -49,6 +50,7 @@ export const calcularSaldosOrcamentos = (
   // pool de pagamentos sem vínculo, por paciente
   const pool = new Map<string, number>();
   trans.forEach((t) => {
+    if (!t) return;
     if (t.orcamentoId && idsOrcamentos.has(t.orcamentoId)) return;
     const key = chavePaciente(t);
     if (!key) return;
@@ -56,8 +58,8 @@ export const calcularSaldosOrcamentos = (
   });
 
   const aprovados = lista
-    .filter((o) => o.status === 'aprovado')
-    .sort((a, b) => new Date(a.criadoEm || 0).getTime() - new Date(b.criadoEm || 0).getTime());
+    .filter((o) => o?.status === 'aprovado')
+    .sort((a, b) => new Date(a?.criadoEm || 0).getTime() - new Date(b?.criadoEm || 0).getTime());
 
   aprovados.forEach((o) => {
     const key = chavePaciente(o);

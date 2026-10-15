@@ -21,8 +21,8 @@ const AniversariantesMes = ({ pacientes, onSelectPatient }: Props) => {
   const mesAtual = hoje.getMonth();
 
   const aniversariantes = useMemo(() => {
-    return pacientes
-      .filter((p) => p.status !== 'Arquivado' && p.dataNascimento)
+    return (pacientes || [])
+      .filter((p) => p && p.status !== 'Arquivado' && p.dataNascimento)
       .map((p) => {
         const nasc = new Date(p.dataNascimento);
         if (isNaN(nasc.getTime())) return null;

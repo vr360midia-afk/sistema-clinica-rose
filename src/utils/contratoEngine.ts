@@ -170,7 +170,7 @@ export const parseBrMoney = (valStr: string | number | undefined | null): number
 export const isContratoLenteResina = (snapshot?: ContratoSnapshot | null): boolean => {
   if (!snapshot) return false;
   // Se o contrato já foi assinado sem essa indicação prévia, mantém o documento original preservado
-  if (snapshot.status === 'assinado' && snapshot.incluiLentesResina !== true) {
+  if (snapshot?.status === 'assinado' && snapshot.incluiLentesResina !== true) {
     return false;
   }
 

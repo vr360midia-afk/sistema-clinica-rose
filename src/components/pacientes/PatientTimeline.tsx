@@ -44,7 +44,7 @@ const PatientTimeline = ({ patient }: PatientTimelineProps) => {
     const list: TimelineItem[] = [];
 
     consultas
-      .filter((c) => c.pacienteId === patient.id)
+      .filter((c) => c && c.pacienteId === patient?.id)
       .forEach((c) =>
         list.push({
           id: `c-${c.id}`,
@@ -53,12 +53,12 @@ const PatientTimeline = ({ patient }: PatientTimelineProps) => {
           tipo: 'consulta',
           titulo: c.procedimento || 'Consulta',
           descricao: [c.hora, c.dentista].filter(Boolean).join(' • '),
-          badge: c.status,
+          badge: c?.status,
         })
       );
 
     prontuarios
-      .filter((p) => p.pacienteId === patient.id)
+      .filter((p) => p && p.pacienteId === patient?.id)
       .forEach((p) =>
         list.push({
           id: `p-${p.id}`,
@@ -71,7 +71,7 @@ const PatientTimeline = ({ patient }: PatientTimelineProps) => {
       );
 
     transacoes
-      .filter((t) => t.pacienteId === patient.id)
+      .filter((t) => t && t.pacienteId === patient?.id)
       .forEach((t) =>
         list.push({
           id: `t-${t.id}`,
@@ -80,12 +80,12 @@ const PatientTimeline = ({ patient }: PatientTimelineProps) => {
           tipo: 'transacao',
           titulo: `${t.tipo === 'receita' ? 'Recebimento' : 'Despesa'} ${formatMoney(Number(t.valor || 0))}`,
           descricao: t.descricao,
-          badge: t.status,
+          badge: t?.status,
         })
       );
 
     anamneses
-      .filter((a) => a.pacienteId === patient.id)
+      .filter((a) => a && a.pacienteId === patient?.id)
       .forEach((a) =>
         list.push({
           id: `a-${a.id}`,
@@ -93,12 +93,12 @@ const PatientTimeline = ({ patient }: PatientTimelineProps) => {
           tipo: 'anamnese',
           titulo: 'Anamnese',
           descricao: a.queixaPrincipal,
-          badge: a.statusAssinatura,
+          badge: a?.statusAssinatura,
         })
       );
 
     documentos
-      .filter((d) => d.pacienteId === patient.id)
+      .filter((d) => d && d.pacienteId === patient?.id)
       .forEach((d) =>
         list.push({
           id: `d-${d.id}`,

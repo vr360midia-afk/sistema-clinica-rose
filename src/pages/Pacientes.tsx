@@ -107,8 +107,8 @@ const Pacientes = () => {
 
   const [statusFiltro, setStatusFiltro] = useState<string>('todos');
 
-  const pacientesAtivos = pacientes.filter(p => p.status !== 'Arquivado');
-  const pacientesArquivados = pacientes.filter(p => p.status === 'Arquivado');
+  const pacientesAtivos = (pacientes || []).filter(p => p && p.status !== 'Arquivado');
+  const pacientesArquivados = (pacientes || []).filter(p => p && p.status === 'Arquivado');
 
   const anosArquivo = Array.from(
     new Set(
@@ -375,8 +375,8 @@ const Pacientes = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Pacientes Ativos</p>
-                  <p className="text-xl sm:text-2xl font-bold">{pacientes.filter(p => p.status === 'Ativo').length}</p>
-                  <p className="text-xs text-blue-600 mt-0.5">{pacientes.filter(p => p.status === 'Em Tratamento').length} em tratamento</p>
+                  <p className="text-xl sm:text-2xl font-bold">{(pacientes || []).filter(p => p?.status === 'Ativo').length}</p>
+                  <p className="text-xs text-blue-600 mt-0.5">{(pacientes || []).filter(p => p?.status === 'Em Tratamento').length} em tratamento</p>
                 </div>
                 <UserCheck className="h-8 w-8 text-green-600" />
               </div>
@@ -388,8 +388,8 @@ const Pacientes = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Pendentes</p>
-                  <p className="text-xl sm:text-2xl font-bold">{pacientes.filter(p => p.status === 'Pendente').length}</p>
-                  <p className="text-xs text-purple-600 mt-0.5">{pacientes.filter(p => p.status === 'Tratamento Concluido').length} concluídos</p>
+                  <p className="text-xl sm:text-2xl font-bold">{(pacientes || []).filter(p => p?.status === 'Pendente').length}</p>
+                  <p className="text-xs text-purple-600 mt-0.5">{(pacientes || []).filter(p => p?.status === 'Tratamento Concluido').length} concluídos</p>
                 </div>
                 <Calendar className="h-8 w-8 text-amber-600" />
               </div>
@@ -401,7 +401,7 @@ const Pacientes = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Arquivados</p>
-                  <p className="text-xl sm:text-2xl font-bold">{pacientes.filter(p => p.status === 'Arquivado').length}</p>
+                  <p className="text-xl sm:text-2xl font-bold">{(pacientes || []).filter(p => p?.status === 'Arquivado').length}</p>
                 </div>
                 <Archive className="h-8 w-8 text-muted-foreground" />
               </div>

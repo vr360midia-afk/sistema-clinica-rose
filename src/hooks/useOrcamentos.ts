@@ -31,25 +31,28 @@ export interface Orcamento {
   atualizadoEm: Date;
 }
 
-const rowToOrcamento = (row: any): Orcamento => ({
-  id: row.id,
-  pacienteId: row.paciente_id,
-  pacienteNome: row.paciente_nome,
-  titulo: row.titulo,
-  itens: Array.isArray(row.itens) ? row.itens : [],
-  desconto: Number(row.desconto || 0),
-  total: Number(row.total || 0),
-  status: row.status || 'rascunho',
-  validade: row.validade,
-  observacoes: row.observacoes,
-  formasPagamento: (row as any).formas_pagamento ?? null,
-  parceiroId: row.parceiro_id,
-  parceiroNome: row.parceiro_nome,
-  parceiroTipoRepasse: row.parceiro_tipo_repasse,
-  parceiroValorRepasse: Number(row.parceiro_valor_repasse || 0),
-  criadoEm: new Date(row.criado_em || row.created_at || new Date()),
-  atualizadoEm: new Date(row.atualizado_em || row.updated_at || row.criado_em || row.created_at || new Date()),
-});
+const rowToOrcamento = (row: any): Orcamento | null => {
+  if (!row) return null;
+  return {
+    id: row.id,
+    pacienteId: row.paciente_id,
+    pacienteNome: row.paciente_nome,
+    titulo: row.titulo || 'Plano de tratamento',
+    itens: Array.isArray(row.itens) ? row.itens : [],
+    desconto: Number(row.desconto || 0),
+    total: Number(row.total || 0),
+    status: row.status || 'rascunho',
+    validade: row.validade,
+    observacoes: row.observacoes,
+    formasPagamento: (row as any).formas_pagamento ?? null,
+    parceiroId: row.parceiro_id,
+    parceiroNome: row.parceiro_nome,
+    parceiroTipoRepasse: row.parceiro_tipo_repasse,
+    parceiroValorRepasse: Number(row.parceiro_valor_repasse || 0),
+    criadoEm: new Date(row.criado_em || row.created_at || new Date()),
+    atualizadoEm: new Date(row.atualizado_em || row.updated_at || row.criado_em || row.created_at || new Date()),
+  };
+};
 
 export const useOrcamentos = (pacienteId?: string) => {
   const { user, clinicaId } = useAuth();
@@ -67,7 +70,7 @@ export const useOrcamentos = (pacienteId?: string) => {
     if (pacienteId) query = query.eq('paciente_id', pacienteId);
     const { data, error } = await query;
     if (error) console.error('Erro ao carregar orçamentos:', error);
-    setOrcamentos((data || []).map(rowToOrcamento));
+    setOrcamentos((data || []).map(rowToOrcamento).filter(Boolean) as Orcamento[]);
     setLoading(false);
   }, [user, pacienteId]);
 

@@ -153,7 +153,7 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
 
     const etapasMap = new Map<string, any>();
     cons
-      .filter((c) => ['realizado', 'agendado', 'confirmado'].includes(c.status))
+      .filter((c) => c?.status && ['realizado', 'agendado', 'confirmado'].includes(c.status))
       .forEach((c) => {
         const key = new Date(c.data).toISOString().slice(0, 10);
         const item = etapasMap.get(key) || { data: new Date(c.data), itens: [], valor: 0, status: c.status };
@@ -365,8 +365,8 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
                       Etapa {idx + 1} · {e.data.toLocaleDateString('pt-BR')}
                     </p>
                     <div className="flex items-center gap-2">
-                      <Badge variant={e.status === 'realizado' ? 'default' : 'secondary'} className="text-[10px]">
-                        {e.status === 'realizado' ? 'realizado' : 'previsto'}
+                      <Badge variant={e?.status === 'realizado' ? 'default' : 'secondary'} className="text-[10px]">
+                        {e?.status === 'realizado' ? 'realizado' : 'previsto'}
                       </Badge>
                       {e.valor > 0 && <span className="text-sm font-semibold">{brl(e.valor)}</span>}
                     </div>
@@ -448,7 +448,7 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
                     </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <Badge variant="secondary" className="text-[10px]">{p.status}</Badge>
+                    <Badge variant="secondary" className="text-[10px]">{p?.status}</Badge>
                     {p.valor > 0 && <span className="text-sm font-semibold">{brl(p.valor)}</span>}
                   </div>
                 </div>

@@ -189,14 +189,14 @@ const PatientPersonalInfo = ({ patient }: PatientPersonalInfoProps) => {
           <CardContent className="space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status Atual</span>
-              {renderStatusBadge(patient.status)}
+              {renderStatusBadge(patient?.status || 'Ativo')}
             </div>
             <div className="pt-2 border-t">
               <Label className="text-xs text-muted-foreground block mb-1.5 font-medium">
                 Alterar status:
               </Label>
               <Select
-                value={patient.status || 'Ativo'}
+                value={patient?.status || 'Ativo'}
                 onValueChange={(val) => handleStatusChange(val as StatusPaciente)}
               >
                 <SelectTrigger className="h-9 w-full">

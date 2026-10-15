@@ -12,15 +12,15 @@ export const FinanceiroDRE = ({ selectedMonth }: { selectedMonth?: string }) => 
     ? selectedMonth.split('-') 
     : [new Date().getFullYear().toString(), String(new Date().getMonth() + 1).padStart(2, '0')];
 
-  const transacoesMes = transacoes.filter(t => {
-    if (!t.data) return false;
+  const transacoesMes = (transacoes || []).filter(t => {
+    if (!t?.data) return false;
     const data = new Date(t.data);
     return data.getMonth() === (Number(mes) - 1) && data.getFullYear() === Number(ano);
   });
 
-  const receitas = transacoesMes.filter(t => t.tipo === 'receita' && t.status === 'pago').reduce((acc, t) => acc + Number(t.valor), 0);
-  const despesas = transacoesMes.filter(t => t.tipo === 'despesa' && t.status === 'pago').reduce((acc, t) => acc + Number(t.valor), 0);
-  const inadimplencia = transacoesMes.filter(t => t.tipo === 'receita' && t.status === 'pendente').reduce((acc, t) => acc + Number(t.valor), 0);
+  const receitas = transacoesMes.filter(t => t?.tipo === 'receita' && t?.status === 'pago').reduce((acc, t) => acc + Number(t?.valor || 0), 0);
+  const despesas = transacoesMes.filter(t => t?.tipo === 'despesa' && t?.status === 'pago').reduce((acc, t) => acc + Number(t?.valor || 0), 0);
+  const inadimplencia = transacoesMes.filter(t => t?.tipo === 'receita' && t?.status === 'pendente').reduce((acc, t) => acc + Number(t?.valor || 0), 0);
 
   const lucroLiquido = receitas - despesas;
   const margemLucro = receitas > 0 ? ((lucroLiquido / receitas) * 100).toFixed(1) : '0';

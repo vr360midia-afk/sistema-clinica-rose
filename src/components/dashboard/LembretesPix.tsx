@@ -19,8 +19,8 @@ const LembretesPix = () => {
   tomorrow.setDate(tomorrow.getDate() + 1);
 
   // Filtrar apenas PIX Parcelado pendentes com vencimento entre o passado e amanhã
-  const lembretes = transacoes.filter(t => {
-    if (t.metodoPagamento !== 'pix_parcelado' || t.status !== 'pendente' || !t.vencimento) return false;
+  const lembretes = (transacoes || []).filter(t => {
+    if (!t || t.metodoPagamento !== 'pix_parcelado' || t.status !== 'pendente' || !t.vencimento) return false;
     
     const vencimento = new Date(t.vencimento);
     vencimento.setHours(0, 0, 0, 0);

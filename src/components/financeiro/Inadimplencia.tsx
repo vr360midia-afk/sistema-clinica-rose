@@ -16,8 +16,8 @@ const Inadimplencia = () => {
   const [salvando, setSalvando] = useState<string | null>(null);
 
   const pendentes = useMemo(() => {
-    return transacoes
-      .filter((t) => t.tipo === 'receita' && (t.status === 'pendente' || t.status === 'vencido'))
+    return (transacoes || [])
+      .filter((t) => t && t.tipo === 'receita' && (t?.status === 'pendente' || t?.status === 'vencido'))
       .map((t) => {
         const venc = new Date((t.vencimento as any) || t.data);
         return { t, venc, dias: diasAtraso(venc) };

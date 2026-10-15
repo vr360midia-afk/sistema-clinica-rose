@@ -337,7 +337,8 @@ export default function KanbanBoard({
       grouped[col.id] = [];
     });
 
-    leads.forEach((lead) => {
+    (leads || []).forEach((lead) => {
+      if (!lead) return;
       let st = normalizarStatus(lead.stage || lead.status);
       // Se estiver no modo essencial, agrupa follow-ups extensos na etapa de follow-up
       if (modoColunas === 'essencial' && !COLUNAS_ESSENCIAIS_IDS.includes(st)) {

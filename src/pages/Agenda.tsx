@@ -114,14 +114,14 @@ const Agenda = () => {
       toast.info('Nenhuma consulta para exportar');
       return;
     }
-    const eventos = transformedConsultas.map((c: any) => {
+    const eventos = (transformedConsultas || []).filter(Boolean).map((c: any) => {
       const [h, m] = (c.hora || '08:00').split(':').map(Number);
       const inicio = new Date(c.data);
       inicio.setHours(h || 8, m || 0, 0, 0);
       return {
         id: c.id,
-        titulo: `${c.procedimento || 'Consulta'} - ${c.patient}`,
-        descricao: [c.dentista ? `Dentista: ${c.dentista}` : '', c.status ? `Status: ${c.status}` : '']
+        titulo: `${c.procedimento || 'Consulta'} - ${c.patient || ''}`,
+        descricao: [c?.dentista ? `Dentista: ${c.dentista}` : '', c?.status ? `Status: ${c.status}` : '']
           .filter(Boolean)
           .join('\n'),
         inicio,

@@ -623,7 +623,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
 
   const abrirEdicao = (o: (typeof orcamentos)[number]) => {
     setEditingId(o.id);
-    setStatusEdicao(o.status);
+    setStatusEdicao(o?.status || 'rascunho');
     setTitulo(o.titulo);
     setItens(o.itens.map((i) => ({ ...i })));
     setDesconto(o.desconto || 0);
@@ -915,7 +915,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
       o.observacoes || null,
     ];
 
-    if (o.status === 'aprovado') {
+    if (o?.status === 'aprovado') {
       const snap = mapearDadosContrato({
         patient,
         orcamento: o,
@@ -942,7 +942,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
     updateStatus(o.id, 'enviado');
     toast.info('Abrindo WhatsApp Web!', {
       description:
-        o.status === 'aprovado'
+        o?.status === 'aprovado'
           ? 'Link de assinatura incluso na mensagem e PDF baixado para facilitar envio!'
           : 'Mensagem do orçamento pronta no WhatsApp.',
     });

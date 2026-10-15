@@ -90,12 +90,13 @@ class SupabaseService {
 
   // Transformar dados do Supabase para o formato esperado pelo app
   private transformSupabaseToLocal = (data: any): any => {
-    if (!data) return data;
+    if (!data) return null;
     
     return {
       ...data,
-      criadoEm: new Date(data.criado_em),
-      atualizadoEm: new Date(data.atualizado_em),
+      status: data.status || (data.tipo ? 'pendente' : 'Ativo'),
+      criadoEm: new Date(data.criado_em || Date.now()),
+      atualizadoEm: new Date(data.atualizado_em || data.criado_em || Date.now()),
       // Colunas DATE chegam como YYYY-MM-DD. InterpretÃ¡-las como UTC desloca
       // a consulta para o dia anterior em fusos como o de SÃ£o Paulo.
       data: this.parseLocalDate(data.data),
@@ -302,7 +303,7 @@ class SupabaseService {
       .order('criado_em', { ascending: false });
 
     if (error) throw error;
-    return data?.map(this.transformSupabaseToLocal) || [];
+    return (data || []).map(this.transformSupabaseToLocal).filter(Boolean);
   }
 
   async savePaciente(paciente: Omit<Paciente, 'id' | 'criadoEm' | 'atualizadoEm'>): Promise<Paciente> {
@@ -401,7 +402,7 @@ class SupabaseService {
       .order('data', { ascending: false });
 
     if (error) throw error;
-    return data?.map(this.transformSupabaseToLocal) || [];
+    return (data || []).map(this.transformSupabaseToLocal).filter(Boolean);
   }
 
   async saveConsulta(consulta: Omit<Consulta, 'id' | 'criadoEm' | 'atualizadoEm'>): Promise<Consulta> {
@@ -460,7 +461,7 @@ class SupabaseService {
       .order('data', { ascending: false });
 
     if (error) throw error;
-    return data?.map(this.transformSupabaseToLocal) || [];
+    return (data || []).map(this.transformSupabaseToLocal).filter(Boolean);
   }
 
   async saveTransacao(transacao: Omit<Transacao, 'id' | 'criadoEm' | 'atualizadoEm'>): Promise<Transacao> {
@@ -516,7 +517,7 @@ class SupabaseService {
       .order('data', { ascending: false });
 
     if (error) throw error;
-    return data?.map(this.transformSupabaseToLocal) || [];
+    return (data || []).map(this.transformSupabaseToLocal).filter(Boolean);
   }
 
   async saveProntuario(prontuario: Omit<Prontuario, 'id' | 'criadoEm' | 'atualizadoEm'>): Promise<Prontuario> {
@@ -572,7 +573,7 @@ class SupabaseService {
       .order('criado_em', { ascending: false });
 
     if (error) throw error;
-    return data?.map(this.transformSupabaseToLocal) || [];
+    return (data || []).map(this.transformSupabaseToLocal).filter(Boolean);
   }
 
   async saveAnamnese(anamnese: Omit<Anamnese, 'id' | 'criadoEm' | 'atualizadoEm'>): Promise<Anamnese> {
@@ -638,7 +639,7 @@ class SupabaseService {
       .order('criado_em', { ascending: false });
 
     if (error) throw error;
-    return data?.map(this.transformSupabaseToLocal) || [];
+    return (data || []).map(this.transformSupabaseToLocal).filter(Boolean);
   }
 
   async saveDocumento(documento: Omit<DocumentoPaciente, 'id' | 'criadoEm' | 'atualizadoEm'>): Promise<DocumentoPaciente> {

@@ -7,13 +7,13 @@ export const usePatientFilters = (pacientes: Paciente[]) => {
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'archived'>('active');
 
   const filteredPacientes = useMemo(() => {
-    let filtered = pacientes;
+    let filtered = (pacientes || []).filter(Boolean);
 
     // Filter by status
     if (statusFilter === 'active') {
-      filtered = filtered.filter(p => p.status !== 'Arquivado');
+      filtered = filtered.filter(p => p && p.status !== 'Arquivado');
     } else if (statusFilter === 'archived') {
-      filtered = filtered.filter(p => p.status === 'Arquivado');
+      filtered = filtered.filter(p => p && p.status === 'Arquivado');
     }
 
     // Filter by search term
