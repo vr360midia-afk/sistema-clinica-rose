@@ -11,7 +11,12 @@ import type { Orcamento } from '@/hooks/useOrcamentos';
 import type { ConfiguracoesGerais } from '@/hooks/useConfiguracoes';
 import { carregarConfiguracoesContratoSync, type ConfiguracoesContrato } from '@/hooks/useConfiguracoesContrato';
 import { gerarFragmentoHtmlTermoUsoImagem } from './termoUsoImagem';
-import { gerarHtmlContratoEndodontia, downloadContratoEndodontiaPdf } from './contratoEndodontia';
+import {
+  gerarHtmlContratoEndodontia,
+  downloadContratoEndodontiaPdf,
+  gerarHtmlTcleEndodontia,
+  downloadTcleEndodontiaPdf,
+} from './contratoEndodontia';
 
 export {
   identificarTipoDocumento,
@@ -20,6 +25,8 @@ export {
   somarMesesSeguro,
   gerarHtmlContratoEndodontia,
   downloadContratoEndodontiaPdf,
+  gerarHtmlTcleEndodontia,
+  downloadTcleEndodontiaPdf,
 };
 
 export type TipoModeloContrato = 'geral' | 'lentes_resina' | 'endodontia';

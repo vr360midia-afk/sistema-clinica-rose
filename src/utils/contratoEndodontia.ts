@@ -391,6 +391,9 @@ export const gerarHtmlContratoEndodontia = (snapshot: ContratoSnapshot): string 
         <div>• <strong>Procedimentos não incluídos:</strong> ${naoIncluidosTexto}</div>
       </div>
       <p class="paragrafo">
+        1.2. <strong>Esclarecimentos sobre o Procedimento:</strong> O Tratamento ou Retratamento Endodôntico (conhecido popularmente como "tratamento de canal") consiste na remoção da polpa dentária (nervoso/vasos sanguíneos) lesionada, inflamada ou infectada, ou na remoção do material obturador antigo nos casos de retratamento. Após a limpeza, modelagem e desinfecção dos canais radiculares, estes são preenchidos e selados com material biocompatível adequado. O objetivo do tratamento é eliminar a dor, a infecção e controlar a inflamação, permitindo a conservação do dente na cavidade bucal e evitando a sua extração.
+      </p>
+      <p class="paragrafo">
         1.3. O tratamento poderá envolver anestesia, abertura coronária, localização dos canais, limpeza, instrumentação, desinfecção, medicação intracanal quando indicada e obturação dos canais radiculares.
       </p>
       <p class="paragrafo">
@@ -553,18 +556,16 @@ export const gerarHtmlContratoEndodontia = (snapshot: ContratoSnapshot): string 
     <div class="clausula-bloco">
       <div class="clausula-titulo">CLÁUSULA 7ª — DOS RISCOS, LIMITAÇÕES E INTERCORRÊNCIAS</div>
       <p class="paragrafo">
-        7.1. O paciente declara estar ciente de que o tratamento de canal é um procedimento minucioso realizado no interior da raiz dentária, podendo envolver dificuldades técnicas e intercorrências previsíveis, incluindo:
+        7.1. O(A) <strong>CONTRATANTE / PACIENTE</strong> declara que foi devidamente informado(a) de que a Endodontia é uma especialidade complexa e que, apesar de todo o rigor técnico e científico do profissional, existem riscos e complicações inerentes ao procedimento, tais como:
       </p>
       <ul style="margin: 4px 0 8px 18px; padding-left: 10px; font-size: 11.5px; line-height: 1.5;">
-        <li>Dor ou sensibilidade dolorosa pós-operatória transitória após as sessões;</li>
-        <li>Inflamação tecidual, edema (inchaço) ou persistência temporária de infecção periapical;</li>
-        <li>Dificuldades anatômicas decorrentes de canais atresiados, calcificados, curvos ou extranumerários;</li>
-        <li>Fratura ou separação acidental de instrumentos endodônticos milimétricos no interior do canal;</li>
-        <li>Perfurações radiculares e outras intercorrências técnicas anatômicas;</li>
-        <li>Necessidade de sessões clínicas adicionais para controle de exsudato ou desinfecção;</li>
-        <li>Persistência ou reaparecimento de alterações periapicais crônicas;</li>
-        <li>Necessidade de retratamento endodôntico futuro, cirurgia parendodôntica ou extração em casos refratários;</li>
-        <li>Fratura da estrutura dental remanescente ou perda do dente em determinadas circunstâncias clínicas e estruturais.</li>
+        <li><strong>Dor, inchaço ou desconforto pós-operatório:</strong> Podem ocorrer nos dias subsequentes ao tratamento e exigirão o uso de medicações analgésicas, anti-inflamatórias ou antibióticas prescritas pelo cirurgião-dentista;</li>
+        <li><strong>Anatomia atípica ou canais calcificados/curvos:</strong> Podem dificultar ou impedir o alcance total do ápice radicular;</li>
+        <li><strong>Fratura de instrumentos:</strong> Pela extrema delicadeza das limas endodônticas, pode ocorrer fratura de instrumento no interior do canal. Nestes casos, o profissional avaliará a possibilidade de remoção, ultrapassagem ou sepultamento do fragmento sem prejuízo à saúde do dente;</li>
+        <li><strong>Perfuração radicular ou furcal:</strong> Ocorrência acidental que pode necessitar de selamento com materiais especiais (ex: MTA) ou procedimentos adicionais;</li>
+        <li><strong>Perfuração/Extravasamento acidental de soluções irrigadoras ou material obturador:</strong> Pode gerar desconforto ou queimor temporário nos tecidos periapicais;</li>
+        <li><strong>Abertura ou reabsorção apical prévia:</strong> Pode dificultar a delimitação do comprimento de trabalho correto;</li>
+        <li><strong>Necessidade de complementação cirúrgica ou extração:</strong> Caso o organismo não responda satisfatoriamente ao tratamento e persista a infecção/lesão, pode ser necessária a realização de cirurgia parendodôntica ou, em último caso, a exodontia (extração) do dente.</li>
       </ul>
       <p class="paragrafo">
         7.2. A ocorrência de intercorrência não caracteriza automaticamente falha profissional, devendo cada situação ser avaliada segundo as circunstâncias e os cuidados efetivamente prestados.
@@ -573,7 +574,7 @@ export const gerarHtmlContratoEndodontia = (snapshot: ContratoSnapshot): string 
         7.3. O profissional compromete-se a atuar com diligência e observância das normas técnicas aplicáveis, permanecendo preservados os direitos legais do paciente.
       </p>
       <p class="paragrafo">
-        7.4. O detalhamento individualizado dos riscos, alternativas e prognóstico deverá constar do Termo de Consentimento Livre e Esclarecido específico.
+        7.4. O detalhamento individualizado dos riscos, alternativas e prognóstico integra também o Termo de Consentimento Livre e Esclarecido (TCLE) específico para Endodontia.
       </p>
     </div>
 
@@ -583,8 +584,14 @@ export const gerarHtmlContratoEndodontia = (snapshot: ContratoSnapshot): string 
       <p class="paragrafo">
         8.1. O paciente é expressamente informado de que, após a conclusão do tratamento de canal, é <strong>imprescindível</strong> a realização de restauração definitiva, reconstrução, coroa protética ou outro procedimento reabilitador para vedamento coronário hermético.
       </p>
+      <div style="background-color: #fef2f2; border: 1.5px solid #ef4444; border-left: 5px solid #b91c1c; padding: 10px 14px; margin: 8px 0 10px; border-radius: 4px; font-family: Arial, sans-serif; font-size: 11px; line-height: 1.5; color: #7f1d1d;">
+        <strong style="display: block; font-size: 11.5px; color: #991b1b; margin-bottom: 4px; text-transform: uppercase;">
+          ⚠ ALERTA EXTREMAMENTE IMPORTANTE: RESTAURAÇÃO DEFINITIVA PÓS-TRATAMENTO
+        </strong>
+        O tratamento de canal <strong>NÃO</strong> deixa o dente pronto e protegido definitivamente. Após a conclusão do canal, o dente torna-se mais frágil e <strong>DEVE</strong> receber uma restauração definitiva ou prótese (coroa/pino) no prazo máximo recomendado pelo dentista (idealmente até 15 a 30 dias). A não realização da restauração final pode acarretar infiltração bacteriana, reinfecção do canal, fratura dental e perda do dente.
+      </div>
       <p class="paragrafo">
-        8.2. A ausência de restauração definitiva adequada em prazo oportuno compromete a proteção do dente tratado e eleva expressivamente os riscos de recontaminação bacteriana por infiltração coronária ou fratura da raiz.
+        8.2. A ausência de restauração definitiva adequada no prazo de 15 a 30 dias compromete irreversivelmente a proteção do dente tratado e eleva expressivamente os riscos de recontaminação bacteriana por infiltração coronária ou fratura da raiz.
       </p>
       <p class="paragrafo">
         8.3. A restauração definitiva somente será considerada incluída no preço do tratamento endodôntico quando expressamente prevista e discriminada no orçamento aprovado.
@@ -605,14 +612,18 @@ export const gerarHtmlContratoEndodontia = (snapshot: ContratoSnapshot): string 
       <p class="paragrafo">9.6. A participação do profissional parceiro deverá ser devidamente registrada no prontuário, sem afastar responsabilidades legais que possam caber às partes envolvidas.</p>
     </div>
 
-    <!-- CLÁUSULA 10ª — DAS RESPONSABILIDADES DO PACIENTE -->
+    <!-- CLÁUSULA 10ª — DOS DEVERES E COMPROMISSOS DO PACIENTE -->
     <div class="clausula-bloco">
-      <div class="clausula-titulo">CLÁUSULA 10ª — DAS RESPONSABILIDADES DO PACIENTE</div>
-      <p class="paragrafo">10.1. Fornecer informações verdadeiras e completas sobre suas condições gerais de saúde, histórico de alergias, medicamentos de uso contínuo e tratamentos anteriores.</p>
-      <p class="paragrafo">10.2. Comparecer rigorosamente aos atendimentos agendados e seguir as orientações clínicas e prescrições medicamentosas pós-operatórias.</p>
-      <p class="paragrafo">10.3. Informar o profissional responsável imediatamente sobre episódios de dor intensa, edema persistente, febre ou quaisquer alterações anormais.</p>
-      <p class="paragrafo">10.4. Realizar os cuidados posteriores e os procedimentos restauradores definitivos indicados no tempo recomendado.</p>
-      <p class="paragrafo">10.5. Cumprir pontualmente as obrigações financeiras validamente pactuadas neste instrumento.</p>
+      <div class="clausula-titulo">CLÁUSULA 10ª — DOS DEVERES E COMPROMISSOS DO PACIENTE</div>
+      <p class="paragrafo">Para a segurança, êxito do tratamento e preservação do elemento dentário tratado, o(a) <strong>CONTRATANTE / PACIENTE</strong> compromete-se expressamente a:</p>
+      <ul style="margin: 4px 0 8px 18px; padding-left: 10px; font-size: 11.5px; line-height: 1.5;">
+        <li>Comparecer a todas as consultas agendadas até a conclusão do tratamento;</li>
+        <li>Informar com precisão todo o seu histórico de saúde, alergias, medicações em uso e condições de gravidez;</li>
+        <li>Seguir rigorosamente as orientações pós-operatórias e tomar as medicações prescritas nos horários corretos;</li>
+        <li>Procurar o dentista imediatamente caso perceba inchaço acentuado, dor persistente ou soltura do curativo temporário;</li>
+        <li>Realizar a restauração definitiva ou prótese no prazo recomendado pelo profissional (idealmente em até 15 a 30 dias);</li>
+        <li>Cumprir pontualmente as obrigações financeiras validamente pactuadas neste instrumento.</li>
+      </ul>
     </div>
 
     <!-- CLÁUSULA 11ª — DA INADIMPLÊNCIA -->
@@ -728,21 +739,15 @@ export const gerarHtmlContratoEndodontia = (snapshot: ContratoSnapshot): string 
       </p>
     </div>
 
-    <!-- DECLARAÇÃO FINAL DE CIÊNCIA E CONCORDÂNCIA -->
+    <!-- DECLARAÇÃO DE CONSENTIMENTO E AUTORIZAÇÃO -->
     <div class="clausula-bloco">
-      <div class="clausula-titulo">DECLARAÇÃO FINAL DE CIÊNCIA E CONCORDÂNCIA</div>
-      <p class="paragrafo-simples">
-        Declaro que recebi informações completas sobre o tratamento endodôntico contratado, seus objetivos, condições financeiras e identificação do profissional executor. Declaro estar ciente de que:
+      <div class="clausula-titulo">DECLARAÇÃO DE CONSENTIMENTO E AUTORIZAÇÃO</div>
+      <p class="paragrafo">
+        Declaro que li (ou foi lido para mim) e compreendi perfeitamente todas as informações contidas neste termo. Tive a oportunidade de fazer perguntas, esclarecer todas as minhas dúvidas com o cirurgião-dentista e fui informado(a) sobre as alternativas de tratamento (incluindo a extração do dente). Compreendo que na odontologia não é possível garantir 100% de sucesso em tratamentos biológicos, mas que o profissional empregará os melhores recursos e técnicas disponíveis. Assim, de livre e esclarecida vontade, AUTORIZO a realização do tratamento endodôntico no(s) dente(s) indicado(s), bem como a aplicação de anestesia local e a tomada de radiografias/exames necessários.
       </p>
-      <ul style="margin: 4px 0 8px 18px; padding-left: 10px; font-size: 11.5px; line-height: 1.5;">
-        <li>O tratamento de canal poderá ser realizado pela Dra. Rosângela Santos Pereira ou pelo profissional parceiro identificado neste instrumento;</li>
-        <li>O procedimento dependerá de avaliação clínica e consentimento informado específico;</li>
-        <li>A necessidade de restauração definitiva e eventuais tratamentos complementares deverá ser esclarecida conforme o caso;</li>
-        <li>O pagamento seguirá as condições efetivamente aprovadas na negociação financeira;</li>
-        <li>O atraso poderá gerar encargos moratórios dentro dos limites legais;</li>
-        <li>A desistência poderá resultar em acerto financeiro e eventual multa compensatória de 25%, exclusivamente quando legalmente admissível e proporcional;</li>
-        <li>Permanecem preservados meus direitos previstos na legislação brasileira.</li>
-      </ul>
+      <p class="paragrafo-simples" style="font-size: 11px; color: #475569; margin-top: 6px;">
+        Declaro ainda estar ciente de que o tratamento de canal poderá ser realizado pela Dra. Rosângela Santos Pereira ou pelo profissional parceiro identificado neste instrumento, conforme avaliação técnica, e que as condições financeiras pactuadas seguirão rigorosamente o orçamento aprovado.
+      </p>
     </div>
 
     <!-- Data e Assinaturas -->
@@ -826,3 +831,6 @@ export const downloadContratoEndodontiaPdf = async (snapshot?: ContratoSnapshot 
   const filename = `contrato_endodontia_${nomePaciente}_${snapshot.contratoId || 'doc'}.pdf`;
   return downloadHtmlAsPdf(html, filename);
 };
+
+export { gerarHtmlTcleEndodontia, downloadTcleEndodontiaPdf } from './tcleEndodontia';
+

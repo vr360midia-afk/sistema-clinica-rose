@@ -67,6 +67,7 @@ import {
   isContratoLenteResina,
   isContratoEndodontia,
   downloadContratoEndodontiaPdf,
+  downloadTcleEndodontiaPdf,
   identificarTipoDocumento,
   isMetodoCartao,
 } from '@/utils/contratoEngine';
@@ -2515,6 +2516,29 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                 >
                   <Stethoscope className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-purple-600" />
                   <span>Contrato Canal (PDF)</span>
+                </Button>
+              )}
+
+              {temEndodontiaNoContrato && snapshotAtual && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 sm:h-9 text-xs gap-1.5 border-indigo-300 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/50"
+                  onClick={async () => {
+                    try {
+                      if (!snapshotAtual) return;
+                      await downloadTcleEndodontiaPdf(snapshotAtual);
+                      toast.success('TCLE de Canal (Endodontia CFO) gerado com sucesso!');
+                    } catch (e) {
+                      toast.error('Erro ao gerar TCLE de Canal em PDF');
+                    }
+                  }}
+                  disabled={!snapshotAtual}
+                  title="Baixar Termo de Consentimento Livre e Esclarecido específico para Tratamento de Canal (TCLE Endodontia CFO) em PDF A4 de 2 páginas"
+                >
+                  <FileText className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-indigo-600" />
+                  <span>TCLE Canal (CFO)</span>
                 </Button>
               )}
 
