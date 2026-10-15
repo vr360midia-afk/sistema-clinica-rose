@@ -3,25 +3,27 @@ import Layout from '@/components/layout/Layout';
 import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CalendarDays, Plus, Bell } from 'lucide-react';
+import { CalendarDays, Plus, Bell, Lock } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 
 import ConsultaModal from '@/components/agenda/ConsultaModal';
-import DayView from '@/components/agenda/DayView';
-import WeekView from '@/components/agenda/WeekView';
-import MonthView from '@/components/agenda/MonthView';
+import { BloqueioModal } from '@/components/agenda/BloqueioModal';
+import { BloqueioDetailsModal } from '@/components/agenda/BloqueioDetailsModal';
 import { AgendaBigCalendar } from '@/components/agenda/AgendaBigCalendar';
 import AppointmentDetailsModal from '@/components/agenda/AppointmentDetailsModal';
 import PendentesModal from '@/components/agenda/PendentesModal';
 import { useAgendaViews } from '@/hooks/useAgendaViews';
+import { useBloqueios, BloqueioAgenda, encontrarBloqueio } from '@/hooks/useBloqueios';
 import { downloadICS } from '@/utils/calendarExport';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 
 const Agenda = () => {
   const { updateConsulta, consultas } = useDentalSystem();
+  const { bloqueios, addBloqueio, updateBloqueio, deleteBloqueio } = useBloqueios();
+
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
   const [isConsultaModalOpen, setIsConsultaModalOpen] = useState(false);
@@ -31,6 +33,12 @@ const Agenda = () => {
   const [consultaEmEdicao, setConsultaEmEdicao] = useState<any>(null);
   const [pendentes, setPendentes] = useState<any[]>([]);
   const [isPendentesModalOpen, setIsPendentesModalOpen] = useState(false);
+
+  // Estados para Bloqueio de Horário
+  const [isBloqueioModalOpen, setIsBloqueioModalOpen] = useState(false);
+  const [isBloqueioDetailsOpen, setIsBloqueioDetailsOpen] = useState(false);
+  const [selectedBloqueio, setSelectedBloqueio] = useState<BloqueioAgenda | null>(null);
+  const [bloqueioEmEdicao, setBloqueioEmEdicao] = useState<BloqueioAgenda | null>(null);
 
   const carregarPendentes = async () => {
     try {
@@ -50,7 +58,6 @@ const Agenda = () => {
 
   useEffect(() => {
     carregarPendentes();
-    // Poderia adicionar realtime subscription aqui para atualizar automático
   }, []);
 
   const {
@@ -63,17 +70,43 @@ const Agenda = () => {
     handleDeleteAppointment
   } = useAgendaViews(selectedDate || new Date());
 
-  const handleAppointmentClick = (appointment: any) => {
-    setSelectedAppointment(appointment);
+  const handleAppointmentClick = (appointmentOrResource: any) => {
+    if (appointmentOrResource?.isBloqueio) {
+      setSelectedBloqueio(appointmentOrResource);
+      setIsBloqueioDetailsOpen(true);
+      return;
+    }
+    setSelectedAppointment(appointmentOrResource);
     setIsDetailsModalOpen(true);
   };
-
 
   const handleNewAppointment = () => {
     setConsultaEmEdicao(null);
     setConsultaFormDate(selectedDate);
     setConsultaFormTime(undefined);
     setIsConsultaModalOpen(true);
+  };
+
+  const handleOpenNewBloqueio = () => {
+    setBloqueioEmEdicao(null);
+    setIsBloqueioModalOpen(true);
+  };
+
+  const handleSaveBloqueio = async (data: Omit<BloqueioAgenda, 'id'>, id?: string) => {
+    if (id) {
+      return await updateBloqueio(id, data);
+    } else {
+      return await addBloqueio(data);
+    }
+  };
+
+  const handleDeleteBloqueio = async (id: string) => {
+    return await deleteBloqueio(id);
+  };
+
+  const handleEditBloqueio = (bloqueio: BloqueioAgenda) => {
+    setBloqueioEmEdicao(bloqueio);
+    setIsBloqueioModalOpen(true);
   };
 
   const handleReschedule = (appointment: any) => {
@@ -132,35 +165,113 @@ const Agenda = () => {
     toast.success('Agenda exportada! Importe o arquivo no Google Agenda ou Apple Calendário.');
   };
 
-
   const bigCalendarEvents = useMemo(() => {
-    return transformedConsultas.reduce((acc: any[], c: any) => {
-      if (!c.data) return acc;
+    const events: any[] = [];
+
+    // 1. Consultas dos pacientes
+    transformedConsultas.forEach((c: any) => {
+      if (!c.data) return;
       const start = new Date(c.data);
-      if (isNaN(start.getTime())) return acc;
+      if (isNaN(start.getTime())) return;
 
       const [h, m] = (c.hora || '08:00').split(':').map(Number);
       start.setHours(h || 8, m || 0, 0, 0);
       const end = new Date(start);
       end.setMinutes(start.getMinutes() + (Number(c.duracao) || 30));
       
-      acc.push({
+      events.push({
         id: c.id,
         title: `${c.patient} - ${c.procedimento || 'Consulta'}`,
         start,
         end,
         resource: c
       });
-      return acc;
-    }, []);
-  }, [transformedConsultas]);
+    });
+
+    // 2. Bloqueios de horários na agenda
+    (bloqueios || []).forEach((b) => {
+      if (!b.dataInicio) return;
+
+      const dInicio = new Date(`${b.dataInicio}T00:00:00`);
+      const dataFimStr = b.dataFim || b.dataInicio;
+      const dFim = new Date(`${dataFimStr}T00:00:00`);
+
+      if (isNaN(dInicio.getTime())) return;
+
+      if (b.diaInteiro) {
+        const endAllDay = new Date(dFim);
+        endAllDay.setHours(23, 59, 59, 999);
+        events.push({
+          id: `bloqueio-${b.id}`,
+          title: `🔒 ${b.titulo}${b.dentista ? ` (${b.dentista})` : ' (Todos)'}`,
+          start: dInicio,
+          end: endAllDay,
+          allDay: true,
+          resource: {
+            ...b,
+            isBloqueio: true
+          }
+        });
+      } else {
+        const [hiH, hiM] = (b.horaInicio || '08:00').split(':').map(Number);
+        const [hfH, hfM] = (b.horaFim || '18:00').split(':').map(Number);
+
+        // Se abranger múltiplos dias, gera um evento correspondente por dia no intervalo
+        const cur = new Date(dInicio);
+        let count = 0;
+        while (cur <= dFim && count < 90) {
+          const slotStart = new Date(cur);
+          slotStart.setHours(hiH, hiM, 0, 0);
+
+          const slotEnd = new Date(cur);
+          slotEnd.setHours(hfH, hfM, 0, 0);
+
+          events.push({
+            id: `bloqueio-${b.id}-${count}`,
+            title: `🔒 ${b.titulo}${b.dentista ? ` (${b.dentista})` : ' (Todos)'}`,
+            start: slotStart,
+            end: slotEnd,
+            allDay: false,
+            resource: {
+              ...b,
+              isBloqueio: true
+            }
+          });
+
+          cur.setDate(cur.getDate() + 1);
+          count++;
+        }
+      }
+    });
+
+    return events;
+  }, [transformedConsultas, bloqueios]);
 
   const handleEventDropOrResize = async ({ event, start, end }: { event: any, start: Date, end: Date }) => {
+    if (event.resource?.isBloqueio) {
+      toast.info('Para alterar este bloqueio de horário, clique nele.');
+      return;
+    }
+
     try {
       const novaData = format(start, 'yyyy-MM-dd');
       const novaHora = format(start, 'HH:mm');
       const duracaoMinutos = Math.max(15, Math.round((end.getTime() - start.getTime()) / 60000));
       
+      const bloqueioConflito = encontrarBloqueio(
+        bloqueios,
+        novaData,
+        novaHora,
+        duracaoMinutos,
+        event.resource?.dentista,
+        event.resource?.patient
+      );
+
+      if (bloqueioConflito) {
+        toast.error(`Horário bloqueado: ${bloqueioConflito.titulo}${bloqueioConflito.observacoes ? ` (${bloqueioConflito.observacoes})` : ''}.`);
+        return;
+      }
+
       await updateConsulta(event.id, {
         data: novaData,
         hora: novaHora,
@@ -204,7 +315,7 @@ const Agenda = () => {
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground">Agenda</h1>
             <p className="text-sm sm:text-base text-muted-foreground">Gerencie seus agendamentos e consultas</p>
           </div>
-          <div className="flex gap-2 w-full sm:w-auto">
+          <div className="flex flex-wrap gap-2 w-full sm:w-auto">
             {pendentes.length > 0 && (
               <Button
                 variant="destructive"
@@ -222,6 +333,14 @@ const Agenda = () => {
             >
               <CalendarDays className="h-4 w-4" />
               Exportar (.ics)
+            </Button>
+            <Button
+              variant="outline"
+              className="flex items-center gap-2 flex-1 sm:flex-none justify-center border-amber-500/40 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10 hover:border-amber-500/60 font-medium"
+              onClick={handleOpenNewBloqueio}
+            >
+              <Lock className="h-4 w-4 text-amber-500" />
+              Bloquear Horário
             </Button>
             <Button
               className="flex items-center gap-2 flex-1 sm:flex-none justify-center"
@@ -281,10 +400,12 @@ const Agenda = () => {
                       locale={ptBR}
                       className="w-full max-w-none mx-auto"
                       modifiers={{
-                        booked: transformedConsultas.map(c => new Date(c.data)).filter(d => !isNaN(d.getTime()))
+                        booked: transformedConsultas.map(c => new Date(c.data)).filter(d => !isNaN(d.getTime())),
+                        blocked: (bloqueios || []).map(b => new Date(b.dataInicio + 'T00:00:00')).filter(d => !isNaN(d.getTime()))
                       }}
                       modifiersClassNames={{
-                        booked: "relative after:content-[''] after:absolute after:bottom-1.5 after:left-1/2 after:-translate-x-1/2 after:w-1.5 after:h-1.5 after:bg-blue-500 after:rounded-full font-bold"
+                        booked: "relative after:content-[''] after:absolute after:bottom-1.5 after:left-1/2 after:-translate-x-1/2 after:w-1.5 after:h-1.5 after:bg-blue-500 after:rounded-full font-bold",
+                        blocked: "relative before:content-[''] before:absolute before:top-1 before:right-1 before:w-1.5 before:h-1.5 before:bg-amber-500 before:rounded-full"
                       }}
                       classNames={{
                         months: "flex flex-col space-y-4",
@@ -334,6 +455,30 @@ const Agenda = () => {
             setSelectedDate(data);
             setView('day');
           }}
+        />
+
+        {/* Modal de Criação / Edição de Bloqueio */}
+        <BloqueioModal
+          isOpen={isBloqueioModalOpen}
+          onClose={() => {
+            setIsBloqueioModalOpen(false);
+            setBloqueioEmEdicao(null);
+          }}
+          bloqueioToEdit={bloqueioEmEdicao}
+          initialDate={selectedDate}
+          onSave={handleSaveBloqueio}
+        />
+
+        {/* Modal de Detalhes do Bloqueio com Descrição e Desbloqueio */}
+        <BloqueioDetailsModal
+          isOpen={isBloqueioDetailsOpen}
+          onClose={() => {
+            setIsBloqueioDetailsOpen(false);
+            setSelectedBloqueio(null);
+          }}
+          bloqueio={selectedBloqueio}
+          onEdit={handleEditBloqueio}
+          onDelete={handleDeleteBloqueio}
         />
 
         <AppointmentDetailsModal

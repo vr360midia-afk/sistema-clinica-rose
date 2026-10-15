@@ -103,9 +103,10 @@ export const useBloqueios = () => {
   }, [load]);
 
   const addBloqueio = async (b: Omit<BloqueioAgenda, 'id'>) => {
-    if (!user) return;
+    if (!user) return false;
+    const targetUserId = clinicaId || user.id;
     const { error } = await supabase.from('bloqueios_agenda').insert({
-      user_id: clinicaId,
+      user_id: targetUserId,
       titulo: b.titulo,
       dentista: b.dentista || null,
       data_inicio: b.dataInicio,
@@ -117,23 +118,56 @@ export const useBloqueios = () => {
     });
     if (error) {
       console.error(error);
-      toast.error('Erro ao criar bloqueio');
-      return;
+      toast.error('Erro ao criar bloqueio: ' + error.message);
+      return false;
     }
-    toast.success('Bloqueio criado');
-    load();
+    toast.success('Horário bloqueado com sucesso');
+    await load();
+    return true;
+  };
+
+  const updateBloqueio = async (id: string, b: Partial<Omit<BloqueioAgenda, 'id'>>) => {
+    if (!user) return false;
+    const payload: any = {};
+    if (b.titulo !== undefined) payload.titulo = b.titulo;
+    if (b.dentista !== undefined) payload.dentista = b.dentista || null;
+    if (b.dataInicio !== undefined) payload.data_inicio = b.dataInicio;
+    if (b.dataFim !== undefined) payload.data_fim = b.dataFim || b.dataInicio;
+    if (b.diaInteiro !== undefined) {
+      payload.dia_inteiro = b.diaInteiro;
+      if (b.diaInteiro) {
+        payload.hora_inicio = null;
+        payload.hora_fim = null;
+      }
+    }
+    if (!b.diaInteiro) {
+      if (b.horaInicio !== undefined) payload.hora_inicio = b.horaInicio || null;
+      if (b.horaFim !== undefined) payload.hora_fim = b.horaFim || null;
+    }
+    if (b.observacoes !== undefined) payload.observacoes = b.observacoes || null;
+
+    const { error } = await supabase.from('bloqueios_agenda').update(payload).eq('id', id);
+    if (error) {
+      console.error(error);
+      toast.error('Erro ao atualizar bloqueio: ' + error.message);
+      return false;
+    }
+    toast.success('Bloqueio atualizado com sucesso');
+    await load();
+    return true;
   };
 
   const deleteBloqueio = async (id: string) => {
     const { error } = await supabase.from('bloqueios_agenda').delete().eq('id', id);
     if (error) {
       toast.error('Erro ao remover bloqueio');
-      return;
+      return false;
     }
-    toast.success('Bloqueio removido');
-    load();
+    toast.success('Bloqueio removido com sucesso');
+    await load();
+    return true;
   };
 
-  return { bloqueios, loading, addBloqueio, deleteBloqueio, reload: load };
+  return { bloqueios, loading, addBloqueio, updateBloqueio, deleteBloqueio, reload: load };
 };
 

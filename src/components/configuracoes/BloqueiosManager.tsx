@@ -24,6 +24,7 @@ const BloqueiosManager = () => {
   const [diaInteiro, setDiaInteiro] = useState(true);
   const [horaInicio, setHoraInicio] = useState('12:00');
   const [horaFim, setHoraFim] = useState('13:00');
+  const [observacoes, setObservacoes] = useState('');
 
   const handleAdd = async () => {
     if (!titulo.trim()) {
@@ -42,8 +43,10 @@ const BloqueiosManager = () => {
       diaInteiro,
       horaInicio,
       horaFim,
+      observacoes: observacoes.trim() || null,
     });
     setTitulo('');
+    setObservacoes('');
   };
 
   return (
@@ -100,6 +103,16 @@ const BloqueiosManager = () => {
               </div>
             </>
           )}
+
+          <div className="space-y-1.5 sm:col-span-2 lg:col-span-3">
+            <Label>Descrição / Observações</Label>
+            <Input
+              value={observacoes}
+              onChange={(e) => setObservacoes(e.target.value)}
+              placeholder="Ex.: Manutenção da cadeira 2, reunião clínica com ortodontistas..."
+              maxLength={200}
+            />
+          </div>
         </div>
 
         <Button onClick={handleAdd} size="sm">
@@ -115,12 +128,18 @@ const BloqueiosManager = () => {
           ) : (
             bloqueios.map((b) => (
               <div key={b.id} className="flex items-center justify-between gap-3 rounded-lg border border-border p-3">
-                <div className="min-w-0">
+                <div className="min-w-0 space-y-0.5">
                   <p className="font-medium truncate">{b.titulo}</p>
                   <p className="text-xs text-muted-foreground">
                     {b.dataInicio.split('-').reverse().join('/')} até {b.dataFim.split('-').reverse().join('/')}
                     {b.diaInteiro ? ' • dia inteiro' : ` • ${b.horaInicio} - ${b.horaFim}`}
                   </p>
+                  {b.observacoes && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400 italic truncate flex items-center gap-1">
+                      <span>📝</span>
+                      <span>{b.observacoes}</span>
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <Badge variant="secondary">{b.dentista || 'Todos'}</Badge>

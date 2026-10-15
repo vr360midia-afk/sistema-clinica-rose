@@ -49,6 +49,21 @@ export const AgendaBigCalendar = ({
   // Propriedades visuais do evento (fundo, bordas, sombras)
   const eventPropGetter = useCallback((event: any) => {
     const resource = event.resource;
+
+    if (resource?.isBloqueio) {
+      return {
+        className: 'rbc-event-bloqueio',
+        style: {
+          backgroundColor: '#1e293b', // slate-800
+          color: '#f8fafc',
+          borderRadius: '6px',
+          border: '1.5px dashed #f59e0b',
+          boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+          backgroundImage: 'repeating-linear-gradient(45deg, rgba(245, 158, 11, 0.1), rgba(245, 158, 11, 0.1) 8px, transparent 8px, transparent 16px)',
+        }
+      };
+    }
+
     const isCancelled = resource?.status === 'cancelado' || resource?.status === 'faltou';
     const isConfirmed = resource?.confirmacaoStatus === 'confirmado' || resource?.status === 'realizado';
     
@@ -71,6 +86,42 @@ export const AgendaBigCalendar = ({
   // Custom Event component
   const EventComponent = ({ event }: any) => {
     const resource = event.resource;
+
+    if (resource?.isBloqueio) {
+      return (
+        <div
+          className="w-full h-full flex flex-col justify-between overflow-hidden select-none p-0.5 leading-tight text-left"
+          title={`🔒 Bloqueio: ${resource.titulo}${resource.observacoes ? `\nDescrição: ${resource.observacoes}` : ''}\nProfissional: ${resource.dentista ? `Dr(a). ${resource.dentista}` : 'Todos os profissionais'}`}
+        >
+          <div className="flex items-center gap-1 min-w-0">
+            <span className="text-amber-400 font-bold text-xs flex-shrink-0">🔒</span>
+            <span className="font-bold text-xs leading-tight truncate text-amber-200">
+              {resource.titulo}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between gap-1 text-[10px] text-slate-300">
+            <span className="truncate">
+              {resource.dentista ? `Dr(a). ${resource.dentista}` : 'Todos'}
+            </span>
+            {resource.horaInicio && resource.horaFim ? (
+              <span className="font-mono text-amber-300 flex-shrink-0 text-[9px]">
+                {resource.horaInicio}-{resource.horaFim}
+              </span>
+            ) : (
+              <span className="text-amber-300 font-semibold flex-shrink-0 text-[9px]">Dia todo</span>
+            )}
+          </div>
+
+          {resource.observacoes ? (
+            <div className="text-[10px] text-slate-200 italic truncate flex items-center gap-1 font-normal bg-black/30 px-1 py-0.5 rounded mt-0.5">
+              <span className="text-[9px] flex-shrink-0">📝</span>
+              <span className="truncate">{resource.observacoes}</span>
+            </div>
+          ) : null}
+        </div>
+      );
+    }
 
     return (
       <div

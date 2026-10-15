@@ -321,3 +321,25 @@
   filter: brightness(1.15) !important;
   z-index: 9999 !important;
 }
+
+/* ==========================================================================
+   BLOQUEIOS DE HORÁRIO NA AGENDA
+   ========================================================================== */
+.rbc-event.rbc-event-bloqueio {
+  cursor: pointer;
+  border: 1.5px dashed #f59e0b !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.rbc-event.rbc-event-bloqueio:hover {
+  filter: brightness(1.18) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35) !important;
+}
+
+/* Desabilitar alças de redimensionamento para eventos bloqueados */
+.rbc-event.rbc-event-bloqueio .rbc-addons-dnd-resize-ns-anchor,
+.rbc-event.rbc-event-bloqueio .rbc-addons-dnd-resize-ew-anchor {
+  display: none !important;
+}
+
