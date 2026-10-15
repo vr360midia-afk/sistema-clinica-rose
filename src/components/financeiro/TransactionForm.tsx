@@ -1130,7 +1130,6 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId }: Tra
                   </div>
                 )}
               </div>
-            </>
           )}
 
           {permiteParcelamento && (
