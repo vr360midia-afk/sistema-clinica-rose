@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Layout from '@/components/layout/Layout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -18,6 +19,7 @@ import { useDentalSystem } from '@/context/DentalSystemContext';
 import Inadimplencia from '@/components/financeiro/Inadimplencia';
 import OrcamentosAbertos from '@/components/financeiro/OrcamentosAbertos';
 import { FinanceiroDRE } from '@/components/financeiro/FinanceiroDRE';
+import { RaioXMaquininhas } from '@/components/financeiro/RaioXMaquininhas';
 import { gerarRecibo } from '@/utils/recibo';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { useOrcamentos } from '@/hooks/useOrcamentos';
@@ -33,6 +35,7 @@ const Financeiro = () => {
   const { configuracoes } = useConfiguracoes();
   const { orcamentos } = useOrcamentos();
   const { operadoras, operadoraPadrao } = useMaquinasCartao();
+  const navigate = useNavigate();
 
   const [showTransactionForm, setShowTransactionForm] = useState(false);
   const [editingTransacao, setEditingTransacao] = useState<any | null>(null);
@@ -427,6 +430,12 @@ const Financeiro = () => {
             </CardContent>
           </Card>
         </div>
+ 
+        {/* Raio-X & Conciliação de Maquininhas de Cartão (InfinitePay vs PagBank vs Outras) */}
+        <RaioXMaquininhas
+          transacoesMes={transacoesMes}
+          onOpenConfig={() => navigate('/configuracoes?tab=maquinas')}
+        />
 
         {/* Abas de Navegação */}
         <Tabs defaultValue="fluxo" className="space-y-6">

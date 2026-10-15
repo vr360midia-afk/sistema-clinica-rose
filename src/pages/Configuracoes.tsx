@@ -1,5 +1,6 @@
 
 import React, { useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import Layout from '@/components/layout/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -43,6 +44,8 @@ const formatCnpjCpf = (value: string) => {
 };
 
 const Configuracoes = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'geral';
   const { toast } = useToast();
   const { configuracoes, setConfiguracoes, loading, saving, saveConfiguracoes } = useConfiguracoes();
   const [tokens, setTokens] = useState({ whatsappToken: '', instagramToken: '', asaasToken: '' });
@@ -235,7 +238,7 @@ const Configuracoes = () => {
           </Button>
         </div>
 
-        <Tabs defaultValue="geral" className="space-y-6">
+        <Tabs value={activeTab} onValueChange={(val) => setSearchParams({ tab: val })} className="space-y-6">
           <TabsList className="flex flex-wrap h-auto">
             <TabsTrigger value="geral">Geral</TabsTrigger>
             <TabsTrigger value="contrato">
