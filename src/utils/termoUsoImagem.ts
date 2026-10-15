@@ -31,7 +31,7 @@ export const gerarHtmlTermoUsoImagem = (snapshot?: ContratoSnapshot | null): str
   // Opções selecionadas pelo paciente (defaults amigáveis e seguros)
   const optDidatico = termo.usoDidaticoCientifico !== false;
   const optPublicitario = termo.usoPublicitarioRedesSociais !== false;
-  const optIdentificacao = termo.identificacaoFacialVoz || 'apenas_bucal';
+  const optIdentificacao = termo.identificacaoFacialVoz || 'rosto_e_voz';
   const optDepoimentos = termo.depoimentos !== false;
 
   return `<!doctype html>
@@ -482,7 +482,7 @@ export const gerarFragmentoHtmlTermoUsoImagem = (snapshot: ContratoSnapshot, num
 
   const optDidatico = termo.usoDidaticoCientifico !== false;
   const optPublicitario = termo.usoPublicitarioRedesSociais !== false;
-  const optIdentificacao = termo.identificacaoFacialVoz || 'apenas_bucal';
+  const optIdentificacao = termo.identificacaoFacialVoz || 'rosto_e_voz';
   const optDepoimentos = termo.depoimentos !== false;
 
   return `

@@ -73,7 +73,7 @@ export default function AssinarContrato() {
   const [autorizaImagem, setAutorizaImagem] = useState<boolean>(false);
   const [usoDidatico, setUsoDidatico] = useState<boolean>(true);
   const [usoPublicitario, setUsoPublicitario] = useState<boolean>(true);
-  const [identificacao, setIdentificacao] = useState<'rosto_e_voz' | 'apenas_voz' | 'apenas_bucal' | 'nao_autoriza_identificacao'>('apenas_bucal');
+  const [identificacao, setIdentificacao] = useState<'rosto_e_voz' | 'apenas_voz' | 'apenas_bucal' | 'nao_autoriza_identificacao'>('rosto_e_voz');
   const [depoimentos, setDepoimentos] = useState<boolean>(true);
   const [expandirLeituraTermo, setExpandirLeituraTermo] = useState<boolean>(true);
 
@@ -112,6 +112,8 @@ export default function AssinarContrato() {
       }
       if (snapshot.termoUsoImagem.identificacaoFacialVoz) {
         setIdentificacao(snapshot.termoUsoImagem.identificacaoFacialVoz);
+      } else {
+        setIdentificacao('rosto_e_voz');
       }
       if (snapshot.termoUsoImagem.depoimentos !== undefined) {
         setDepoimentos(snapshot.termoUsoImagem.depoimentos);
@@ -989,8 +991,8 @@ export default function AssinarContrato() {
                         </span>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-0.5">
                           {[
-                            { id: 'apenas_bucal', label: 'Apenas região bucal (Sorriso/Dentes sem rosto direto)', desc: 'Mais recomendado e seguro para privacidade' },
                             { id: 'rosto_e_voz', label: 'Rosto e Voz reconhecíveis', desc: 'Permite foto completa do rosto e voz' },
+                            { id: 'apenas_bucal', label: 'Apenas região bucal (Sorriso/Dentes sem rosto direto)', desc: 'Mais recomendado e seguro para privacidade' },
                             { id: 'apenas_voz', label: 'Apenas gravações com minha voz', desc: 'Áudio sem imagem facial' },
                             { id: 'nao_autoriza_identificacao', label: 'Nenhuma identificação permitida', desc: 'Apenas registros estritamente anônimos' },
                           ].map((item) => (

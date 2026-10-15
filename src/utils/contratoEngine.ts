@@ -1116,7 +1116,7 @@ export const mapearDadosContrato = ({
       autorizado: false, // Por padrão facultativo: aguarda manifestação de autorização do paciente
       usoDidaticoCientifico: true,
       usoPublicitarioRedesSociais: true,
-      identificacaoFacialVoz: 'apenas_bucal',
+      identificacaoFacialVoz: 'rosto_e_voz',
       depoimentos: true,
     },
     assinaturaPaciente: null,

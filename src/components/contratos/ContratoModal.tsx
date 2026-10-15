@@ -1072,7 +1072,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                               autorizado: checked,
                               usoDidaticoCientifico: prev.termoUsoImagem?.usoDidaticoCientifico !== false,
                               usoPublicitarioRedesSociais: prev.termoUsoImagem?.usoPublicitarioRedesSociais !== false,
-                              identificacaoFacialVoz: prev.termoUsoImagem?.identificacaoFacialVoz || 'apenas_bucal',
+                              identificacaoFacialVoz: prev.termoUsoImagem?.identificacaoFacialVoz || 'rosto_e_voz',
                               depoimentos: prev.termoUsoImagem?.depoimentos !== false,
                               canalContatoLgpd: prev.clinica.email || prev.clinica.telefone,
                             },
@@ -2066,15 +2066,15 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                             <div className="space-y-1 sm:col-span-2 md:col-span-3">
                               <Label className="text-xs text-muted-foreground">D — Nível de Identificação Facial & Voz</Label>
                               <Select
-                                value={snapshotAtual.termoUsoImagem?.identificacaoFacialVoz || 'apenas_bucal'}
+                                value={snapshotAtual.termoUsoImagem?.identificacaoFacialVoz || 'rosto_e_voz'}
                                 onValueChange={(v) => handleUpdateSnapshotField('termoUsoImagem.identificacaoFacialVoz', v)}
                               >
                                 <SelectTrigger className="h-8 text-xs">
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="apenas_bucal">Apenas região bucal (Sorriso/dentes sem identificação direta do rosto - Recomendado)</SelectItem>
                                   <SelectItem value="rosto_e_voz">Rosto reconhecível e gravações de voz</SelectItem>
+                                  <SelectItem value="apenas_bucal">Apenas região bucal (Sorriso/dentes sem identificação direta do rosto)</SelectItem>
                                   <SelectItem value="apenas_voz">Apenas gravações de voz</SelectItem>
                                   <SelectItem value="nao_autoriza_identificacao">Não autorizo identificação (Totalmente anônimo)</SelectItem>
                                 </SelectContent>
