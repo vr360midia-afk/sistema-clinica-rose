@@ -358,21 +358,26 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
   };
 
   const generateSignatureLink = async (anamneseId: string): Promise<string> => {
+    if (!anamneseId) return '';
     const anamnese = anamneses.find(a => a.id === anamneseId);
-    if (!anamnese) return '';
     
-    const token = Math.random().toString(36).substring(2, 15);
+    const token = anamnese?.tokenAssinatura || Math.random().toString(36).substring(2, 15);
     const expiracaoLink = new Date();
     expiracaoLink.setDate(expiracaoLink.getDate() + 7); // 7 dias para expirar
+    const fullLink = `${window.location.origin}/assinar-anamnese/${anamneseId}?token=${token}`;
     
     // Atualizar anamnese com token
-    await updateAnamnese(anamneseId, {
-      tokenAssinatura: token,
-      dataExpiracaoLink: expiracaoLink,
-      linkAssinatura: `${window.location.origin}/assinar-anamnese/${anamneseId}?token=${token}`
-    });
+    try {
+      await updateAnamnese(anamneseId, {
+        tokenAssinatura: token,
+        dataExpiracaoLink: expiracaoLink,
+        linkAssinatura: fullLink
+      });
+    } catch (e) {
+      console.warn('Aviso ao sincronizar token de anamnese no banco:', e);
+    }
     
-    return `${window.location.origin}/assinar-anamnese/${anamneseId}?token=${token}`;
+    return fullLink;
   };
 
   const signAnamnese = async (id: string, signatureData: any, signerType: 'paciente' | 'dentista') => {

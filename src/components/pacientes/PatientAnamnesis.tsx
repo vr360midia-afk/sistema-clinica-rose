@@ -1,135 +1,439 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, Calendar, ClipboardList } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import {
+  Plus,
+  Calendar,
+  ClipboardList,
+  Copy,
+  Check,
+  Link2,
+  MessageCircle,
+  CheckCircle2,
+  Clock,
+  Trash2,
+  ExternalLink,
+  FileCheck,
+  Loader2,
+} from 'lucide-react';
+import { toast } from 'sonner';
 import { useDentalSystem } from '@/context/DentalSystemContext';
-import EmptyState from '@/components/common/EmptyState';
 import AnamneseModal from '@/components/anamnese/AnamneseModal';
+import { openWhatsApp } from '@/lib/whatsapp';
 
 interface PatientAnamnesisProps {
   patient: any;
 }
 
 const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
-  const { anamneses } = useDentalSystem();
+  const { anamneses, addAnamnese, generateSignatureLink, deleteAnamnese } = useDentalSystem();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  
-  const patientAnamnesis = anamneses.filter(a => a.pacienteId === patient.id);
+  const [copiandoId, setCopiandoId] = useState<string | null>(null);
+  const [gerandoLink, setGerandoLink] = useState(false);
+
+  const patientAnamnesis = (anamneses || []).filter((a) => a.pacienteId === patient.id);
 
   const handleNewAnamnesis = () => {
     setIsModalOpen(true);
   };
 
-  const handleSaveAnamnesis = (data: any) => {
-    // O modal já salva através do contexto
-    console.log('Anamnese salva para:', patient.nome);
+  const handleSaveAnamnesis = () => {
     setIsModalOpen(false);
   };
 
+  // Obtém o link existente ou gera um novo token seguro vinculado à anamnese
+  const obterOuGerarLink = async (targetId?: string): Promise<string> => {
+    let id = targetId;
+
+    if (!id) {
+      if (patientAnamnesis.length > 0) {
+        id = patientAnamnesis[0].id;
+      } else {
+        // Se ainda não houver anamnese criada, cria automaticamente uma ficha inicial para o paciente responder
+        const nova = await addAnamnese({
+          pacienteId: patient.id,
+          pacienteNome: patient.nome,
+          data: new Date(),
+          queixaPrincipal: 'Avaliação Inicial e Questionário de Saúde',
+          statusAssinatura: 'pendente' as const,
+        });
+        id = nova.id;
+      }
+    }
+
+    const link = await generateSignatureLink(id);
+    return link;
+  };
+
+  // Copia o link da anamnese para a área de transferência
+  const handleCopiarLink = async (targetId?: string) => {
+    try {
+      setGerandoLink(true);
+      const link = await obterOuGerarLink(targetId);
+      if (!link) {
+        toast.error('Não foi possível gerar o link da anamnese.');
+        return;
+      }
+
+      await navigator.clipboard.writeText(link);
+      setCopiandoId(targetId || 'geral');
+      toast.success('Link da anamnese copiado para a área de transferência!');
+      setTimeout(() => setCopiandoId(null), 3000);
+    } catch (err) {
+      console.error('Erro ao copiar link da anamnese:', err);
+      toast.error('Erro ao gerar/copiar link da anamnese');
+    } finally {
+      setGerandoLink(false);
+    }
+  };
+
+  // Envia o link da anamnese diretamente pelo WhatsApp do paciente
+  const handleEnviarWhatsApp = async (targetId?: string) => {
+    try {
+      setGerandoLink(true);
+      const link = await obterOuGerarLink(targetId);
+      if (!link) {
+        toast.error('Não foi possível gerar o link da anamnese.');
+        return;
+      }
+
+      const mensagem =
+        `Olá, *${patient.nome}*!\n\n` +
+        `Para agilizar o seu atendimento e garantir a sua máxima segurança clínica, por favor acesse o link abaixo para preencher e assinar digitalmente a sua *Ficha de Anamnese*:\n\n` +
+        `👉 ${link}\n\n` +
+        `O preenchimento leva menos de 2 minutos pelo seu celular e fica registrado de forma segura no seu prontuário. Qualquer dúvida, estamos à disposição!`;
+
+      openWhatsApp(patient.telefone || '', mensagem);
+      toast.success('Abrindo WhatsApp com o link da anamnese...');
+    } catch (err) {
+      console.error('Erro ao enviar anamnese pelo WhatsApp:', err);
+      toast.error('Erro ao gerar link para o WhatsApp');
+    } finally {
+      setGerandoLink(false);
+    }
+  };
+
+  // Abre o link em nova aba para conferência ou preenchimento na recepção
+  const handleAbrirLink = async (targetId?: string) => {
+    try {
+      setGerandoLink(true);
+      const link = await obterOuGerarLink(targetId);
+      if (link) {
+        window.open(link, '_blank');
+      }
+    } catch (err) {
+      console.error('Erro ao abrir link da anamnese:', err);
+      toast.error('Erro ao abrir link da anamnese');
+    } finally {
+      setGerandoLink(false);
+    }
+  };
+
+  // Exclusão de ficha de anamnese
+  const handleExcluir = async (anamneseId: string) => {
+    if (confirm('Tem certeza de que deseja excluir esta ficha de anamnese?')) {
+      try {
+        await deleteAnamnese(anamneseId);
+        toast.success('Anamnese excluída com sucesso.');
+      } catch (err) {
+        console.error('Erro ao excluir anamnese:', err);
+        toast.error('Erro ao excluir anamnese.');
+      }
+    }
+  };
+
+  // Estado Vazio: quando o paciente ainda não possui nenhuma anamnese
   if (patientAnamnesis.length === 0) {
     return (
-      <>
-        <EmptyState
-          icon={ClipboardList}
-          title="Nenhuma anamnese encontrada"
-          description="Este paciente ainda não possui anamneses cadastradas"
-          action={{
-            label: 'Nova Anamnese',
-            onClick: handleNewAnamnesis
-          }}
-        />
+      <div className="space-y-6">
+        <Card className="border-dashed border-2 border-border/80 bg-muted/20">
+          <CardContent className="pt-8 pb-8 text-center space-y-4 max-w-xl mx-auto">
+            <div className="h-14 w-14 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center mx-auto shadow-xs">
+              <ClipboardList className="h-7 w-7" />
+            </div>
+
+            <div>
+              <h3 className="text-lg font-bold text-foreground">Nenhuma anamnese cadastrada</h3>
+              <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
+                Você pode enviar um link prático para <strong>{patient.nome}</strong> responder e assinar pelo próprio celular, ou preencher manualmente agora na clínica.
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5 pt-2">
+              <Button
+                onClick={() => handleEnviarWhatsApp()}
+                disabled={gerandoLink}
+                className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-xs"
+              >
+                {gerandoLink ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <MessageCircle className="h-4 w-4 mr-2" />
+                )}
+                Enviar Link pelo WhatsApp
+              </Button>
+
+              <Button
+                variant="outline"
+                onClick={() => handleCopiarLink()}
+                disabled={gerandoLink}
+                className="w-full sm:w-auto border-blue-200 hover:bg-blue-50 text-blue-800 dark:text-blue-300 dark:border-blue-800"
+              >
+                {copiandoId === 'geral' ? (
+                  <Check className="h-4 w-4 mr-2 text-emerald-600" />
+                ) : (
+                  <Link2 className="h-4 w-4 mr-2" />
+                )}
+                {copiandoId === 'geral' ? 'Link Copiado!' : 'Copiar Link de Anamnese'}
+              </Button>
+
+              <Button
+                variant="ghost"
+                onClick={handleNewAnamnesis}
+                className="w-full sm:w-auto text-muted-foreground hover:text-foreground"
+              >
+                <Plus className="h-4 w-4 mr-1.5" />
+                Preencher na Clínica
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
         <AnamneseModal
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
           onSave={handleSaveAnamnesis}
           preSelectedPatient={patient.id}
         />
-      </>
+      </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h3 className="text-lg font-semibold">Anamneses ({patientAnamnesis.length})</h3>
-        <Button onClick={handleNewAnamnesis} className="bg-blue-600 hover:bg-blue-700">
-          <Plus className="h-4 w-4 mr-2" />
-          Nova Anamnese
-        </Button>
+      {/* Barra de Ações Superior */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card p-3 rounded-lg border border-border shadow-xs">
+        <div>
+          <h3 className="text-base sm:text-lg font-bold text-foreground flex items-center gap-2">
+            <ClipboardList className="h-5 w-5 text-primary" />
+            Anamneses do Paciente ({patientAnamnesis.length})
+          </h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Histórico médico, questionários de saúde e assinaturas digitais coletadas.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => handleCopiarLink()}
+            disabled={gerandoLink}
+            className="text-xs h-8"
+            title="Copiar link para o paciente preencher/assinar"
+          >
+            {copiandoId === 'geral' ? (
+              <Check className="h-3.5 w-3.5 mr-1.5 text-emerald-600" />
+            ) : (
+              <Copy className="h-3.5 w-3.5 mr-1.5 text-blue-600" />
+            )}
+            {copiandoId === 'geral' ? 'Copiado!' : 'Copiar Link'}
+          </Button>
+
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => handleEnviarWhatsApp()}
+            disabled={gerandoLink}
+            className="text-xs h-8 border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-300"
+            title="Enviar link da anamnese diretamente no WhatsApp do paciente"
+          >
+            <MessageCircle className="h-3.5 w-3.5 mr-1.5" />
+            WhatsApp
+          </Button>
+
+          <Button
+            size="sm"
+            onClick={handleNewAnamnesis}
+            className="text-xs h-8 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
+          >
+            <Plus className="h-3.5 w-3.5 mr-1.5" />
+            Nova Anamnese
+          </Button>
+        </div>
       </div>
 
+      {/* Listagem de Anamneses */}
       <div className="grid gap-4">
-        {patientAnamnesis.map((anamnese) => (
-          <Card key={anamnese.id} className="hover:shadow-md transition-shadow">
-            <CardHeader className="pb-3">
-              <div className="flex justify-between items-start">
-                <div>
-                  <CardTitle className="text-base">{anamnese.queixaPrincipal}</CardTitle>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
-                    <Calendar className="h-4 w-4" />
-                    <span>{new Date(anamnese.data).toLocaleDateString('pt-BR')}</span>
+        {patientAnamnesis.map((anamnese) => {
+          const isAssinada = Boolean(
+            anamnese.assinaturaPaciente ||
+            anamnese.statusAssinatura === 'completo' ||
+            anamnese.statusAssinatura === 'paciente_assinado'
+          );
+
+          return (
+            <Card key={anamnese.id} className="hover:shadow-md transition-shadow border-border">
+              <CardHeader className="pb-3 border-b border-border/50">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <CardTitle className="text-base font-bold text-foreground">
+                        {anamnese.queixaPrincipal || 'Anamnese Odontológica'}
+                      </CardTitle>
+
+                      {isAssinada ? (
+                        <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-300 font-semibold gap-1 text-[11px]">
+                          <CheckCircle2 className="h-3 w-3" />
+                          Assinada pelo Paciente
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className="bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border-amber-300 font-medium gap-1 text-[11px]"
+                        >
+                          <Clock className="h-3 w-3" />
+                          Aguardando Assinatura
+                        </Badge>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                      <Calendar className="h-3.5 w-3.5" />
+                      <span>{new Date(anamnese.data).toLocaleDateString('pt-BR')}</span>
+                      {anamnese.dataAssinatura && (
+                        <span>
+                          • Assinado em {new Date(anamnese.dataAssinatura).toLocaleDateString('pt-BR')}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Ações da Ficha */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleCopiarLink(anamnese.id)}
+                      disabled={gerandoLink}
+                      className="h-8 text-xs font-medium"
+                      title="Copiar link para o paciente preencher ou assinar"
+                    >
+                      {copiandoId === anamnese.id ? (
+                        <Check className="h-3.5 w-3.5 mr-1 text-emerald-600" />
+                      ) : (
+                        <Copy className="h-3.5 w-3.5 mr-1 text-blue-600" />
+                      )}
+                      {copiandoId === anamnese.id ? 'Copiado!' : 'Copiar Link'}
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleEnviarWhatsApp(anamnese.id)}
+                      disabled={gerandoLink}
+                      className="h-8 text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-300 font-medium"
+                      title="Enviar link diretamente para o WhatsApp do paciente"
+                    >
+                      <MessageCircle className="h-3.5 w-3.5 mr-1" />
+                      WhatsApp
+                    </Button>
+
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleAbrirLink(anamnese.id)}
+                      className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                      title="Abrir página pública da anamnese"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </Button>
+
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleExcluir(anamnese.id)}
+                      className="h-8 w-8 p-0 text-muted-foreground hover:text-red-600"
+                      title="Excluir anamnese"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
                   </div>
                 </div>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="bg-green-50 text-green-600 hover:bg-green-100 border-green-200"
-                  onClick={() => {
-                    const link = `${window.location.origin}/assinar-anamnese/${anamnese.id}?token=${anamnese.id}`;
-                    const msg = `Olá! Clique no link abaixo para assinar digitalmente a sua Ficha de Anamnese da Clínica:\n\n${link}`;
-                    import('@/lib/whatsapp').then(({ openWhatsApp }) => openWhatsApp(patient.telefone || '', msg));
-                  }}
-                >
-                  Pedir Assinatura pelo WhatsApp
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {anamnese.historiaAtual && (
-                <div>
-                  <span className="text-sm font-medium">História Atual:</span>
-                  <p className="text-sm text-muted-foreground mt-1">{anamnese.historiaAtual}</p>
-                </div>
-              )}
-              
-              {anamnese.historiaFamiliar && (
-                <div>
-                  <span className="text-sm font-medium">História Familiar:</span>
-                  <p className="text-sm text-muted-foreground mt-1">{anamnese.historiaFamiliar}</p>
-                </div>
-              )}
+              </CardHeader>
 
-              {anamnese.historiaMedica && (
-                <div>
-                  <span className="text-sm font-medium">História Médica:</span>
-                  <p className="text-sm text-muted-foreground mt-1">{anamnese.historiaMedica}</p>
-                </div>
-              )}
+              <CardContent className="space-y-3 pt-3 text-xs sm:text-sm">
+                {anamnese.historiaAtual && (
+                  <div>
+                    <span className="font-semibold text-foreground block">História Atual:</span>
+                    <p className="text-muted-foreground mt-0.5">{anamnese.historiaAtual}</p>
+                  </div>
+                )}
 
-              {anamnese.alergias && (
-                <div>
-                  <span className="text-sm font-medium">Alergias:</span>
-                  <p className="text-sm text-muted-foreground mt-1">{anamnese.alergias}</p>
-                </div>
-              )}
+                {anamnese.historiaMedica && (
+                  <div>
+                    <span className="font-semibold text-foreground block">História Médica:</span>
+                    <p className="text-muted-foreground mt-0.5">{anamnese.historiaMedica}</p>
+                  </div>
+                )}
 
-              {anamnese.medicamentos && (
-                <div>
-                  <span className="text-sm font-medium">Medicamentos:</span>
-                  <p className="text-sm text-muted-foreground mt-1">{anamnese.medicamentos}</p>
-                </div>
-              )}
+                {anamnese.alergias && (
+                  <div>
+                    <span className="font-semibold text-amber-700 dark:text-amber-400 block">
+                      Alergias Relatadas:
+                    </span>
+                    <p className="text-foreground font-medium mt-0.5 bg-amber-50/70 dark:bg-amber-950/30 p-2 rounded border border-amber-200 dark:border-amber-900/40">
+                      {anamnese.alergias}
+                    </p>
+                  </div>
+                )}
 
-              {anamnese.observacoes && (
-                <div>
-                  <span className="text-sm font-medium">Observações:</span>
-                  <p className="text-sm text-muted-foreground mt-1">{anamnese.observacoes}</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        ))}
+                {anamnese.medicamentos && (
+                  <div>
+                    <span className="font-semibold text-foreground block">Medicamentos em Uso:</span>
+                    <p className="text-muted-foreground mt-0.5">{anamnese.medicamentos}</p>
+                  </div>
+                )}
+
+                {anamnese.historiaFamiliar && (
+                  <div>
+                    <span className="font-semibold text-foreground block">História Familiar:</span>
+                    <p className="text-muted-foreground mt-0.5">{anamnese.historiaFamiliar}</p>
+                  </div>
+                )}
+
+                {(anamnese.habitosViciosPositivos || anamnese.habitosViciosNegativos) && (
+                  <div>
+                    <span className="font-semibold text-foreground block">Hábitos e Vícios:</span>
+                    <p className="text-muted-foreground mt-0.5">
+                      {[anamnese.habitosViciosPositivos, anamnese.habitosViciosNegativos].filter(Boolean).join(' • ')}
+                    </p>
+                  </div>
+                )}
+
+                {anamnese.observacoes && (
+                  <div>
+                    <span className="font-semibold text-foreground block">Observações:</span>
+                    <p className="text-muted-foreground mt-0.5">{anamnese.observacoes}</p>
+                  </div>
+                )}
+
+                {anamnese.assinaturaPaciente?.signerName && (
+                  <div className="pt-2 border-t border-border flex items-center gap-2 text-xs text-emerald-700 dark:text-emerald-400 font-medium">
+                    <FileCheck className="h-4 w-4" />
+                    <span>
+                      Assinatura confirmada por {anamnese.assinaturaPaciente.signerName}
+                      {anamnese.assinaturaPaciente.timestamp && (
+                        <> em {new Date(anamnese.assinaturaPaciente.timestamp).toLocaleString('pt-BR')}</>
+                      )}
+                    </span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       <AnamneseModal
