@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { ClipboardList, Plus, Trash2, MessageCircle, Check, X, Handshake, FileText, Pencil, FileSignature, Sparkles, CalendarDays, Link as LinkIcon, Layers, CreditCard, Wallet, CheckCircle2, RefreshCw, Search, ChevronsUpDown } from 'lucide-react';
+import { ClipboardList, Plus, Trash2, MessageCircle, Check, X, Handshake, FileText, Pencil, FileSignature, Sparkles, CalendarDays, Link as LinkIcon, Layers, CreditCard, Wallet, CheckCircle2, RefreshCw, Search, ChevronsUpDown, Calculator } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { useOrcamentos, OrcamentoItem, Orcamento } from '@/hooks/useOrcamentos';
 import { useProcedimentos } from '@/hooks/useProcedimentos';
@@ -150,6 +150,57 @@ const PatientOrcamentos = ({ patient }: Props) => {
 
   const subtotal = itens.reduce((s, i) => s + i.valor * i.quantidade, 0);
   const total = Math.max(0, subtotal - desconto);
+
+  // Ajuste do Valor Final com cálculo automático de desconto
+  const [modoCalculoValor, setModoCalculoValor] = useState<'desconto' | 'valor_final'>('desconto');
+  const [inputValorFinal, setInputValorFinal] = useState<string>('');
+
+  const handleDescontoChange = (valStr: string) => {
+    const num = parseFloat(valStr.replace(',', '.'));
+    if (isNaN(num) || num < 0) {
+      setDesconto(0);
+      setInputValorFinal(String(subtotal));
+      return;
+    }
+    const d = Math.min(subtotal, Number(num.toFixed(2)));
+    setDesconto(d);
+    setInputValorFinal(String(Math.max(0, Number((subtotal - d).toFixed(2)))));
+  };
+
+  const handleValorFinalChange = (valStr: string) => {
+    setInputValorFinal(valStr);
+    const num = parseFloat(valStr.replace(',', '.'));
+    if (isNaN(num) || num < 0) {
+      setDesconto(0);
+      return;
+    }
+    const finalVal = Number(num.toFixed(2));
+    if (finalVal > subtotal) {
+      setDesconto(0);
+    } else {
+      const novoDesconto = Math.max(0, Number((subtotal - finalVal).toFixed(2)));
+      setDesconto(novoDesconto);
+    }
+  };
+
+  const aplicarDescontoPercentual = (percentual: number) => {
+    if (subtotal <= 0) return;
+    const desc = Number(((subtotal * percentual) / 100).toFixed(2));
+    const finalVal = Number((subtotal - desc).toFixed(2));
+    setDesconto(desc);
+    setInputValorFinal(String(finalVal));
+    toast.success(`Desconto de ${percentual}% aplicado (-${formatMoney(desc)})! Valor final: ${formatMoney(finalVal)}`);
+  };
+
+  const arredondarValorFinalPara = (divisor: number) => {
+    if (subtotal <= 0) return;
+    const arredondado = Math.floor(subtotal / divisor) * divisor;
+    if (arredondado <= 0 || arredondado >= subtotal) return;
+    const desc = Number((subtotal - arredondado).toFixed(2));
+    setDesconto(desc);
+    setInputValorFinal(String(arredondado));
+    toast.success(`Valor final arredondado para ${formatMoney(arredondado)}! Desconto calculado: ${formatMoney(desc)}`);
+  };
 
   const montarTextoMultiplasFormas = (lista: typeof formasMultiplas) => {
     const partes: string[] = [];
@@ -757,6 +808,8 @@ const PatientOrcamentos = ({ patient }: Props) => {
     setValorRepasse(0);
     setBuscaProcedimento('');
     setOpenBuscaProcedimento(false);
+    setModoCalculoValor('desconto');
+    setInputValorFinal('');
     setOpen(true);
   };
 
@@ -770,6 +823,8 @@ const PatientOrcamentos = ({ patient }: Props) => {
     setFormasPagamento(o.formasPagamento || '');
     setBuscaProcedimento('');
     setOpenBuscaProcedimento(false);
+    setModoCalculoValor('desconto');
+    setInputValorFinal(o.total ? String(o.total) : '');
 
     // Verifica se possui múltiplas formas de pagamento (ex: Entrada PIX + Restante Cartão)
     if (
@@ -1465,15 +1520,239 @@ const PatientOrcamentos = ({ patient }: Props) => {
               ))}
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Desconto (R$)</Label>
-                <Input type="number" min={0} step="0.01" value={desconto} onChange={(e) => setDesconto(Number(e.target.value) || 0)} />
+            {/* Bloco de Valores: Subtotal, Desconto e Total Final com Ajuste Automático */}
+            <div className="bg-muted/30 p-3 sm:p-4 rounded-xl border border-border space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/50 pb-2.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Subtotal dos itens:
+                  </span>
+                  <span className="text-sm font-bold text-foreground">
+                    {formatMoney(subtotal)}
+                  </span>
+                </div>
+
+                {/* Seletor de Modo: Por Desconto vs Por Valor Final */}
+                <div className="flex items-center bg-background border border-border p-0.5 rounded-lg text-xs shadow-xs">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setModoCalculoValor('desconto');
+                    }}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
+                      modoCalculoValor === 'desconto'
+                        ? 'bg-primary text-primary-foreground shadow-xs'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    🏷️ Por Desconto
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setModoCalculoValor('valor_final');
+                      if (!inputValorFinal || Number(inputValorFinal) === 0) {
+                        setInputValorFinal(total > 0 ? String(total) : String(subtotal));
+                      }
+                    }}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
+                      modoCalculoValor === 'valor_final'
+                        ? 'bg-primary text-primary-foreground shadow-xs'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    💰 Ajustar Valor Final
+                  </button>
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <Label>Total</Label>
-                <Input value={formatMoney(total)} readOnly />
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
+                {/* Campo de Desconto */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs flex items-center gap-1.5">
+                      <span>Desconto (R$)</span>
+                      {desconto > 0 && subtotal > 0 && (
+                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.2 rounded border border-emerald-200 dark:border-emerald-800">
+                          - {((desconto / subtotal) * 100).toFixed(1)}%
+                        </span>
+                      )}
+                    </Label>
+                    {desconto > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDesconto(0);
+                          setInputValorFinal(String(subtotal));
+                          toast.info('Desconto zerado!');
+                        }}
+                        className="text-[10px] text-muted-foreground hover:text-destructive underline"
+                      >
+                        Zerar desconto
+                      </button>
+                    )}
+                  </div>
+                  {modoCalculoValor === 'desconto' ? (
+                    <Input
+                      type="number"
+                      min={0}
+                      max={subtotal}
+                      step="0.01"
+                      value={desconto || ''}
+                      placeholder="0,00"
+                      onChange={(e) => handleDescontoChange(e.target.value)}
+                      className="h-10 text-sm font-medium focus-visible:ring-primary"
+                    />
+                  ) : (
+                    <div className="relative">
+                      <Input
+                        value={desconto > 0 ? formatMoney(desconto) : 'R$ 0,00 (sem desconto)'}
+                        readOnly
+                        className="h-10 text-sm font-medium bg-muted/40 cursor-pointer text-muted-foreground pr-24"
+                        onClick={() => setModoCalculoValor('desconto')}
+                        title="Calculado automaticamente a partir do Valor Final. Clique para editar o desconto diretamente."
+                      />
+                      <span className="absolute right-2.5 top-2.5 text-[10px] text-muted-foreground font-medium">
+                        (Automático)
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Campo de Total / Valor Final */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-semibold flex items-center gap-1">
+                      <span>Valor Final (Total)</span>
+                      {modoCalculoValor === 'valor_final' && (
+                        <span className="text-[10px] text-primary font-medium animate-pulse">
+                          (editando final)
+                        </span>
+                      )}
+                    </Label>
+                    {modoCalculoValor === 'desconto' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setModoCalculoValor('valor_final');
+                          setInputValorFinal(total > 0 ? String(total) : String(subtotal));
+                        }}
+                        className="text-[11px] text-primary hover:underline font-medium flex items-center gap-0.5"
+                      >
+                        <Pencil className="h-3 w-3" /> Ajustar final
+                      </button>
+                    )}
+                  </div>
+
+                  {modoCalculoValor === 'valor_final' ? (
+                    <div className="space-y-1">
+                      <div className="relative">
+                        <Input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          placeholder={subtotal > 0 ? String(subtotal) : '0,00'}
+                          value={inputValorFinal}
+                          onChange={(e) => handleValorFinalChange(e.target.value)}
+                          autoFocus
+                          className="h-10 text-sm font-bold text-foreground border-primary/50 focus-visible:ring-primary pr-24"
+                        />
+                        <span className="absolute right-2.5 top-2.5 text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">
+                          = {formatMoney(Number(inputValorFinal) || total)}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">
+                        💡 Digite o valor final negociado. O desconto é calculado automaticamente.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <Input
+                        value={formatMoney(total)}
+                        readOnly
+                        onClick={() => {
+                          setModoCalculoValor('valor_final');
+                          setInputValorFinal(total > 0 ? String(total) : String(subtotal));
+                        }}
+                        className="h-10 text-sm font-bold text-foreground bg-background cursor-pointer hover:border-primary/50 transition-colors pr-20"
+                        title="Clique para ajustar o valor final e calcular o desconto automaticamente"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setModoCalculoValor('valor_final');
+                          setInputValorFinal(total > 0 ? String(total) : String(subtotal));
+                        }}
+                        className="absolute right-1 top-1 h-8 px-2 text-xs text-primary hover:text-primary hover:bg-primary/10 gap-1"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        <span className="text-[11px] font-medium">Ajustar</span>
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </div>
+
+              {/* Atalhos rápidos de negociação (descontos e arredondamentos) */}
+              {subtotal > 0 && (
+                <div className="pt-2 border-t border-border/40 flex flex-wrap items-center gap-1.5">
+                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mr-1 flex items-center gap-1">
+                    <Calculator className="h-3 w-3 text-primary" />
+                    Atalhos rápidos:
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-6 text-[10px] px-2 rounded-full border-border hover:bg-emerald-50 dark:hover:bg-emerald-950/40 hover:text-emerald-700 dark:hover:text-emerald-300"
+                    onClick={() => aplicarDescontoPercentual(5)}
+                  >
+                    -5% ({formatMoney(subtotal * 0.95)})
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-6 text-[10px] px-2 rounded-full border-border hover:bg-emerald-50 dark:hover:bg-emerald-950/40 hover:text-emerald-700 dark:hover:text-emerald-300"
+                    onClick={() => aplicarDescontoPercentual(10)}
+                  >
+                    -10% ({formatMoney(subtotal * 0.9)})
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-6 text-[10px] px-2 rounded-full border-border hover:bg-emerald-50 dark:hover:bg-emerald-950/40 hover:text-emerald-700 dark:hover:text-emerald-300"
+                    onClick={() => aplicarDescontoPercentual(15)}
+                  >
+                    -15% ({formatMoney(subtotal * 0.85)})
+                  </Button>
+                  {subtotal >= 200 && subtotal % 100 !== 0 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-6 text-[10px] px-2 rounded-full border-border hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:text-blue-700 dark:hover:text-blue-300"
+                      onClick={() => arredondarValorFinalPara(100)}
+                    >
+                      Arredondar p/ {formatMoney(Math.floor(subtotal / 100) * 100)}
+                    </Button>
+                  )}
+                  {subtotal >= 1000 && subtotal % 500 !== 0 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-6 text-[10px] px-2 rounded-full border-border hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:text-blue-700 dark:hover:text-blue-300"
+                      onClick={() => arredondarValorFinalPara(500)}
+                    >
+                      Arredondar p/ {formatMoney(Math.floor(subtotal / 500) * 500)}
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="space-y-2">
