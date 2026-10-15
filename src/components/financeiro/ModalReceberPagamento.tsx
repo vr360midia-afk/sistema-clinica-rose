@@ -36,7 +36,7 @@ export const ModalReceberPagamento = ({
   onSuccess,
 }: ModalReceberPagamentoProps) => {
   const { pacientes, updateTransacao, addTransacao } = useDentalSystem();
-  const { config: configContrato } = useConfiguracoesContrato();
+  const { configContrato } = useConfiguracoesContrato();
   const { configuracoes } = useConfiguracoes();
 
   const [pacienteId, setPacienteId] = useState('');
@@ -68,8 +68,8 @@ export const ModalReceberPagamento = ({
     }
   }, [isOpen, transacaoPendente, pacientePredefinidoId, valorSugerido, descricaoSugerida]);
 
-  const chavePix = configContrato.chavePix || configuracoes?.telefone || configuracoes?.cnpj || 'Chave da clínica';
-  const favorecido = configContrato.favorecidoPix || configuracoes?.nomeClinica || 'Clínica Odontológica';
+  const chavePix = configContrato?.chavePix || configuracoes?.telefone || configuracoes?.cnpj || 'Chave da clínica';
+  const favorecido = configContrato?.favorecidoPix || configuracoes?.nomeClinica || 'Clínica Odontológica';
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=4&data=${encodeURIComponent(chavePix)}`;
 
   const copiarPix = () => {

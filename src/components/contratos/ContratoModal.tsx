@@ -680,9 +680,9 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
       }
     }
 
-    const clinicaPix = snapshotAtual?.clinica.chavePix || configContrato.chavePix || configuracoes?.telefone || configuracoes?.cnpj || '';
-    const favorecidoPix = snapshotAtual?.clinica.favorecidoPix || configContrato.favorecidoPix || snapshotAtual?.clinica.nome || configuracoes?.nomeClinica || 'Dra. Rosangela Santos';
-    const bancoPix = snapshotAtual?.clinica.bancoPix || configContrato.bancoPix || '';
+    const clinicaPix = snapshotAtual?.clinica.chavePix || configContrato?.chavePix || configuracoes?.telefone || configuracoes?.cnpj || '';
+    const favorecidoPix = snapshotAtual?.clinica.favorecidoPix || configContrato?.favorecidoPix || snapshotAtual?.clinica.nome || configuracoes?.nomeClinica || 'Dra. Rosangela Santos';
+    const bancoPix = snapshotAtual?.clinica.bancoPix || configContrato?.bancoPix || '';
     const linkAssinatura = gerarLinkAssinaturaContrato(snapshotAtual, docId || undefined);
 
     // Baixa o PDF no computador para facilitar anexar caso a recepcionista deseje arrastar na conversa
