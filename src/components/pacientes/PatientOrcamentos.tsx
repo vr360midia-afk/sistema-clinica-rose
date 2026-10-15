@@ -16,6 +16,7 @@ import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { useDentistas } from '@/hooks/useDentistas';
 import { gerarOrcamentoPdf } from '@/utils/orcamentoPdf';
 import { openWhatsApp } from '@/lib/whatsapp';
+import { formatMoney } from '@/utils/exportCsv';
 import { toast } from 'sonner';
 import ContratoModal from '@/components/contratos/ContratoModal';
 import { useDentalSystem } from '@/context/DentalSystemContext';
