@@ -41,7 +41,7 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId }: Tra
   const { procedimentos } = useProcedimentos();
   const { parceiros } = useParceiros();
   const { orcamentos } = useOrcamentos();
-  const { operadoras, operadoraPadrao } = useMaquinasCartao();
+  const { operadoras, operadoraPadrao, config: configMaquinas } = useMaquinasCartao();
   const [selectedOperadoraId, setSelectedOperadoraId] = useState<string>('infinitepay');
   const isEdit = !!transacao?.id;
   const anoAtual = new Date().getFullYear();
@@ -371,6 +371,25 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId }: Tra
             });
             totalLancamentos++;
           }
+
+          // Lança a taxa da maquininha como despesa se houver taxa de cartão na forma
+          if (forma.metodo === 'cartao' && fTaxaValor > 0 && formData.tipo === 'receita') {
+            const catDespesa = configMaquinas?.categoriaDespesaPadrao || 'Taxas de Cartão';
+            await addTransacao({
+              pacienteId: pid,
+              pacienteNome,
+              tipo: 'despesa',
+              status: forma.status,
+              categoria: catDespesa,
+              metodoPagamento: 'cartao',
+              data: forma.data,
+              vencimento: forma.vencimento || forma.data,
+              descricao: `Taxa da Máquina (${fParcelas}x ${fTaxaPerc}%) — ${descBase} (${forma.rotulo})`,
+              valor: Number(fTaxaValor.toFixed(2)),
+              orcamentoId: formData.orcamentoId || undefined,
+            });
+            totalLancamentos++;
+          }
         }
 
         // Repasse ao parceiro entra como despesa/parceria se houver
@@ -466,6 +485,40 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId }: Tra
           } else if (repasseExistente) {
             await deleteTransacao(repasseExistente.id);
           }
+
+          // Sincroniza taxa da máquina de cartão como despesa na edição
+          const taxaExistente = (transacoes as any[]).find(
+            (t) =>
+              t.tipo === 'despesa' &&
+              (t.categoria === 'Taxas de Cartão' || (typeof t.descricao === 'string' && t.descricao.startsWith('Taxa da Máquina '))) &&
+              typeof t.descricao === 'string' &&
+              (t.descricao.endsWith(`— ${descAntiga}`) || t.descricao.endsWith(`— ${formData.descricao}`))
+          );
+
+          if (isCartao && taxaValor > 0 && formData.tipo === 'receita') {
+            const catDespesa = configMaquinas?.categoriaDespesaPadrao || 'Taxas de Cartão';
+            const opNome = operadoras.find(o => o.id === selectedOperadoraId)?.nome || 'Cartão';
+            const taxaData = {
+              pacienteId: pid,
+              pacienteNome: pacienteNome || rest.pacienteNome,
+              tipo: 'despesa' as TipoTransacao,
+              status: formData.status,
+              categoria: catDespesa,
+              metodoPagamento: 'cartao' as MetodoPagamento,
+              data: formData.data,
+              vencimento: formData.vencimento || formData.data,
+              descricao: `Taxa da Máquina (${opNome} ${parcelas}x ${taxaPerc}%) — ${formData.descricao}`,
+              valor: Number(taxaValor.toFixed(2)),
+              orcamentoId: formData.orcamentoId || undefined,
+            };
+            if (taxaExistente) {
+              await updateTransacao(taxaExistente.id, taxaData as any);
+            } else {
+              await addTransacao(taxaData as any);
+            }
+          } else if (taxaExistente) {
+            await deleteTransacao(taxaExistente.id);
+          }
         }
 
         toast.success('Transação atualizada');
@@ -506,6 +559,25 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId }: Tra
           toast.success('Transação criada com repasse ao parceiro');
         } else {
           toast.success('Transação criada');
+        }
+
+        // Lança taxa da máquina de cartão como despesa se houver taxa calculada
+        if (isCartao && taxaValor > 0 && formData.tipo === 'receita') {
+          const catDespesa = configMaquinas?.categoriaDespesaPadrao || 'Taxas de Cartão';
+          const opNome = operadoras.find(o => o.id === selectedOperadoraId)?.nome || 'Cartão';
+          await addTransacao({
+            pacienteId: pid,
+            pacienteNome: pacienteNome || rest.pacienteNome,
+            tipo: 'despesa',
+            status: formData.status,
+            categoria: catDespesa,
+            metodoPagamento: 'cartao',
+            data: formData.data,
+            vencimento: formData.vencimento || formData.data,
+            descricao: `Taxa da Máquina (${opNome} ${parcelas}x ${taxaPerc}%) — ${formData.descricao}`,
+            valor: Number(taxaValor.toFixed(2)),
+            orcamentoId: formData.orcamentoId || undefined,
+          });
         }
       }
       onSave(transactionData);

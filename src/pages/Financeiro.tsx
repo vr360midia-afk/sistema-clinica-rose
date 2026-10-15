@@ -86,7 +86,23 @@ const Financeiro = () => {
   // Pendentes e Despesas
   const totalPending = filteredTransacoes.filter(t => t?.status === 'pendente' && t?.tipo === 'receita').reduce((sum, t) => sum + Number(t?.valor || 0), 0);
   const despesas = filteredTransacoes.filter(t => t?.tipo === 'despesa');
-  const totalDespesas = despesas.reduce((sum, t) => sum + Number(t?.valor || 0), 0);
+
+  // Identifica taxas de cartão lançadas como transação de despesa avulsa
+  const taxasLancadasComoDespesa = despesas
+    .filter(t => t?.categoria === 'Taxas de Cartão' || (typeof t?.descricao === 'string' && (t.descricao.toLowerCase().includes('taxa da máquina') || t.descricao.toLowerCase().includes('taxa cartão'))))
+    .reduce((sum, t) => sum + Number(t?.valor || 0), 0);
+
+  // Identifica taxas de cartão embutidas em receitas pagas que ainda NÃO possuem transação de despesa separada (retrocompatibilidade imediata)
+  const taxasEmbutidasSemDespesa = receitasPagas
+    .filter(r => Number(r?.taxaCartaoValor || 0) > 0)
+    .filter(r => !despesas.some(d => 
+      (typeof d?.descricao === 'string' && d.descricao.includes(r.descricao || '')) ||
+      (r.orcamentoId && d.orcamentoId === r.orcamentoId && (d.categoria === 'Taxas de Cartão' || d.descricao?.toLowerCase().includes('taxa')))
+    ))
+    .reduce((sum, r) => sum + Number(r?.taxaCartaoValor || 0), 0);
+
+  const totalTaxasCartao = taxasLancadasComoDespesa + taxasEmbutidasSemDespesa;
+  const totalDespesas = despesas.reduce((sum, t) => sum + Number(t?.valor || 0), 0) + taxasEmbutidasSemDespesa;
   const totalRepasses = despesas
     .filter(t => t?.parceiroId || t?.parceiroNome || t?.categoria === 'parceria')
     .reduce((sum, t) => sum + Number(t?.valor || 0), 0);
@@ -323,7 +339,7 @@ const Financeiro = () => {
                   <ArrowDownRight className="h-4 w-4 text-red-600" /> Despesas & Custos
                 </span>
                 <span className="p-1.5 rounded-full bg-red-500/20 text-red-600">
-                  <Handshake className="h-4 w-4" />
+                  <CreditCard className="h-4 w-4" />
                 </span>
               </div>
               <div>
@@ -331,11 +347,16 @@ const Financeiro = () => {
                   {formatMoney(totalDespesas)}
                 </p>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  {despesas.length} saída(s) registradas
+                  {despesas.length + (taxasEmbutidasSemDespesa > 0 ? 1 : 0)} saída(s) e custo(s) registrados
                 </p>
               </div>
-              <div className="pt-2 border-t border-red-500/20 text-[10px] text-red-700 dark:text-red-300">
-                Repasses a parceiros: {formatMoney(totalRepasses)}
+              <div className="pt-2 border-t border-red-500/20 flex flex-wrap items-center justify-between gap-1 text-[10px] text-red-700 dark:text-red-300">
+                <span>Repasses a parceiros: {formatMoney(totalRepasses)}</span>
+                {totalTaxasCartao > 0 && (
+                  <span className="font-semibold text-rose-600 dark:text-rose-400">
+                    Taxas de cartão: {formatMoney(totalTaxasCartao)}
+                  </span>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -523,6 +544,11 @@ const Financeiro = () => {
                               <p className={`font-bold text-base ${isReceita ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
                                 {isReceita ? '+' : '-'} {formatMoney(transacao.valor || 0)}
                               </p>
+                              {isReceita && Number(transacao.taxaCartaoValor || 0) > 0 && (
+                                <p className="text-[10px] text-muted-foreground font-medium">
+                                  Taxa máq: <span className="text-red-500 font-semibold">-{formatMoney(transacao.taxaCartaoValor)}</span> • Líq: <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{formatMoney(transacao.valorLiquido || transacao.valor - transacao.taxaCartaoValor)}</span>
+                                </p>
+                              )}
                               <div>
                                 {isPago ? (
                                   <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 text-[10px] font-semibold gap-1">
