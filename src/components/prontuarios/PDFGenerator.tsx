@@ -37,18 +37,20 @@ const PDFGenerator = ({
         <head>
           <title>Prontuário - ${patientData?.patientName || 'Paciente'}</title>
           <style>
-            body { font-family: Arial, sans-serif; margin: 20px; }
-            .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
+            @page { size: A4; margin: 14mm 16mm 14mm 16mm; }
+            * { box-sizing: border-box; }
+            body { font-family: Arial, sans-serif; margin: 0; padding: 24px 32px; }
+            .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; page-break-inside: avoid; break-inside: avoid; }
             .logo { max-height: 80px; margin-bottom: 10px; }
-            .section { margin-bottom: 20px; }
-            .section h3 { color: #333; border-bottom: 1px solid #ccc; padding-bottom: 5px; }
+            .section { margin-bottom: 20px; page-break-inside: avoid; break-inside: avoid; }
+            .section h3 { color: #333; border-bottom: 1px solid #ccc; padding-bottom: 5px; page-break-after: avoid; break-after: avoid; }
             .field { margin-bottom: 10px; }
             .field strong { color: #555; }
-            .odontogram { display: grid; grid-template-columns: repeat(16, 1fr); gap: 2px; margin: 20px 0; }
+            .odontogram { display: grid; grid-template-columns: repeat(16, 1fr); gap: 2px; margin: 20px 0; page-break-inside: avoid; break-inside: avoid; }
             .tooth { border: 1px solid #333; text-align: center; padding: 5px; font-size: 10px; }
-            .images { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 20px 0; }
+            .images { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 20px 0; page-break-inside: avoid; break-inside: avoid; }
             .image-placeholder { border: 1px solid #ccc; height: 100px; display: flex; align-items: center; justify-content: center; }
-            .signature-section { margin-top: 40px; padding-top: 20px; border-top: 2px solid #333; }
+            .signature-section { margin-top: 36px; padding-top: 20px; border-top: 2px solid #333; page-break-inside: avoid; break-inside: avoid; }
           </style>
         </head>
         <body>

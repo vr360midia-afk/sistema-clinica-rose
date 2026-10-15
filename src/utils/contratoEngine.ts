@@ -774,28 +774,34 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Contrato de Prestação de Serviços Odontológicos - ${paciente.nome}</title>
   <style>
+    @page {
+      size: A4;
+      margin: 14mm 16mm 14mm 16mm;
+    }
     * { box-sizing: border-box; }
     body {
       font-family: 'Times New Roman', Times, Georgia, serif;
       font-size: 13px;
-      line-height: 1.6;
+      line-height: 1.55;
       color: #111827;
       background: #ffffff;
       margin: 0;
-      padding: 32px 40px;
+      padding: 24px 32px;
     }
     .contrato-container {
-      max-width: 760px;
+      max-width: 100%;
       margin: 0 auto;
     }
     .cabecalho {
       border-bottom: 2px solid #111827;
-      padding-bottom: 14px;
-      margin-bottom: 24px;
+      padding-bottom: 12px;
+      margin-bottom: 20px;
       display: flex;
       justify-content: space-between;
       align-items: center;
       gap: 16px;
+      page-break-inside: avoid;
+      break-inside: avoid;
     }
     .cabecalho-logo img {
       max-height: 60px;
@@ -827,7 +833,9 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
     }
     .titulo-principal {
       text-align: center;
-      margin: 24px 0 20px;
+      margin: 18px 0 16px;
+      page-break-inside: avoid;
+      break-inside: avoid;
     }
     .titulo-principal h2 {
       font-size: 16px;
@@ -844,20 +852,26 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
       font-style: italic;
     }
     .clausula-bloco {
-      margin-bottom: 18px;
+      margin-bottom: 15px;
       text-align: justify;
     }
     .clausula-titulo {
       font-weight: bold;
-      margin-top: 14px;
+      margin-top: 15px;
       margin-bottom: 6px;
       text-transform: uppercase;
       font-size: 12px;
       letter-spacing: 0.5px;
+      page-break-after: avoid;
+      break-after: avoid;
+      page-break-inside: avoid;
+      break-inside: avoid;
     }
     .paragrafo {
-      margin: 0 0 8px;
-      text-indent: 28px;
+      margin: 0 0 7px;
+      text-indent: 26px;
+      orphans: 3;
+      widows: 3;
     }
     .tabela-dados {
       width: 100%;
@@ -865,6 +879,13 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
       margin: 12px 0;
       font-size: 12px;
       font-family: Arial, sans-serif;
+    }
+    .tabela-dados thead {
+      display: table-header-group;
+    }
+    .tabela-dados tr {
+      page-break-inside: avoid;
+      break-inside: avoid;
     }
     .tabela-dados th, .tabela-dados td {
       border: 1px solid #d1d5db;
@@ -898,6 +919,8 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
       background-color: #f9fafb;
       font-family: Arial, sans-serif;
       font-size: 12px;
+      page-break-inside: avoid;
+      break-inside: avoid;
     }
     .totais-linha {
       display: flex;
@@ -914,19 +937,22 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
       color: #111827;
     }
     .bloco-assinaturas {
-      margin-top: 48px;
+      margin-top: 36px;
       page-break-inside: avoid;
+      break-inside: avoid;
     }
     .data-local {
       text-align: right;
-      margin-bottom: 40px;
+      margin-bottom: 30px;
       font-style: italic;
     }
     .grid-assinaturas {
       display: flex;
       justify-content: space-between;
       gap: 32px;
-      margin-top: 30px;
+      margin-top: 24px;
+      page-break-inside: avoid;
+      break-inside: avoid;
     }
     .campo-assinatura {
       flex: 1;
@@ -957,7 +983,7 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
       margin-top: 2px;
     }
     .rodape-documento {
-      margin-top: 32px;
+      margin-top: 28px;
       padding-top: 10px;
       border-top: 1px solid #e5e7eb;
       text-align: center;

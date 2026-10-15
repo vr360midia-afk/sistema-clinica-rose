@@ -29,28 +29,34 @@ export const gerarHtmlTcleLentesResina = (snapshot?: ContratoSnapshot | null): s
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>TCLE - Lentes em Resina Composta - ${paciente.nome}</title>
   <style>
+    @page {
+      size: A4;
+      margin: 14mm 16mm 14mm 16mm;
+    }
     * { box-sizing: border-box; }
     body {
       font-family: 'Times New Roman', Times, Georgia, serif;
       font-size: 13px;
-      line-height: 1.6;
+      line-height: 1.55;
       color: #111827;
       background: #ffffff;
       margin: 0;
-      padding: 32px 40px;
+      padding: 24px 32px;
     }
     .tcle-container {
-      max-width: 760px;
+      max-width: 100%;
       margin: 0 auto;
     }
     .cabecalho {
       border-bottom: 2px solid #111827;
       padding-bottom: 12px;
-      margin-bottom: 20px;
+      margin-bottom: 18px;
       display: flex;
       justify-content: space-between;
       align-items: center;
       gap: 16px;
+      page-break-inside: avoid;
+      break-inside: avoid;
     }
     .cabecalho-logo img {
       max-height: 55px;
@@ -72,7 +78,9 @@ export const gerarHtmlTcleLentesResina = (snapshot?: ContratoSnapshot | null): s
     }
     .titulo-principal {
       text-align: center;
-      margin: 20px 0 18px;
+      margin: 16px 0 16px;
+      page-break-inside: avoid;
+      break-inside: avoid;
     }
     .titulo-principal h2 {
       font-size: 15px;
@@ -89,23 +97,29 @@ export const gerarHtmlTcleLentesResina = (snapshot?: ContratoSnapshot | null): s
       font-style: italic;
     }
     .secao-bloco {
-      margin-bottom: 16px;
+      margin-bottom: 14px;
       text-align: justify;
     }
     .secao-titulo {
       font-weight: bold;
       margin-top: 14px;
-      margin-bottom: 5px;
+      margin-bottom: 6px;
       font-size: 13px;
       text-transform: uppercase;
       color: #0f172a;
       border-bottom: 1px solid #e2e8f0;
       padding-bottom: 2px;
+      page-break-after: avoid;
+      break-after: avoid;
+      page-break-inside: avoid;
+      break-inside: avoid;
     }
     .paragrafo {
       margin: 6px 0;
       text-indent: 24px;
       line-height: 1.55;
+      orphans: 3;
+      widows: 3;
     }
     .lista-riscos {
       margin: 6px 0 10px 20px;
@@ -114,25 +128,30 @@ export const gerarHtmlTcleLentesResina = (snapshot?: ContratoSnapshot | null): s
     .lista-riscos li {
       margin-bottom: 5px;
       line-height: 1.5;
+      page-break-inside: avoid;
+      break-inside: avoid;
     }
     .alerta-box {
       margin: 12px 0;
-      padding: 10px 14px;
+      padding: 12px 16px;
       background-color: #f8fafc;
       border: 1px solid #cbd5e1;
       border-left: 4px solid #0284c7;
       border-radius: 4px;
       font-family: Arial, sans-serif;
       font-size: 11px;
-      line-height: 1.5;
+      line-height: 1.55;
       color: #334155;
+      page-break-inside: avoid;
+      break-inside: avoid;
     }
     .grid-assinaturas {
       display: flex;
       justify-content: space-between;
       gap: 32px;
-      margin-top: 36px;
+      margin-top: 30px;
       page-break-inside: avoid;
+      break-inside: avoid;
     }
     .campo-assinatura {
       flex: 1;

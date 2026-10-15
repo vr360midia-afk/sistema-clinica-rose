@@ -63,19 +63,21 @@ export const gerarDocumentoClinicoPdf = async (doc: DocumentoClinico, clinica: C
 <html lang="pt-BR"><head><meta charset="utf-8" />
 <title>${doc.titulo} - ${doc.pacienteNome || ''}</title>
 <style>
+  @page { size: A4; margin: 14mm 16mm 14mm 16mm; }
   * { box-sizing: border-box; }
-  body { font-family: Georgia, 'Times New Roman', serif; margin: 0; padding: 32px; color: #111; }
-  .doc { max-width: 720px; margin: 0 auto; border: 1px solid #111; padding: 28px 32px; }
-  .topo { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #111; padding-bottom: 12px; }
+  body { font-family: Georgia, 'Times New Roman', serif; margin: 0; padding: 24px 32px; color: #111; }
+  .doc { max-width: 100%; margin: 0 auto; border: 1px solid #111; padding: 24px 28px; }
+  .topo { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #111; padding-bottom: 12px; page-break-inside: avoid; break-inside: avoid; }
   .clinica h1 { font-size: 20px; margin: 0 0 4px; letter-spacing: .5px; }
   .clinica p { margin: 0; font-size: 11px; color: #444; }
   .numero { text-align: right; font-size: 11px; }
-  h2 { text-align: center; letter-spacing: 3px; font-size: 16px; margin: 24px 0 8px; text-transform: uppercase; }
-  .texto { font-size: 14px; line-height: 1.8; text-align: justify; }
+  h2 { text-align: center; letter-spacing: 3px; font-size: 16px; margin: 20px 0 8px; text-transform: uppercase; page-break-inside: avoid; break-inside: avoid; }
+  .texto { font-size: 14px; line-height: 1.7; text-align: justify; }
   table.itens { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 12px; }
   table.itens th, table.itens td { border: 1px solid #999; padding: 6px 8px; text-align: left; }
-  .assinatura { margin-top: 56px; text-align: center; font-size: 12px; }
-  .assinatura img { max-height: 90px; display: block; margin: 0 auto 4px; }
+  table.itens tr { page-break-inside: avoid; break-inside: avoid; }
+  .assinatura { margin-top: 40px; text-align: center; font-size: 12px; page-break-inside: avoid; break-inside: avoid; }
+  .assinatura img { max-height: 80px; display: block; margin: 0 auto 4px; }
   .linha { width: 300px; margin: 0 auto 6px; border-top: 1px solid #111; }
   .mini { font-size: 10px; color: #666; margin-top: 4px; }
   .rodape { margin-top: 24px; text-align: center; font-size: 10px; color: #666; }

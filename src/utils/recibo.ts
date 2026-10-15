@@ -74,23 +74,24 @@ export const gerarRecibo = async (dados: ReciboDados, clinica: ReciboClinica = {
 <html lang="pt-BR"><head><meta charset="utf-8" />
 <title>Recibo ${dados.numero} - ${dados.pacienteNome}</title>
 <style>
+  @page { size: A4; margin: 14mm 16mm 14mm 16mm; }
   * { box-sizing: border-box; }
-  body { font-family: Georgia, 'Times New Roman', serif; margin: 0; padding: 32px; color: #111; }
-  .recibo { max-width: 720px; margin: 0 auto; border: 1px solid #111; padding: 28px 32px; }
-  .topo { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #111; padding-bottom: 12px; }
+  body { font-family: Georgia, 'Times New Roman', serif; margin: 0; padding: 24px 32px; color: #111; }
+  .recibo { max-width: 100%; margin: 0 auto; border: 1px solid #111; padding: 24px 28px; }
+  .topo { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #111; padding-bottom: 12px; page-break-inside: avoid; break-inside: avoid; }
   .clinica h1 { font-size: 20px; margin: 0 0 4px; letter-spacing: .5px; }
   .clinica p { margin: 1px 0; font-size: 11px; color: #444; }
   .numero { text-align: right; }
   .numero span { display: block; font-size: 11px; color: #444; }
   .numero strong { font-size: 15px; }
-  h2 { text-align: center; letter-spacing: 4px; font-size: 18px; margin: 22px 0 6px; }
-  .valor { text-align: center; font-size: 24px; font-weight: bold; margin-bottom: 20px; }
-  .corpo { font-size: 14px; line-height: 1.9; text-align: justify; }
+  h2 { text-align: center; letter-spacing: 4px; font-size: 18px; margin: 20px 0 6px; }
+  .valor { text-align: center; font-size: 24px; font-weight: bold; margin-bottom: 18px; }
+  .corpo { font-size: 14px; line-height: 1.8; text-align: justify; }
   .corpo b { border-bottom: 1px solid #111; }
-  table { width: 100%; font-size: 12px; margin-top: 20px; border-collapse: collapse; }
+  table { width: 100%; font-size: 12px; margin-top: 18px; border-collapse: collapse; }
   td { padding: 5px 0; border-bottom: 1px dotted #bbb; }
   td:last-child { text-align: right; }
-  .assinatura { margin-top: 56px; text-align: center; font-size: 12px; }
+  .assinatura { margin-top: 40px; text-align: center; font-size: 12px; page-break-inside: avoid; break-inside: avoid; }
   .linha { width: 300px; margin: 0 auto 6px; border-top: 1px solid #111; }
   .rodape { margin-top: 24px; text-align: center; font-size: 10px; color: #666; }
   @media print { body { padding: 0; } .recibo { border: none; } }

@@ -45,35 +45,37 @@ export const gerarOrcamentoPdf = async (o: OrcamentoPdf, clinica: ClinicaInfo = 
 <html lang="pt-BR"><head><meta charset="utf-8" />
 <title>${o.titulo} - ${o.pacienteNome || 'Paciente'}</title>
 <style>
+  @page { size: A4; margin: 14mm 16mm 14mm 16mm; }
   * { box-sizing: border-box; }
-  body { font-family: Georgia, 'Times New Roman', serif; margin: 0; padding: 40px; color: #1a1a1a; background: #fff; }
-  .doc { max-width: 760px; margin: 0 auto; }
-  .topo { display: flex; justify-content: space-between; align-items: center; gap: 24px; padding-bottom: 20px; border-bottom: 3px double #1a1a1a; }
+  body { font-family: Georgia, 'Times New Roman', serif; margin: 0; padding: 24px 32px; color: #1a1a1a; background: #fff; }
+  .doc { max-width: 100%; margin: 0 auto; }
+  .topo { display: flex; justify-content: space-between; align-items: center; gap: 24px; padding-bottom: 16px; border-bottom: 3px double #1a1a1a; page-break-inside: avoid; break-inside: avoid; }
   .brand { display: flex; align-items: center; gap: 16px; }
-  .brand img { max-height: 72px; max-width: 180px; object-fit: contain; }
-  .clinica h1 { font-size: 21px; margin: 0 0 6px; letter-spacing: 1px; font-weight: 700; }
+  .brand img { max-height: 64px; max-width: 180px; object-fit: contain; }
+  .clinica h1 { font-size: 20px; margin: 0 0 4px; letter-spacing: 1px; font-weight: 700; }
   .clinica p { margin: 2px 0; font-size: 11px; color: #555; font-family: Helvetica, Arial, sans-serif; }
-  .meta { text-align: right; font-size: 11px; color: #555; font-family: Helvetica, Arial, sans-serif; line-height: 1.7; white-space: nowrap; }
+  .meta { text-align: right; font-size: 11px; color: #555; font-family: Helvetica, Arial, sans-serif; line-height: 1.6; white-space: nowrap; }
   .meta strong { color: #1a1a1a; font-size: 12px; }
-  .titulo-bloco { text-align: center; margin: 30px 0 6px; }
-  h2 { display: inline-block; letter-spacing: 8px; font-size: 18px; margin: 0; padding: 8px 34px; border-top: 1px solid #1a1a1a; border-bottom: 1px solid #1a1a1a; font-weight: 600; }
-  .sub { text-align: center; font-size: 12px; color: #666; margin: 12px 0 26px; font-family: Helvetica, Arial, sans-serif; }
+  .titulo-bloco { text-align: center; margin: 22px 0 6px; page-break-inside: avoid; break-inside: avoid; }
+  h2 { display: inline-block; letter-spacing: 8px; font-size: 17px; margin: 0; padding: 6px 30px; border-top: 1px solid #1a1a1a; border-bottom: 1px solid #1a1a1a; font-weight: 600; }
+  .sub { text-align: center; font-size: 12px; color: #666; margin: 10px 0 20px; font-family: Helvetica, Arial, sans-serif; }
   table { width: 100%; font-size: 13px; border-collapse: collapse; }
   thead th { text-align: left; font-size: 10px; font-family: Helvetica, Arial, sans-serif; text-transform: uppercase; letter-spacing: 1.5px; color: #555; border-bottom: 2px solid #1a1a1a; padding: 8px 4px; }
-  td { padding: 10px 4px; border-bottom: 1px solid #e3e3e3; }
+  td { padding: 9px 4px; border-bottom: 1px solid #e3e3e3; }
   tbody tr:nth-child(even) { background: #fafafa; }
+  tbody tr { page-break-inside: avoid; break-inside: avoid; }
   th:last-child, td:last-child, th:nth-child(2), td:nth-child(2) { text-align: right; }
-  .totais { margin: 22px 0 0 auto; width: 300px; font-size: 13px; }
-  .totais div { display: flex; justify-content: space-between; padding: 6px 0; color: #444; }
-  .totais .grande { border-top: 2px solid #1a1a1a; margin-top: 8px; padding-top: 10px; font-size: 18px; font-weight: bold; color: #1a1a1a; }
-  .bloco { margin-top: 26px; font-size: 12px; line-height: 1.7; font-family: Helvetica, Arial, sans-serif; color: #333; background: #fafafa; border-left: 3px solid #1a1a1a; padding: 12px 16px; }
+  .totais { margin: 18px 0 0 auto; width: 300px; font-size: 13px; page-break-inside: avoid; break-inside: avoid; }
+  .totais div { display: flex; justify-content: space-between; padding: 5px 0; color: #444; }
+  .totais .grande { border-top: 2px solid #1a1a1a; margin-top: 6px; padding-top: 8px; font-size: 17px; font-weight: bold; color: #1a1a1a; }
+  .bloco { margin-top: 20px; font-size: 12px; line-height: 1.6; font-family: Helvetica, Arial, sans-serif; color: #333; background: #fafafa; border-left: 3px solid #1a1a1a; padding: 10px 14px; page-break-inside: avoid; break-inside: avoid; }
   .bloco h3 { font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; margin: 0 0 6px; color: #555; }
-  .assinaturas { display: flex; gap: 60px; margin-top: 80px; }
+  .assinaturas { display: flex; gap: 48px; margin-top: 48px; page-break-inside: avoid; break-inside: avoid; }
   .assinaturas > div { flex: 1; text-align: center; }
   .linha { border-top: 1px solid #1a1a1a; margin-bottom: 8px; }
   .assinaturas .nome { font-size: 12px; font-weight: bold; }
   .assinaturas .doc-id { font-size: 10px; color: #555; font-family: Helvetica, Arial, sans-serif; margin-top: 2px; }
-  .rodape { margin-top: 36px; padding-top: 12px; border-top: 1px solid #e3e3e3; text-align: center; font-size: 9px; color: #888; font-family: Helvetica, Arial, sans-serif; letter-spacing: .5px; }
+  .rodape { margin-top: 28px; padding-top: 10px; border-top: 1px solid #e3e3e3; text-align: center; font-size: 9px; color: #888; font-family: Helvetica, Arial, sans-serif; letter-spacing: .5px; }
   @media print { body { padding: 0; } }
 </style></head>
 <body>
