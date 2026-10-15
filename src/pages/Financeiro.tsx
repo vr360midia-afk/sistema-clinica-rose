@@ -433,7 +433,7 @@ const Financeiro = () => {
  
         {/* Raio-X & Conciliação de Maquininhas de Cartão (InfinitePay vs PagBank vs Outras) */}
         <RaioXMaquininhas
-          transacoesMes={transacoesMes}
+          transacoesMes={filteredTransacoes}
           onOpenConfig={() => navigate('/configuracoes?tab=maquinas')}
         />
 

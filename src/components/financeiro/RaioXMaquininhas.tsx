@@ -23,7 +23,7 @@ import { formatMoney } from '@/utils/exportCsv';
 import { useMaquinasCartao } from '@/hooks/useMaquinasCartao';
 
 interface RaioXMaquininhasProps {
-  transacoesMes: Transacao[];
+  transacoesMes?: Transacao[];
   onOpenConfig?: () => void;
 }
 
@@ -42,7 +42,7 @@ interface MetricasOperadora {
 }
 
 export const RaioXMaquininhas: React.FC<RaioXMaquininhasProps> = ({
-  transacoesMes,
+  transacoesMes = [],
   onOpenConfig,
 }) => {
   const { operadoras, config } = useMaquinasCartao();
@@ -51,8 +51,10 @@ export const RaioXMaquininhas: React.FC<RaioXMaquininhasProps> = ({
 
   // Processamento e conciliação de cartões no mês
   const metricas = useMemo(() => {
+    const lista = transacoesMes || [];
+
     // 1. Receitas de cartão (pagas ou no caixa)
-    const receitasCartao = transacoesMes.filter(
+    const receitasCartao = lista.filter(
       (t) =>
         t &&
         t.tipo === 'receita' &&
@@ -65,7 +67,7 @@ export const RaioXMaquininhas: React.FC<RaioXMaquininhasProps> = ({
     );
 
     // 2. Despesas lançadas especificamente como taxas de maquininha
-    const despesasTaxas = transacoesMes.filter(
+    const despesasTaxas = lista.filter(
       (t) =>
         t &&
         t.tipo === 'despesa' &&
