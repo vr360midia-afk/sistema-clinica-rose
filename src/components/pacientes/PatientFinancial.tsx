@@ -3,11 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { CheckCircle2, CalendarClock, DollarSign, TrendingUp, AlertTriangle, Stethoscope, MessageCircle, Loader2, ListChecks, Plus, Pencil, Trash2 } from 'lucide-react';
+import { CheckCircle2, CalendarClock, DollarSign, TrendingUp, AlertTriangle, Stethoscope, MessageCircle, Loader2, ListChecks, Plus, Pencil, Trash2, QrCode } from 'lucide-react';
 import { useSecurityGate } from '@/context/SecurityContext';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import EmptyState from '@/components/common/EmptyState';
 import TransactionForm from '@/components/financeiro/TransactionForm';
+import { ModalReceberPagamento } from '@/components/financeiro/ModalReceberPagamento';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
@@ -86,6 +87,8 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
   const [enviando, setEnviando] = useState(false);
   const [showTransactionForm, setShowTransactionForm] = useState(false);
   const [editingTransacao, setEditingTransacao] = useState<any | null>(null);
+  const [showModalReceber, setShowModalReceber] = useState(false);
+  const [transacaoParaReceber, setTransacaoParaReceber] = useState<any | null>(null);
   const [itemToEdit, setItemToEdit] = useState<any | null>(null);
 
 
@@ -507,6 +510,22 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
                     {t?.status || 'pendente'}
                   </Badge>
                   <span className="text-sm sm:text-base font-bold">{brl(t?.valor || 0)}</span>
+
+                  {t?.status !== 'pago' && t?.tipo === 'receita' && (
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setTransacaoParaReceber(t);
+                        setShowModalReceber(true);
+                      }}
+                      className="h-7 px-2 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1"
+                      title="Confirmar recebimento em PIX e lançar no caixa"
+                    >
+                      <QrCode className="h-3 w-3" />
+                      Baixa PIX
+                    </Button>
+                  )}
+
                   <Button
                     size="icon"
                     variant="ghost"
@@ -552,6 +571,16 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
           pacienteId={patient?.id}
         />
       )}
+
+      <ModalReceberPagamento
+        isOpen={showModalReceber}
+        onClose={() => {
+          setShowModalReceber(false);
+          setTransacaoParaReceber(null);
+        }}
+        transacaoPendente={transacaoParaReceber}
+        pacientePredefinidoId={patient?.id}
+      />
     <EditProcedimentoValorModal isOpen={!!itemToEdit} onClose={() => setItemToEdit(null)} item={itemToEdit} />
     </div>
   );

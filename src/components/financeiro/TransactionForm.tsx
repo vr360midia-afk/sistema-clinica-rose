@@ -132,13 +132,18 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId }: Tra
     if (justOpened || transacaoIdMudou) {
       currentTransacaoIdRef.current = transacaoId;
 
-      if (transacao && transacao.id) {
+      if (transacao) {
+        const metodoIni = (transacao.metodoPagamento || 'pix') as MetodoPagamento;
+        const tipoIni = (transacao.tipo || 'receita') as TipoTransacao;
+        // Para uma receita em pix ou dinheiro, ou se vier explicitamente pago, define como pago
+        const statusIni = (transacao.status || (tipoIni === 'receita' && (metodoIni === 'pix' || metodoIni === 'dinheiro') ? 'pago' : 'pago')) as StatusTransacao;
+
         setFormData({
           pacienteId: transacao.pacienteId || pacienteId || '',
-          valor: String(transacao.valor ?? ''),
-          tipo: (transacao.tipo || 'receita') as TipoTransacao,
-          status: (transacao.status || 'pendente') as StatusTransacao,
-          metodoPagamento: (transacao.metodoPagamento || 'dinheiro') as MetodoPagamento,
+          valor: transacao.valor !== undefined && transacao.valor !== null ? String(transacao.valor) : '',
+          tipo: tipoIni,
+          status: statusIni,
+          metodoPagamento: metodoIni,
           taxaCartaoPercentual: transacao.taxaCartaoPercentual ? String(transacao.taxaCartaoPercentual) : '',
           parcelas: String(transacao.parcelas || 1),
           data: transacao.data ? new Date(transacao.data) : new Date(),
@@ -155,7 +160,9 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId }: Tra
       } else {
         setFormData({
           ...emptyForm,
-          pacienteId: transacao?.pacienteId || pacienteId || '',
+          status: 'pago',
+          metodoPagamento: 'pix',
+          pacienteId: pacienteId || '',
         });
         setModoMultiplasFormas(false);
         setFormasSplit([
@@ -1052,39 +1059,76 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId }: Tra
               </div>
             </div>
           ) : (
-            <>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="status">Status</Label>
-                  <Select value={formData.status} onValueChange={(value: StatusTransacao) => setFormData(prev => ({ ...prev, status: value }))}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pago">Pago</SelectItem>
-                      <SelectItem value="pendente">Pendente</SelectItem>
-                      <SelectItem value="vencido">Vencido</SelectItem>
-                      <SelectItem value="cancelado">Cancelado</SelectItem>
-                    </SelectContent>
-                  </Select>
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="metodo" className="text-xs font-semibold">Método de Pagamento *</Label>
+                    <Select
+                      value={formData.metodoPagamento}
+                      onValueChange={(value: MetodoPagamento) => {
+                        setFormData((prev) => {
+                          const ehAVista = value === 'pix' || value === 'dinheiro';
+                          const novoStatus = ehAVista && prev.status === 'pendente' && !prev.vencimento ? 'pago' : prev.status;
+                          return { ...prev, metodoPagamento: value, status: novoStatus };
+                        });
+                      }}
+                    >
+                      <SelectTrigger className="font-medium">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pix">💎 PIX (Imediato / Baixa na hora)</SelectItem>
+                        <SelectItem value="cartao">💳 Cartão de Crédito / Débito</SelectItem>
+                        <SelectItem value="dinheiro">💵 Dinheiro em Espécie</SelectItem>
+                        <SelectItem value="pix_parcelado">📅 PIX Parcelado (Recorrente)</SelectItem>
+                        <SelectItem value="boleto">📄 Boleto Bancário</SelectItem>
+                        <SelectItem value="transferencia">🏦 Transferência / TED</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label className="text-xs font-semibold">Situação Financeira *</Label>
+                    <div className="grid grid-cols-2 gap-1.5 pt-1">
+                      <Button
+                        type="button"
+                        variant={formData.status === 'pago' ? 'default' : 'outline'}
+                        size="sm"
+                        className={`h-9 text-xs font-semibold gap-1 ${
+                          formData.status === 'pago' ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'text-muted-foreground'
+                        }`}
+                        onClick={() => setFormData((prev) => ({ ...prev, status: 'pago' }))}
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        {formData.tipo === 'receita' ? 'Recebido (Caixa)' : 'Pago (Saiu)'}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={formData.status === 'pendente' ? 'default' : 'outline'}
+                        size="sm"
+                        className={`h-9 text-xs font-semibold gap-1 ${
+                          formData.status === 'pendente' ? 'bg-amber-600 hover:bg-amber-700 text-white' : 'text-muted-foreground'
+                        }`}
+                        onClick={() => setFormData((prev) => ({ ...prev, status: 'pendente' }))}
+                      >
+                        <AlertCircle className="h-3.5 w-3.5" />
+                        {formData.tipo === 'receita' ? 'A Receber' : 'A Pagar'}
+                      </Button>
+                    </div>
+                  </div>
                 </div>
 
-                <div>
-                  <Label htmlFor="metodo">Método de Pagamento</Label>
-                  <Select value={formData.metodoPagamento} onValueChange={(value: MetodoPagamento) => setFormData(prev => ({ ...prev, metodoPagamento: value }))}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="dinheiro">Dinheiro</SelectItem>
-                      <SelectItem value="cartao">Cartão</SelectItem>
-                      <SelectItem value="pix">PIX</SelectItem>
-                      <SelectItem value="pix_parcelado">PIX Parcelado</SelectItem>
-                      <SelectItem value="boleto">Boleto</SelectItem>
-                      <SelectItem value="transferencia">Transferência</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                {formData.status === 'pago' ? (
+                  <div className="text-[11px] text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/40 p-2 rounded-md flex items-center gap-1.5">
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                    <span>Este valor <strong>entra imediatamente</strong> na Receita Caixa do mês selecionado.</span>
+                  </div>
+                ) : (
+                  <div className="text-[11px] text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 p-2 rounded-md flex items-center gap-1.5">
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                    <span>Ficará como <strong>A Receber</strong> até que você confirme a baixa do pagamento.</span>
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -1191,7 +1235,7 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId }: Tra
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label>Data da Transação</Label>
+              <Label>{formData.status === 'pago' ? (formData.tipo === 'receita' ? 'Data do Recebimento (Caixa) *' : 'Data do Pagamento *') : 'Data do Lançamento'}</Label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="outline" className="w-full justify-start text-left font-normal">
@@ -1216,7 +1260,7 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId }: Tra
             </div>
 
             <div>
-              <Label>Vencimento (opcional)</Label>
+              <Label>{formData.status === 'pago' ? 'Vencimento (opcional)' : 'Vencimento *'}</Label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="outline" className="w-full justify-start text-left font-normal">

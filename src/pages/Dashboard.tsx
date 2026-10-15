@@ -50,17 +50,19 @@ const Dashboard = () => {
   const consultasFaltou = consultasHojeList.filter(c => c?.status === 'faltou').length;
   const consultasRemarcadas = consultasHojeList.filter(c => c?.status === 'remarcado').length;
 
-  // Receita mensal atual (Transações pagas)
+  // Receita mensal atual (Transações pagas no Caixa)
   const currentMonth = today.getMonth();
   const currentYear = today.getFullYear();
-  const receitaMensal = (transacoes || [])
-    .filter(t => {
-      if (!t?.data) return false;
-      const transacaoDate = new Date(t.data);
-      return transacaoDate.getMonth() === currentMonth && 
-             transacaoDate.getFullYear() === currentYear &&
-             t?.tipo === 'receita' && t?.status === 'pago';
-    })
+  const transacoesMesPagas = (transacoes || []).filter(t => {
+    if (!t?.data) return false;
+    const transacaoDate = new Date(t.data);
+    return transacaoDate.getMonth() === currentMonth && 
+           transacaoDate.getFullYear() === currentYear &&
+           t?.tipo === 'receita' && t?.status === 'pago';
+  });
+  const receitaMensal = transacoesMesPagas.reduce((sum, t) => sum + Number(t?.valor || 0), 0);
+  const receitaPix = transacoesMesPagas
+    .filter(t => t?.metodoPagamento === 'pix' || t?.metodoPagamento === 'pix_parcelado')
     .reduce((sum, t) => sum + Number(t?.valor || 0), 0);
 
   const { orcamentos } = useOrcamentos();
@@ -143,10 +145,10 @@ const Dashboard = () => {
           <StatsCard
             title="Receita (Caixa)"
             value={`${formatMoney(receitaMensal)}`}
-            change="Mês atual"
-            changeType="neutral"
+            change={receitaPix > 0 ? `PIX: ${formatMoney(receitaPix)}` : "Mês atual"}
+            changeType={receitaMensal > 0 ? "positive" : "neutral"}
             icon={CreditCard}
-            iconBg="bg-purple-500/15 text-purple-400"
+            iconBg="bg-emerald-500/15 text-emerald-500 dark:text-emerald-400"
           />
         </motion.div>
 

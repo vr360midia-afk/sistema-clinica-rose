@@ -56,8 +56,8 @@ const LembretesPix = () => {
 
   const marcarPago = async (t: any) => {
     try {
-      await updateTransacao(t.id, { status: 'pago' });
-      toast.success('Parcela marcada como paga!');
+      await updateTransacao(t.id, { status: 'pago', data: new Date() });
+      toast.success('Parcela marcada como paga e computada no caixa!');
     } catch (e) {
       toast.error('Erro ao atualizar o status.');
     }

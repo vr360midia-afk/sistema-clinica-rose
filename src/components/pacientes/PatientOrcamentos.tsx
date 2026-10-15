@@ -545,13 +545,18 @@ const PatientOrcamentos = ({ patient }: Props) => {
       }
 
       if (lancarFinanceiro) {
-        // Remove quaisquer transações existentes vinculadas a este orçamento para garantir sincronismo e evitar valores obsoletos ou duplicados
+        // Remove apenas transações pendentes vinculadas a este orçamento para atualizar parcelas, PRESERVANDO transações já pagas/recebidas!
         const existentes = (transacoes || []).filter((t: any) => t.orcamentoId === o.id);
+        const jaPagas = existentes.filter((t: any) => t.status === 'pago');
+        const totalJaPago = jaPagas.reduce((acc: number, t: any) => acc + Number(t.valor || 0), 0);
+
         for (const t of existentes) {
-          try {
-            await deleteTransacao(t.id);
-          } catch (e) {
-            console.error('Erro ao remover transação antiga:', e);
+          if (t.status !== 'pago') {
+            try {
+              await deleteTransacao(t.id);
+            } catch (e) {
+              console.error('Erro ao remover transação antiga:', e);
+            }
           }
         }
 
@@ -570,7 +575,14 @@ const PatientOrcamentos = ({ patient }: Props) => {
           const isEntrada = (p?.descricao || '').toLowerCase().includes('entrada');
           const isQuitada = (p?.status || '').toLowerCase().includes('quitad') || (p?.status || '').toLowerCase().includes('pago');
           
-          let dataVenc: Date = new Date();
+          // Se já existe transação paga para este orçamento correspondente à entrada ou parcela, preserva
+          const jaExistePaga = jaPagas.some((jp: any) => 
+            jp.descricao === `${o.titulo}: ${p.descricao}` ||
+            (isEntrada && (jp.descricao || '').toLowerCase().includes('entrada'))
+          );
+          if (jaExistePaga) {
+            continue;
+          }
           if (p.vencimento && p.vencimento.includes('/')) {
             const [dia, mes, ano] = p.vencimento.split('/');
             dataVenc = new Date(Number(ano), Number(mes) - 1, Number(dia), 12, 0, 0);

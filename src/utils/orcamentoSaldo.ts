@@ -5,20 +5,25 @@ export interface SaldoOrcamento {
   pago: number;
   saldo: number;
   percentual: number;
+  pendente?: number;
 }
 
 const chavePaciente = (o: { pacienteId?: string | null; pacienteNome?: string | null }) =>
   (o.pacienteId || o.pacienteNome || '').toString().trim().toLowerCase();
 
-const ehReceitaConsiderada = (t: any) =>
-  t?.tipo === 'receita' && (t?.status === 'pago' || t?.status === 'pendente' || t?.status === 'vencido');
+const ehReceitaPaga = (t: any) =>
+  t?.tipo === 'receita' && t?.status === 'pago';
+
+const ehReceitaPendente = (t: any) =>
+  t?.tipo === 'receita' && (t?.status === 'pendente' || t?.status === 'vencido');
 
 /**
  * Calcula o saldo de TODOS os orçamentos de uma vez, garantindo consistência:
- * - Pagamentos vinculados a um orçamento abatem esse orçamento.
- * - Pagamentos do mesmo paciente sem vínculo são distribuídos entre os
+ * - Pagamentos PAGOS vinculados a um orçamento abatem esse orçamento.
+ * - Pagamentos PAGOS do mesmo paciente sem vínculo são distribuídos entre os
  *   orçamentos aprovados dele (do mais antigo para o mais novo), evitando
  *   que o mesmo tratamento seja contado duas vezes.
+ * - Parcelas pendentes/vencidas são mapeadas como "pendente".
  */
 export const calcularSaldosOrcamentos = (
   orcamentos: any[],
@@ -26,30 +31,37 @@ export const calcularSaldosOrcamentos = (
 ): Map<string, SaldoOrcamento> => {
   const resultado = new Map<string, SaldoOrcamento>();
   const lista = (orcamentos || []).filter(Boolean);
-  const trans = (transacoes || []).filter(Boolean).filter(ehReceitaConsiderada);
+  const transPagas = (transacoes || []).filter(Boolean).filter(ehReceitaPaga);
+  const transPendentes = (transacoes || []).filter(Boolean).filter(ehReceitaPendente);
 
   const idsOrcamentos = new Set(lista.map((o) => o?.id).filter(Boolean));
 
-  // saldo inicial (só com pagamentos vinculados)
+  // saldo inicial (só com pagamentos quitados vinculados)
   const restante = new Map<string, number>();
   lista.forEach((o) => {
     if (!o?.id) return;
     const total = Number(o.total || 0);
-    const vinculado = trans
+    const vinculadoPago = transPagas
       .filter((t) => t?.orcamentoId === o.id)
       .reduce((s, t) => s + Number(t?.valor || 0), 0);
-    restante.set(o.id, Math.max(0, total - vinculado));
+    const vinculadoPendente = transPendentes
+      .filter((t) => t?.orcamentoId === o.id)
+      .reduce((s, t) => s + Number(t?.valor || 0), 0);
+
+    const saldoRestante = Math.max(0, total - vinculadoPago);
+    restante.set(o.id, saldoRestante);
     resultado.set(o.id, {
       total,
-      pago: Math.min(total, vinculado),
-      saldo: Math.max(0, total - vinculado),
-      percentual: total > 0 ? Math.min(100, (vinculado / total) * 100) : 0,
+      pago: Math.min(total, vinculadoPago),
+      saldo: saldoRestante,
+      percentual: total > 0 ? Math.min(100, (vinculadoPago / total) * 100) : 0,
+      pendente: vinculadoPendente,
     });
   });
 
-  // pool de pagamentos sem vínculo, por paciente
+  // pool de pagamentos PAGOS sem vínculo, por paciente
   const pool = new Map<string, number>();
-  trans.forEach((t) => {
+  transPagas.forEach((t) => {
     if (!t) return;
     if (t.orcamentoId && idsOrcamentos.has(t.orcamentoId)) return;
     const key = chavePaciente(t);
@@ -75,7 +87,7 @@ export const calcularSaldosOrcamentos = (
     const atual = resultado.get(o.id)!;
     const pago = Math.min(atual.total, atual.pago + usado);
     resultado.set(o.id, {
-      total: atual.total,
+      ...atual,
       pago,
       saldo: Math.max(0, atual.total - pago),
       percentual: atual.total > 0 ? Math.min(100, (pago / atual.total) * 100) : 0,

@@ -53,8 +53,8 @@ const Inadimplencia = () => {
   const marcarPago = async (id: string) => {
     setSalvando(id);
     try {
-      await updateTransacao(id, { status: 'pago' });
-      toast.success('Pagamento registrado');
+      await updateTransacao(id, { status: 'pago', data: new Date() });
+      toast.success('Pagamento registrado e computado no caixa!');
     } catch (e) {
       console.error(e);
       toast.error('Não foi possível atualizar a transação');

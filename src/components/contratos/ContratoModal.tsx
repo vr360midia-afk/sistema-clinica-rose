@@ -202,11 +202,14 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     if (!orcamentoAtual || !snapshotAtual) return;
     try {
       setSincronizandoFinanceiro(true);
+      const transPagas = transacoesOrcamento.filter((t: any) => t.status === 'pago');
       for (const t of transacoesOrcamento) {
-        try {
-          await deleteTransacao(t.id);
-        } catch (e) {
-          console.error('Erro ao deletar transação antiga:', e);
+        if (t.status !== 'pago') {
+          try {
+            await deleteTransacao(t.id);
+          } catch (e) {
+            console.error('Erro ao deletar transação antiga:', e);
+          }
         }
       }
 
@@ -215,6 +218,13 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
       let operadoraTaxasNome = '';
 
       for (const p of snapshotAtual.financeiro.parcelas) {
+        const isEntrada = (p?.descricao || '').toLowerCase().includes('entrada');
+        const jaPaga = transPagas.some((jp: any) => 
+          jp.descricao === `${orcamentoAtual.titulo}: ${p.descricao}` ||
+          (isEntrada && (jp.descricao || '').toLowerCase().includes('entrada'))
+        );
+        if (jaPaga) continue;
+
         let dataVenc = new Date();
         if (p.vencimento && p.vencimento.includes('/')) {
           const [dia, mes, ano] = p.vencimento.split('/');
