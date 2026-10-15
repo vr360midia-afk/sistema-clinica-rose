@@ -92,11 +92,11 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
   const { realizados, previstos, etapas, resumo, lancamentos } = useMemo(() => {
     const cons = consultas.filter((c) => c.pacienteId === patient.id);
     const pront = prontuarios.filter((p) => p.pacienteId === patient.id);
-    const trans = transacoes.filter((t) => t.pacienteId === patient.id);
+    const trans = transacoes.filter((t) => t?.pacienteId === patient?.id);
 
     const realizados = [
       ...cons
-        .filter((c) => c.status === 'realizado')
+        .filter((c) => c?.status === 'realizado')
         .map((c) => ({
           id: `c-${c.id}`,
           nome: c.procedimento || 'Consulta',
@@ -107,7 +107,7 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
           dentista: c.dentista,
         })),
       ...pront.flatMap((p) =>
-        (p.procedimentosRealizados || []).map((nome: any, i: number) => ({
+        (p?.procedimentosRealizados || []).map((nome: any, i: number) => ({
           id: `p-${p.id}-${i}`,
           prontuarioId: p.id,
           index: i,
@@ -121,7 +121,7 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
     ].sort((a, b) => b.data.getTime() - a.data.getTime());
 
     const previstos = cons
-      .filter((c) => ['agendado', 'confirmado'].includes(c.status))
+      .filter((c) => c?.status && ['agendado', 'confirmado'].includes(c.status))
       .map((c) => ({
         id: `f-${c.id}`,
         nome: c.procedimento || 'Consulta',
@@ -133,16 +133,16 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
       }))
       .sort((a, b) => a.data.getTime() - b.data.getTime());
 
-    const receitas = trans.filter((t) => t.tipo === 'receita');
-    const pago = receitas.filter((t) => t.status === 'pago').reduce((s, t) => s + Number(t.valor || 0), 0);
-    const pendente = receitas.filter((t) => t.status === 'pendente').reduce((s, t) => s + Number(t.valor || 0), 0);
+    const receitas = trans.filter((t) => t?.tipo === 'receita');
+    const pago = receitas.filter((t) => t?.status === 'pago').reduce((s, t) => s + Number(t.valor || 0), 0);
+    const pendente = receitas.filter((t) => t?.status === 'pendente').reduce((s, t) => s + Number(t.valor || 0), 0);
     const vencido = receitas
-      .filter((t) => t.status === 'vencido' || (t.status === 'pendente' && t.vencimento && new Date(t.vencimento) < new Date()))
+      .filter((t) => t?.status === 'vencido' || (t?.status === 'pendente' && t.vencimento && new Date(t.vencimento) < new Date()))
       .reduce((s, t) => s + Number(t.valor || 0), 0);
     // Orçamentos aprovados: saldo ainda não pago entra como "em aberto".
     // O cálculo é centralizado em calcularSaldosOrcamentos, que abate também os
     // pagamentos do paciente sem vínculo direto — evitando contar duas vezes.
-    const aprovados = (orcamentos || []).filter((o) => o.status === 'aprovado');
+    const aprovados = (orcamentos || []).filter((o) => o?.status === 'aprovado');
     const saldosMap = calcularSaldosOrcamentos(orcamentos || [], trans as any[]);
     const saldoOrcamentos = aprovados.reduce((s, o) => s + (saldosMap.get(o.id)?.saldo || 0), 0);
     const pendenteTotal = pendente + saldoOrcamentos;
@@ -501,12 +501,12 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <Badge
-                    variant={t.status === 'pago' ? 'default' : t.status === 'vencido' ? 'destructive' : 'secondary'}
+                    variant={t?.status === 'pago' ? 'default' : t?.status === 'vencido' ? 'destructive' : 'secondary'}
                     className="text-[10px] capitalize font-medium"
                   >
-                    {t.status}
+                    {t?.status || 'pendente'}
                   </Badge>
-                  <span className="text-sm sm:text-base font-bold">{brl(t.valor)}</span>
+                  <span className="text-sm sm:text-base font-bold">{brl(t?.valor || 0)}</span>
                   <Button
                     size="icon"
                     variant="ghost"

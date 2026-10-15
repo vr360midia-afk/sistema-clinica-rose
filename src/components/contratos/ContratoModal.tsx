@@ -115,7 +115,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
 
   // Orçamentos aprovados do paciente
   const orcamentosAprovados = useMemo(() => {
-    return orcamentos.filter((o) => o.status === 'aprovado');
+    return (orcamentos || []).filter((o) => o?.status === 'aprovado');
   }, [orcamentos]);
 
   // Contratos emitidos anteriormente para este paciente
@@ -225,7 +225,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
           metodoFinal = 'transferencia';
         }
 
-        const isQuitada = (p.status || '').toLowerCase().includes('quitad') || (p.status || '').toLowerCase().includes('pago');
+        const isQuitada = (p?.status || '').toLowerCase().includes('quitad') || (p?.status || '').toLowerCase().includes('pago');
 
         await addTransacao({
           pacienteId: patient.id,
@@ -845,10 +845,10 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                             Nenhum orçamento encontrado
                           </SelectItem>
                         ) : (
-                          orcamentos.map((o) => (
+                          (orcamentos || []).filter(Boolean).map((o) => (
                             <SelectItem key={o.id} value={o.id}>
-                              {o.titulo} — {formatMoney(o.total)}{' '}
-                              {o.status === 'aprovado' ? '✓ (Aprovado)' : `(${o.status})`}
+                              {o.titulo} — {formatMoney(o.total || 0)}{' '}
+                              {o?.status === 'aprovado' ? '✓ (Aprovado)' : `(${o?.status || ''})`}
                             </SelectItem>
                           ))
                         )}
@@ -995,20 +995,20 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                       <span>
                         Status:{' '}
                         <Badge
-                          variant={orcamentoAtual.status === 'aprovado' ? 'default' : 'secondary'}
+                          variant={orcamentoAtual?.status === 'aprovado' ? 'default' : 'secondary'}
                           className="capitalize text-[11px]"
                         >
-                          {orcamentoAtual.status}
+                          {orcamentoAtual?.status || 'rascunho'}
                         </Badge>
                       </span>
                       <span>
                         Total:{' '}
-                        <strong className="text-foreground">{formatMoney(snapshotAtual?.financeiro.total || 0)}</strong>
+                        <strong className="text-foreground">{formatMoney(snapshotAtual?.financeiro?.total || orcamentoAtual?.total || 0)}</strong>
                       </span>
                       <span>
-                        Procedimentos: <strong>{orcamentoAtual.itens?.length || 0}</strong>
+                        Procedimentos: <strong>{orcamentoAtual?.itens?.length || 0}</strong>
                       </span>
-                      {snapshotAtual?.financeiro.formaPagamento && (
+                      {snapshotAtual?.financeiro?.formaPagamento && (
                         <span>
                           Pagamento:{' '}
                           <span className="font-semibold text-primary">{snapshotAtual.financeiro.formaPagamento}</span>
@@ -1803,7 +1803,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                 <span>Baixar PDF</span>
               </Button>
 
-              {isContratoLenteResina(snapshotAtual) && (
+              {temLentesResinaNoContrato && snapshotAtual && (
                 <Button
                   type="button"
                   variant="outline"
@@ -1811,6 +1811,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                   className="h-8 sm:h-9 text-xs gap-1.5 border-sky-300 dark:border-sky-800 text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100 dark:hover:bg-sky-900/50"
                   onClick={async () => {
                     try {
+                      if (!snapshotAtual) return;
                       await downloadTcleLentesResinaPdf(snapshotAtual);
                       toast.success('TCLE de Lentes em Resina (CFO) gerado com sucesso!');
                     } catch (e) {

@@ -452,10 +452,10 @@ const PatientOrcamentos = ({ patient }: Props) => {
           configuracoes,
         });
 
-        const parcelas = snap.financeiro.parcelas;
+        const parcelas = snap.financeiro?.parcelas || [];
         for (const p of parcelas) {
-          const isEntrada = p.descricao.toLowerCase().includes('entrada');
-          const isQuitada = (p.status || '').toLowerCase().includes('quitad') || (p.status || '').toLowerCase().includes('pago');
+          const isEntrada = (p?.descricao || '').toLowerCase().includes('entrada');
+          const isQuitada = (p?.status || '').toLowerCase().includes('quitad') || (p?.status || '').toLowerCase().includes('pago');
           
           let dataVenc: Date = new Date();
           if (p.vencimento && p.vencimento.includes('/')) {
@@ -978,20 +978,20 @@ const PatientOrcamentos = ({ patient }: Props) => {
         ) : orcamentos.length === 0 ? (
           <p className="text-sm text-muted-foreground">Nenhum orçamento criado para este paciente.</p>
         ) : (
-          orcamentos.map((o) => (
+          (orcamentos || []).filter(Boolean).map((o) => (
             <div key={o.id} className="rounded-lg border border-border p-3 space-y-2">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="font-medium truncate">{o.titulo}</p>
                   <p className="text-xs text-muted-foreground">
-                    {o.itens.length} procedimento(s) • {formatMoney(o.total)}
+                    {(o.itens || []).length} procedimento(s) • {formatMoney(o.total || 0)}
                   </p>
                 </div>
                 <Badge
-                  variant={o.status === 'aprovado' ? 'default' : o.status === 'recusado' ? 'destructive' : 'secondary'}
+                  variant={o?.status === 'aprovado' ? 'default' : o?.status === 'recusado' ? 'destructive' : 'secondary'}
                   className="capitalize flex-shrink-0"
                 >
-                  {o.status}
+                  {o?.status || 'rascunho'}
                 </Badge>
               </div>
               {o.parceiroNome && (
@@ -1005,7 +1005,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
                 </p>
               )}
               <ul className="text-xs text-muted-foreground space-y-0.5">
-                {o.itens.map((i, idx) => (
+                {(o.itens || []).map((i, idx) => (
                   <li key={idx}>
                     {i.nome} {i.quantidade > 1 ? `(${i.quantidade}x)` : ''} — {formatMoney(i.valor * i.quantidade)}
                   </li>
@@ -1015,7 +1015,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
               <div className="rounded-md bg-muted/40 p-2 space-y-1 text-xs">
                 <div className="flex justify-between text-muted-foreground">
                   <span>Subtotal</span>
-                  <span>{formatMoney(o.itens.reduce((s, i) => s + i.valor * i.quantidade, 0))}</span>
+                  <span>{formatMoney((o.itens || []).reduce((s, i) => s + (i.valor || 0) * (i.quantidade || 1), 0))}</span>
                 </div>
                 <div className="flex justify-between text-muted-foreground">
                   <span>Desconto</span>
@@ -1023,7 +1023,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
                 </div>
                 <div className="flex justify-between text-sm font-semibold text-foreground border-t border-border pt-1">
                   <span>Total</span>
-                  <span>{formatMoney(o.total)}</span>
+                  <span>{formatMoney(o.total || 0)}</span>
                 </div>
                 {o.formasPagamento && (
                   <p className="text-muted-foreground pt-1">
@@ -1045,8 +1045,8 @@ const PatientOrcamentos = ({ patient }: Props) => {
 
                 <Button
                   size="sm"
-                  variant={o.status === 'aprovado' ? 'default' : 'outline'}
-                  className={o.status === 'aprovado' ? 'bg-primary text-primary-foreground hover:bg-primary/90' : ''}
+                  variant={o?.status === 'aprovado' ? 'default' : 'outline'}
+                  className={o?.status === 'aprovado' ? 'bg-primary text-primary-foreground hover:bg-primary/90' : ''}
                   onClick={() => {
                     setContratoOrcamento(o);
                     setContratoModalOpen(true);
@@ -1056,7 +1056,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
                   <FileSignature className="h-4 w-4 mr-1" /> Contrato
                 </Button>
 
-                {o.status === 'aprovado' && (
+                {o?.status === 'aprovado' && (
                   <>
                     <Button
                       size="sm"
@@ -1079,7 +1079,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
                   </>
                 )}
 
-                {o.status !== 'aprovado' && o.status !== 'recusado' && (
+                {o?.status !== 'aprovado' && o?.status !== 'recusado' && (
                   <>
                     <Button size="sm" variant="outline" onClick={() => setAprovandoOrcamento(o)}>
                       <Check className="h-4 w-4 mr-1 text-emerald-600" /> Aprovar

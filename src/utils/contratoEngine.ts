@@ -167,7 +167,8 @@ export const parseBrMoney = (valStr: string | number | undefined | null): number
  * Verifica se o contrato abrange tratamento com lentes em resina composta,
  * facetas em resina, laminados em resina ou restaurações estéticas similares.
  */
-export const isContratoLenteResina = (snapshot: ContratoSnapshot): boolean => {
+export const isContratoLenteResina = (snapshot?: ContratoSnapshot | null): boolean => {
+  if (!snapshot) return false;
   // Se o contrato já foi assinado sem essa indicação prévia, mantém o documento original preservado
   if (snapshot.status === 'assinado' && snapshot.incluiLentesResina !== true) {
     return false;
@@ -347,23 +348,23 @@ export const mapearDadosContrato = ({
 
     parcelas = ordenadas.map((t, idx) => {
       const valor = Number(t.valor || 0);
-      const isEntrada = t.descricao?.toLowerCase().includes('entrada') || (idx === 0 && t.status === 'pago');
+      const isEntrada = t?.descricao?.toLowerCase().includes('entrada') || (idx === 0 && t?.status === 'pago');
       if (isEntrada && entrada === 0) {
         entrada = valor;
       }
 
-      const isCartao = (t.metodoPagamento || '').toLowerCase().includes('cartao') || (t.descricao || '').toLowerCase().includes('cartão');
-      const vencFormatado = isCartao ? 'Fatura do Cartão' : formatarData(t.vencimento || t.data);
+      const isCartao = (t?.metodoPagamento || '').toLowerCase().includes('cartao') || (t?.descricao || '').toLowerCase().includes('cartão');
+      const vencFormatado = isCartao ? 'Fatura do Cartão' : formatarData(t?.vencimento || t?.data);
 
       return {
         numero: idx + 1,
-        descricao: t.descricao || `Parcela ${idx + 1}`,
+        descricao: t?.descricao || `Parcela ${idx + 1}`,
         vencimento: vencFormatado,
         valor,
-        metodo: t.metodoPagamento || 'A definir',
+        metodo: t?.metodoPagamento || 'A definir',
         status: isCartao
-          ? (t.status === 'pago' ? 'Quitada' : 'Autorizado')
-          : (t.status === 'pago' ? 'Quitada' : t.status === 'vencido' ? 'Vencida' : 'A vencer'),
+          ? (t?.status === 'pago' ? 'Quitada' : 'Autorizado')
+          : (t?.status === 'pago' ? 'Quitada' : t?.status === 'vencido' ? 'Vencida' : 'A vencer'),
       };
     });
   } else {

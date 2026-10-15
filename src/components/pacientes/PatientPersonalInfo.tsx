@@ -53,15 +53,15 @@ const PatientPersonalInfo = ({ patient }: PatientPersonalInfoProps) => {
     dataHora.setHours(hora || 0, minuto || 0, 0, 0);
     return dataHora;
   };
-  const consultasDoPaciente = consultas.filter(
-    (consulta) => consulta.pacienteId === patient.id && consulta.status !== 'cancelado'
+  const consultasDoPaciente = (consultas || []).filter(
+    (consulta) => consulta && consulta.pacienteId === patient?.id && consulta?.status !== 'cancelado'
   );
   const proximasConsultas = consultasDoPaciente
     .filter((consulta) => getConsultaDateTime(consulta).getTime() >= Date.now())
     .sort((a, b) => getConsultaDateTime(a).getTime() - getConsultaDateTime(b).getTime());
   const ultimaConsulta = consultasDoPaciente
     .filter((consulta) => {
-      if (consulta.status !== 'realizado') return false;
+      if (consulta?.status !== 'realizado') return false;
       const dataHora = new Date(consulta.data);
       const [hora, minuto] = (consulta.hora || '00:00').split(':').map(Number);
       dataHora.setHours(hora || 0, minuto || 0, 0, 0);

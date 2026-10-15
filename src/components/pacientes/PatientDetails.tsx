@@ -53,8 +53,8 @@ const PatientDetails = ({ patient, onClose, onEdit, onSchedule, onAddProcediment
           </Button>
           <div>
             <div className="flex items-center gap-2.5 flex-wrap">
-              <h1 className="text-xl sm:text-2xl font-bold text-foreground">{patient.nome}</h1>
-              {renderStatusBadge(patient.status)}
+              <h1 className="text-xl sm:text-2xl font-bold text-foreground">{patient?.nome}</h1>
+              {renderStatusBadge(patient?.status || 'Ativo')}
             </div>
             <p className="text-sm text-muted-foreground">
               {patient.email}

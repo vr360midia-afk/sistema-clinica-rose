@@ -8,15 +8,18 @@ import { downloadHtmlAsPdf } from './pdfDownload';
  * em total conformidade com as diretrizes do Conselho Federal de Odontologia (CFO)
  * e Código de Defesa do Consumidor.
  */
-export const gerarHtmlTcleLentesResina = (snapshot: ContratoSnapshot): string => {
-  const { paciente, clinica, orcamento } = snapshot;
+export const gerarHtmlTcleLentesResina = (snapshot?: ContratoSnapshot | null): string => {
+  if (!snapshot) return '';
+  const paciente = snapshot.paciente || ({} as any);
+  const clinica = snapshot.clinica || ({} as any);
+  const orcamento = snapshot.orcamento || ({} as any);
   const dataHojeExtenso = formatarDataPorExtenso(new Date(snapshot.emitidoEm || new Date()), clinica.cidade || 'Local');
   const tipoDocClinica = identificarTipoDocumento(clinica.cnpj);
   const labelDocClinica = tipoDocClinica === 'cpf' ? 'CPF' : 'CNPJ';
   const labelDocPaciente = identificarTipoDocumento(paciente.cpf) === 'cnpj' ? 'CNPJ' : 'CPF';
 
   const dentesDescricao = snapshot.dadosRestauracoesPreexistentes?.dentesEnvolvidos ||
-    orcamento?.itens?.map((i) => `${i.nome} ${i.denteOuRegiao || ''}`).filter(Boolean).join(', ') ||
+    orcamento?.itens?.map((i: any) => `${i?.nome || ''} ${i?.denteOuRegiao || ''}`).filter(Boolean).join(', ') ||
     'Dentes indicados no plano de tratamento odontológico';
 
   return `<!doctype html>
@@ -294,9 +297,10 @@ export const gerarHtmlTcleLentesResina = (snapshot: ContratoSnapshot): string =>
 /**
  * Realiza o download direto do TCLE de Lentes em Resina Composta como arquivo PDF A4 avulso.
  */
-export const downloadTcleLentesResinaPdf = async (snapshot: ContratoSnapshot): Promise<boolean> => {
+export const downloadTcleLentesResinaPdf = async (snapshot?: ContratoSnapshot | null): Promise<boolean> => {
+  if (!snapshot) return false;
   const html = gerarHtmlTcleLentesResina(snapshot);
-  const nomePaciente = (snapshot.paciente.nome || 'paciente').toLowerCase().replace(/[^a-z0-9]/g, '_');
+  const nomePaciente = (snapshot.paciente?.nome || 'paciente').toLowerCase().replace(/[^a-z0-9]/g, '_');
   const filename = `tcle_lentes_resina_${nomePaciente}_${snapshot.contratoId || 'doc'}.pdf`;
   return downloadHtmlAsPdf(html, filename);
 };
