@@ -41,6 +41,8 @@ import {
   X,
   RefreshCw,
   Sparkles,
+  Camera,
+  EyeOff,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -65,6 +67,7 @@ import {
   isMetodoCartao,
 } from '@/utils/contratoEngine';
 import { downloadTcleLentesResinaPdf } from '@/utils/tcleLentesResina';
+import { downloadTermoUsoImagemPdf } from '@/utils/termoUsoImagem';
 import { somarMesesSeguro } from '@/utils/documentoFormat';
 import { downloadHtmlAsPdf } from '@/utils/pdfDownload';
 import { openWhatsApp } from '@/lib/whatsapp';
@@ -967,6 +970,61 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                   </div>
                 </div>
 
+                {/* Opção: Termo de Autorização de Uso de Imagem e Voz */}
+                <div className="p-3 bg-card rounded-lg border border-border shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-1.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shrink-0">
+                      <Camera className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <div className="font-semibold text-foreground flex items-center gap-2">
+                        <span>Termo de Autorização de Uso de Imagem e Voz (Facultativo)</span>
+                        <Badge
+                          variant={snapshotAtual?.termoUsoImagem?.autorizado ? 'default' : 'outline'}
+                          className={cn(
+                            "text-[10px] h-4 px-1.5 font-medium",
+                            snapshotAtual?.termoUsoImagem?.autorizado ? "bg-emerald-600 text-white hover:bg-emerald-700" : ""
+                          )}
+                        >
+                          {snapshotAtual?.termoUsoImagem?.autorizado ? '✓ Anexo de Imagem Autorizado' : 'Não Anexado (Opcional)'}
+                        </Badge>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        {snapshotAtual?.termoUsoImagem?.autorizado
+                          ? 'O paciente autorizou o uso. O Termo oficial (10 seções LGPD/CFO) é anexado automaticamente ao contrato e PDF.'
+                          : 'O termo é facultativo. O paciente poderá escolher autorizar ou recusar no link de assinatura digital do contrato.'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                    <Label htmlFor="toggleTermoImagem" className="text-xs text-muted-foreground cursor-pointer select-none">
+                      {snapshotAtual?.termoUsoImagem?.autorizado ? 'Autorizado (Anexo Ativo)' : 'Não Autorizado'}
+                    </Label>
+                    <Switch
+                      id="toggleTermoImagem"
+                      checked={Boolean(snapshotAtual?.termoUsoImagem?.autorizado)}
+                      onCheckedChange={(checked) => {
+                        setIsManuallyEdited(true);
+                        setSnapshotAtual((prev) => {
+                          if (!prev) return prev;
+                          return {
+                            ...prev,
+                            termoUsoImagem: {
+                              ativo: true,
+                              autorizado: checked,
+                              usoDidaticoCientifico: prev.termoUsoImagem?.usoDidaticoCientifico !== false,
+                              usoPublicitarioRedesSociais: prev.termoUsoImagem?.usoPublicitarioRedesSociais !== false,
+                              identificacaoFacialVoz: prev.termoUsoImagem?.identificacaoFacialVoz || 'apenas_bucal',
+                              depoimentos: prev.termoUsoImagem?.depoimentos !== false,
+                              canalContatoLgpd: prev.clinica.email || prev.clinica.telefone,
+                            },
+                          };
+                        });
+                      }}
+                    />
+                  </div>
+                </div>
+
                 {/* Alerta de Pendências Cadastrais do Paciente */}
                 {pendenciasCadastrais.length > 0 && (
                   <Alert variant="default" className="bg-amber-500/10 border-amber-500/30 text-amber-800 dark:text-amber-200 py-2.5">
@@ -1623,6 +1681,113 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                       )}
                     </div>
 
+                    {/* Seção 6: Termo de Autorização de Uso de Imagem, Voz e Registros Odontológicos */}
+                    <div className="p-4 bg-card rounded-lg border border-border shadow-sm space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                          <Camera className="h-3.5 w-3.5 text-emerald-500" />
+                          6. Termo de Autorização de Uso de Imagem e Voz (LGPD / CFO)
+                        </h4>
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="termoImagemSwitchEdit" className="text-xs text-muted-foreground cursor-pointer select-none">
+                            {snapshotAtual.termoUsoImagem?.autorizado ? 'Autorizado (Anexo Ativo)' : 'Não Autorizado'}
+                          </Label>
+                          <Switch
+                            id="termoImagemSwitchEdit"
+                            checked={Boolean(snapshotAtual.termoUsoImagem?.autorizado)}
+                            onCheckedChange={(checked) => {
+                              handleUpdateSnapshotField('termoUsoImagem.autorizado', checked);
+                            }}
+                          />
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Documento oficial com 10 seções em conformidade com a LGPD e Código de Ética do CFO. Se autorizado, o Termo é anexado ao final do contrato. Se não autorizado, o contrato permanece sem anexo de imagem.
+                      </p>
+
+                      {snapshotAtual.termoUsoImagem?.autorizado && (
+                        <div className="space-y-3 pt-2 border-t border-border">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                            <div className="space-y-1">
+                              <Label className="text-xs text-muted-foreground">B — Didático & Científico</Label>
+                              <Select
+                                value={snapshotAtual.termoUsoImagem?.usoDidaticoCientifico !== false ? 'sim' : 'nao'}
+                                onValueChange={(v) => handleUpdateSnapshotField('termoUsoImagem.usoDidaticoCientifico', v === 'sim')}
+                              >
+                                <SelectTrigger className="h-8 text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="sim">✓ AUTORIZO</SelectItem>
+                                  <SelectItem value="nao">✕ NÃO AUTORIZO</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="space-y-1">
+                              <Label className="text-xs text-muted-foreground">C — Publicitário & Redes</Label>
+                              <Select
+                                value={snapshotAtual.termoUsoImagem?.usoPublicitarioRedesSociais !== false ? 'sim' : 'nao'}
+                                onValueChange={(v) => handleUpdateSnapshotField('termoUsoImagem.usoPublicitarioRedesSociais', v === 'sim')}
+                              >
+                                <SelectTrigger className="h-8 text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="sim">✓ AUTORIZO</SelectItem>
+                                  <SelectItem value="nao">✕ NÃO AUTORIZO</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="space-y-1">
+                              <Label className="text-xs text-muted-foreground">E — Depoimentos</Label>
+                              <Select
+                                value={snapshotAtual.termoUsoImagem?.depoimentos !== false ? 'sim' : 'nao'}
+                                onValueChange={(v) => handleUpdateSnapshotField('termoUsoImagem.depoimentos', v === 'sim')}
+                              >
+                                <SelectTrigger className="h-8 text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="sim">✓ AUTORIZO</SelectItem>
+                                  <SelectItem value="nao">✕ NÃO AUTORIZO</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="space-y-1 sm:col-span-2 md:col-span-3">
+                              <Label className="text-xs text-muted-foreground">D — Nível de Identificação Facial & Voz</Label>
+                              <Select
+                                value={snapshotAtual.termoUsoImagem?.identificacaoFacialVoz || 'apenas_bucal'}
+                                onValueChange={(v) => handleUpdateSnapshotField('termoUsoImagem.identificacaoFacialVoz', v)}
+                              >
+                                <SelectTrigger className="h-8 text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="apenas_bucal">Apenas região bucal (Sorriso/dentes sem identificação direta do rosto - Recomendado)</SelectItem>
+                                  <SelectItem value="rosto_e_voz">Rosto reconhecível e gravações de voz</SelectItem>
+                                  <SelectItem value="apenas_voz">Apenas gravações de voz</SelectItem>
+                                  <SelectItem value="nao_autoriza_identificacao">Não autorizo identificação (Totalmente anônimo)</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="space-y-1 sm:col-span-2 md:col-span-3">
+                              <Label className="text-xs text-muted-foreground">Canal de Atendimento LGPD da Clínica</Label>
+                              <Input
+                                value={snapshotAtual.termoUsoImagem?.canalContatoLgpd || snapshotAtual.clinica.email || ''}
+                                onChange={(e) => handleUpdateSnapshotField('termoUsoImagem.canalContatoLgpd', e.target.value)}
+                                placeholder="E-mail ou WhatsApp oficial para solicitações de privacidade..."
+                                className="h-8 text-xs border-border bg-background text-foreground"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
                     {/* Botões de Ação na Aba de Edição */}
                     <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
                       <Button
@@ -1860,6 +2025,29 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                 >
                   <FileText className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-sky-600" />
                   <span>TCLE Lentes (CFO)</span>
+                </Button>
+              )}
+
+              {snapshotAtual && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 sm:h-9 text-xs gap-1.5 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/50"
+                  onClick={async () => {
+                    try {
+                      if (!snapshotAtual) return;
+                      await downloadTermoUsoImagemPdf(snapshotAtual);
+                      toast.success('Termo de Uso de Imagem e Voz (LGPD/CFO) gerado com sucesso!');
+                    } catch (e) {
+                      toast.error('Erro ao gerar Termo de Imagem em PDF');
+                    }
+                  }}
+                  disabled={!snapshotAtual}
+                  title="Baixar Termo de Autorização de Uso de Imagem, Voz e Registros Odontológicos em PDF avulso"
+                >
+                  <Camera className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-emerald-600" />
+                  <span>Termo Imagem (PDF)</span>
                 </Button>
               )}
 

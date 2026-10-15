@@ -10,6 +10,7 @@ import type { Paciente, Transacao, AvaliacaoRestauracoesPreexistentes } from '@/
 import type { Orcamento } from '@/hooks/useOrcamentos';
 import type { ConfiguracoesGerais } from '@/hooks/useConfiguracoes';
 import { carregarConfiguracoesContratoSync, type ConfiguracoesContrato } from '@/hooks/useConfiguracoesContrato';
+import { gerarFragmentoHtmlTermoUsoImagem } from './termoUsoImagem';
 
 export {
   identificarTipoDocumento,
@@ -94,6 +95,21 @@ export interface ContratoDadosFinanceiro {
   valorParcela: number;
 }
 
+export interface ContratoTermoUsoImagem {
+  ativo?: boolean; // Se a opção de inclusão/gestão está ativa
+  autorizado: boolean; // Se o paciente optou por autorizar (true) ou recusar (false)
+  usoDidaticoCientifico?: boolean; // Item B: didático e científico
+  usoPublicitarioRedesSociais?: boolean; // Item C: publicitário e redes sociais
+  identificacaoFacialVoz?: 'rosto_e_voz' | 'apenas_voz' | 'apenas_bucal' | 'nao_autoriza_identificacao'; // Item D
+  depoimentos?: boolean; // Item E: depoimentos voluntários
+  canalContatoLgpd?: string;
+  responsavelLegal?: {
+    nome?: string;
+    cpf?: string;
+    vinculo?: string;
+  };
+}
+
 export interface ContratoSnapshot {
   contratoId: string;
   orcamentoId: string;
@@ -108,6 +124,7 @@ export interface ContratoSnapshot {
   observacoesCustomizadas?: string;
   incluiLentesResina?: boolean;
   dadosRestauracoesPreexistentes?: AvaliacaoRestauracoesPreexistentes;
+  termoUsoImagem?: ContratoTermoUsoImagem;
   assinaturaPaciente?: {
     assinaturaData: string;
     nome: string;
@@ -236,6 +253,7 @@ export const mapearDadosContrato = ({
   cidadeLocal = 'São Paulo',
   incluiLentesResina,
   dadosRestauracoesPreexistentes,
+  termoUsoImagem,
 }: {
   patient: Partial<Paciente> | any;
   orcamento: Orcamento | any;
@@ -247,6 +265,7 @@ export const mapearDadosContrato = ({
   cidadeLocal?: string;
   incluiLentesResina?: boolean;
   dadosRestauracoesPreexistentes?: AvaliacaoRestauracoesPreexistentes;
+  termoUsoImagem?: ContratoTermoUsoImagem;
 }): ContratoSnapshot => {
   const emitidoEmData = new Date();
   const emitidoEm = emitidoEmData.toISOString();
@@ -680,6 +699,14 @@ export const mapearDadosContrato = ({
     observacoesCustomizadas: orcamento?.observacoes || undefined,
     incluiLentesResina: incluiLentesResina !== undefined ? incluiLentesResina : undefined,
     dadosRestauracoesPreexistentes: dadosRestauracoesPreexistentes || patient?.restauracoesPreexistentes || undefined,
+    termoUsoImagem: termoUsoImagem !== undefined ? termoUsoImagem : {
+      ativo: true,
+      autorizado: false, // Por padrão facultativo: aguarda manifestação de autorização do paciente
+      usoDidaticoCientifico: true,
+      usoPublicitarioRedesSociais: true,
+      identificacaoFacialVoz: 'apenas_bucal',
+      depoimentos: true,
+    },
     assinaturaPaciente: null,
     assinaturaDentista: null,
   };
@@ -1518,6 +1545,10 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
         </div>
       </div>
     </div>
+    ` : ''}
+
+    ${snapshot.termoUsoImagem?.autorizado === true ? `
+      ${gerarFragmentoHtmlTermoUsoImagem(snapshot, incluiLentes ? 'ANEXO II' : 'ANEXO I')}
     ` : ''}
 
     <!-- Rodapé -->

@@ -24,8 +24,15 @@ import {
   FileCheck,
   Maximize2,
   Minimize2,
+  Camera,
+  EyeOff,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Sparkles,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 import { formatMoney } from '@/utils/exportCsv';
 import {
   ContratoSnapshot,
@@ -58,6 +65,14 @@ export default function AssinarContrato() {
   const [copiouPix, setCopiouPix] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
 
+  // Estados de Autorização de Uso de Imagem e Voz (Facultativo)
+  const [autorizaImagem, setAutorizaImagem] = useState<boolean>(false);
+  const [usoDidatico, setUsoDidatico] = useState<boolean>(true);
+  const [usoPublicitario, setUsoPublicitario] = useState<boolean>(true);
+  const [identificacao, setIdentificacao] = useState<'rosto_e_voz' | 'apenas_voz' | 'apenas_bucal' | 'nao_autoriza_identificacao'>('apenas_bucal');
+  const [depoimentos, setDepoimentos] = useState<boolean>(true);
+  const [expandirLeituraTermo, setExpandirLeituraTermo] = useState<boolean>(true);
+
   // HTML oficial completo do contrato gerado na íntegra
   const htmlContrato = useMemo(() => {
     if (!snapshot) return '';
@@ -75,6 +90,62 @@ export default function AssinarContrato() {
     window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [isFullScreen]);
+
+  // Sincroniza escolhas de imagem a partir do snapshot
+  useEffect(() => {
+    if (snapshot?.termoUsoImagem) {
+      setAutorizaImagem(Boolean(snapshot.termoUsoImagem.autorizado));
+      if (snapshot.termoUsoImagem.usoDidaticoCientifico !== undefined) {
+        setUsoDidatico(snapshot.termoUsoImagem.usoDidaticoCientifico);
+      }
+      if (snapshot.termoUsoImagem.usoPublicitarioRedesSociais !== undefined) {
+        setUsoPublicitario(snapshot.termoUsoImagem.usoPublicitarioRedesSociais);
+      }
+      if (snapshot.termoUsoImagem.identificacaoFacialVoz) {
+        setIdentificacao(snapshot.termoUsoImagem.identificacaoFacialVoz);
+      }
+      if (snapshot.termoUsoImagem.depoimentos !== undefined) {
+        setDepoimentos(snapshot.termoUsoImagem.depoimentos);
+      }
+    }
+  }, [snapshot?.contratoId]);
+
+  // Atualiza as preferências de imagem no snapshot em tempo real
+  const handleAtualizarTermoImagem = (
+    novoAutoriza: boolean,
+    opts?: {
+      didatico?: boolean;
+      publicitario?: boolean;
+      ident?: 'rosto_e_voz' | 'apenas_voz' | 'apenas_bucal' | 'nao_autoriza_identificacao';
+      depoim?: boolean;
+    }
+  ) => {
+    setAutorizaImagem(novoAutoriza);
+    const did = opts?.didatico !== undefined ? opts.didatico : usoDidatico;
+    const pub = opts?.publicitario !== undefined ? opts.publicitario : usoPublicitario;
+    const idf = opts?.ident !== undefined ? opts.ident : identificacao;
+    const dep = opts?.depoim !== undefined ? opts.depoim : depoimentos;
+
+    if (opts?.didatico !== undefined) setUsoDidatico(did);
+    if (opts?.publicitario !== undefined) setUsoPublicitario(pub);
+    if (opts?.ident !== undefined) setIdentificacao(idf);
+    if (opts?.depoim !== undefined) setDepoimentos(dep);
+
+    if (!snapshot) return;
+
+    setSnapshot({
+      ...snapshot,
+      termoUsoImagem: {
+        ativo: true,
+        autorizado: novoAutoriza,
+        usoDidaticoCientifico: did,
+        usoPublicitarioRedesSociais: pub,
+        identificacaoFacialVoz: idf,
+        depoimentos: dep,
+        canalContatoLgpd: snapshot.clinica.email || snapshot.clinica.telefone,
+      },
+    });
+  };
 
   // Carrega os dados do contrato
   useEffect(() => {
@@ -180,6 +251,15 @@ export default function AssinarContrato() {
       const updatedSnapshot: ContratoSnapshot = {
         ...snapshot,
         status: 'assinado',
+        termoUsoImagem: {
+          ativo: true,
+          autorizado: autorizaImagem,
+          usoDidaticoCientifico: usoDidatico,
+          usoPublicitarioRedesSociais: usoPublicitario,
+          identificacaoFacialVoz: identificacao,
+          depoimentos: depoimentos,
+          canalContatoLgpd: snapshot.clinica.email || snapshot.clinica.telefone,
+        },
         assinaturaPaciente: {
           assinaturaData: sigData.signature,
           nome: sigData.signerName || snapshot.paciente.nome,
@@ -625,6 +705,326 @@ export default function AssinarContrato() {
             </div>
           </div>
 
+          {/* Seção de Escolha Facultativa: Termo de Autorização de Uso de Imagem e Voz */}
+          {!isAssinado ? (
+            <Card className="border border-emerald-200 dark:border-emerald-800/60 bg-gradient-to-br from-emerald-50/50 via-white to-slate-50 dark:from-emerald-950/20 dark:via-slate-900 dark:to-slate-950 overflow-hidden shadow-xs">
+              <CardHeader className="pb-3 border-b border-emerald-100 dark:border-emerald-900/40">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300">
+                      <Camera className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-sm sm:text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                        <span>Termo de Autorização de Uso de Imagem e Voz</span>
+                        <Badge variant="outline" className="text-[10px] bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border-emerald-300">
+                          Opcional / Facultativo
+                        </Badge>
+                      </CardTitle>
+                      <CardDescription className="text-xs text-muted-foreground mt-0.5">
+                        Consentimento livre, informado e específico (Lei Geral de Proteção de Dados - LGPD e CFO)
+                      </CardDescription>
+                    </div>
+                  </div>
+                </div>
+              </CardHeader>
+
+              <CardContent className="p-4 sm:p-5 space-y-4">
+                {/* Aviso informativo de liberdade de escolha */}
+                <div className="text-xs text-slate-600 dark:text-slate-300 bg-white/80 dark:bg-slate-900/80 p-3 rounded-lg border border-slate-200 dark:border-slate-800 leading-relaxed">
+                  <strong className="text-slate-800 dark:text-slate-200 font-semibold block mb-1">
+                    ✦ Importante: A sua escolha é totalmente livre e independente.
+                  </strong>
+                  A autorização para fins didáticos, científicos ou de divulgação em redes sociais é facultativa. 
+                  <strong> Caso opte por NÃO autorizar</strong>, o termo <u>não</u> será anexado ao seu contrato e o seu atendimento odontológico seguirá rigorosamente com o mesmo cuidado, dedicação e sigilo profissional.
+                </div>
+
+                {/* Cards de Opção: NÃO AUTORIZO vs DESEJO AUTORIZAR */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  {/* Opção 1: NÃO AUTORIZO */}
+                  <button
+                    type="button"
+                    onClick={() => handleAtualizarTermoImagem(false)}
+                    className={cn(
+                      "p-3.5 rounded-xl border-2 text-left transition-all cursor-pointer flex items-start gap-3 relative",
+                      !autorizaImagem
+                        ? "border-slate-700 bg-slate-900 text-white shadow-md dark:border-slate-400 dark:bg-slate-800"
+                        : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 text-slate-700 dark:text-slate-300"
+                    )}
+                  >
+                    <div className={cn(
+                      "p-2 rounded-lg shrink-0",
+                      !autorizaImagem ? "bg-white/20 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-500"
+                    )}>
+                      <EyeOff className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-xs sm:text-sm">NÃO AUTORIZO</span>
+                        {!autorizaImagem && (
+                          <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                        )}
+                      </div>
+                      <p className={cn(
+                        "text-[11px] mt-1 leading-snug",
+                        !autorizaImagem ? "text-slate-200" : "text-muted-foreground"
+                      )}>
+                        Prefiro não divulgar imagens/voz. Meu atendimento segue normalmente e o termo <strong>NÃO</strong> será anexado ao contrato.
+                      </p>
+                    </div>
+                  </button>
+
+                  {/* Opção 2: DESEJO AUTORIZAR */}
+                  <button
+                    type="button"
+                    onClick={() => handleAtualizarTermoImagem(true)}
+                    className={cn(
+                      "p-3.5 rounded-xl border-2 text-left transition-all cursor-pointer flex items-start gap-3 relative",
+                      autorizaImagem
+                        ? "border-emerald-600 bg-emerald-600 text-white shadow-md dark:border-emerald-500 dark:bg-emerald-700"
+                        : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-emerald-300 text-slate-700 dark:text-slate-300"
+                    )}
+                  >
+                    <div className={cn(
+                      "p-2 rounded-lg shrink-0",
+                      autorizaImagem ? "bg-white/20 text-white" : "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400"
+                    )}>
+                      <Camera className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-xs sm:text-sm">DESEJO AUTORIZAR</span>
+                        {autorizaImagem && (
+                          <CheckCircle2 className="h-4 w-4 text-white shrink-0" />
+                        )}
+                      </div>
+                      <p className={cn(
+                        "text-[11px] mt-1 leading-snug",
+                        autorizaImagem ? "text-emerald-100" : "text-muted-foreground"
+                      )}>
+                        Autorizo o uso para fins odontológicos. Ativa a leitura do termo na íntegra, opções e inclusão em anexo.
+                      </p>
+                    </div>
+                  </button>
+                </div>
+
+                {/* Painel expandido quando AUTORIZOU */}
+                {autorizaImagem && (
+                  <div className="mt-3 p-4 rounded-xl border border-emerald-200 dark:border-emerald-900 bg-white dark:bg-slate-900 space-y-4 animate-in fade-in duration-200">
+                    <div className="flex items-center justify-between border-b border-border pb-2.5">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-emerald-600" />
+                        <h4 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-slate-100">
+                          Personalize as Finalidades que Você Autoriza:
+                        </h4>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setExpandirLeituraTermo(!expandirLeituraTermo)}
+                        className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 font-medium cursor-pointer"
+                      >
+                        {expandirLeituraTermo ? 'Recolher Leitura' : 'Ler Termo Completo (10 Cláusulas)'}
+                        {expandirLeituraTermo ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                      </button>
+                    </div>
+
+                    {/* Opções Granulares B, C, D, E */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                      {/* Item B: Didático & Científico */}
+                      <div className="p-3 rounded-lg border border-border bg-slate-50 dark:bg-slate-800/50 space-y-2">
+                        <span className="font-bold text-slate-800 dark:text-slate-200 block">
+                          B — Utilização Didática e Científica
+                        </span>
+                        <p className="text-[11px] text-muted-foreground leading-snug">
+                          Atividades de ensino, palestras, congressos odontológicos e artigos científicos.
+                        </p>
+                        <div className="flex items-center gap-2 pt-1">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={usoDidatico ? "default" : "outline"}
+                            onClick={() => handleAtualizarTermoImagem(true, { didatico: true })}
+                            className={cn("h-7 text-xs flex-1", usoDidatico ? "bg-emerald-600 hover:bg-emerald-700 text-white" : "")}
+                          >
+                            {usoDidatico && <Check className="h-3 w-3 mr-1" />} Autorizo
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={!usoDidatico ? "default" : "outline"}
+                            onClick={() => handleAtualizarTermoImagem(true, { didatico: false })}
+                            className={cn("h-7 text-xs flex-1", !usoDidatico ? "bg-slate-700 hover:bg-slate-800 text-white" : "")}
+                          >
+                            {!usoDidatico && <Check className="h-3 w-3 mr-1" />} Não Autorizo
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Item C: Publicitário & Redes Sociais */}
+                      <div className="p-3 rounded-lg border border-border bg-slate-50 dark:bg-slate-800/50 space-y-2">
+                        <span className="font-bold text-slate-800 dark:text-slate-200 block">
+                          C — Divulgação Publicitária e Redes Sociais
+                        </span>
+                        <p className="text-[11px] text-muted-foreground leading-snug">
+                          Publicações profissionais da cirurgiã-dentista no Instagram, site e portfólio ético.
+                        </p>
+                        <div className="flex items-center gap-2 pt-1">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={usoPublicitario ? "default" : "outline"}
+                            onClick={() => handleAtualizarTermoImagem(true, { publicitario: true })}
+                            className={cn("h-7 text-xs flex-1", usoPublicitario ? "bg-emerald-600 hover:bg-emerald-700 text-white" : "")}
+                          >
+                            {usoPublicitario && <Check className="h-3 w-3 mr-1" />} Autorizo
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={!usoPublicitario ? "default" : "outline"}
+                            onClick={() => handleAtualizarTermoImagem(true, { publicitario: false })}
+                            className={cn("h-7 text-xs flex-1", !usoPublicitario ? "bg-slate-700 hover:bg-slate-800 text-white" : "")}
+                          >
+                            {!usoPublicitario && <Check className="h-3 w-3 mr-1" />} Não Autorizo
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Item D: Identificação Facial & Voz */}
+                      <div className="p-3 rounded-lg border border-border bg-slate-50 dark:bg-slate-800/50 space-y-2 sm:col-span-2">
+                        <span className="font-bold text-slate-800 dark:text-slate-200 block">
+                          D — Identificação Facial e Utilização da Voz
+                        </span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-0.5">
+                          {[
+                            { id: 'apenas_bucal', label: 'Apenas região bucal (Sorriso/Dentes sem rosto direto)', desc: 'Mais recomendado e seguro para privacidade' },
+                            { id: 'rosto_e_voz', label: 'Rosto e Voz reconhecíveis', desc: 'Permite foto completa do rosto e voz' },
+                            { id: 'apenas_voz', label: 'Apenas gravações com minha voz', desc: 'Áudio sem imagem facial' },
+                            { id: 'nao_autoriza_identificacao', label: 'Nenhuma identificação permitida', desc: 'Apenas registros estritamente anônimos' },
+                          ].map((item) => (
+                            <button
+                              key={item.id}
+                              type="button"
+                              onClick={() => handleAtualizarTermoImagem(true, { ident: item.id as any })}
+                              className={cn(
+                                "p-2.5 rounded-lg border text-left cursor-pointer transition-all flex items-start gap-2",
+                                identificacao === item.id
+                                  ? "border-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-100 font-medium"
+                                  : "border-border bg-white dark:bg-slate-900 hover:border-slate-300 text-slate-700 dark:text-slate-300"
+                              )}
+                            >
+                              <div className={cn(
+                                "w-4 h-4 rounded-full border flex items-center justify-center shrink-0 mt-0.5",
+                                identificacao === item.id ? "border-emerald-600 bg-emerald-600 text-white" : "border-slate-400"
+                              )}>
+                                {identificacao === item.id && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="text-[11.5px] leading-tight font-semibold">{item.label}</div>
+                                <div className="text-[10px] text-muted-foreground mt-0.5">{item.desc}</div>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Item E: Depoimentos */}
+                      <div className="p-3 rounded-lg border border-border bg-slate-50 dark:bg-slate-800/50 space-y-2 sm:col-span-2">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div>
+                            <span className="font-bold text-slate-800 dark:text-slate-200 block">
+                              E — Depoimentos Voluntários sobre o Tratamento
+                            </span>
+                            <p className="text-[11px] text-muted-foreground leading-snug">
+                              Captação e eventual divulgação de depoimento espontâneo sobre sua satisfação com o atendimento.
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant={depoimentos ? "default" : "outline"}
+                              onClick={() => handleAtualizarTermoImagem(true, { depoim: true })}
+                              className={cn("h-7 text-xs px-3", depoimentos ? "bg-emerald-600 hover:bg-emerald-700 text-white" : "")}
+                            >
+                              {depoimentos && <Check className="h-3 w-3 mr-1" />} Autorizo
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant={!depoimentos ? "default" : "outline"}
+                              onClick={() => handleAtualizarTermoImagem(true, { depoim: false })}
+                              className={cn("h-7 text-xs px-3", !depoimentos ? "bg-slate-700 hover:bg-slate-800 text-white" : "")}
+                            >
+                              {!depoimentos && <Check className="h-3 w-3 mr-1" />} Não Autorizo
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Visualizador de Leitura Completa do Termo de Imagem (10 Cláusulas) */}
+                    {expandirLeituraTermo && (
+                      <div className="mt-2 pt-3 border-t border-border">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                            <FileText className="h-3.5 w-3.5 text-emerald-600" />
+                            Texto Integral do Termo de Autorização (10 Seções Oficiais):
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">
+                            (O texto abaixo também foi inserido como Anexo ao contrato exibido acima)
+                          </span>
+                        </div>
+                        <div className="max-h-[280px] overflow-y-auto p-3.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs text-slate-700 dark:text-slate-300 space-y-3 leading-relaxed">
+                          <div>
+                            <h5 className="font-bold text-[12px] text-slate-900 dark:text-slate-100">1. IDENTIFICAÇÃO DA PROFISSIONAL RESPONSÁVEL</h5>
+                            <p className="text-[11px] mt-0.5">Dra. Rosângela Santos Pereira — Cirurgiã-Dentista, CRO-AL 06267, CPF: 032.663.962-43. Endereço: JTR — Edifício Espanha, Rua Comerciante José Pontes de Magalhães, nº 70, Sala 405, Jatiúca, Maceió/AL.</p>
+                          </div>
+                          <div>
+                            <h5 className="font-bold text-[12px] text-slate-900 dark:text-slate-100">2. IDENTIFICAÇÃO DO PACIENTE</h5>
+                            <p className="text-[11px] mt-0.5">Nome: {snapshot.paciente.nome} • CPF: {snapshot.paciente.cpf} • RG: {snapshot.paciente.rg} • Endereço: {snapshot.paciente.endereco}</p>
+                          </div>
+                          <div>
+                            <h5 className="font-bold text-[12px] text-slate-900 dark:text-slate-100">3. OBJETO DA AUTORIZAÇÃO</h5>
+                            <p className="text-[11px] mt-0.5">Declaro que fui informado(a) sobre a possibilidade de captação e utilização de fotografias, vídeos, gravações de voz, imagens odontológicas e demais registros relacionados ao meu atendimento (rosto, sorriso, dentes, cavidade bucal, antes e depois). As autorizações didática, científica e publicitária são facultativas e independentes do tratamento odontológico.</p>
+                          </div>
+                          <div>
+                            <h5 className="font-bold text-[12px] text-slate-900 dark:text-slate-100">4. DAS FINALIDADES E AUTORIZAÇÕES</h5>
+                            <p className="text-[11px] mt-0.5">Manifestações registradas conforme seleção: Didático/Científico ({usoDidatico ? 'AUTORIZADO' : 'NÃO AUTORIZADO'}), Publicitário/Redes ({usoPublicitario ? 'AUTORIZADO' : 'NÃO AUTORIZADO'}), Identificação ({identificacao}), Depoimentos ({depoimentos ? 'AUTORIZADO' : 'NÃO AUTORIZADO'}).</p>
+                          </div>
+                          <div>
+                            <h5 className="font-bold text-[12px] text-slate-900 dark:text-slate-100">5. DAS CONDIÇÕES DE UTILIZAÇÃO</h5>
+                            <p className="text-[11px] mt-0.5">5.1 a 5.5: Utilização restrita às finalidades autorizadas; vedada comercialização a terceiros; respeito rigoroso às normas éticas do CFO e sem alterações enganosas.</p>
+                          </div>
+                          <div>
+                            <h5 className="font-bold text-[12px] text-slate-900 dark:text-slate-100">6. DA GRATUIDADE E DA LIBERDADE DE ESCOLHA</h5>
+                            <p className="text-[11px] mt-0.5">6.1 a 6.4: Autorização gratuita; recusa não acarreta prejuízo nem restrição ao tratamento; não há obrigação de participar de gravações nem presunção por contratação.</p>
+                          </div>
+                          <div>
+                            <h5 className="font-bold text-[12px] text-slate-900 dark:text-slate-100">7. DA REVOGAÇÃO DO CONSENTIMENTO</h5>
+                            <p className="text-[11px] mt-0.5">7.1 a 7.5: O paciente poderá revogar as autorizações facultativas a qualquer momento perante a profissional responsável, sem comprometer a licitude de usos pretéritos.</p>
+                          </div>
+                          <div>
+                            <h5 className="font-bold text-[12px] text-slate-900 dark:text-slate-100">8. DA PROTEÇÃO DOS DADOS PESSOAIS (LGPD)</h5>
+                            <p className="text-[11px] mt-0.5">8.1 a 8.4: Conformidade estrita com a Lei Geral de Proteção de Dados (Lei 13.709/2018). Canal de contato: {snapshot.clinica.email || snapshot.clinica.telefone || 'contato@clinica.com'}.</p>
+                          </div>
+                          <div>
+                            <h5 className="font-bold text-[12px] text-slate-900 dark:text-slate-100">9. DA VIGÊNCIA</h5>
+                            <p className="text-[11px] mt-0.5">9.1 a 9.3: Validade até revogação expressa; vedado uso indefinido após cessadas as finalidades legítimas.</p>
+                          </div>
+                          <div>
+                            <h5 className="font-bold text-[12px] text-slate-900 dark:text-slate-100">10. DECLARAÇÃO FINAL DE CONSENTIMENTO</h5>
+                            <p className="text-[11px] mt-0.5">Declaro que recebi informações claras, compreendi o caráter facultativo de cada item, tive livre oportunidade de escolha e manifesto minha vontade de forma livre, informada e específica.</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ) : null}
+
           {/* Área de Assinatura Interativa */}
           {!isAssinado ? (
             <div className="p-5 rounded-lg border-2 border-dashed border-primary/30 bg-primary/5 space-y-4">
@@ -639,7 +1039,9 @@ export default function AssinarContrato() {
                   htmlFor="concordo"
                   className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 font-medium cursor-pointer select-none leading-relaxed"
                 >
-                  {isContratoLenteResina(snapshot)
+                  {autorizaImagem
+                    ? `Declaro que li e conferi o contrato completo acima na íntegra, incluindo o Termo de Autorização de Uso de Imagem e Voz (${isContratoLenteResina(snapshot) ? 'Anexo II' : 'Anexo I'}), e estou de pleno acordo com todas as cláusulas, riscos informados, procedimentos, valores e opções de imagem que selecionei.`
+                    : isContratoLenteResina(snapshot)
                     ? 'Declaro que li e conferi o contrato completo acima na íntegra, incluindo o Termo de Consentimento Livre e Esclarecido (TCLE) de Lentes em Resina (Anexo I), e estou de pleno acordo com todas as cláusulas, riscos informados, procedimentos, valores e cronograma de pagamento estipulados.'
                     : 'Declaro que li e conferi o contrato completo acima na íntegra, e estou de acordo com todos os termos, procedimentos odontológicos, valores e condições de pagamento estipulados neste Contrato de Prestação de Serviços Odontológicos.'}
                 </label>
@@ -675,6 +1077,19 @@ export default function AssinarContrato() {
                   {snapshot.assinaturaPaciente?.rg ? `• RG: ${snapshot.assinaturaPaciente.rg}` : ''}
                   {snapshot.assinaturaPaciente?.email ? ` • E-mail: ${snapshot.assinaturaPaciente.email}` : ''}
                 </p>
+
+                {/* Badge de status da autorização de imagem */}
+                <div className="mt-2">
+                  {snapshot.termoUsoImagem?.autorizado ? (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                      <Camera className="h-3.5 w-3.5" /> Uso de Imagem e Voz: AUTORIZADO pelo paciente (Termo Anexo Ativo)
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-300 dark:border-slate-700">
+                      <EyeOff className="h-3.5 w-3.5" /> Uso de Imagem: NÃO AUTORIZADO (Privacidade e Sigilo Preservados)
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div className="flex flex-wrap items-center justify-center gap-3 mt-2">
