@@ -35,6 +35,7 @@ import {
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { formatMoney } from '@/utils/exportCsv';
+import { gerarPayloadPix } from '@/utils/pixPayload';
 import {
   ContratoSnapshot,
   decodificarContratoUrl,
@@ -374,6 +375,39 @@ export default function AssinarContrato() {
     openWhatsApp(telefoneClinica, mensagem);
   };
 
+  const [copiouPayloadPix, setCopiouPayloadPix] = useState(false);
+
+  const valorPixContrato = useMemo(() => {
+    if (!snapshot?.financeiro) return 0;
+    return (snapshot.financeiro.entrada && snapshot.financeiro.entrada > 0)
+      ? snapshot.financeiro.entrada
+      : snapshot.financeiro.total;
+  }, [snapshot]);
+
+  const payloadPixContrato = useMemo(() => {
+    if (!snapshot?.clinica?.chavePix) return '';
+    return gerarPayloadPix({
+      chave: snapshot.clinica.chavePix,
+      tipoChave: snapshot.clinica.tipoChavePix,
+      nomeFavorecido: snapshot.clinica.favorecidoPix || snapshot.clinica.nome,
+      cidade: snapshot.clinica.cidade || 'SAO PAULO',
+      valor: valorPixContrato > 0 ? valorPixContrato : undefined,
+      descricao: `Contrato ${snapshot.numero || ''}`.trim(),
+    });
+  }, [snapshot, valorPixContrato]);
+
+  const handleCopiarPixCopiaECola = () => {
+    if (!payloadPixContrato) return;
+    navigator.clipboard.writeText(payloadPixContrato);
+    setCopiouPayloadPix(true);
+    toast.success(
+      valorPixContrato > 0
+        ? `PIX Copia e Cola com valor de ${formatMoney(valorPixContrato)} copiado!`
+        : 'Código PIX Copia e Cola copiado!'
+    );
+    setTimeout(() => setCopiouPayloadPix(false), 2500);
+  };
+
   const handleCopiarPix = () => {
     if (!snapshot?.clinica.chavePix) return;
     navigator.clipboard.writeText(snapshot.clinica.chavePix);
@@ -669,15 +703,31 @@ export default function AssinarContrato() {
                     )}
                   </div>
                 </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleCopiarPix}
-                  className="border-emerald-300 text-emerald-800 dark:text-emerald-200 hover:bg-emerald-100 self-start sm:self-center"
-                >
-                  {copiouPix ? <Check className="h-3.5 w-3.5 mr-1 text-emerald-600" /> : <Copy className="h-3.5 w-3.5 mr-1" />}
-                  {copiouPix ? 'Chave Copiada!' : 'Copiar Chave PIX'}
-                </Button>
+                <div className="flex flex-wrap gap-2 self-start sm:self-center">
+                  {payloadPixContrato && (
+                    <Button
+                      size="sm"
+                      onClick={handleCopiarPixCopiaECola}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm text-xs font-semibold gap-1"
+                    >
+                      {copiouPayloadPix ? <Check className="h-3.5 w-3.5 text-white" /> : <Sparkles className="h-3.5 w-3.5" />}
+                      {copiouPayloadPix
+                        ? 'Código Copiado!'
+                        : valorPixContrato > 0
+                        ? `Copiar PIX c/ Valor (${formatMoney(valorPixContrato)})`
+                        : 'Copiar PIX Copia e Cola'}
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleCopiarPix}
+                    className="border-emerald-300 text-emerald-800 dark:text-emerald-200 hover:bg-emerald-100 text-xs gap-1"
+                  >
+                    {copiouPix ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+                    {copiouPix ? 'Chave Copiada!' : 'Copiar Apenas Chave'}
+                  </Button>
+                </div>
               </div>
             )}
           </div>

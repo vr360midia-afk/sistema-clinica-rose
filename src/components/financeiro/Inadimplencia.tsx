@@ -2,8 +2,11 @@ import React, { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, MessageCircle, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, MessageCircle, CheckCircle2, Copy } from 'lucide-react';
 import { useDentalSystem } from '@/context/DentalSystemContext';
+import { useConfiguracoes } from '@/hooks/useConfiguracoes';
+import { useConfiguracoesContrato } from '@/hooks/useConfiguracoesContrato';
+import { gerarPayloadPix } from '@/utils/pixPayload';
 import { openWhatsApp } from '@/lib/whatsapp';
 import { formatMoney } from '@/utils/exportCsv';
 import { toast } from 'sonner';
@@ -13,6 +16,8 @@ const diasAtraso = (vencimento: Date) =>
 
 const Inadimplencia = () => {
   const { transacoes, pacientes, updateTransacao } = useDentalSystem();
+  const { configuracoes } = useConfiguracoes();
+  const { configContrato } = useConfiguracoesContrato();
   const [salvando, setSalvando] = useState<string | null>(null);
 
   const pendentes = useMemo(() => {
@@ -30,15 +35,30 @@ const Inadimplencia = () => {
 
   const getPaciente = (id: string) => pacientes.find((p) => p.id === id);
 
+  const chavePix = configContrato?.chavePix || configuracoes?.telefone || configuracoes?.cnpj || '';
+
   const cobrar = (item: (typeof pendentes)[number]) => {
     const paciente = getPaciente(item.t.pacienteId);
+    const valorNum = Number(item.t.valor || 0);
+
+    const payloadPix = chavePix ? gerarPayloadPix({
+      chave: chavePix,
+      tipoChave: configContrato?.tipoChavePix,
+      nomeFavorecido: configContrato?.favorecidoPix || configuracoes?.nomeClinica || 'Clinica',
+      cidade: configuracoes?.cidade || 'SAO PAULO',
+      valor: valorNum,
+      descricao: item.t.descricao ? item.t.descricao.slice(0, 30) : 'Acordo',
+    }) : '';
+
     const msg = [
       `Olá${paciente?.nome ? `, ${paciente.nome}` : ''}!`,
       '',
       'Identificamos um pagamento em aberto:',
       item.t.descricao ? `Referente a: ${item.t.descricao}` : null,
-      `Valor: ${formatMoney(Number(item.t.valor || 0))}`,
+      `Valor: ${formatMoney(valorNum)}`,
       `Vencimento: ${item.venc.toLocaleDateString('pt-BR')} (${item.dias} dia(s) em atraso)`,
+      chavePix ? `Chave PIX: ${chavePix}` : null,
+      payloadPix ? `\n*PIX Copia e Cola (com valor já preenchido):*\n\`\`\`${payloadPix}\`\`\`\n_(Basta copiar e colar na opção Pix Copia e Cola do seu banco para pagar com o valor exato)_` : null,
       '',
       'Pode nos confirmar a melhor forma de regularizar? Obrigado!',
     ]
@@ -48,6 +68,24 @@ const Inadimplencia = () => {
     if (!openWhatsApp(paciente?.telefone, msg)) {
       toast.error('Paciente sem telefone válido cadastrado');
     }
+  };
+
+  const copiarPixItem = (item: (typeof pendentes)[number]) => {
+    if (!chavePix) {
+      toast.error('Chave PIX não configurada nas configurações.');
+      return;
+    }
+    const valorNum = Number(item.t.valor || 0);
+    const payloadPix = gerarPayloadPix({
+      chave: chavePix,
+      tipoChave: configContrato?.tipoChavePix,
+      nomeFavorecido: configContrato?.favorecidoPix || configuracoes?.nomeClinica || 'Clinica',
+      cidade: configuracoes?.cidade || 'SAO PAULO',
+      valor: valorNum,
+      descricao: item.t.descricao ? item.t.descricao.slice(0, 30) : 'Acordo',
+    });
+    navigator.clipboard.writeText(payloadPix);
+    toast.success(`PIX Copia e Cola com valor de ${formatMoney(valorNum)} copiado!`);
   };
 
   const marcarPago = async (id: string) => {
@@ -101,6 +139,16 @@ const Inadimplencia = () => {
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="font-semibold">{formatMoney(Number(item.t.valor || 0))}</span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => copiarPixItem(item)}
+                      className="gap-1 h-8 text-xs text-emerald-700 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10"
+                      title="Copiar PIX Copia e Cola já com valor preenchido"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      <span className="hidden sm:inline">Copiar</span> PIX
+                    </Button>
                     <Button size="sm" variant="outline" onClick={() => cobrar(item)} className="gap-1 h-8 text-xs">
                       <MessageCircle className="h-3.5 w-3.5" />
                       <span>Cobrar</span>

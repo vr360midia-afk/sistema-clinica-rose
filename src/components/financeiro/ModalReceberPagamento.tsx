@@ -1,16 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { QrCode, Copy, CheckCircle2, Receipt, ArrowRight, Wallet, User, Calendar as CalendarIcon, Sparkles } from 'lucide-react';
+import { QrCode, Copy, CheckCircle2, Receipt, ArrowRight, Wallet, User, Calendar as CalendarIcon, Sparkles, Check, Smartphone } from 'lucide-react';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import { useConfiguracoesContrato } from '@/hooks/useConfiguracoesContrato';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { formatMoney } from '@/utils/exportCsv';
 import { gerarRecibo } from '@/utils/recibo';
+import { gerarPayloadPix, gerarQrCodePixUrl } from '@/utils/pixPayload';
 import { MetodoPagamento, Transacao } from '@/types/shared';
 import { toast } from 'sonner';
 
@@ -49,6 +50,8 @@ export const ModalReceberPagamento = ({
   });
   const [gerarReciboAposBaixa, setGerarReciboAposBaixa] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [copiouPayload, setCopiouPayload] = useState(false);
+  const [copiouChave, setCopiouChave] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -65,15 +68,62 @@ export const ModalReceberPagamento = ({
       }
       setDataRecebimento(new Date().toISOString().slice(0, 10));
       setGerarReciboAposBaixa(false);
+      setCopiouPayload(false);
+      setCopiouChave(false);
     }
   }, [isOpen, transacaoPendente, pacientePredefinidoId, valorSugerido, descricaoSugerida]);
 
-  const chavePix = configContrato?.chavePix || configuracoes?.telefone || configuracoes?.cnpj || 'Chave da clínica';
+  const chavePix = configContrato?.chavePix || configuracoes?.telefone || configuracoes?.cnpj || '';
+  const tipoChave = configContrato?.tipoChavePix;
   const favorecido = configContrato?.favorecidoPix || configuracoes?.nomeClinica || 'Clínica Odontológica';
-  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=4&data=${encodeURIComponent(chavePix)}`;
+  const cidade = configuracoes?.cidade || 'SAO PAULO';
 
-  const copiarPix = () => {
+  const valNum = parseFloat(valor) || 0;
+
+  // Gera o Payload Oficial Bacen (EMV) dinâmico com o valor em tempo real
+  const payloadPix = useMemo(() => {
+    if (!chavePix) return '';
+    return gerarPayloadPix({
+      chave: chavePix,
+      tipoChave,
+      nomeFavorecido: favorecido,
+      cidade,
+      valor: valNum > 0 ? valNum : undefined,
+      descricao: descricao ? descricao.slice(0, 30) : 'Tratamento',
+    });
+  }, [chavePix, tipoChave, favorecido, cidade, valNum, descricao]);
+
+  // QR Code gerado a partir do payload Bacen
+  const qrCodeUrl = useMemo(() => {
+    if (payloadPix) {
+      return gerarQrCodePixUrl(payloadPix, 240);
+    }
+    return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=4&data=${encodeURIComponent(chavePix || 'PIX')}`;
+  }, [payloadPix, chavePix]);
+
+  const copiarPayloadPix = () => {
+    if (!payloadPix) {
+      toast.error('Chave PIX não configurada');
+      return;
+    }
+    navigator.clipboard.writeText(payloadPix);
+    setCopiouPayload(true);
+    setTimeout(() => setCopiouPayload(false), 3000);
+    toast.success(
+      valNum > 0
+        ? `PIX Copia e Cola com valor de ${formatMoney(valNum)} copiado!`
+        : 'Código PIX Copia e Cola copiado!'
+    );
+  };
+
+  const copiarChaveSimples = () => {
+    if (!chavePix) {
+      toast.error('Chave PIX não configurada');
+      return;
+    }
     navigator.clipboard.writeText(chavePix);
+    setCopiouChave(true);
+    setTimeout(() => setCopiouChave(false), 3000);
     toast.success('Chave PIX copiada para a área de transferência!');
   };
 
@@ -179,40 +229,75 @@ export const ModalReceberPagamento = ({
         </div>
 
         <div className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
-          {/* Box de Cobrança PIX com QR Code */}
-          <div className="rounded-xl border border-emerald-500/20 bg-emerald-50/50 dark:bg-emerald-950/20 p-4 flex flex-col sm:flex-row items-center gap-4">
-            <div className="bg-white p-2 rounded-lg border shadow-sm shrink-0">
-              <img
-                src={qrCodeUrl}
-                alt="QR Code PIX"
-                className="w-28 h-28 object-contain"
-              />
-            </div>
-            <div className="flex-1 space-y-2 text-center sm:text-left min-w-0">
-              <div>
-                <p className="text-[11px] font-semibold text-emerald-800 dark:text-emerald-400 uppercase tracking-wider">
-                  Chave Oficial da Clínica
-                </p>
-                <p className="font-mono text-xs sm:text-sm font-bold text-foreground truncate select-all">
-                  {chavePix}
-                </p>
-                <p className="text-[11px] text-muted-foreground truncate">
-                  Favorecido: {favorecido}
-                </p>
-              </div>
+          {/* Box de Cobrança PIX com QR Code Dinâmico e Copia e Cola Bacen */}
+          {metodo === 'pix' && (
+            <div className="rounded-xl border border-emerald-500/30 bg-gradient-to-br from-emerald-50/70 via-teal-50/40 to-white dark:from-emerald-950/30 dark:via-zinc-900 dark:to-zinc-900 p-4 shadow-sm space-y-3">
+              <div className="flex flex-col sm:flex-row items-center gap-4">
+                <div className="bg-white p-2.5 rounded-xl border border-emerald-200 dark:border-emerald-800 shadow-md shrink-0 flex flex-col items-center">
+                  <img
+                    src={qrCodeUrl}
+                    alt="QR Code PIX com Valor"
+                    className="w-32 h-32 object-contain"
+                  />
+                  <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 mt-1 uppercase tracking-wider flex items-center gap-1">
+                    <Smartphone className="h-3 w-3" /> Escaneie no Banco
+                  </span>
+                </div>
 
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={copiarPix}
-                className="h-8 text-xs gap-1.5 border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 w-full sm:w-auto"
-              >
-                <Copy className="h-3.5 w-3.5" />
-                Copiar Chave PIX
-              </Button>
+                <div className="flex-1 space-y-2 text-center sm:text-left min-w-0">
+                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-1.5">
+                    {valNum > 0 ? (
+                      <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white text-[11px] font-bold px-2 py-0.5 shadow-sm flex items-center gap-1">
+                        <Sparkles className="h-3.5 w-3.5" /> Valor no QR Code: {formatMoney(valNum)}
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="border-amber-400 bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 text-[10px]">
+                        💡 Digite o valor abaixo para embutir no QR Code
+                      </Badge>
+                    )}
+                    <span className="text-[10px] text-muted-foreground">Padrão Bacen BR Code</span>
+                  </div>
+
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    {valNum > 0
+                      ? 'Ao escanear ou colar no app do banco (Nubank, Itaú, BB, Inter, etc.), o valor já virá preenchido de forma 100% automática!'
+                      : 'O QR Code e o Copia e Cola são atualizados em tempo real assim que você digita o valor.'}
+                  </p>
+
+                  <div className="pt-0.5 text-[11px] text-muted-foreground truncate">
+                    <span className="font-semibold text-foreground">Favorecido:</span> {favorecido} • <span className="font-mono text-xs">{chavePix}</span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 pt-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={copiarPayloadPix}
+                      className="h-8 text-xs font-semibold gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                    >
+                      {copiouPayload ? <Check className="h-3.5 w-3.5 text-white" /> : <Copy className="h-3.5 w-3.5" />}
+                      {copiouPayload
+                        ? 'Código Copiado!'
+                        : valNum > 0
+                        ? `Copiar PIX Copia e Cola (${formatMoney(valNum)})`
+                        : 'Copiar PIX Copia e Cola'}
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={copiarChaveSimples}
+                      className="h-8 text-xs gap-1 border-muted-foreground/30 hover:bg-muted/50 text-muted-foreground"
+                    >
+                      {copiouChave ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+                      Copiar Apenas a Chave
+                    </Button>
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Dados do Recebimento */}
           <div className="space-y-3">

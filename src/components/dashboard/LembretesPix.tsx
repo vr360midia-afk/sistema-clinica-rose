@@ -1,16 +1,19 @@
 import React from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Bell, Copy, Check, MessageCircle } from 'lucide-react';
+import { Bell, Copy, Check, MessageCircle, Sparkles } from 'lucide-react';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { formatMoney } from '@/utils/exportCsv';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
+import { useConfiguracoesContrato } from '@/hooks/useConfiguracoesContrato';
+import { gerarPayloadPix } from '@/utils/pixPayload';
 import { openWhatsApp } from '@/lib/whatsapp';
 
 const LembretesPix = () => {
   const { transacoes, pacientes, updateTransacao } = useDentalSystem();
   const { configuracoes } = useConfiguracoes();
+  const { configContrato } = useConfiguracoesContrato();
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -31,6 +34,8 @@ const LembretesPix = () => {
 
   if (lembretes.length === 0) return null;
 
+  const getChavePix = () => configContrato?.chavePix || configuracoes?.telefone || configuracoes?.cnpj || '';
+
   const enviarMensagem = (t: any) => {
     const paciente = pacientes.find(p => p.id === t.pacienteId);
     if (!paciente || !paciente.telefone) {
@@ -39,19 +44,58 @@ const LembretesPix = () => {
     }
 
     const dataVenc = new Date(t.vencimento!).toLocaleDateString('pt-BR');
-    const chavePix = configuracoes?.telefone || configuracoes?.cnpj || 'SUA_CHAVE_PIX';
+    const chavePix = getChavePix();
     const valor = formatMoney(t.valor);
     const nome = paciente.nome.split(' ')[0];
 
-    const mensagem = `Olá, ${nome}! Tudo bem?\n\nPassando para lembrar do vencimento da sua parcela do tratamento odontológico.\n\n*Valor:* ${valor}\n*Vencimento:* ${dataVenc}\n*Chave PIX:* ${chavePix}\n\nQualquer dúvida, estamos à disposição!`;
+    // Gera o código Bacen BR Code com o valor exato da parcela
+    const payloadPix = chavePix ? gerarPayloadPix({
+      chave: chavePix,
+      tipoChave: configContrato?.tipoChavePix,
+      nomeFavorecido: configContrato?.favorecidoPix || configuracoes?.nomeClinica || 'Clinica',
+      cidade: configuracoes?.cidade || 'SAO PAULO',
+      valor: t.valor,
+      descricao: t.descricao ? t.descricao.slice(0, 30) : 'Parcela Tratamento',
+    }) : '';
+
+    const linhas = [
+      `Olá, ${nome}! Tudo bem?`,
+      '',
+      'Passando para lembrar do vencimento da sua parcela do tratamento odontológico.',
+      '',
+      `*Valor:* ${valor}`,
+      `*Vencimento:* ${dataVenc}`,
+      chavePix ? `*Chave PIX:* ${chavePix}` : null,
+      payloadPix ? `\n*PIX Copia e Cola (com valor já preenchido):*\n\`\`\`${payloadPix}\`\`\`\n_(Copie o código acima e cole no aplicativo do seu banco para pagar com o valor exato)_` : null,
+      '',
+      'Qualquer dúvida, estamos à disposição!',
+    ].filter(Boolean).join('\n');
     
-    openWhatsApp(paciente.telefone, mensagem);
+    openWhatsApp(paciente.telefone, linhas);
   };
 
-  const copiarPix = () => {
-    const chavePix = configuracoes?.telefone || configuracoes?.cnpj || 'SUA_CHAVE_PIX';
-    navigator.clipboard.writeText(chavePix);
-    toast.success('Chave PIX copiada!');
+  const copiarPix = (t?: any) => {
+    const chavePix = getChavePix();
+    if (!chavePix) {
+      toast.error('Chave PIX não configurada nas configurações.');
+      return;
+    }
+
+    if (t?.valor) {
+      const payloadPix = gerarPayloadPix({
+        chave: chavePix,
+        tipoChave: configContrato?.tipoChavePix,
+        nomeFavorecido: configContrato?.favorecidoPix || configuracoes?.nomeClinica || 'Clinica',
+        cidade: configuracoes?.cidade || 'SAO PAULO',
+        valor: t.valor,
+        descricao: t.descricao ? t.descricao.slice(0, 30) : 'Parcela',
+      });
+      navigator.clipboard.writeText(payloadPix);
+      toast.success(`PIX Copia e Cola com valor de ${formatMoney(t.valor)} copiado!`);
+    } else {
+      navigator.clipboard.writeText(chavePix);
+      toast.success('Chave PIX copiada!');
+    }
   };
 
   const marcarPago = async (t: any) => {
@@ -91,7 +135,13 @@ const LembretesPix = () => {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Button size="sm" variant="outline" onClick={() => copiarPix()} className="h-8 px-2 text-xs">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => copiarPix(t)}
+                    className="h-8 px-2 text-xs text-emerald-700 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10"
+                    title="Copiar PIX Copia e Cola já com o valor preenchido"
+                  >
                     <Copy className="h-3.5 w-3.5 mr-1" /> Copiar PIX
                   </Button>
                   <Button size="sm" variant="outline" onClick={() => enviarMensagem(t)} className="h-8 px-2 text-xs">

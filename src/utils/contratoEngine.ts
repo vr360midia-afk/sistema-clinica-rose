@@ -12,6 +12,7 @@ import type { Orcamento } from '@/hooks/useOrcamentos';
 import type { ConfiguracoesGerais } from '@/hooks/useConfiguracoes';
 import { carregarConfiguracoesContratoSync, type ConfiguracoesContrato } from '@/hooks/useConfiguracoesContrato';
 import { gerarFragmentoHtmlTermoUsoImagem } from './termoUsoImagem';
+import { gerarPayloadPix } from './pixPayload';
 import {
   gerarHtmlContratoEndodontia,
   downloadContratoEndodontiaPdf,
@@ -1652,18 +1653,33 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
         </p>
       `}
 
-      ${temAlgumPix ? `
+      ${temAlgumPix ? (() => {
+        const chavePixContrato = clinica.chavePix || clinica.cnpj || clinica.telefone || '';
+        const valorPixContrato = (financeiro.entrada && financeiro.entrada > 0) ? financeiro.entrada : (financeiro.total > 0 ? financeiro.total : undefined);
+        const payloadPixContrato = chavePixContrato ? gerarPayloadPix({
+          chave: chavePixContrato,
+          tipoChave: clinica.tipoChavePix,
+          nomeFavorecido: clinica.favorecidoPix || clinica.nome,
+          cidade: clinica.cidade || 'SAO PAULO',
+          valor: valorPixContrato,
+          descricao: `Contrato ${dadosOrcamento.numeroIdentificador || ''}`.trim(),
+        }) : '';
+        const qrCodeSrc = payloadPixContrato
+          ? `https://api.qrserver.com/v1/create-qr-code/?size=120x120&margin=3&data=${encodeURIComponent(payloadPixContrato)}`
+          : `https://api.qrserver.com/v1/create-qr-code/?size=100x100&margin=3&data=${encodeURIComponent(chavePixContrato || 'pix')}`;
+
+        return `
       <!-- Detalhamento Oficial para Pagamento Mensal via PIX com QR Code -->
       <div style="margin: 12px 0; padding: 12px 14px; border: 1px dashed #0284c7; background-color: #f0f9ff; border-radius: 6px; font-family: Arial, sans-serif; font-size: 12px; color: #0369a1;">
         <div style="font-weight: bold; margin-bottom: 6px; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px;">
-          ✦ Instruções e QR Code Oficial para Pagamento via PIX:
+          ✦ Instruções e QR Code Oficial para Pagamento via PIX${valorPixContrato ? ` (Valor: ${formatMoney(valorPixContrato)})` : ''}:
         </div>
         <div style="display: flex; align-items: center; gap: 14px;">
           <div style="background: #ffffff; padding: 4px; border: 1px solid #bae6fd; border-radius: 4px; text-align: center; flex-shrink: 0;">
             <img
-              src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&margin=3&data=${encodeURIComponent(clinica.chavePix || clinica.cnpj || clinica.telefone || 'pix')}"
-              alt="QR Code PIX"
-              style="width: 80px; height: 80px; display: block;"
+              src="${qrCodeSrc}"
+              alt="QR Code PIX Bacen"
+              style="width: 85px; height: 85px; display: block;"
             />
             <div style="font-size: 8px; color: #0284c7; font-weight: bold; margin-top: 2px;">ESCANEAR PIX</div>
           </div>
@@ -1676,14 +1692,16 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
                   : (clinica.cnpj ? `• ${labelDocClinica}: ${clinica.cnpj}` : '')
               }
               ${clinica.bancoPix ? `<br/><strong>Instituição / Banco:</strong> ${clinica.bancoPix}` : ''}
+              ${valorPixContrato ? `<br/><strong>Valor Embutido no QR Code:</strong> ${formatMoney(valorPixContrato)}` : ''}
             </div>
             <div style="margin-top: 4px; font-size: 11px; color: #0284c7;">
-              ${clinica.instrucoesPix || 'O(A) CONTRATANTE poderá utilizar a câmera do smartphone para leitura do QR Code acima ou efetuar a transferência direta para a chave informada, encaminhando o comprovante para confirmação da baixa da parcela.'}
+              ${clinica.instrucoesPix || 'O(A) CONTRATANTE poderá utilizar a câmera do smartphone ou app do banco para leitura do QR Code acima (o valor já será preenchido automaticamente), ou efetuar a transferência direta para a chave informada.'}
             </div>
           </div>
         </div>
       </div>
-      ` : ''}
+      `;
+      })() : ''}
 
       <p class="paragrafo">
         Segue o cronograma oficial com as parcelas, vencimentos e formas de pagamento estabelecidas:
