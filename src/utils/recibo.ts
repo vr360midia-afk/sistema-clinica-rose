@@ -1,4 +1,5 @@
 import { downloadHtmlAsPdf } from './pdfDownload';
+import { identificarTipoDocumento } from './documentoFormat';
 
 interface ReciboClinica {
   nomeClinica?: string;
@@ -100,7 +101,7 @@ export const gerarRecibo = async (dados: ReciboDados, clinica: ReciboClinica = {
       <div class="clinica">
         ${clinica.logoUrl ? `<img src="${clinica.logoUrl}" alt="Logo" style="max-height:64px;max-width:200px;margin-bottom:8px;display:block;" />` : ''}
         <h1>${emissor}</h1>
-        ${clinica.cnpj ? `<p>CNPJ: ${clinica.cnpj}</p>` : ''}
+        ${clinica.cnpj ? `<p>${identificarTipoDocumento(clinica.cnpj) === 'cpf' ? 'CPF' : 'CNPJ'}: ${clinica.cnpj}</p>` : ''}
         ${clinica.endereco ? `<p>${clinica.endereco}</p>` : ''}
         ${clinica.telefone ? `<p>Tel: ${clinica.telefone}</p>` : ''}
         ${clinica.email ? `<p>${clinica.email}</p>` : ''}
@@ -130,7 +131,7 @@ export const gerarRecibo = async (dados: ReciboDados, clinica: ReciboClinica = {
 
     <div class="assinatura">
       <div class="linha"></div>
-      ${emissor}${clinica.cnpj ? ` — CNPJ ${clinica.cnpj}` : ''}
+      ${emissor}${clinica.cnpj ? ` — ${identificarTipoDocumento(clinica.cnpj) === 'cpf' ? 'CPF' : 'CNPJ'} ${clinica.cnpj}` : ''}
     </div>
 
     <div class="rodape">Documento emitido eletronicamente em ${new Date().toLocaleString('pt-BR')}.</div>

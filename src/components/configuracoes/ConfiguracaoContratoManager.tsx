@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useConfiguracoesContrato, ConfiguracoesContrato } from '@/hooks/useConfiguracoesContrato';
+import { identificarTipoDocumento } from '@/utils/documentoFormat';
 
 export const ConfiguracaoContratoManager: React.FC = () => {
   const { configContrato, salvarConfiguracoesContrato, restaurarPadrao, loading, salvando } =
@@ -173,12 +174,19 @@ export const ConfiguracaoContratoManager: React.FC = () => {
                 </div>
 
                 <div>
-                  <Label className="text-xs font-semibold">CNPJ ou CPF do Favorecido</Label>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-semibold">CNPJ ou CPF do Favorecido</Label>
+                    {form.cnpjCpfFavorecidoPix && (
+                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                        {identificarTipoDocumento(form.cnpjCpfFavorecidoPix) === 'cpf' ? 'CPF' : 'CNPJ'}
+                      </span>
+                    )}
+                  </div>
                   <Input
                     value={form.cnpjCpfFavorecidoPix}
                     onChange={(e) => handleChange('cnpjCpfFavorecidoPix', e.target.value)}
                     placeholder="Ex: 032.663.962-43"
-                    className="h-9 text-xs mt-1"
+                    className="h-9 text-xs mt-1 font-mono"
                   />
                 </div>
               </div>
@@ -231,13 +239,23 @@ export const ConfiguracaoContratoManager: React.FC = () => {
                 </div>
 
                 <div>
-                  <Label className="text-xs font-semibold">CNPJ da Clínica *</Label>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-semibold">CPF ou CNPJ da Clínica / Profissional *</Label>
+                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                      {identificarTipoDocumento(form.cnpjClinicaContrato) === 'cpf' ? 'CPF (Pessoa Física)' : 'CNPJ (Pessoa Jurídica)'}
+                    </span>
+                  </div>
                   <Input
                     value={form.cnpjClinicaContrato}
                     onChange={(e) => handleChange('cnpjClinicaContrato', e.target.value)}
-                    placeholder="Ex: 032.663.962-43"
-                    className="h-9 text-xs mt-1"
+                    placeholder="Ex: 032.663.962-43 ou 00.000.000/0001-00"
+                    className="h-9 text-xs mt-1 font-mono"
                   />
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    {identificarTipoDocumento(form.cnpjClinicaContrato) === 'cpf'
+                      ? 'Identificado como CPF: no contrato será qualificado(a) como Cirurgião(ã)-Dentista inscrita(o) no CPF/MF.'
+                      : 'Identificado como CNPJ: no contrato será qualificada como Pessoa Jurídica de direito privado.'}
+                  </p>
                 </div>
               </div>
 

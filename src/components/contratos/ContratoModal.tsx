@@ -61,6 +61,7 @@ import {
   ContratoSnapshot,
   gerarLinkAssinaturaContrato,
   isContratoLenteResina,
+  identificarTipoDocumento,
 } from '@/utils/contratoEngine';
 import { downloadHtmlAsPdf } from '@/utils/pdfDownload';
 import { openWhatsApp } from '@/lib/whatsapp';
@@ -1230,11 +1231,17 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                         </div>
 
                         <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">CNPJ</Label>
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs text-muted-foreground">Documento da Contratada</Label>
+                            <span className="text-[10px] font-semibold text-primary">
+                              {identificarTipoDocumento(snapshotAtual.clinica.cnpj) === 'cpf' ? 'CPF (Pessoa Física)' : 'CNPJ (Pessoa Jurídica)'}
+                            </span>
+                          </div>
                           <Input
                             value={snapshotAtual.clinica.cnpj || ''}
                             onChange={(e) => handleUpdateSnapshotField('clinica.cnpj', e.target.value)}
-                            className="h-8 text-xs border-border bg-background text-foreground"
+                            placeholder="000.000.000-00 ou 00.000.000/0001-00"
+                            className="h-8 text-xs border-border bg-background text-foreground font-mono"
                           />
                         </div>
 
@@ -1258,12 +1265,19 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                         </div>
 
                         <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">CPF / CNPJ do Titular PIX</Label>
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs text-muted-foreground">CPF / CNPJ do Titular PIX</Label>
+                            {snapshotAtual.clinica.cnpjCpfFavorecidoPix && (
+                              <span className="text-[10px] font-semibold text-primary">
+                                {identificarTipoDocumento(snapshotAtual.clinica.cnpjCpfFavorecidoPix) === 'cpf' ? 'CPF' : 'CNPJ'}
+                              </span>
+                            )}
+                          </div>
                           <Input
                             value={snapshotAtual.clinica.cnpjCpfFavorecidoPix || ''}
                             onChange={(e) => handleUpdateSnapshotField('clinica.cnpjCpfFavorecidoPix', e.target.value)}
                             placeholder="032.663.962-43"
-                            className="h-8 text-xs border-border bg-background text-foreground"
+                            className="h-8 text-xs border-border bg-background text-foreground font-mono"
                           />
                         </div>
 

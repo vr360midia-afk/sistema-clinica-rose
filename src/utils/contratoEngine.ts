@@ -1,9 +1,20 @@
 import { valorPorExtenso } from './recibo';
 import { formatMoney } from './exportCsv';
+import {
+  identificarTipoDocumento,
+  obterRotuloDocumento,
+  formatarDocumento,
+} from './documentoFormat';
 import type { Paciente, Transacao, AvaliacaoRestauracoesPreexistentes } from '@/types/shared';
 import type { Orcamento } from '@/hooks/useOrcamentos';
 import type { ConfiguracoesGerais } from '@/hooks/useConfiguracoes';
 import { carregarConfiguracoesContratoSync, type ConfiguracoesContrato } from '@/hooks/useConfiguracoesContrato';
+
+export {
+  identificarTipoDocumento,
+  obterRotuloDocumento,
+  formatarDocumento,
+};
 
 export interface ContratoItem {
   nome: string;
@@ -684,6 +695,44 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
       (p.metodo || p.descricao || '').toLowerCase().includes('pix')
     ) || /pix/i.test(financeiro.formaPagamento);
 
+  const tipoDocClinica = identificarTipoDocumento(clinica.cnpj);
+  const labelDocClinica = tipoDocClinica === 'cpf' ? 'CPF' : 'CNPJ';
+
+  // Identificação do titular/favorecido PIX
+  const tipoDocFavorecido = clinica.cnpjCpfFavorecidoPix ? identificarTipoDocumento(clinica.cnpjCpfFavorecidoPix) : null;
+  const labelDocFavorecido = tipoDocFavorecido === 'cpf' ? 'CPF' : 'CNPJ';
+
+  // Identificação do documento do contratante / paciente
+  const tipoDocPaciente = identificarTipoDocumento(paciente.cpf);
+  const labelDocPaciente = tipoDocPaciente === 'cnpj' ? 'CNPJ' : 'CPF/MF';
+
+  // Verifica se o profissional responsável é a mesma pessoa física que o nome cadastrado
+  const nomeNormClinica = (clinica.nome || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^(dra?\.?|cirurgi[aã]o?-?dentista)\s+/i, '');
+  const nomeNormDentista = (clinica.dentistaResponsavel || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^(dra?\.?|cirurgi[aã]o?-?dentista)\s+/i, '');
+  const ehMesmoProfissional =
+    !clinica.dentistaResponsavel ||
+    clinica.dentistaResponsavel === 'Cirurgião-Dentista Responsável' ||
+    nomeNormClinica === nomeNormDentista ||
+    (nomeNormClinica.length > 3 && nomeNormDentista.includes(nomeNormClinica)) ||
+    (nomeNormDentista.length > 3 && nomeNormClinica.includes(nomeNormDentista));
+
+  let preambuloContratadaHtml = '';
+  if (tipoDocClinica === 'cpf') {
+    if (ehMesmoProfissional) {
+      preambuloContratadaHtml = `<strong>CONTRATADA:</strong> <strong>${(clinica.nome || '').trim()}</strong>, cirurgiã(o)-dentista inscrita(o) no CPF/MF sob o nº <strong>${(clinica.cnpj || '').trim()}</strong> e no Conselho Regional de Odontologia sob o CRO nº <strong>${(clinica.cro || '').trim()}</strong>, com consultório estabelecido em <strong>${(clinica.endereco || '').trim()}</strong>, telefone: <strong>${(clinica.telefone || '').trim()}</strong>, e-mail: <strong>${(clinica.email || '').trim()}</strong>.`;
+    } else {
+      preambuloContratadaHtml = `<strong>CONTRATADA:</strong> <strong>${(clinica.nome || '').trim()}</strong>, inscrita(o) no CPF/MF sob o nº <strong>${(clinica.cnpj || '').trim()}</strong>, com consultório estabelecido em <strong>${(clinica.endereco || '').trim()}</strong>, telefone: <strong>${(clinica.telefone || '').trim()}</strong>, e-mail: <strong>${(clinica.email || '').trim()}</strong>, representada pelo(a) Cirurgião(ã)-Dentista <strong>${(clinica.dentistaResponsavel || '').trim()}</strong>, inscrito(a) no Conselho Regional de Odontologia sob o CRO nº <strong>${(clinica.cro || '').trim()}</strong>.`;
+    }
+  } else {
+    preambuloContratadaHtml = `<strong>CONTRATADA:</strong> <strong>${(clinica.nome || '').trim()}</strong>, pessoa jurídica de direito privado inscrita no CNPJ sob o nº <strong>${(clinica.cnpj || '').trim()}</strong>, com sede e consultório estabelecido em <strong>${(clinica.endereco || '').trim()}</strong>, telefone: <strong>${(clinica.telefone || '').trim()}</strong>, e-mail: <strong>${(clinica.email || '').trim()}</strong>, tendo como Responsável Técnico(a) o(a) Cirurgião(ã)-Dentista <strong>${(clinica.dentistaResponsavel || '').trim()}</strong>, inscrito(a) no Conselho Regional de Odontologia sob o CRO nº <strong>${(clinica.cro || '').trim()}</strong>.`;
+  }
+
   return `<!doctype html>
 <html lang="pt-BR">
 <head>
@@ -924,7 +973,7 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
         ${clinica.logoUrl ? `<div class="cabecalho-logo"><img src="${clinica.logoUrl}" alt="Logo" /></div>` : ''}
         <div class="cabecalho-clinica">
           <h1>${clinica.nome}</h1>
-          <p>CNPJ: ${clinica.cnpj} • CRO: ${clinica.cro}</p>
+          <p>${labelDocClinica}: ${clinica.cnpj} • CRO: ${clinica.cro}</p>
           <p>${clinica.endereco}</p>
           <p>Telefone: ${clinica.telefone} • E-mail: ${clinica.email}</p>
         </div>
@@ -949,13 +998,13 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
         Por este instrumento particular de prestação de serviços odontológicos, têm entre si justo e avençado:
       </p>
       <p class="paragrafo">
-        <strong>CONTRATADA:</strong> <strong>${clinica.nome}</strong>, pessoa jurídica de direito privado inscrita no CNPJ sob o nº <strong>${clinica.cnpj}</strong>, com sede e consultório estabelecido em <strong>${clinica.endereco}</strong>, telefone: <strong>${clinica.telefone}</strong>, e-mail: <strong>${clinica.email}</strong>, tendo como Responsável Técnico(a) o(a) Cirurgião(ã)-Dentista <strong>${clinica.dentistaResponsavel}</strong>, inscrito(a) no Conselho Regional de Odontologia sob o CRO nº <strong>${clinica.cro}</strong>.
+        ${preambuloContratadaHtml}
       </p>
       <p class="paragrafo">
         E de outro lado:
       </p>
       <p class="paragrafo">
-        <strong>CONTRATANTE / PACIENTE:</strong> <strong>${paciente.nome}</strong>, estado civil: <strong>${paciente.estadoCivil}</strong>, profissão: <strong>${paciente.profissao}</strong>, portador(a) do RG nº <strong>${paciente.rg}</strong>, inscrito(a) no CPF/MF sob o nº <strong>${paciente.cpf}</strong>, data de nascimento: <strong>${paciente.dataNascimento}</strong>, residente e domiciliado(a) em <strong>${paciente.endereco}</strong>, telefone: <strong>${paciente.telefone}</strong>, e-mail: <strong>${paciente.email}</strong>.
+        <strong>CONTRATANTE / PACIENTE:</strong> <strong>${(paciente.nome || '').trim()}</strong>, estado civil: <strong>${paciente.estadoCivil || 'Não informado'}</strong>, profissão: <strong>${paciente.profissao || 'Não informada'}</strong>, portador(a) do RG nº <strong>${paciente.rg || 'Não informado'}</strong>, inscrito(a) no ${labelDocPaciente} sob o nº <strong>${paciente.cpf || 'Não informado'}</strong>, data de nascimento: <strong>${paciente.dataNascimento || 'Não informada'}</strong>, residente e domiciliado(a) em <strong>${paciente.endereco || 'Não informado'}</strong>, telefone: <strong>${paciente.telefone || 'Não informado'}</strong>, e-mail: <strong>${paciente.email || 'Não informado'}</strong>.
       </p>
       <p class="paragrafo">
         As partes acima qualificadas celebram o presente contrato, mediante as cláusulas e condições seguintes:
@@ -1082,7 +1131,11 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
           <div style="flex: 1;">
             <div style="padding: 6px 10px; background-color: #ffffff; border-radius: 4px; border: 1px solid #bae6fd; font-size: 11px; color: #0c4a6e;">
               <strong>Chave PIX:</strong> ${clinica.chavePix || clinica.cnpj || clinica.telefone || 'Chave da clínica sob consulta'} <br/>
-              <strong>Titular / Favorecido:</strong> ${clinica.favorecidoPix || clinica.nome} ${clinica.cnpjCpfFavorecidoPix ? `• CNPJ/CPF: ${clinica.cnpjCpfFavorecidoPix}` : (clinica.cnpj ? `• CNPJ: ${clinica.cnpj}` : '')}
+              <strong>Titular / Favorecido:</strong> ${clinica.favorecidoPix || clinica.nome} ${
+                clinica.cnpjCpfFavorecidoPix
+                  ? `• ${labelDocFavorecido}: ${clinica.cnpjCpfFavorecidoPix}`
+                  : (clinica.cnpj ? `• ${labelDocClinica}: ${clinica.cnpj}` : '')
+              }
               ${clinica.bancoPix ? `<br/><strong>Instituição / Banco:</strong> ${clinica.bancoPix}` : ''}
             </div>
             <div style="margin-top: 4px; font-size: 11px; color: #0284c7;">
@@ -1288,7 +1341,7 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
           <div class="linha-assinatura"></div>
           <div class="assinatura-nome">${clinica.dentistaResponsavel}</div>
           <div class="assinatura-papel">${clinica.nome} — Contratada</div>
-          <div class="assinatura-detalhes">CRO: ${clinica.cro}</div>
+          <div class="assinatura-detalhes">${labelDocClinica}: ${clinica.cnpj} • CRO: ${clinica.cro}</div>
           ${snapshot.assinaturaDentista?.dataHora ? `
             <div class="assinatura-detalhes">Assinado digitalmente em ${new Date(snapshot.assinaturaDentista.dataHora).toLocaleString('pt-BR')}</div>
           ` : ''}

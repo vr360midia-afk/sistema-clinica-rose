@@ -31,6 +31,7 @@ import {
   ContratoSnapshot,
   decodificarContratoUrl,
   gerarHtmlContrato,
+  identificarTipoDocumento,
 } from '@/utils/contratoEngine';
 import { downloadHtmlAsPdf } from '@/utils/pdfDownload';
 import { openWhatsApp } from '@/lib/whatsapp';
@@ -407,13 +408,15 @@ export default function AssinarContrato() {
 
             <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
               <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                <Building2 className="h-3.5 w-3.5 text-primary" /> Contratada (Clínica)
+                <Building2 className="h-3.5 w-3.5 text-primary" /> {identificarTipoDocumento(snapshot.clinica.cnpj) === 'cpf' ? 'Contratada (Cirurgiã-Dentista)' : 'Contratada (Clínica)'}
               </div>
               <p className="font-bold text-base text-slate-800 dark:text-slate-100">{snapshot.clinica.nome}</p>
               <p className="text-xs text-muted-foreground mt-1">
-                CNPJ: <span className="font-medium text-slate-700 dark:text-slate-300">{snapshot.clinica.cnpj}</span> • CRO: {snapshot.clinica.cro}
+                {identificarTipoDocumento(snapshot.clinica.cnpj) === 'cpf' ? 'CPF' : 'CNPJ'}: <span className="font-medium text-slate-700 dark:text-slate-300">{snapshot.clinica.cnpj}</span> • CRO: {snapshot.clinica.cro}
               </p>
-              <p className="text-xs text-muted-foreground mt-0.5">Resp. Técnico: {snapshot.clinica.dentistaResponsavel}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {identificarTipoDocumento(snapshot.clinica.cnpj) === 'cpf' ? 'Cirurgião(ã)-Dentista' : 'Resp. Técnico'}: {snapshot.clinica.dentistaResponsavel}
+              </p>
               <p className="text-xs text-muted-foreground mt-0.5 truncate">Endereço: {snapshot.clinica.endereco}</p>
             </div>
           </div>
@@ -485,7 +488,7 @@ export default function AssinarContrato() {
                     {(snapshot.clinica.favorecidoPix || snapshot.clinica.cnpjCpfFavorecidoPix) && (
                       <p className="text-xs text-emerald-800 dark:text-emerald-300 mt-0.5">
                         Favorecido: <strong>{snapshot.clinica.favorecidoPix || snapshot.clinica.nome}</strong>
-                        {snapshot.clinica.cnpjCpfFavorecidoPix && ` • ${snapshot.clinica.cnpjCpfFavorecidoPix}`}
+                        {snapshot.clinica.cnpjCpfFavorecidoPix && ` • ${identificarTipoDocumento(snapshot.clinica.cnpjCpfFavorecidoPix) === 'cpf' ? 'CPF' : 'CNPJ'}: ${snapshot.clinica.cnpjCpfFavorecidoPix}`}
                         {snapshot.clinica.bancoPix && ` • ${snapshot.clinica.bancoPix}`}
                       </p>
                     )}

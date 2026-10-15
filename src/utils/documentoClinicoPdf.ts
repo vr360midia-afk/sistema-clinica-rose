@@ -1,5 +1,6 @@
 import { DocumentoClinico } from '@/hooks/useDocumentosClinicos';
 import { downloadHtmlAsPdf } from './pdfDownload';
+import { identificarTipoDocumento } from './documentoFormat';
 
 export interface ClinicaInfo {
   nomeClinica?: string;
@@ -86,7 +87,7 @@ export const gerarDocumentoClinicoPdf = async (doc: DocumentoClinico, clinica: C
       <div class="clinica">
         ${clinica.logoUrl ? `<img src="${clinica.logoUrl}" alt="Logo" style="max-height:64px;max-width:200px;margin-bottom:8px;display:block;" />` : ''}
         <h1>${emissor}</h1>
-        ${clinica.cnpj ? `<p>CNPJ/CPF: ${clinica.cnpj}</p>` : ''}
+        ${clinica.cnpj ? `<p>${identificarTipoDocumento(clinica.cnpj) === 'cpf' ? 'CPF' : 'CNPJ'}: ${clinica.cnpj}</p>` : ''}
         ${clinica.endereco ? `<p>${clinica.endereco}</p>` : ''}
         ${clinica.telefone ? `<p>Tel: ${clinica.telefone}</p>` : ''}
         ${clinica.email ? `<p>${clinica.email}</p>` : ''}

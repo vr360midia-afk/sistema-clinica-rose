@@ -1,4 +1,5 @@
 import { downloadHtmlAsPdf } from './pdfDownload';
+import { identificarTipoDocumento } from './documentoFormat';
 
 interface ClinicaInfo {
   nomeClinica?: string;
@@ -82,7 +83,7 @@ export const gerarOrcamentoPdf = async (o: OrcamentoPdf, clinica: ClinicaInfo = 
         ${clinica.logoUrl ? `<img src="${clinica.logoUrl}" alt="Logo da clínica" />` : ''}
         <div class="clinica">
           <h1>${emissor}</h1>
-          ${clinica.cnpj ? `<p>CNPJ/CPF: ${clinica.cnpj}</p>` : ''}
+          ${clinica.cnpj ? `<p>${identificarTipoDocumento(clinica.cnpj) === 'cpf' ? 'CPF' : 'CNPJ'}: ${clinica.cnpj}</p>` : ''}
           ${clinica.endereco ? `<p>${clinica.endereco}</p>` : ''}
           ${clinica.telefone ? `<p>Tel: ${clinica.telefone}</p>` : ''}
           ${clinica.email ? `<p>${clinica.email}</p>` : ''}
