@@ -43,6 +43,7 @@ import {
   isContratoLenteResina,
   isContratoEndodontia,
   temValorValido,
+  obterCardsResumoPagamento,
 } from '@/utils/contratoEngine';
 import { downloadHtmlAsPdf } from '@/utils/pdfDownload';
 import { openWhatsApp } from '@/lib/whatsapp';
@@ -80,6 +81,11 @@ export default function AssinarContrato() {
   const htmlContrato = useMemo(() => {
     if (!snapshot) return '';
     return gerarHtmlContrato(snapshot);
+  }, [snapshot]);
+
+  // Cartões inteligentes de resumo financeiro (Entrada sinalizada em verde, Parcelamento restante e PIX Final)
+  const cardsPagamento = useMemo(() => {
+    return obterCardsResumoPagamento(snapshot);
   }, [snapshot]);
 
   // Tecla ESC fecha a visualização em tela cheia
@@ -558,33 +564,85 @@ export default function AssinarContrato() {
               </div>
             </div>
 
-            {/* Detalhes de Entrada e Parcelas */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
-              {snapshot.financeiro.entrada && snapshot.financeiro.entrada > 0 ? (
-                <div className="p-2.5 rounded bg-white dark:bg-slate-900 border border-blue-100 dark:border-blue-900/40">
-                  <span className="text-muted-foreground block">Entrada (PIX):</span>
-                  <span className="font-bold text-emerald-600 dark:text-emerald-400 text-sm">
-                    {formatMoney(snapshot.financeiro.entrada)}
-                  </span>
-                </div>
-              ) : null}
+            {/* Detalhes de Entrada, Parcelas e Opções de Pagamento */}
+            {cardsPagamento.length > 0 && (
+              <div
+                className={cn(
+                  'grid grid-cols-1 gap-2.5 text-xs',
+                  cardsPagamento.length === 1 && 'sm:grid-cols-1',
+                  cardsPagamento.length === 2 && 'sm:grid-cols-2',
+                  cardsPagamento.length >= 3 && 'sm:grid-cols-3'
+                )}
+              >
+                {cardsPagamento.map((card) => {
+                  const isEntrada = card.tipo === 'entrada';
+                  const isEntradaPaga = isEntrada && (card.pago || /paga|quitad|autoriz/i.test(card.statusBadge || ''));
 
-              {snapshot.financeiro.quantidadeParcelas && snapshot.financeiro.quantidadeParcelas > 1 ? (
-                <div className="p-2.5 rounded bg-white dark:bg-slate-900 border border-blue-100 dark:border-blue-900/40">
-                  <span className="text-muted-foreground block">Parcelamento Restante:</span>
-                  <span className="font-bold text-slate-800 dark:text-slate-100 text-sm">
-                    {snapshot.financeiro.quantidadeParcelas}x de {formatMoney(snapshot.financeiro.valorParcela)}
-                  </span>
-                </div>
-              ) : null}
+                  return (
+                    <div
+                      key={card.id}
+                      className={cn(
+                        'p-3 rounded-lg transition-all flex flex-col justify-between min-h-[72px]',
+                        isEntrada
+                          ? 'bg-emerald-500/10 border-2 border-emerald-500/60 dark:border-emerald-500/50 shadow-xs'
+                          : 'bg-white dark:bg-slate-900 border border-blue-100 dark:border-blue-900/40 shadow-xs'
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-1.5 mb-1">
+                        <span
+                          className={cn(
+                            'block text-xs font-semibold',
+                            isEntrada ? 'text-emerald-700 dark:text-emerald-300' : 'text-muted-foreground'
+                          )}
+                        >
+                          {card.rotulo}
+                        </span>
 
-              <div className="p-2.5 rounded bg-white dark:bg-slate-900 border border-blue-100 dark:border-blue-900/40">
-                <span className="text-muted-foreground block">Dia de Vencimento:</span>
-                <span className="font-bold text-slate-800 dark:text-slate-100 text-sm">
-                  Todo dia {snapshot.orcamento.validade ? (snapshot.orcamento.validade.match(/\d+/) || [10])[0] : 10} do mês
-                </span>
+                        {isEntrada && isEntradaPaga && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-600 text-white dark:bg-emerald-500 shadow-xs tracking-tight">
+                            <Check className="h-3 w-3 stroke-[3]" />
+                            Paga
+                          </span>
+                        )}
+
+                        {!isEntrada && card.statusBadge && (
+                          <span
+                            className={cn(
+                              'inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border',
+                              card.statusBadge.toLowerCase().includes('autoriz')
+                                ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800'
+                                : card.statusBadge.toLowerCase().includes('quitad') || card.statusBadge.toLowerCase().includes('pago')
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800'
+                                : 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
+                            )}
+                          >
+                            {card.statusBadge}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-baseline justify-between gap-1 mt-0.5">
+                        <span
+                          className={cn(
+                            'font-bold text-sm tracking-tight',
+                            isEntrada
+                              ? 'text-emerald-600 dark:text-emerald-400 text-base'
+                              : 'text-slate-800 dark:text-slate-100'
+                          )}
+                        >
+                          {card.valorFormatado}
+                        </span>
+                        {card.detalhe && (
+                          <span className="text-[11px] font-medium text-muted-foreground truncate" title={card.detalhe}>
+                            {card.detalhe}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            </div>
+            )}
 
             {/* Chave PIX Oficial da Clínica */}
             {snapshot.clinica.chavePix && (

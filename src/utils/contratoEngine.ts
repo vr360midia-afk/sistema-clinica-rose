@@ -118,6 +118,17 @@ export interface ContratoDadosOrcamento {
   observacoes?: string;
 }
 
+export interface ContratoCardPagamento {
+  id: string;
+  rotulo: string;
+  valorFormatado: string;
+  tipo: 'entrada' | 'parcelamento' | 'final' | 'vencimento' | 'unico';
+  metodo?: string;
+  detalhe?: string;
+  pago?: boolean;
+  statusBadge?: string;
+}
+
 export interface ContratoDadosFinanceiro {
   subtotal: number;
   desconto: number;
@@ -128,6 +139,8 @@ export interface ContratoDadosFinanceiro {
   parcelas: ContratoParcela[];
   quantidadeParcelas: number;
   valorParcela: number;
+  metodoParcelamento?: string;
+  cardsPagamento?: ContratoCardPagamento[];
 }
 
 export interface ContratoTermoUsoImagem {
@@ -320,6 +333,241 @@ export const isContratoEndodontia = (snapshot?: ContratoSnapshot | null): boolea
 };
 
 /**
+ * Extrai os cartões visuais do resumo financeiro e condições de pagamento para exibição na tela de assinatura
+ * e na pré-visualização do contrato. Trata de forma inteligente entradas, parcelamentos e opções finais (ex: PIX Final).
+ */
+export const obterCardsResumoPagamento = (snapshot?: Partial<ContratoSnapshot> | null): ContratoCardPagamento[] => {
+  if (!snapshot || !snapshot.financeiro) return [];
+  const financeiro = snapshot.financeiro;
+  const formasTexto = (financeiro.formaPagamento || snapshot.orcamento?.formasPagamento || '').trim();
+  const parcelas = financeiro.parcelas || [];
+  const cards: ContratoCardPagamento[] = [];
+
+  // 1. Detectar Entrada
+  const temEntradaNumerica = typeof financeiro.entrada === 'number' && financeiro.entrada > 0;
+  const parcelaEntrada = parcelas.find((p) =>
+    (p.descricao || '').toLowerCase().includes('entrada') ||
+    (p.descricao || '').toLowerCase().includes('sinal')
+  ) || (temEntradaNumerica && parcelas.length > 0 ? parcelas[0] : undefined);
+
+  let entradaValor = temEntradaNumerica ? financeiro.entrada : (parcelaEntrada ? parcelaEntrada.valor : 0);
+  let metodoEntrada = 'PIX';
+  let isEntradaPaga = true; // Por padrão para a entrada do contrato exibida na assinatura, sinaliza com verde que está paga conforme solicitação
+
+  if (parcelaEntrada) {
+    if (!entradaValor) entradaValor = parcelaEntrada.valor;
+    if (parcelaEntrada.metodo) {
+      metodoEntrada = parcelaEntrada.metodo.replace(/\s*\(Entrada\)/i, '').trim() || 'PIX';
+    }
+    if (parcelaEntrada.status) {
+      isEntradaPaga = /quitad|pago|paga|autoriz/i.test(parcelaEntrada.status);
+    }
+  }
+
+  let partesTexto: string[] = [];
+  if (formasTexto.includes('+')) {
+    partesTexto = formasTexto.split('+').map((p) => p.trim()).filter(Boolean);
+    const parteEntrada = partesTexto.find((p) => /entrada|sinal/i.test(p));
+    if (parteEntrada) {
+      if (/cart[aã]o/i.test(parteEntrada)) metodoEntrada = 'Cartão';
+      else if (/dinheiro/i.test(parteEntrada)) metodoEntrada = 'Dinheiro';
+      else if (/pix/i.test(parteEntrada)) metodoEntrada = 'PIX';
+      else if (/transfer/i.test(parteEntrada)) metodoEntrada = 'Transferência';
+
+      if (/quitad|pago|paga/i.test(parteEntrada)) {
+        isEntradaPaga = true;
+      }
+    }
+  } else if (/entrada/i.test(formasTexto)) {
+    const entMatch = formasTexto.match(/entrada[^\d]*?(?:r\$)?\s*([\d.,]+)/i);
+    if (entMatch && !entradaValor) {
+      entradaValor = parseBrMoney(entMatch[1]);
+    }
+    if (/cart[aã]o/i.test(formasTexto.split(/,|e|\+/)[0])) metodoEntrada = 'Cartão';
+  }
+
+  if (entradaValor > 0) {
+    cards.push({
+      id: 'entrada',
+      rotulo: `Entrada (${metodoEntrada}):`,
+      valorFormatado: formatMoney(entradaValor),
+      tipo: 'entrada',
+      metodo: metodoEntrada,
+      pago: isEntradaPaga,
+      statusBadge: isEntradaPaga ? 'Paga' : 'A pagar',
+    });
+  }
+
+  // 2. Detectar Parcelamento Recorrente (Cartão de Crédito, PIX Parcelado, Boleto)
+  let qtdParcelas = 0;
+  let valorParcela = 0;
+  let metodoParcelamento = '';
+
+  // Procura nas partes do compositor misto (+):
+  if (partesTexto.length > 0) {
+    for (const parte of partesTexto) {
+      if (/entrada|sinal/i.test(parte)) continue;
+
+      const parcMatch = parte.match(/(\d+)\s*x(?:\s+(?:de\s+)?(?:r\$)?\s*([\d.,]+))?/i);
+      if (parcMatch) {
+        qtdParcelas = parseInt(parcMatch[1], 10);
+        if (parcMatch[2]) {
+          valorParcela = parseBrMoney(parcMatch[2]);
+        }
+        if (/cart[aã]o/i.test(parte)) metodoParcelamento = 'Cartão de Crédito';
+        else if (/pix/i.test(parte)) metodoParcelamento = 'PIX';
+        else if (/boleto/i.test(parte)) metodoParcelamento = 'Boleto Bancário';
+        break;
+      }
+    }
+  }
+
+  // Se não achou em partesTexto, procura no texto simples de formasTexto:
+  if (qtdParcelas <= 1 && formasTexto) {
+    const parcMatch = formasTexto.match(/(\d+)\s*x(?:\s+(?:de\s+)?(?:r\$)?\s*([\d.,]+))?/i);
+    if (parcMatch) {
+      qtdParcelas = parseInt(parcMatch[1], 10);
+      if (parcMatch[2]) {
+        valorParcela = parseBrMoney(parcMatch[2]);
+      }
+      if (/cart[aã]o/i.test(formasTexto)) metodoParcelamento = 'Cartão de Crédito';
+      else if (/pix/i.test(formasTexto)) metodoParcelamento = 'PIX';
+      else if (/boleto/i.test(formasTexto)) metodoParcelamento = 'Boleto Bancário';
+    }
+  }
+
+  // Se ainda não achou, inspeciona as parcelas da snapshot:
+  if (qtdParcelas <= 1 && parcelas.length > 0) {
+    const parcNumerada = parcelas.find((p) => /\(\d+\/(\d+)\s*-\s*([^)]+)\)/.test(p.descricao || ''));
+    if (parcNumerada && parcNumerada.descricao) {
+      const matchNum = parcNumerada.descricao.match(/\(\d+\/(\d+)\s*-\s*([^)]+)\)/);
+      if (matchNum) {
+        qtdParcelas = parseInt(matchNum[1], 10);
+        valorParcela = parcNumerada.valor;
+        metodoParcelamento = matchNum[2].trim();
+      }
+    }
+  }
+
+  // Fallback para financeiro.quantidadeParcelas
+  if (qtdParcelas <= 1 && financeiro.quantidadeParcelas && financeiro.quantidadeParcelas > 1) {
+    qtdParcelas = financeiro.quantidadeParcelas;
+    valorParcela = financeiro.valorParcela;
+    metodoParcelamento = financeiro.metodoParcelamento || (isMetodoCartao(formasTexto) ? 'Cartão de Crédito' : 'PIX');
+  }
+
+  if (qtdParcelas > 1) {
+    const isCartao = isMetodoCartao(metodoParcelamento, formasTexto);
+    if (!metodoParcelamento) {
+      metodoParcelamento = isCartao ? 'Cartão de Crédito' : (/pix/i.test(formasTexto) ? 'PIX' : 'Boleto Bancário');
+    }
+
+    const detalhe = isCartao
+      ? 'Fatura do Cartão'
+      : (formasTexto.match(/(?:vencimento|dia)\s*(?:todo\s*dia)?\s*(\d{1,2})/i)
+          ? `Vencimento todo dia ${formasTexto.match(/(?:vencimento|dia)\s*(?:todo\s*dia)?\s*(\d{1,2})/i)![1]} do mês`
+          : undefined);
+
+    cards.push({
+      id: 'parcelamento',
+      rotulo: `Parcelamento Restante (${metodoParcelamento}):`,
+      valorFormatado: `${qtdParcelas}x de ${formatMoney(valorParcela)}`,
+      tipo: 'parcelamento',
+      metodo: metodoParcelamento,
+      detalhe,
+      statusBadge: isCartao ? 'Autorizado' : undefined,
+    });
+  }
+
+  // 3. Detectar a terceira opção (ex: PIX Final ou qualquer outra opção do compositor misto)
+  if (partesTexto.length > 0) {
+    for (const parte of partesTexto) {
+      // Ignora a entrada e ignora a parte do parcelamento (com X parcelas)
+      const isEntrada = /entrada|sinal/i.test(parte);
+      const isParc = /(\d+)\s*x/i.test(parte);
+      if (isEntrada || isParc) continue;
+
+      // É a terceira opção (ex: "PIX Final: R$ 500,00 via PIX (em 10/11/2026)")
+      const rotuloMatch = parte.match(/^([^:]+):/);
+      let rotuloParte = rotuloMatch ? rotuloMatch[1].trim() : 'PIX Final';
+      if (/^forma\s*\d+/i.test(rotuloParte) || /^op[çc][aã]o\s*\d+/i.test(rotuloParte)) {
+        if (/pix/i.test(parte)) rotuloParte = 'PIX Final';
+        else if (/saldo/i.test(parte)) rotuloParte = 'Saldo Final';
+      } else if (/pix/i.test(rotuloParte) && !/final/i.test(rotuloParte)) {
+        rotuloParte = 'PIX Final';
+      } else if (!rotuloMatch) {
+        if (/pix.*final|final.*pix/i.test(parte)) rotuloParte = 'PIX Final';
+        else if (/saldo/i.test(parte)) rotuloParte = 'Saldo Final';
+      }
+
+      const valComMoeda = parte.match(/r\$\s*([\d.,]+)/i);
+      const valSemMoeda = parte.match(/^[^:]+:\s*([\d.,]+)/);
+      const valStr = valComMoeda ? valComMoeda[1] : (valSemMoeda ? valSemMoeda[1] : '');
+      let valorParte = parseBrMoney(valStr);
+
+      if (valorParte <= 0) {
+        const saldoCalculado = financeiro.total - entradaValor - (qtdParcelas * valorParcela);
+        if (saldoCalculado > 0) valorParte = saldoCalculado;
+      }
+
+      let metodoParte = 'PIX';
+      if (/cart[aã]o/i.test(parte)) metodoParte = 'Cartão de Crédito';
+      else if (/boleto/i.test(parte)) metodoParte = 'Boleto Bancário';
+      else if (/dinheiro/i.test(parte)) metodoParte = 'Dinheiro';
+      else if (/pix/i.test(parte)) metodoParte = 'PIX';
+
+      const dataMatch = parte.match(/\(em\s*(\d{1,2}\/\d{1,2}\/\d{4})\)/i);
+      const detalheParte = dataMatch ? `Vencimento em ${dataMatch[1]}` : `via ${metodoParte}`;
+
+      const sitMatch = parte.match(/\[(?:situa[çc][aã]o:\s*)?([^\]]+)\]/i);
+      const sitParte = sitMatch ? sitMatch[1].trim() : undefined;
+      const isPartePaga = /quitad|pago|paga/i.test(sitParte || '');
+
+      cards.push({
+        id: `opcao_${cards.length + 1}`,
+        rotulo: `${rotuloParte}:`,
+        valorFormatado: formatMoney(valorParte),
+        tipo: 'final',
+        metodo: metodoParte,
+        detalhe: detalheParte,
+        statusBadge: sitParte,
+        pago: isPartePaga,
+      });
+    }
+  }
+
+  // 4. Se NÃO houver opção final (como PIX Final) e o parcelamento NÃO for cartão
+  // (ou seja, se for PIX Parcelado ou Boleto Bancário que REALMENTE precisa de vencimento na clínica)
+  const temOpcaoFinal = cards.some((c) => c.tipo === 'final');
+  const temCartao = cards.some((c) => c.tipo === 'parcelamento' && isMetodoCartao(c.metodo, c.detalhe));
+
+  if (!temOpcaoFinal && !temCartao && qtdParcelas > 1) {
+    const diaMatch = formasTexto.match(/(?:vencimento|dia)\s*(?:todo\s*dia)?\s*(\d{1,2})/i);
+    const diaVenc = diaMatch ? diaMatch[1] : (snapshot.orcamento?.validade?.match(/\d+/) || ['10'])[0];
+    cards.push({
+      id: 'vencimento',
+      rotulo: 'Dia de Vencimento:',
+      valorFormatado: `Todo dia ${diaVenc} do mês`,
+      tipo: 'vencimento',
+      detalhe: 'Vencimento mensal das parcelas',
+    });
+  }
+
+  // Se nenhum card foi montado (ex: pagamento à vista sem parcelamento e sem entrada)
+  if (cards.length === 0) {
+    cards.push({
+      id: 'total',
+      rotulo: 'Condição Acordada:',
+      valorFormatado: formatMoney(financeiro.total),
+      tipo: 'unico',
+      detalhe: formasTexto || 'Pagamento Único',
+    });
+  }
+
+  return cards;
+};
+
+/**
  * Mapeia os dados existentes no sistema para o modelo padronizado do contrato.
  * NUNCA inventa dados fictícios; preserva rigorosamente a integridade dos registros.
  */
@@ -489,6 +737,10 @@ export const mapearDadosContrato = ({
     const hoje = new Date();
 
     // Se possui múltiplas formas separadas por '+' (Compositor de Pagamento Misto)
+    let parcelamentoQtdDetectada = 0;
+    let parcelamentoValorDetectado = 0;
+    let parcelamentoMetodoDetectado = '';
+
     if (formas.includes('+')) {
       const partes = formas.split('+').map((p) => p.trim()).filter(Boolean);
       const listaMultiplas: ContratoParcela[] = [];
@@ -530,6 +782,12 @@ export const mapearDadosContrato = ({
         const valorParc = qtdParc > 1
           ? (valParcExpl > 0 ? valParcExpl : (valorTotalParte / qtdParc))
           : valorTotalParte;
+
+        if (qtdParc > 1) {
+          parcelamentoQtdDetectada = qtdParc;
+          parcelamentoValorDetectado = valorParc;
+          parcelamentoMetodoDetectado = metodo;
+        }
 
         // Datas de vencimento para essa parte
         const datasParte: string[] = [];
@@ -756,9 +1014,25 @@ export const mapearDadosContrato = ({
     return parc;
   });
 
+  if (parcelamentoQtdDetectada <= 1) {
+    const parcNumerada = parcelas.find((p) => /\(\d+\/(\d+)\s*-\s*([^)]+)\)/.test(p.descricao || ''));
+    if (parcNumerada && parcNumerada.descricao) {
+      const matchNum = parcNumerada.descricao.match(/\(\d+\/(\d+)\s*-\s*([^)]+)\)/);
+      if (matchNum) {
+        parcelamentoQtdDetectada = parseInt(matchNum[1], 10);
+        parcelamentoValorDetectado = parcNumerada.valor;
+        parcelamentoMetodoDetectado = matchNum[2].trim();
+      }
+    }
+  }
+
   const parcelasSemEntrada = parcelas.filter((p) => !p.descricao.toLowerCase().includes('entrada'));
-  const quantidadeParcelas = parcelasSemEntrada.length || parcelas.length;
-  const valorParcela = parcelasSemEntrada.length > 0 ? parcelasSemEntrada[0].valor : (parcelas.length > 0 ? parcelas[0].valor : total);
+  const quantidadeParcelas = parcelamentoQtdDetectada > 0
+    ? parcelamentoQtdDetectada
+    : (parcelasSemEntrada.length || parcelas.length);
+  const valorParcela = parcelamentoValorDetectado > 0
+    ? parcelamentoValorDetectado
+    : (parcelasSemEntrada.length > 0 ? parcelasSemEntrada[0].valor : (parcelas.length > 0 ? parcelas[0].valor : total));
 
   const dadosFinanceiro: ContratoDadosFinanceiro = {
     subtotal,
@@ -770,6 +1044,7 @@ export const mapearDadosContrato = ({
     parcelas,
     quantidadeParcelas,
     valorParcela,
+    metodoParcelamento: parcelamentoMetodoDetectado || undefined,
   };
 
   // Detecção e estruturação do modelo de contrato (Endodontia / Lentes / Geral)
