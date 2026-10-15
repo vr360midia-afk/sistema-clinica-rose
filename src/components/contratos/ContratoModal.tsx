@@ -76,6 +76,7 @@ import { somarMesesSeguro } from '@/utils/documentoFormat';
 import { downloadHtmlAsPdf } from '@/utils/pdfDownload';
 import { openWhatsApp } from '@/lib/whatsapp';
 import { formatMoney } from '@/utils/exportCsv';
+import { carregarConfiguracoesMaquinasSync, calcularTaxaCartao, extrairDetalhesCartaoDeTexto } from '@/hooks/useMaquinasCartao';
 
 interface ContratoModalProps {
   isOpen: boolean;
@@ -207,6 +208,10 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
         }
       }
 
+      const configMaquinas = carregarConfiguracoesMaquinasSync(null);
+      let totalTaxasCartao = 0;
+      let operadoraTaxasNome = '';
+
       for (const p of snapshotAtual.financeiro.parcelas) {
         let dataVenc = new Date();
         if (p.vencimento && p.vencimento.includes('/')) {
@@ -220,7 +225,8 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
 
         let metodoFinal: any = 'pix';
         const descLower = (p.metodo || p.descricao || '').toLowerCase();
-        if (descLower.includes('cartao') || descLower.includes('cartão') || descLower.includes('crédito') || descLower.includes('debito')) {
+        const isCartao = descLower.includes('cartao') || descLower.includes('cartão') || descLower.includes('crédito') || descLower.includes('debito');
+        if (isCartao) {
           metodoFinal = 'cartao';
         } else if (descLower.includes('pix_parcelado') || descLower.includes('pix mensal') || descLower.includes('pix parcelado')) {
           metodoFinal = 'pix_parcelado';
@@ -236,6 +242,25 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
 
         const isQuitada = (p?.status || '').toLowerCase().includes('quitad') || (p?.status || '').toLowerCase().includes('pago');
 
+        let taxaPercItem: number | undefined = undefined;
+        let taxaValorItem: number | undefined = undefined;
+        let liquidoItem: number | undefined = undefined;
+
+        if (isCartao) {
+          const infoCartao = extrairDetalhesCartaoDeTexto(
+            `${orcamentoAtual.formasPagamento || orcamentoAtual.formas_pagamento || ''} ${p.descricao || ''}`,
+            configMaquinas.operadoras,
+            configMaquinas.operadoraPadraoId
+          );
+          const op = infoCartao.operadora || configMaquinas.operadoras[0];
+          operadoraTaxasNome = op?.nome || 'Cartão';
+          const calc = calcularTaxaCartao(op, infoCartao.parcelas, Number(p.valor || 0), infoCartao.isDebito);
+          taxaPercItem = calc.taxaPercentual;
+          taxaValorItem = calc.taxaValor;
+          liquidoItem = calc.valorLiquido;
+          totalTaxasCartao += calc.taxaValor;
+        }
+
         await addTransacao({
           pacienteId: patient.id,
           valor: p.valor,
@@ -247,10 +272,30 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
           descricao: `${orcamentoAtual.titulo}: ${p.descricao}`,
           categoria: 'Tratamentos',
           orcamentoId: orcamentoAtual.id,
+          taxaCartaoPercentual: taxaPercItem,
+          taxaCartaoValor: taxaValorItem,
+          valorLiquido: liquidoItem,
         });
       }
 
-      toast.success('Financeiro sincronizado com sucesso com as parcelas do orçamento!');
+      if (configMaquinas.lancarTaxaComoDespesa !== false && totalTaxasCartao > 0) {
+        const catDespesa = configMaquinas.categoriaDespesaPadrao || 'Taxas de Cartão';
+        await addTransacao({
+          pacienteId: patient.id,
+          valor: Number(totalTaxasCartao.toFixed(2)),
+          tipo: 'despesa',
+          status: 'pago',
+          metodoPagamento: 'cartao',
+          data: new Date(),
+          vencimento: new Date(),
+          descricao: `Taxa da Máquina (${operadoraTaxasNome}) - Contrato: ${orcamentoAtual.titulo}`,
+          categoria: catDespesa,
+          orcamentoId: orcamentoAtual.id,
+        });
+        toast.success(`Financeiro sincronizado! Receitas geradas e taxa de ${formatMoney(totalTaxasCartao)} da maquininha (${operadoraTaxasNome}) lançada como DESPESA!`);
+      } else {
+        toast.success('Financeiro sincronizado com sucesso com as parcelas do orçamento!');
+      }
     } catch (err) {
       console.error('Erro ao sincronizar financeiro:', err);
       toast.error('Erro ao sincronizar parcelas no Financeiro');

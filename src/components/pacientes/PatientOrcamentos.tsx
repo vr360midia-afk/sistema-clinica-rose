@@ -23,6 +23,7 @@ import { useDentalSystem } from '@/context/DentalSystemContext';
 import { mapearDadosContrato, gerarLinkAssinaturaContrato, parseBrMoney } from '@/utils/contratoEngine';
 import { somarMesesSeguro } from '@/utils/documentoFormat';
 import { downloadTcleLentesResinaPdf } from '@/utils/tcleLentesResina';
+import { useMaquinasCartao, calcularTaxaCartao, extrairDetalhesCartaoDeTexto } from '@/hooks/useMaquinasCartao';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -73,6 +74,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
   const { configuracoes } = useConfiguracoes();
   const { dentistas } = useDentistas();
   const { transacoes, addTransacao, deleteTransacao } = useDentalSystem();
+  const { operadoras, operadoraPadrao, config: configMaquinas } = useMaquinasCartao();
 
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -89,6 +91,12 @@ const PatientOrcamentos = ({ patient }: Props) => {
   // Aprovação com lançamento financeiro
   const [aprovandoOrcamento, setAprovandoOrcamento] = useState<Orcamento | null>(null);
   const [lancandoFinanceiro, setLancandoFinanceiro] = useState(false);
+
+  // Assistente de Máquina de Cartão (PagBank / InfinitePay)
+  const [cartaoAssistenteAtivo, setCartaoAssistenteAtivo] = useState(false);
+  const [cartaoOperadoraId, setCartaoOperadoraId] = useState<string>('infinitepay');
+  const [cartaoTipo, setCartaoTipo] = useState<'credito' | 'debito'>('credito');
+  const [cartaoParcelas, setCartaoParcelas] = useState<number>(3);
 
   // PIX Parcelado
   const [pixParceladoAtivo, setPixParceladoAtivo] = useState(false);
@@ -114,15 +122,18 @@ const PatientOrcamentos = ({ patient }: Props) => {
       datasParcelas?: string[];
       situacao?: 'A vencer' | 'Quitada' | 'Autorizado';
       situacoesParcelas?: Array<'A vencer' | 'Quitada' | 'Autorizado'>;
+      operadoraCartaoId?: string;
+      tipoCartao?: 'credito' | 'debito';
+      taxaCartaoPercentual?: number;
+      taxaCartaoValor?: number;
     }>
   >(() => {
     const hoje = formatIsoDate(new Date());
     return [
       { id: '1', rotulo: 'Entrada', metodo: 'pix', valor: 0, parcelas: 1, diaVencimento: 10, dataPagamento: hoje, datasParcelas: [hoje], situacao: 'A vencer', situacoesParcelas: ['A vencer'] },
-      { id: '2', rotulo: 'Restante', metodo: 'cartao', valor: 0, parcelas: 3, diaVencimento: 10, dataPagamento: hoje, datasParcelas: gerarDatasPadrao(3, 10), situacao: 'Autorizado', situacoesParcelas: ['Autorizado', 'Autorizado', 'Autorizado'] },
+      { id: '2', rotulo: 'Restante', metodo: 'cartao', valor: 0, parcelas: 3, diaVencimento: 10, dataPagamento: hoje, datasParcelas: gerarDatasPadrao(3, 10), situacao: 'Autorizado', situacoesParcelas: ['Autorizado', 'Autorizado', 'Autorizado'], operadoraCartaoId: 'infinitepay', tipoCartao: 'credito' },
     ];
   });
-
 
   // Parceria
   const [parceriaAtiva, setParceriaAtiva] = useState(false);
@@ -139,11 +150,15 @@ const PatientOrcamentos = ({ patient }: Props) => {
     const partes: string[] = [];
     for (const f of lista) {
       if (!f.valor || f.valor <= 0) continue;
+      const op = operadoras.find((o) => o.id === f.operadoraCartaoId) || operadoraPadrao;
+      const opNome = op?.nome || 'Cartão';
+      const isDeb = f.tipoCartao === 'debito';
+
       const nomeMetodo =
         f.metodo === 'pix'
           ? 'PIX'
           : f.metodo === 'cartao'
-          ? 'Cartão de Crédito'
+          ? (isDeb ? `Cartão de Débito (${opNome})` : `Cartão de Crédito (${opNome})`)
           : f.metodo === 'dinheiro'
           ? 'Dinheiro'
           : f.metodo === 'boleto'
@@ -167,14 +182,22 @@ const PatientOrcamentos = ({ patient }: Props) => {
       }
 
       if (f.metodo === 'cartao') {
-        const valParc = (f.parcelas || 1) > 1 ? f.valor / f.parcelas : f.valor;
-        if ((f.parcelas || 1) > 1) {
-          partes.push(
-            `${f.rotulo}: ${formatMoney(f.valor)} em ${f.parcelas}x de ${formatMoney(valParc)} no Cartão de Crédito${sitStr}`
-          );
-        } else {
+        const calc = calcularTaxaCartao(op, f.parcelas || 1, f.valor, isDeb);
+        const taxaDesc = calc.taxaValor > 0 ? ` (Taxa ${opNome}: ${calc.taxaPercentual}% / ${formatMoney(calc.taxaValor)})` : '';
+        
+        if (isDeb) {
           const dataStr = f.dataPagamento ? ` (em ${formatBrDate(f.dataPagamento)})` : '';
-          partes.push(`${f.rotulo}: ${formatMoney(f.valor)} via Cartão de Crédito${dataStr}${sitStr}`);
+          partes.push(`${f.rotulo}: ${formatMoney(f.valor)} via Débito (${opNome})${dataStr}${taxaDesc}${sitStr}`);
+        } else {
+          const valParc = (f.parcelas || 1) > 1 ? f.valor / f.parcelas : f.valor;
+          if ((f.parcelas || 1) > 1) {
+            partes.push(
+              `${f.rotulo}: ${formatMoney(f.valor)} em ${f.parcelas}x de ${formatMoney(valParc)} no Cartão de Crédito (${opNome})${taxaDesc}${sitStr}`
+            );
+          } else {
+            const dataStr = f.dataPagamento ? ` (em ${formatBrDate(f.dataPagamento)})` : '';
+            partes.push(`${f.rotulo}: ${formatMoney(f.valor)} via Cartão de Crédito à vista (${opNome})${dataStr}${taxaDesc}${sitStr}`);
+          }
         }
       } else if ((f.parcelas || 1) > 1 && (f.metodo === 'pix_parcelado' || f.metodo === 'boleto')) {
         const valParc = f.valor / f.parcelas;
@@ -201,6 +224,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
     setMultiplasFormasAtivo(novo);
     if (novo) {
       setPixParceladoAtivo(false);
+      setCartaoAssistenteAtivo(false);
       const entradaSugerida = Math.round(total * 0.2);
       const restanteSugerido = Math.max(0, total - entradaSugerida);
       const hojeIso = formatIsoDate(new Date());
@@ -228,6 +252,8 @@ const PatientOrcamentos = ({ patient }: Props) => {
           datasParcelas: gerarDatasPadrao(3, 10),
           situacao: 'Autorizado' as const,
           situacoesParcelas: ['Autorizado' as const, 'Autorizado' as const, 'Autorizado' as const],
+          operadoraCartaoId: configMaquinas.operadoraPadraoId || 'infinitepay',
+          tipoCartao: 'credito' as const,
         },
       ];
       setFormasMultiplas(inicial);
@@ -239,6 +265,16 @@ const PatientOrcamentos = ({ patient }: Props) => {
     const novas = formasMultiplas.map((item, i) => {
       if (i !== idx) return item;
       const atualizado = { ...item, ...campos };
+
+      // Se for cartão, garante operadora e modalidade
+      if (atualizado.metodo === 'cartao') {
+        if (!atualizado.operadoraCartaoId) {
+          atualizado.operadoraCartaoId = configMaquinas.operadoraPadraoId || 'infinitepay';
+        }
+        if (!atualizado.tipoCartao) {
+          atualizado.tipoCartao = 'credito';
+        }
+      }
 
       // Se alterou a quantidade de parcelas, ajusta o array de datas de vencimento e situações
       if (campos.parcelas !== undefined && campos.parcelas !== item.parcelas) {
@@ -272,6 +308,8 @@ const PatientOrcamentos = ({ patient }: Props) => {
         if (campos.metodo === 'cartao' && atualizado.situacao === 'A vencer') {
           atualizado.situacao = 'Autorizado';
           atualizado.situacoesParcelas = Array.from({ length: atualizado.parcelas || 1 }, () => 'Autorizado');
+          atualizado.operadoraCartaoId = atualizado.operadoraCartaoId || configMaquinas.operadoraPadraoId || 'infinitepay';
+          atualizado.tipoCartao = atualizado.tipoCartao || 'credito';
         } else if (campos.metodo !== 'cartao' && atualizado.situacao === 'Autorizado') {
           atualizado.situacao = 'A vencer';
           atualizado.situacoesParcelas = Array.from({ length: atualizado.parcelas || 1 }, () => 'A vencer');
@@ -281,6 +319,15 @@ const PatientOrcamentos = ({ patient }: Props) => {
       // Se alterou o dia base de vencimento, regenera as datas padrão
       if (campos.diaVencimento !== undefined && campos.diaVencimento !== item.diaVencimento) {
         atualizado.datasParcelas = gerarDatasPadrao(atualizado.parcelas, campos.diaVencimento);
+      }
+
+      // Cálculo em tempo real de taxas da máquina se for cartão
+      if (atualizado.metodo === 'cartao') {
+        const op = operadoras.find((o) => o.id === atualizado.operadoraCartaoId) || operadoraPadrao;
+        const isDeb = atualizado.tipoCartao === 'debito';
+        const calc = calcularTaxaCartao(op, atualizado.parcelas || 1, atualizado.valor || 0, isDeb);
+        atualizado.taxaCartaoPercentual = calc.taxaPercentual;
+        atualizado.taxaCartaoValor = calc.taxaValor;
       }
 
       return atualizado;
@@ -453,6 +500,9 @@ const PatientOrcamentos = ({ patient }: Props) => {
         });
 
         const parcelas = snap.financeiro?.parcelas || [];
+        let totalTaxasCartao = 0;
+        let operadoraTaxasNome = '';
+
         for (const p of parcelas) {
           const isEntrada = (p?.descricao || '').toLowerCase().includes('entrada');
           const isQuitada = (p?.status || '').toLowerCase().includes('quitad') || (p?.status || '').toLowerCase().includes('pago');
@@ -470,7 +520,9 @@ const PatientOrcamentos = ({ patient }: Props) => {
           // Identifica o método específico desta parcela dinamicamente
           let metodoFinal: any = 'pix';
           const descLower = (p.metodo || p.descricao || '').toLowerCase();
-          if (descLower.includes('cartao') || descLower.includes('cartão') || descLower.includes('crédito') || descLower.includes('debito')) {
+          const isCartao = descLower.includes('cartao') || descLower.includes('cartão') || descLower.includes('crédito') || descLower.includes('debito');
+
+          if (isCartao) {
             metodoFinal = 'cartao';
           } else if (descLower.includes('pix_parcelado') || descLower.includes('pix mensal') || descLower.includes('pix parcelado')) {
             metodoFinal = 'pix_parcelado';
@@ -484,6 +536,27 @@ const PatientOrcamentos = ({ patient }: Props) => {
             metodoFinal = 'transferencia';
           }
 
+          // Cálculo da taxa da máquina de cartão se a parcela for cartão
+          let taxaPercItem: number | undefined = undefined;
+          let taxaValorItem: number | undefined = undefined;
+          let liquidoItem: number | undefined = undefined;
+
+          if (isCartao) {
+            const infoCartao = extrairDetalhesCartaoDeTexto(
+              `${o.formasPagamento || ''} ${p.descricao || ''}`,
+              operadoras,
+              configMaquinas.operadoraPadraoId
+            );
+            const op = infoCartao.operadora || operadoraPadrao;
+            operadoraTaxasNome = op?.nome || 'Cartão';
+
+            const calc = calcularTaxaCartao(op, infoCartao.parcelas, Number(p.valor || 0), infoCartao.isDebito);
+            taxaPercItem = calc.taxaPercentual;
+            taxaValorItem = calc.taxaValor;
+            liquidoItem = calc.valorLiquido;
+            totalTaxasCartao += calc.taxaValor;
+          }
+
           await addTransacao({
             pacienteId: patient.id,
             valor: p.valor,
@@ -495,9 +568,33 @@ const PatientOrcamentos = ({ patient }: Props) => {
             descricao: `${o.titulo}: ${p.descricao}`,
             categoria: 'Tratamentos',
             orcamentoId: o.id,
+            taxaCartaoPercentual: taxaPercItem,
+            taxaCartaoValor: taxaValorItem,
+            valorLiquido: liquidoItem,
           });
         }
-        toast.success('Orçamento aprovado e parcelas lançadas no Contas a Receber com as formas corretas!');
+
+        // Lança taxa da máquina de cartão como despesa se configurado e houver taxa calculada
+        if (configMaquinas.lancarTaxaComoDespesa !== false && totalTaxasCartao > 0) {
+          const catDespesa = configMaquinas.categoriaDespesaPadrao || 'Taxas de Cartão';
+          await addTransacao({
+            pacienteId: patient.id,
+            valor: Number(totalTaxasCartao.toFixed(2)),
+            tipo: 'despesa',
+            status: 'pago',
+            metodoPagamento: 'cartao',
+            data: new Date(),
+            vencimento: new Date(),
+            descricao: `Taxa da Máquina (${operadoraTaxasNome}) - Orçamento: ${o.titulo}`,
+            categoria: catDespesa,
+            orcamentoId: o.id,
+          });
+          toast.success(
+            `Orçamento aprovado! Receitas geradas e taxa de ${formatMoney(totalTaxasCartao)} da maquininha (${operadoraTaxasNome}) lançada como DESPESA!`
+          );
+        } else {
+          toast.success('Orçamento aprovado e parcelas lançadas no Contas a Receber com as formas corretas!');
+        }
       } else {
         toast.success('Orçamento aprovado com sucesso!');
       }
@@ -602,6 +699,10 @@ const PatientOrcamentos = ({ patient }: Props) => {
     setObservacoes('');
     setFormasPagamento('');
     setPixParceladoAtivo(false);
+    setCartaoAssistenteAtivo(false);
+    setCartaoOperadoraId(configMaquinas.operadoraPadraoId || 'infinitepay');
+    setCartaoTipo('credito');
+    setCartaoParcelas(3);
     setPixEntrada(0);
     setPixDataEntrada(formatIsoDate(new Date()));
     setPixEntradaSituacao('A vencer');
@@ -613,7 +714,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
     const hojeIso = formatIsoDate(new Date());
     setFormasMultiplas([
       { id: '1', rotulo: 'Entrada', metodo: 'pix', valor: 0, parcelas: 1, diaVencimento: 10, dataPagamento: hojeIso, datasParcelas: [hojeIso], situacao: 'A vencer', situacoesParcelas: ['A vencer'] },
-      { id: '2', rotulo: 'Restante', metodo: 'cartao', valor: 0, parcelas: 3, diaVencimento: 10, dataPagamento: hojeIso, datasParcelas: gerarDatasPadrao(3, 10), situacao: 'Autorizado', situacoesParcelas: ['Autorizado', 'Autorizado', 'Autorizado'] },
+      { id: '2', rotulo: 'Restante', metodo: 'cartao', valor: 0, parcelas: 3, diaVencimento: 10, dataPagamento: hojeIso, datasParcelas: gerarDatasPadrao(3, 10), situacao: 'Autorizado', situacoesParcelas: ['Autorizado', 'Autorizado', 'Autorizado'], operadoraCartaoId: configMaquinas.operadoraPadraoId || 'infinitepay', tipoCartao: 'credito' },
     ]);
     setParceriaAtiva(false);
     setParceiroId('');
@@ -639,6 +740,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
     ) {
       setMultiplasFormasAtivo(true);
       setPixParceladoAtivo(false);
+      setCartaoAssistenteAtivo(false);
       setPixDataEntrada(formatIsoDate(new Date()));
       setPixEntradaSituacao('A vencer');
       setPixDatasParcelas(gerarDatasPadrao(3, 10));
@@ -725,6 +827,21 @@ const PatientOrcamentos = ({ patient }: Props) => {
           situacoesParcelasForma = Array(qtdParc).fill(situacaoForma);
         }
 
+        let opCartaoId = configMaquinas.operadoraPadraoId || 'infinitepay';
+        let tipoCartao: 'credito' | 'debito' = 'credito';
+        let taxaCartaoPerc: number | undefined = undefined;
+        let taxaCartaoVal: number | undefined = undefined;
+
+        if (metodo === 'cartao') {
+          const det = extrairDetalhesCartaoDeTexto(conteudo, operadoras, configMaquinas.operadoraPadraoId);
+          if (det.operadora) opCartaoId = det.operadora.id;
+          if (det.isDebito) tipoCartao = 'debito';
+          const op = det.operadora || operadoraPadrao;
+          const calc = calcularTaxaCartao(op, qtdParc, valorParte, tipoCartao === 'debito');
+          taxaCartaoPerc = calc.taxaPercentual;
+          taxaCartaoVal = calc.taxaValor;
+        }
+
         formasCarregadas.push({
           id: String(i + 1),
           rotulo,
@@ -736,6 +853,10 @@ const PatientOrcamentos = ({ patient }: Props) => {
           datasParcelas: datasFinais,
           situacao: situacaoForma,
           situacoesParcelas: situacoesParcelasForma,
+          operadoraCartaoId: opCartaoId,
+          tipoCartao,
+          taxaCartaoPercentual: taxaCartaoPerc,
+          taxaCartaoValor: taxaCartaoVal,
         });
       }
 
@@ -744,6 +865,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
       }
     } else if (o.formasPagamento && /pix\s*parcelado/i.test(o.formasPagamento)) {
       setMultiplasFormasAtivo(false);
+      setCartaoAssistenteAtivo(false);
       setPixParceladoAtivo(true);
       const entradaMatch = o.formasPagamento.match(/entrada(?:\s+de)?\s*(?:r\$)?\s*([\d.,]+)/i);
       const entVal = entradaMatch ? Number(entradaMatch[1].replace(/\./g, '').replace(',', '.')) || 0 : 0;
@@ -810,6 +932,17 @@ const PatientOrcamentos = ({ patient }: Props) => {
       setPixDiaVencimento(10);
       setPixDatasParcelas(gerarDatasPadrao(3, 10));
       setPixSituacoesParcelas(['A vencer', 'A vencer', 'A vencer']);
+
+      // Se for pagamento simples no cartão, detecta operadora para o assistente
+      if (o.formasPagamento && /cart[aã]o|cr[eé]dito|d[eé]bito/i.test(o.formasPagamento)) {
+        const det = extrairDetalhesCartaoDeTexto(o.formasPagamento, operadoras, configMaquinas.operadoraPadraoId);
+        if (det.operadora) setCartaoOperadoraId(det.operadora.id);
+        setCartaoTipo(det.isDebito ? 'debito' : 'credito');
+        setCartaoParcelas(det.parcelas || 1);
+        setCartaoAssistenteAtivo(true);
+      } else {
+        setCartaoAssistenteAtivo(false);
+      }
     }
     setParceriaAtiva(!!o.parceiroId || !!o.parceiroNome);
     setParceiroId(o.parceiroId || '');
@@ -1184,6 +1317,27 @@ const PatientOrcamentos = ({ patient }: Props) => {
                   <Button
                     type="button"
                     size="sm"
+                    variant={cartaoAssistenteAtivo ? 'default' : 'outline'}
+                    className={`h-7 text-xs gap-1.5 ${
+                      cartaoAssistenteAtivo
+                        ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                        : 'border-blue-500/40 text-blue-600 dark:text-blue-400'
+                    }`}
+                    onClick={() => {
+                      const novo = !cartaoAssistenteAtivo;
+                      setCartaoAssistenteAtivo(novo);
+                      if (novo) {
+                        setPixParceladoAtivo(false);
+                        setMultiplasFormasAtivo(false);
+                      }
+                    }}
+                  >
+                    <CreditCard className="h-3.5 w-3.5" />
+                    Máquina de Cartão
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
                     variant={multiplasFormasAtivo ? 'default' : 'outline'}
                     className={`h-7 text-xs gap-1.5 ${
                       multiplasFormasAtivo
@@ -1212,6 +1366,17 @@ const PatientOrcamentos = ({ patient }: Props) => {
                       onClick={() => {
                         if (isPixParcelado) {
                           handleTogglePixParcelado();
+                        } else if (f === 'Cartão de crédito') {
+                          setCartaoTipo('credito');
+                          setCartaoAssistenteAtivo(true);
+                          setPixParceladoAtivo(false);
+                          setMultiplasFormasAtivo(false);
+                        } else if (f === 'Cartão de débito') {
+                          setCartaoTipo('debito');
+                          setCartaoParcelas(1);
+                          setCartaoAssistenteAtivo(true);
+                          setPixParceladoAtivo(false);
+                          setMultiplasFormasAtivo(false);
                         } else {
                           setFormasPagamento((prev) => (prev ? (prev.includes(f) ? prev : `${prev}, ${f}`) : f));
                         }
@@ -1222,6 +1387,156 @@ const PatientOrcamentos = ({ patient }: Props) => {
                   );
                 })}
               </div>
+
+              {/* Assistente de Cartão (PagBank / InfinitePay) */}
+              {cartaoAssistenteAtivo && (
+                <div className="rounded-lg border border-blue-500/40 bg-blue-950/20 p-3.5 space-y-3 animate-in fade-in duration-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-blue-400">
+                      <CreditCard className="h-4 w-4" />
+                      Configuração da Máquina de Cartão (PagBank / InfinitePay)
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 px-1.5 text-xs text-muted-foreground hover:text-foreground"
+                      onClick={() => setCartaoAssistenteAtivo(false)}
+                    >
+                      <X className="h-3.5 w-3.5 mr-1" /> Fechar
+                    </Button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium">Operadora da Máquina</Label>
+                      <Select
+                        value={cartaoOperadoraId}
+                        onValueChange={setCartaoOperadoraId}
+                      >
+                        <SelectTrigger className="h-9 text-xs font-bold bg-background">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {operadoras.filter((o) => o.ativa !== false).map((op) => (
+                            <SelectItem key={op.id} value={op.id}>
+                              <div className="flex items-center gap-1.5">
+                                <span
+                                  className="w-2 h-2 rounded-full"
+                                  style={{ backgroundColor: op.cor || '#3b82f6' }}
+                                />
+                                <span className="font-semibold">{op.nome}</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium">Modalidade</Label>
+                      <Select
+                        value={cartaoTipo}
+                        onValueChange={(v: 'credito' | 'debito') => {
+                          setCartaoTipo(v);
+                          if (v === 'debito') setCartaoParcelas(1);
+                        }}
+                      >
+                        <SelectTrigger className="h-9 text-xs font-medium bg-background">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="credito">Crédito</SelectItem>
+                          <SelectItem value="debito">Débito</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium">Quantidade de Parcelas</Label>
+                      <Select
+                        value={String(cartaoParcelas)}
+                        onValueChange={(v) => setCartaoParcelas(Number(v) || 1)}
+                        disabled={cartaoTipo === 'debito'}
+                      >
+                        <SelectTrigger className="h-9 text-xs font-medium bg-background">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18].map((n) => (
+                            <SelectItem key={n} value={String(n)}>
+                              {n === 1 ? '1x (À vista)' : `${n}x ${total > 0 ? `(${formatMoney(total / n)})` : ''}`}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {(() => {
+                    const op = operadoras.find((o) => o.id === cartaoOperadoraId) || operadoraPadrao;
+                    const isDeb = cartaoTipo === 'debito';
+                    const calc = calcularTaxaCartao(op, cartaoParcelas, total, isDeb);
+                    const opNome = op?.nome || 'Cartão';
+
+                    const aplicarAoOrcamento = () => {
+                      let textoFinal = '';
+                      if (isDeb) {
+                        textoFinal = `Cartão de Débito (${opNome}) - Taxa ${calc.taxaPercentual}%: ${formatMoney(calc.taxaValor)}`;
+                      } else if (cartaoParcelas === 1) {
+                        textoFinal = `Cartão de Crédito à vista 1x (${opNome}) - Taxa ${calc.taxaPercentual}%: ${formatMoney(calc.taxaValor)}`;
+                      } else {
+                        textoFinal = `Cartão de Crédito (${opNome}) em ${cartaoParcelas}x de ${formatMoney(calc.valorParcelaBruto)} (Taxa ${calc.taxaPercentual}%: ${formatMoney(calc.taxaValor)})`;
+                      }
+                      setFormasPagamento(textoFinal);
+                      toast.success(`Plano de cartão (${opNome}) aplicado ao orçamento!`);
+                    };
+
+                    return (
+                      <div className="rounded-lg bg-background/90 border border-blue-500/30 p-3 space-y-2.5">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                          <div className="p-2 rounded bg-muted/50 border border-border/50">
+                            <span className="text-[10px] text-muted-foreground block">Valor do Orçamento:</span>
+                            <span className="font-semibold text-foreground text-sm">{formatMoney(total)}</span>
+                          </div>
+                          <div className="p-2 rounded bg-muted/50 border border-border/50">
+                            <span className="text-[10px] text-muted-foreground block">Taxa da Máquina ({calc.taxaPercentual}%):</span>
+                            <span className="font-bold text-destructive text-sm">
+                              -{formatMoney(calc.taxaValor)}
+                            </span>
+                            <span className="text-[9px] text-muted-foreground block">Entra como Despesa</span>
+                          </div>
+                          <div className="p-2 rounded bg-emerald-500/10 border border-emerald-500/30">
+                            <span className="text-[10px] text-emerald-400 block font-medium">Líquido da Clínica:</span>
+                            <span className="font-bold text-emerald-400 text-sm">{formatMoney(calc.valorLiquido)}</span>
+                          </div>
+                          <div className="p-2 rounded bg-blue-500/10 border border-blue-500/30">
+                            <span className="text-[10px] text-blue-400 block font-medium">Parcelamento:</span>
+                            <span className="font-bold text-blue-400 text-sm">
+                              {isDeb ? 'À vista (Débito)' : `${cartaoParcelas}x de ${formatMoney(calc.valorParcelaBruto)}`}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-border/40">
+                          <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                            <Sparkles className="h-3 w-3 text-blue-400 shrink-0" />
+                            Taxa de <strong>{calc.taxaPercentual}%</strong> na operadora <strong>{opNome}</strong>. Ao aprovar, o valor de {formatMoney(calc.taxaValor)} será lançado como <strong>despesa</strong> automaticamente.
+                          </p>
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={aplicarAoOrcamento}
+                            className="h-7 text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold shrink-0"
+                          >
+                            <Check className="h-3.5 w-3.5 mr-1" /> Aplicar ao Orçamento
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
 
               {/* Compositor de Múltiplas Formas de Pagamento (Ex: Entrada PIX + Restante Cartão) */}
               {multiplasFormasAtivo && (
@@ -1287,6 +1602,8 @@ const PatientOrcamentos = ({ patient }: Props) => {
                                 className={`grid gap-2.5 ${
                                   !isParcelavel
                                     ? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-4'
+                                    : isCartao
+                                    ? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6'
                                     : 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5'
                                 }`}
                               >
@@ -1301,7 +1618,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
                                     </SelectTrigger>
                                     <SelectContent>
                                       <SelectItem value="pix">PIX</SelectItem>
-                                      <SelectItem value="cartao">Cartão de Crédito</SelectItem>
+                                      <SelectItem value="cartao">Cartão</SelectItem>
                                       <SelectItem value="dinheiro">Dinheiro</SelectItem>
                                       <SelectItem value="boleto">Boleto Bancário</SelectItem>
                                       <SelectItem value="pix_parcelado">PIX Parcelado</SelectItem>
@@ -1309,6 +1626,58 @@ const PatientOrcamentos = ({ patient }: Props) => {
                                     </SelectContent>
                                   </Select>
                                 </div>
+
+                                {isCartao && (
+                                  <>
+                                    <div className="space-y-1">
+                                      <Label className="text-[11px] text-muted-foreground font-semibold flex items-center gap-1 text-emerald-400">
+                                        <CreditCard className="h-3 w-3" /> Operadora
+                                      </Label>
+                                      <Select
+                                        value={item.operadoraCartaoId || configMaquinas.operadoraPadraoId || 'infinitepay'}
+                                        onValueChange={(v) => handleAtualizarFormaMultipla(idx, { operadoraCartaoId: v })}
+                                      >
+                                        <SelectTrigger className="h-8 text-xs font-bold bg-background">
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {operadoras.filter((o) => o.ativa !== false).map((op) => (
+                                            <SelectItem key={op.id} value={op.id}>
+                                              <div className="flex items-center gap-1.5">
+                                                <span
+                                                  className="w-2 h-2 rounded-full"
+                                                  style={{ backgroundColor: op.cor || '#10b981' }}
+                                                />
+                                                <span className="font-semibold">{op.nome}</span>
+                                              </div>
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+
+                                    <div className="space-y-1">
+                                      <Label className="text-[11px] text-muted-foreground">Tipo</Label>
+                                      <Select
+                                        value={item.tipoCartao || 'credito'}
+                                        onValueChange={(v: 'credito' | 'debito') =>
+                                          handleAtualizarFormaMultipla(idx, {
+                                            tipoCartao: v,
+                                            parcelas: v === 'debito' ? 1 : item.parcelas || 1,
+                                          })
+                                        }
+                                      >
+                                        <SelectTrigger className="h-8 text-xs font-medium">
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="credito">Crédito</SelectItem>
+                                          <SelectItem value="debito">Débito</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                  </>
+                                )}
 
                                 <div className="space-y-1">
                                   <div className="flex justify-between items-center">
@@ -1339,7 +1708,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
                                   />
                                 </div>
 
-                                {isParcelavel && (
+                                {isParcelavel && (!isCartao || item.tipoCartao !== 'debito') && (
                                   <div className="space-y-1">
                                     <Label className="text-[11px] text-muted-foreground">Parcelas</Label>
                                     <Select
@@ -1365,9 +1734,9 @@ const PatientOrcamentos = ({ patient }: Props) => {
                                     <div className="flex items-center justify-between">
                                       <Label className="text-[11px] text-muted-foreground flex items-center gap-1">
                                         <CalendarDays className="h-3 w-3 text-emerald-400" />
-                                        {isEntrada ? 'Data da Entrada' : 'Data do Pagamento'}
+                                        {isEntrada ? 'Data da Entrada' : 'Data Pagamento'}
                                       </Label>
-                                      <span className="text-[10px] text-emerald-400 font-medium">Fatura automática</span>
+                                      <span className="text-[10px] text-emerald-400 font-medium">Fatura</span>
                                     </div>
                                     <Input
                                       type="date"
@@ -1438,6 +1807,30 @@ const PatientOrcamentos = ({ patient }: Props) => {
                                   </Select>
                                 </div>
                               </div>
+
+                              {/* Banner de resumo de taxas da maquininha em tempo real */}
+                              {isCartao && item.valor > 0 && (() => {
+                                const op = operadoras.find((o) => o.id === item.operadoraCartaoId) || operadoraPadrao;
+                                const isDeb = item.tipoCartao === 'debito';
+                                const calc = calcularTaxaCartao(op, item.parcelas || 1, item.valor, isDeb);
+                                return (
+                                  <div className="flex flex-wrap items-center justify-between gap-2 p-2 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-xs">
+                                    <div className="flex items-center gap-1.5 text-emerald-400 font-semibold">
+                                      <CreditCard className="h-3.5 w-3.5" />
+                                      <span>Máquina: <strong>{calc.operadoraNome}</strong> ({isDeb ? 'Débito' : `${calc.parcelas}x Crédito`})</span>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                      <span className="text-destructive font-semibold">
+                                        Taxa ({calc.taxaPercentual}%): -{formatMoney(calc.taxaValor)}
+                                        <span className="text-[10px] text-muted-foreground ml-1 font-normal">(Despesa no financeiro)</span>
+                                      </span>
+                                      <span className="text-emerald-500 font-bold">
+                                        Líquido Clínica: {formatMoney(calc.valorLiquido)}
+                                      </span>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
 
                               {/* Grade de vencimentos específicos para editar qualquer dia e data livremente - Apenas para Boleto Parcelado e PIX Parcelado */}
                               {requerDatasParcelas && (

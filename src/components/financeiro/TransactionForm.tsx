@@ -23,6 +23,7 @@ import { useAuth } from '@/context/AuthContext';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { somarMesesSeguro } from '@/utils/documentoFormat';
+import { useMaquinasCartao, calcularTaxaCartao } from '@/hooks/useMaquinasCartao';
 
 interface TransactionFormProps {
   isOpen: boolean;
@@ -40,6 +41,8 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId }: Tra
   const { procedimentos } = useProcedimentos();
   const { parceiros } = useParceiros();
   const { orcamentos } = useOrcamentos();
+  const { operadoras, operadoraPadrao } = useMaquinasCartao();
+  const [selectedOperadoraId, setSelectedOperadoraId] = useState<string>('infinitepay');
   const isEdit = !!transacao?.id;
   const anoAtual = new Date().getFullYear();
 
@@ -912,22 +915,59 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId }: Tra
                         </div>
 
                         {forma.metodo === 'cartao' && (
-                          <div className="space-y-1">
-                            <Label className="text-[11px] text-muted-foreground">Taxa da Máquina (%)</Label>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              placeholder="Ex: 3.5"
-                              value={forma.taxaCartaoPercentual}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                setFormasSplit((prev) =>
-                                  prev.map((f, i) => (i === idx ? { ...f, taxaCartaoPercentual: val } : f))
-                                );
-                              }}
-                              className="h-8 text-xs"
-                            />
-                          </div>
+                          <>
+                            <div className="space-y-1">
+                              <Label className="text-[11px] text-muted-foreground">Máquina</Label>
+                              <Select
+                                defaultValue="infinitepay"
+                                onValueChange={(opId) => {
+                                  const op = operadoras.find((o) => o.id === opId) || operadoraPadrao;
+                                  const p = parseInt(forma.parcelas) || 1;
+                                  const calc = calcularTaxaCartao(op, p, 100);
+                                  setFormasSplit((prev) =>
+                                    prev.map((f, i) =>
+                                      i === idx ? { ...f, taxaCartaoPercentual: String(calc.taxaPercentual) } : f
+                                    )
+                                  );
+                                }}
+                              >
+                                <SelectTrigger className="h-8 text-xs font-semibold">
+                                  <SelectValue placeholder="Máquina" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {operadoras
+                                    .filter((o) => o.ativa !== false)
+                                    .map((op) => (
+                                      <SelectItem key={op.id} value={op.id}>
+                                        <div className="flex items-center gap-1.5">
+                                          <span
+                                            className="w-2 h-2 rounded-full"
+                                            style={{ backgroundColor: op.cor || '#10b981' }}
+                                          />
+                                          <span>{op.nome}</span>
+                                        </div>
+                                      </SelectItem>
+                                    ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-[11px] text-muted-foreground">Taxa da Máquina (%)</Label>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                placeholder="Ex: 3.5"
+                                value={forma.taxaCartaoPercentual}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setFormasSplit((prev) =>
+                                    prev.map((f, i) => (i === idx ? { ...f, taxaCartaoPercentual: val } : f))
+                                  );
+                                }}
+                                className="h-8 text-xs"
+                              />
+                            </div>
+                          </>
                         )}
                       </div>
                     )}
@@ -1051,10 +1091,42 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId }: Tra
 
           {permiteParcelamento && (
             <div className="space-y-3 rounded-lg border p-3">
-              <div className="grid grid-cols-2 gap-4">
+              <div className={`grid ${isCartao ? "grid-cols-3" : "grid-cols-2"} gap-3`}>
                 {isCartao && (
                   <div>
-                    <Label htmlFor="taxa">Taxa da máquina (%)</Label>
+                    <Label htmlFor="operadora" className="text-xs">Máquina</Label>
+                    <Select
+                      value={selectedOperadoraId}
+                      onValueChange={(opId) => {
+                        setSelectedOperadoraId(opId);
+                        const op = operadoras.find(o => o.id === opId) || operadoraPadrao;
+                        const p = parseInt(formData.parcelas) || 1;
+                        const calc = calcularTaxaCartao(op, p, 100);
+                        setFormData(prev => ({ ...prev, taxaCartaoPercentual: String(calc.taxaPercentual) }));
+                      }}
+                    >
+                      <SelectTrigger id="operadora" className="h-9 text-xs font-semibold">
+                        <SelectValue placeholder="Máquina" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {operadoras.filter(o => o.ativa !== false).map(op => (
+                          <SelectItem key={op.id} value={op.id}>
+                            <div className="flex items-center gap-1.5">
+                              <span
+                                className="w-2 h-2 rounded-full"
+                                style={{ backgroundColor: op.cor || '#10b981' }}
+                              />
+                              <span>{op.nome}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                {isCartao && (
+                  <div>
+                    <Label htmlFor="taxa" className="text-xs">Taxa da máquina (%)</Label>
                     <Input
                       id="taxa"
                       type="number"
@@ -1063,18 +1135,32 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId }: Tra
                       placeholder="Ex: 3.99"
                       value={formData.taxaCartaoPercentual}
                       onChange={(e) => setFormData(prev => ({ ...prev, taxaCartaoPercentual: e.target.value }))}
+                      className="h-9 text-xs"
                     />
                   </div>
                 )}
                 <div className={!isCartao ? "col-span-2" : ""}>
-                  <Label htmlFor="parcelas">Parcelas</Label>
+                  <Label htmlFor="parcelas" className="text-xs">Parcelas</Label>
                   <Input
                     id="parcelas"
                     type="number"
                     min="1"
                     max="24"
                     value={formData.parcelas}
-                    onChange={(e) => setFormData(prev => ({ ...prev, parcelas: e.target.value }))}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setFormData(prev => {
+                        const updated = { ...prev, parcelas: val };
+                        if (isCartao && selectedOperadoraId) {
+                          const op = operadoras.find(o => o.id === selectedOperadoraId) || operadoraPadrao;
+                          const p = parseInt(val) || 1;
+                          const calc = calcularTaxaCartao(op, p, 100);
+                          updated.taxaCartaoPercentual = String(calc.taxaPercentual);
+                        }
+                        return updated;
+                      });
+                    }}
+                    className="h-9 text-xs"
                   />
                 </div>
               </div>

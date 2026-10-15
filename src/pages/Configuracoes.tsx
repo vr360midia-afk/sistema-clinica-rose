@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import BloqueiosManager from '@/components/configuracoes/BloqueiosManager';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
-import { Settings, Wifi, Bell, Shield, Database, MessageSquare, UserCog, Upload, Trash2, Image as ImageIcon, Handshake, ShieldCheck, Pill, Users, Calendar, FileSignature, Bot, Sparkles, CheckCircle2, AlertCircle, Eye, EyeOff, ExternalLink } from 'lucide-react';
+import { Settings, Wifi, Bell, Shield, Database, MessageSquare, UserCog, Upload, Trash2, Image as ImageIcon, Handshake, ShieldCheck, Pill, Users, Calendar, FileSignature, Bot, Sparkles, CheckCircle2, AlertCircle, Eye, EyeOff, ExternalLink, CreditCard } from 'lucide-react';
 import DentistasManager from '@/components/configuracoes/DentistasManager';
 import CertificadoDigitalManager from '@/components/configuracoes/CertificadoDigitalManager';
 import ParceirosManager from '@/components/configuracoes/ParceirosManager';
@@ -17,6 +17,7 @@ import MedicamentosManager from '@/components/configuracoes/MedicamentosManager'
 import EquipeManager from '@/components/configuracoes/EquipeManager';
 import ConfiguracoesAgenda from '@/components/configuracoes/ConfiguracoesAgenda';
 import ConfiguracaoContratoManager from '@/components/configuracoes/ConfiguracaoContratoManager';
+import MaquinasCartaoManager from '@/components/configuracoes/MaquinasCartaoManager';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { Loader2 } from 'lucide-react';
 import { downloadBackupCompleto, lerArquivoBackup, restaurarBackup, type ProgressoBackup } from '@/utils/backup';
@@ -241,6 +242,10 @@ const Configuracoes = () => {
               <FileSignature className="h-4 w-4 mr-1 text-primary" />
               Contrato & PIX
             </TabsTrigger>
+            <TabsTrigger value="maquinas">
+              <CreditCard className="h-4 w-4 mr-1 text-emerald-500" />
+              Máquinas de Cartão
+            </TabsTrigger>
             <TabsTrigger value="agenda"><Calendar className="h-4 w-4 mr-1" />Agenda (Sincronização)</TabsTrigger>
             <TabsTrigger value="equipe"><Users className="h-4 w-4 mr-1" />Equipe</TabsTrigger>
             <TabsTrigger value="dentistas"><UserCog className="h-4 w-4 mr-1" />Dentistas</TabsTrigger>
@@ -255,6 +260,10 @@ const Configuracoes = () => {
 
           <TabsContent value="contrato">
             <ConfiguracaoContratoManager />
+          </TabsContent>
+
+          <TabsContent value="maquinas">
+            <MaquinasCartaoManager />
           </TabsContent>
 
           <TabsContent value="equipe">
