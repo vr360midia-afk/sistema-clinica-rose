@@ -41,3 +41,18 @@ export const formatarDocumento = (value?: string | null): string => {
     .replace(/\.(\d{3})(\d)/, '.$1/$2')
     .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
 };
+
+/**
+ * Adiciona meses a uma data de forma matematicamente segura,
+ * impedindo o clássico 'mês rollover' do JavaScript (ex: 31 de Outubro + 1 mês virar 1º de Dezembro, pulando Novembro).
+ */
+export const somarMesesSeguro = (dataBase: Date, meses: number, diaFixo?: number): Date => {
+  const ano = dataBase.getFullYear();
+  const mesAlvo = dataBase.getMonth() + meses;
+  const diaOriginal = diaFixo ?? dataBase.getDate();
+  const primeiroDia = new Date(ano, mesAlvo, 1, 12, 0, 0);
+  const maxDiasNoMes = new Date(primeiroDia.getFullYear(), primeiroDia.getMonth() + 1, 0).getDate();
+  primeiroDia.setDate(Math.min(diaOriginal, maxDiasNoMes));
+  return primeiroDia;
+};
+

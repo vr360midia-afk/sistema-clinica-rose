@@ -32,6 +32,7 @@ import {
   decodificarContratoUrl,
   gerarHtmlContrato,
   identificarTipoDocumento,
+  isContratoLenteResina,
 } from '@/utils/contratoEngine';
 import { downloadHtmlAsPdf } from '@/utils/pdfDownload';
 import { openWhatsApp } from '@/lib/whatsapp';
@@ -612,7 +613,7 @@ export default function AssinarContrato() {
             <div className="bg-slate-50 dark:bg-slate-900/60 px-4 py-2 border-t border-border flex flex-wrap items-center justify-between text-xs text-muted-foreground gap-2">
               <span className="flex items-center gap-1.5 text-[11px] sm:text-xs">
                 <FileCheck className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                Role o documento acima para ler todas as 10 cláusulas e condições na íntegra.
+                Role o documento acima para ler todas as cláusulas e o Termo de Consentimento (TCLE) na íntegra.
               </span>
               <button
                 type="button"
@@ -638,7 +639,9 @@ export default function AssinarContrato() {
                   htmlFor="concordo"
                   className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 font-medium cursor-pointer select-none leading-relaxed"
                 >
-                  Declaro que li e conferi o contrato completo acima na íntegra, e estou de acordo com todos os termos, procedimentos odontológicos, valores e condições de pagamento estipulados neste Contrato de Prestação de Serviços Odontológicos.
+                  {isContratoLenteResina(snapshot)
+                    ? 'Declaro que li e conferi o contrato completo acima na íntegra, incluindo o Termo de Consentimento Livre e Esclarecido (TCLE) de Lentes em Resina (Anexo I), e estou de pleno acordo com todas as cláusulas, riscos informados, procedimentos, valores e cronograma de pagamento estipulados.'
+                    : 'Declaro que li e conferi o contrato completo acima na íntegra, e estou de acordo com todos os termos, procedimentos odontológicos, valores e condições de pagamento estipulados neste Contrato de Prestação de Serviços Odontológicos.'}
                 </label>
               </div>
 

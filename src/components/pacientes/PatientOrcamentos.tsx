@@ -19,8 +19,9 @@ import { openWhatsApp } from '@/lib/whatsapp';
 import { formatMoney } from '@/utils/exportCsv';
 import { toast } from 'sonner';
 import ContratoModal from '@/components/contratos/ContratoModal';
-import { useDentalSystem } from '@/context/DentalSystemContext';
 import { mapearDadosContrato, gerarLinkAssinaturaContrato, parseBrMoney } from '@/utils/contratoEngine';
+import { somarMesesSeguro } from '@/utils/documentoFormat';
+import { downloadTcleLentesResinaPdf } from '@/utils/tcleLentesResina';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -54,10 +55,7 @@ const gerarDatasPadrao = (qtdParcelas: number, dia: number) => {
   const datas: string[] = [];
   const hoje = new Date();
   for (let i = 0; i < qtdParcelas; i++) {
-    const targetMonth = hoje.getMonth() + (i + 1);
-    const d = new Date(hoje.getFullYear(), targetMonth, 1);
-    const maxDias = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-    d.setDate(Math.min(dia, maxDias));
+    const d = somarMesesSeguro(hoje, i + 1, dia);
     datas.push(formatIsoDate(d));
   }
   return datas;
@@ -465,8 +463,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
           } else {
             const parcIdxMatch = (p.descricao || '').match(/\((\d+)\/\d+/);
             const mesOffset = parcIdxMatch ? Number(parcIdxMatch[1]) : (typeof p.numero === 'number' ? p.numero : 1);
-            dataVenc = new Date();
-            dataVenc.setMonth(dataVenc.getMonth() + mesOffset);
+            dataVenc = somarMesesSeguro(new Date(), mesOffset);
           }
 
           // Identifica o método específico desta parcela dinamicamente

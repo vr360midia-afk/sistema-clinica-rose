@@ -4,6 +4,7 @@ import {
   identificarTipoDocumento,
   obterRotuloDocumento,
   formatarDocumento,
+  somarMesesSeguro,
 } from './documentoFormat';
 import type { Paciente, Transacao, AvaliacaoRestauracoesPreexistentes } from '@/types/shared';
 import type { Orcamento } from '@/hooks/useOrcamentos';
@@ -14,6 +15,7 @@ export {
   identificarTipoDocumento,
   obterRotuloDocumento,
   formatarDocumento,
+  somarMesesSeguro,
 };
 
 export interface ContratoItem {
@@ -129,7 +131,7 @@ const formatarData = (d: Date | string | undefined | null): string => {
   return data.toLocaleDateString('pt-BR');
 };
 
-const formatarDataPorExtenso = (d: Date = new Date(), cidade = 'São Paulo'): string => {
+export const formatarDataPorExtenso = (d: Date = new Date(), cidade = 'São Paulo'): string => {
   const meses = [
     'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
     'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'
@@ -469,10 +471,7 @@ export const mapearDadosContrato = ({
               if (isCartao) {
                 venc = 'Fatura do Cartão';
               } else {
-                const targetMonth = hoje.getMonth() + (i + 1);
-                const dataVenc = new Date(hoje.getFullYear(), targetMonth, 1);
-                const maxDias = new Date(dataVenc.getFullYear(), dataVenc.getMonth() + 1, 0).getDate();
-                dataVenc.setDate(Math.min(diaVenc, maxDias));
+                const dataVenc = somarMesesSeguro(hoje, i + 1, diaVenc);
                 venc = formatarData(dataVenc);
               }
             }
@@ -607,10 +606,7 @@ export const mapearDadosContrato = ({
         } else if (isCartaoRestante) {
           vencimentoFormatado = 'Fatura do Cartão';
         } else {
-          const targetMonth = hoje.getMonth() + (idx + 1);
-          const dataVenc = new Date(hoje.getFullYear(), targetMonth, 1);
-          const maxDiasNoMes = new Date(dataVenc.getFullYear(), dataVenc.getMonth() + 1, 0).getDate();
-          dataVenc.setDate(Math.min(diaVencimento, maxDiasNoMes));
+          const dataVenc = somarMesesSeguro(hoje, idx + 1, diaVencimento);
           vencimentoFormatado = formatarData(dataVenc);
         }
 
@@ -1244,14 +1240,20 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
     </div>
     ` : ''}
 
-    <!-- Cláusula - Das Obrigações da Contratada -->
+    <!-- Cláusula - Das Obrigações da Contratada e dos Padrões Técnicos Profissionais -->
     <div class="clausula-bloco">
-      <div class="clausula-titulo">${numClausula()} — DAS OBRIGAÇÕES DA CONTRATADA</div>
+      <div class="clausula-titulo">${numClausula()} — DAS OBRIGAÇÕES DA CONTRATADA E DOS PADRÕES TÉCNICOS PROFISSIONAIS</div>
       <p class="paragrafo">
-        A <strong>CONTRATADA</strong> obriga-se a empregar a mais apurada técnica odontológica e materiais biocompatíveis reconhecidos pelos órgãos competentes, agindo com diligência, ética e perícia para a consecução dos atos pactuados.
+        A <strong>CONTRATADA</strong> compromete-se a prestar os serviços odontológicos com estrita observância às normas do Código de Ética Odontológica (Resolução CFO nº 118/2012) e às boas práticas científicas, empregando técnica apurada, materiais biocompatíveis certificados pela ANVISA e diligência profissional para a obtenção da melhor adequação clínica, estética e funcional para o caso diagnosticado.
       </p>
       <p class="paragrafo">
-        <strong>Parágrafo Único:</strong> O(A) <strong>CONTRATANTE</strong> declara estar ciente de que a Odontologia é uma atividade profissional de <em>meio</em> e não de <em>resultado biológico garantido</em>, estando os procedimentos sujeitos a respostas orgânicas individuais, cicatrização, anatomia dental e cooperação do paciente.
+        <strong>Parágrafo Primeiro:</strong> Em conformidade com a legislação consumerista e as peculiaridades dos tratamentos de reabilitação e estética odontológica (tais como lentes em resina composta, facetas e restaurações estéticas), o(a) <strong>CONTRATANTE</strong> declara ter sido devidamente informado(a) sobre o plano de tratamento proposto, suas indicações, etapas clínicas, benefícios esperados e limitações inerentes.
+      </p>
+      <p class="paragrafo">
+        <strong>Parágrafo Segundo:</strong> O(A) <strong>CONTRATANTE</strong> reconhece que a resposta aos procedimentos odontológicos interage de forma indissociável com características biológicas individuais (substrato dentário, gengiva, cicatrização, oclusão), forças mastigatórias, hábitos parafuncionais (apertamento, bruxismo), higiene oral diária e o comparecimento às consultas periódicas de manutenção preventiva, fatores que influenciam diretamente a preservação, adaptação e durabilidade dos trabalhos executados.
+      </p>
+      <p class="paragrafo">
+        <strong>Parágrafo Terceiro:</strong> A <strong>CONTRATADA</strong> assegura a prestação de assistência profissional, esclarecimento de dúvidas e a realização dos ajustes clínicos necessários durante as etapas do tratamento e no pós-operatório imediato, ressalvadas as hipóteses de danos supervenientes decorrentes de traumas mecânicos externos, intervenção de terceiros não autorizados ou descumprimento das orientações profissionais e do cronograma de manutenção preventiva semestral.
       </p>
     </div>
 
@@ -1371,6 +1373,78 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
         </div>
       </div>
     </div>
+
+    ${incluiLentes ? `
+    <!-- ANEXO I: TCLE ESPECÍFICO PARA LENTES EM RESINA COMPOSTA (RECOMENDAÇÃO CFO) -->
+    <div style="page-break-before: always; margin-top: 36px; padding-top: 24px; border-top: 2px solid #0284c7;">
+      <div style="background-color: #0284c7; color: #ffffff; padding: 5px 12px; font-weight: bold; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; border-radius: 3px; display: inline-block; margin-bottom: 12px;">
+        Documento Integrante • Anexo I (TCLE)
+      </div>
+      <div class="titulo-principal" style="margin: 10px 0 16px;">
+        <h2>TERMO DE CONSENTIMENTO LIVRE E ESCLARECIDO (TCLE)</h2>
+        <p>Procedimento de Lentes em Resina Composta e Facetas Estéticas (Resolução CFO nº 118/2012)</p>
+      </div>
+
+      <div class="clausula-bloco">
+        <div class="clausula-titulo">1. NATUREZA E ESCOPO DO TRATAMENTO ESTÉTICO</div>
+        <p class="paragrafo">
+          O presente termo complementa e integra indissociavelmente o Contrato de Prestação de Serviços Odontológicos nº <strong>${snapshot.contratoId}</strong>. O tratamento compreende a confecção de lentes e/ou facetas em resina composta sobre os elementos dentários indicados no planejamento clínico (<strong>${snapshot.dadosRestauracoesPreexistentes?.dentesEnvolvidos || orcamento.titulo}</strong>), visando à harmonização do sorriso, fechamento de diastemas, alinhamento visual e luminosidade.
+        </p>
+      </div>
+
+      <div class="clausula-bloco">
+        <div class="clausula-titulo">2. ESCLARECIMENTO DE RISCOS INERENTES, LIMITAÇÕES E FATORES BIOLÓGICOS</div>
+        <p class="paragrafo">
+          O(A) <strong>CONTRATANTE / PACIENTE</strong> declara ter sido amplamente orientado(a) pela cirurgiã-dentista responsável sobre as propriedades do material restaurador e os seguintes riscos previsíveis:
+        </p>
+        <ul style="margin: 6px 0 10px 20px; padding-left: 10px; font-size: 12px; line-height: 1.55;">
+          <li><strong>Sobrecarga Mastigatória e Fraturas:</strong> A resina composta é um material restaurador de alta estética, suscetível a lascamentos (chipping), trincas ou fraturas se submetida a alimentos muito duros, hábitos parafuncionais (bruxismo, apertamento dental, roer unhas/objetos) ou traumas mecânicos externos.</li>
+          <li><strong>Manchamento e Pigmentação Superficial:</strong> Os compósitos resinosos podem absorver gradualmente corantes externos provenientes de tabaco, café, vinho tinto, refrigerantes escuros e molhos pigmentados, exigindo higiene rigorosa e polimentos periódicos em consultório.</li>
+          <li><strong>Desgaste Fisiológico e Perda Gradual de Brilho:</strong> O atrito oclusal diário promove desgaste microscópico superficial, restabelecido nas sessões de manutenção e repolimento semestral.</li>
+          <li><strong>Sensibilidade Dentinária Transitória:</strong> Poderá ocorrer sensibilidade térmica pós-operatória ao frio ou ao calor nos primeiros dias, de natureza passageira.</li>
+          <li><strong>Interação com o Substrato Natural:</strong> A espessura delgada das lentes reflete a cor de fundo do dente natural, podendo demandar opacificadores em dentes escurecidos.</li>
+          <li><strong>Saúde Gengival:</strong> A conservação das margens cervicais exige higiene diária com fio dental para prevenir inflamação gengival.</li>
+        </ul>
+      </div>
+
+      <div class="clausula-bloco">
+        <div class="clausula-titulo">3. DEVERES DE CUIDADO E MANUTENÇÃO PREVENTIVA SEMESTRAL</div>
+        <div style="margin: 8px 0; padding: 10px 14px; background-color: #f8fafc; border: 1px solid #cbd5e1; border-left: 4px solid #0284c7; border-radius: 4px; font-family: Arial, sans-serif; font-size: 11px; line-height: 1.5; color: #334155;">
+          • <strong>Manutenção Semestral Obrigatória:</strong> Retornar a cada <strong>6 (seis) meses</strong> para consulta de revisão, controle oclusal, profilaxia e polimento preventivo especializado.<br/>
+          • <strong>Placa Miorrelaxante:</strong> Caso diagnosticado bruxismo ou apertamento dental, o uso da placa oclusal noturna prescrita é condição indispensável para preservação das restaurações.<br/>
+          • <strong>Comunicação de Intercorrências:</strong> Qualquer lascamento, sensibilidade anormal ou alteração deve ser comunicado de imediato à clínica.
+        </div>
+      </div>
+
+      <div class="clausula-bloco">
+        <div class="clausula-titulo">4. MANIFESTAÇÃO FORMAL DE CONSENTIMENTO LIVRE E ESCLARECIDO</div>
+        <p class="paragrafo">
+          Declaro que li, compreendi todas as orientações prestadas, tive a oportunidade de sanar quaisquer dúvidas e, ciente dos benefícios, limitações e riscos, manifesto expressamente meu pleno <strong>CONSENTIMENTO</strong> para a realização do tratamento com lentes em resina composta.
+        </p>
+      </div>
+
+      <div class="grid-assinaturas" style="margin-top: 24px;">
+        <div class="campo-assinatura">
+          ${snapshot.assinaturaPaciente?.assinaturaData ? `
+            <img src="${snapshot.assinaturaPaciente.assinaturaData}" alt="Assinatura Paciente" />
+          ` : '<div style="height: 45px;"></div>'}
+          <div class="linha-assinatura"></div>
+          <div class="assinatura-nome">${snapshot.assinaturaPaciente?.nome || paciente.nome}</div>
+          <div class="assinatura-papel">Paciente / Consentinte (TCLE)</div>
+          <div class="assinatura-detalhes">CPF: ${snapshot.assinaturaPaciente?.cpf || paciente.cpf}</div>
+        </div>
+        <div class="campo-assinatura">
+          ${snapshot.assinaturaDentista?.assinaturaData ? `
+            <img src="${snapshot.assinaturaDentista.assinaturaData}" alt="Assinatura Dentista" />
+          ` : '<div style="height: 45px;"></div>'}
+          <div class="linha-assinatura"></div>
+          <div class="assinatura-nome">${clinica.dentistaResponsavel}</div>
+          <div class="assinatura-papel">Cirurgiã(o)-Dentista Responsável</div>
+          <div class="assinatura-detalhes">${labelDocClinica}: ${clinica.cnpj} • CRO: ${clinica.cro}</div>
+        </div>
+      </div>
+    </div>
+    ` : ''}
 
     <!-- Rodapé -->
     <div class="rodape-documento">

@@ -22,6 +22,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
+import { somarMesesSeguro } from '@/utils/documentoFormat';
 
 interface TransactionFormProps {
   isOpen: boolean;
@@ -314,8 +315,8 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId }: Tra
 
           if (fParcelas > 1) {
             for (let i = 0; i < fParcelas; i++) {
-              const dataVenc = forma.vencimento ? new Date(forma.vencimento) : new Date(forma.data);
-              dataVenc.setMonth(dataVenc.getMonth() + i);
+              const dataBase = forma.vencimento ? new Date(forma.vencimento) : new Date(forma.data);
+              const dataVenc = somarMesesSeguro(dataBase, i);
 
               await addTransacao({
                 pacienteId: pid,
@@ -461,8 +462,8 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId }: Tra
       } else {
         if (formData.metodoPagamento === 'pix_parcelado' && parcelas > 1) {
           for (let i = 0; i < parcelas; i++) {
-            const dataVencimento = formData.vencimento ? new Date(formData.vencimento) : new Date(formData.data);
-            dataVencimento.setMonth(dataVencimento.getMonth() + i);
+            const dataBase = formData.vencimento ? new Date(formData.vencimento) : new Date(formData.data);
+            const dataVencimento = somarMesesSeguro(dataBase, i);
             await addTransacao({
               ...transactionData,
               valor: valorParcela,

@@ -63,6 +63,8 @@ import {
   isContratoLenteResina,
   identificarTipoDocumento,
 } from '@/utils/contratoEngine';
+import { downloadTcleLentesResinaPdf } from '@/utils/tcleLentesResina';
+import { somarMesesSeguro } from '@/utils/documentoFormat';
 import { downloadHtmlAsPdf } from '@/utils/pdfDownload';
 import { openWhatsApp } from '@/lib/whatsapp';
 import { formatMoney } from '@/utils/exportCsv';
@@ -204,8 +206,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
         } else {
           const parcIdxMatch = (p.descricao || '').match(/\((\d+)\/\d+/);
           const mesOffset = parcIdxMatch ? Number(parcIdxMatch[1]) : (typeof p.numero === 'number' ? p.numero : 1);
-          dataVenc = new Date();
-          dataVenc.setMonth(dataVenc.getMonth() + mesOffset);
+          dataVenc = somarMesesSeguro(new Date(), mesOffset);
         }
 
         let metodoFinal: any = 'pix';
@@ -302,6 +303,28 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     if (!patient?.telefone || patient.telefone === 'Não informado') pendencias.push('Telefone');
     return pendencias;
   }, [patient]);
+
+  // Validação de intervalo de parcelas (ex: Outubro -> Dezembro sem Novembro)
+  const alertaIntervaloParcelas = useMemo(() => {
+    const parcelas = snapshotAtual?.financeiro?.parcelas || [];
+    if (parcelas.length < 2) return null;
+
+    for (let i = 0; i < parcelas.length - 1; i++) {
+      const p1 = parcelas[i];
+      const p2 = parcelas[i + 1];
+      if (p1.vencimento && p2.vencimento && p1.vencimento.includes('/') && p2.vencimento.includes('/')) {
+        const [, m1, a1] = p1.vencimento.split('/').map(Number);
+        const [, m2, a2] = p2.vencimento.split('/').map(Number);
+        if (!isNaN(m1) && !isNaN(m2) && !isNaN(a1) && !isNaN(a2)) {
+          const mesesDiff = (a2 - a1) * 12 + (m2 - m1);
+          if (mesesDiff > 1) {
+            return `Aviso de Cronograma: A parcela ${p1.numero} vence em ${p1.vencimento} e a parcela ${p2.numero} vence em ${p2.vencimento} (intervalo de ${mesesDiff} meses, pulando mês intermediário). Confirme se esse intervalo foi realmente combinado com o(a) paciente.`;
+          }
+        }
+      }
+    }
+    return null;
+  }, [snapshotAtual?.financeiro?.parcelas]);
 
   // Atualização granular de campos no snapshot manual
   const handleUpdateSnapshotField = (campo: string, valor: any) => {
@@ -1380,6 +1403,18 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                               <span>Parcelas e Cronograma Oficial (Cláusula 3ª)</span>
                               <span className="text-[10px] text-muted-foreground font-normal">Edite a data, valor ou situação de cada parcela</span>
                             </Label>
+
+                            {alertaIntervaloParcelas && (
+                              <div className="p-2.5 rounded-md bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-xs flex items-start gap-2">
+                                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+                                <div>
+                                  <span className="font-semibold">{alertaIntervaloParcelas}</span>
+                                  <p className="text-[11px] text-amber-700 dark:text-amber-400/90 mt-0.5">
+                                    Caso seja necessário ajustar o vencimento para meses consecutivos, altere diretamente o campo "Venc." da parcela abaixo.
+                                  </p>
+                                </div>
+                              </div>
+                            )}
                             <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
                               {snapshotAtual.financeiro.parcelas.map((parc, pIdx) => (
                                 <div
@@ -1767,6 +1802,28 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                 {baixandoPdf ? <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" /> : <Download className="h-3.5 w-3.5 sm:h-4 sm:w-4" />}
                 <span>Baixar PDF</span>
               </Button>
+
+              {isContratoLenteResina(snapshotAtual) && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 sm:h-9 text-xs gap-1.5 border-sky-300 dark:border-sky-800 text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100 dark:hover:bg-sky-900/50"
+                  onClick={async () => {
+                    try {
+                      await downloadTcleLentesResinaPdf(snapshotAtual);
+                      toast.success('TCLE de Lentes em Resina (CFO) gerado com sucesso!');
+                    } catch (e) {
+                      toast.error('Erro ao gerar TCLE em PDF');
+                    }
+                  }}
+                  disabled={!snapshotAtual}
+                  title="Baixar Termo de Consentimento Livre e Esclarecido específico para Lentes em Resina (Recomendação CFO)"
+                >
+                  <FileText className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-sky-600" />
+                  <span>TCLE Lentes (CFO)</span>
+                </Button>
+              )}
 
               <Button
                 type="button"
