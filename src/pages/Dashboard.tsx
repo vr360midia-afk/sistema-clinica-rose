@@ -125,6 +125,9 @@ const Dashboard = () => {
             changeType="neutral"
             icon={CreditCard}
             iconBg="bg-amber-500/15 text-amber-500"
+            isMaskable={true}
+            defaultMasked={true}
+            storageKey="dashboard_privacy_vendas"
           />
           <StatsCard
             title="Consultas Hoje"
@@ -149,6 +152,9 @@ const Dashboard = () => {
             changeType={receitaMensal > 0 ? "positive" : "neutral"}
             icon={CreditCard}
             iconBg="bg-emerald-500/15 text-emerald-500 dark:text-emerald-400"
+            isMaskable={true}
+            defaultMasked={true}
+            storageKey="dashboard_privacy_receita"
           />
         </motion.div>
 
