@@ -56,3 +56,21 @@ export const somarMesesSeguro = (dataBase: Date, meses: number, diaFixo?: number
   return primeiroDia;
 };
 
+/**
+ * Verifica se um campo textual tem conteúdo informativo real (não vazio e diferente de 'Não informado').
+ */
+export const temValorValido = (val?: string | null): boolean => {
+  if (!val) return false;
+  const s = String(val).trim().toLowerCase();
+  return (
+    s !== '' &&
+    s !== 'não informado' &&
+    s !== 'nao informado' &&
+    s !== 'não informada' &&
+    s !== 'nao informada' &&
+    s !== 'null' &&
+    s !== 'undefined'
+  );
+};
+
+

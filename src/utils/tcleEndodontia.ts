@@ -1,5 +1,5 @@
 import { ContratoSnapshot, formatarDataPorExtenso } from './contratoEngine';
-import { identificarTipoDocumento } from './documentoFormat';
+import { identificarTipoDocumento, temValorValido } from './documentoFormat';
 import { downloadHtmlAsPdf } from './pdfDownload';
 
 /**
@@ -298,8 +298,8 @@ export const gerarHtmlTcleEndodontia = (snapshot?: ContratoSnapshot | null): str
     <div class="secao-bloco">
       <div class="secao-titulo">1. IDENTIFICAÇÃO DO(A) PACIENTE, CIRURGIÃO-DENTISTA E ELEMENTO(S)</div>
       <div class="box-info">
-        <div><strong>PACIENTE:</strong> ${paciente.nome} • <strong>${labelDocPaciente}:</strong> ${paciente.cpf} • <strong>RG:</strong> ${paciente.rg}</div>
-        <div><strong>Endereço:</strong> ${paciente.endereco} • <strong>Telefone:</strong> ${paciente.telefone}</div>
+        <div><strong>PACIENTE:</strong> ${paciente.nome} • <strong>${labelDocPaciente}:</strong> ${paciente.cpf}${temValorValido(paciente.rg) ? ` • <strong>RG:</strong> ${paciente.rg}` : ''}</div>
+        <div><strong>Endereço:</strong> ${paciente.endereco || 'Não informado'} • <strong>Telefone:</strong> ${paciente.telefone || 'Não informado'}</div>
         <div style="margin-top: 3px;"><strong>CIRURGIÃ-DENTISTA RESPONSÁVEL:</strong> ${dentistaNomeContratada} — ${dentistaCroContratada} (CPF: ${dentistaCpfContratada})</div>
         ${temParceiro ? `
           <div style="margin-top: 3px; color: #166534;">
@@ -417,7 +417,7 @@ export const gerarHtmlTcleEndodontia = (snapshot?: ContratoSnapshot | null): str
           <div class="linha-assinatura"></div>
           <div class="assinatura-nome">${snapshot.assinaturaPaciente?.nome || paciente.nome}</div>
           <div class="assinatura-papel">Paciente / Responsável Legal</div>
-          <div class="assinatura-detalhes">${labelDocPaciente}: ${snapshot.assinaturaPaciente?.cpf || paciente.cpf}</div>
+          <div class="assinatura-detalhes">${labelDocPaciente}: ${snapshot.assinaturaPaciente?.cpf || paciente.cpf}${temValorValido(snapshot.assinaturaPaciente?.rg) ? ` • RG: ${snapshot.assinaturaPaciente.rg}` : (temValorValido(paciente.rg) ? ` • RG: ${paciente.rg}` : '')}</div>
         </div>
 
         <!-- CIRURGIÃ-DENTISTA CONTRATADA -->

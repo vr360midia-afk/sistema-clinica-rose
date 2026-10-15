@@ -1,5 +1,5 @@
 import { ContratoSnapshot, ContratoTermoUsoImagem, formatarData, formatarDataPorExtenso } from './contratoEngine';
-import { identificarTipoDocumento } from './documentoFormat';
+import { identificarTipoDocumento, temValorValido } from './documentoFormat';
 import { downloadHtmlAsPdf } from './pdfDownload';
 
 /**
@@ -272,7 +272,7 @@ export const gerarHtmlTermoUsoImagem = (snapshot?: ContratoSnapshot | null): str
       <div class="grid-dados">
         <div><strong>Nome completo:</strong> ${paciente.nome || 'Não informado'}</div>
         <div><strong>${labelDocPaciente}:</strong> ${paciente.cpf || 'Não informado'}</div>
-        <div><strong>RG:</strong> ${paciente.rg || 'Não informado'}</div>
+        ${temValorValido(paciente.rg) ? `<div><strong>RG:</strong> ${paciente.rg}</div>` : ''}
         <div><strong>Data de nascimento:</strong> ${paciente.dataNascimento || 'Não informada'}</div>
         <div><strong>Telefone/WhatsApp:</strong> ${paciente.telefone || 'Não informado'}</div>
         <div><strong>E-mail:</strong> ${paciente.email || 'Não informado'}</div>
@@ -425,7 +425,7 @@ export const gerarHtmlTermoUsoImagem = (snapshot?: ContratoSnapshot | null): str
           <div class="linha-assinatura"></div>
           <div class="assinatura-nome">${snapshot.assinaturaPaciente?.nome || paciente.nome}</div>
           <div class="assinatura-papel">Paciente / Titular da Imagem</div>
-          <div class="assinatura-detalhes">${labelDocPaciente}: ${snapshot.assinaturaPaciente?.cpf || paciente.cpf}</div>
+          <div class="assinatura-detalhes">${labelDocPaciente}: ${snapshot.assinaturaPaciente?.cpf || paciente.cpf}${temValorValido(snapshot.assinaturaPaciente?.rg) ? ` • RG: ${snapshot.assinaturaPaciente.rg}` : (temValorValido(paciente.rg) ? ` • RG: ${paciente.rg}` : '')}</div>
         </div>
 
         <!-- PROFISSIONAL RESPONSÁVEL -->
@@ -510,9 +510,9 @@ export const gerarFragmentoHtmlTermoUsoImagem = (snapshot: ContratoSnapshot, num
     <div class="clausula-bloco">
       <div class="clausula-titulo">2. IDENTIFICAÇÃO DO PACIENTE</div>
       <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 8px 12px; font-family: Arial, sans-serif; font-size: 11px; line-height: 1.5; border-radius: 4px; margin-bottom: 8px;">
-        <strong>Nome:</strong> ${paciente.nome} • <strong>${labelDocPaciente}:</strong> ${paciente.cpf} • <strong>RG:</strong> ${paciente.rg}<br/>
-        <strong>Data de Nasc.:</strong> ${paciente.dataNascimento} • <strong>Telefone:</strong> ${paciente.telefone} • <strong>E-mail:</strong> ${paciente.email}<br/>
-        <strong>Endereço:</strong> ${paciente.endereco}
+        <strong>Nome:</strong> ${paciente.nome} • <strong>${labelDocPaciente}:</strong> ${paciente.cpf}${temValorValido(paciente.rg) ? ` • <strong>RG:</strong> ${paciente.rg}` : ''}<br/>
+        <strong>Data de Nasc.:</strong> ${paciente.dataNascimento || 'Não informada'} • <strong>Telefone:</strong> ${paciente.telefone || 'Não informado'} • <strong>E-mail:</strong> ${paciente.email || 'Não informado'}<br/>
+        <strong>Endereço:</strong> ${paciente.endereco || 'Não informado'}
       </div>
     </div>
 
@@ -650,7 +650,7 @@ export const gerarFragmentoHtmlTermoUsoImagem = (snapshot: ContratoSnapshot, num
         <div class="linha-assinatura"></div>
         <div class="assinatura-nome">${snapshot.assinaturaPaciente?.nome || paciente.nome}</div>
         <div class="assinatura-papel">Paciente / Titular da Imagem</div>
-        <div class="assinatura-detalhes">${labelDocPaciente}: ${snapshot.assinaturaPaciente?.cpf || paciente.cpf}</div>
+        <div class="assinatura-detalhes">${labelDocPaciente}: ${snapshot.assinaturaPaciente?.cpf || paciente.cpf}${temValorValido(snapshot.assinaturaPaciente?.rg) ? ` • RG: ${snapshot.assinaturaPaciente.rg}` : (temValorValido(paciente.rg) ? ` • RG: ${paciente.rg}` : '')}</div>
       </div>
       <div class="campo-assinatura">
         ${snapshot.assinaturaDentista?.assinaturaData ? `

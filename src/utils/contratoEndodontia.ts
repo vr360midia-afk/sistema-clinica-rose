@@ -3,7 +3,7 @@ import {
   formatarDataPorExtenso,
   isMetodoCartao,
 } from './contratoEngine';
-import { identificarTipoDocumento } from './documentoFormat';
+import { identificarTipoDocumento, temValorValido } from './documentoFormat';
 import { formatMoney } from './exportCsv';
 import { downloadHtmlAsPdf } from './pdfDownload';
 import { gerarFragmentoHtmlTermoUsoImagem } from './termoUsoImagem';
@@ -341,11 +341,13 @@ export const gerarHtmlContratoEndodontia = (snapshot: ContratoSnapshot): string 
         <div class="bloco-parte">
           <strong style="text-transform: uppercase; color: #0369a1; display: block; margin-bottom: 3px;">CONTRATANTE — PACIENTE</strong>
           <strong>Nome completo:</strong> ${paciente.nome}<br/>
-          <strong>${labelDocPaciente}:</strong> ${paciente.cpf} • <strong>RG:</strong> ${paciente.rg}<br/>
-          <strong>Data de nascimento:</strong> ${paciente.dataNascimento}<br/>
-          <strong>Telefone/WhatsApp:</strong> ${paciente.telefone}<br/>
-          <strong>E-mail:</strong> ${paciente.email}<br/>
-          <strong>Endereço completo:</strong> ${paciente.endereco}
+          <strong>${labelDocPaciente}:</strong> ${paciente.cpf}${temValorValido(paciente.rg) ? ` • <strong>RG:</strong> ${paciente.rg}` : ''}<br/>
+          ${temValorValido(paciente.estadoCivil) ? `<strong>Estado civil:</strong> ${paciente.estadoCivil}<br/>` : ''}
+          ${temValorValido(paciente.profissao) ? `<strong>Profissão:</strong> ${paciente.profissao}<br/>` : ''}
+          ${temValorValido(paciente.dataNascimento) ? `<strong>Data de nascimento:</strong> ${paciente.dataNascimento}<br/>` : ''}
+          ${temValorValido(paciente.telefone) ? `<strong>Telefone/WhatsApp:</strong> ${paciente.telefone}<br/>` : ''}
+          ${temValorValido(paciente.email) ? `<strong>E-mail:</strong> ${paciente.email}<br/>` : ''}
+          <strong>Endereço completo:</strong> ${paciente.endereco || 'Não informado'}
         </div>
       </div>
 
@@ -765,7 +767,7 @@ export const gerarHtmlContratoEndodontia = (snapshot: ContratoSnapshot): string 
           <div class="linha-assinatura"></div>
           <div class="assinatura-nome">${snapshot.assinaturaPaciente?.nome || paciente.nome}</div>
           <div class="assinatura-papel">Contratante / Paciente</div>
-          <div class="assinatura-detalhes">${labelDocPaciente}: ${snapshot.assinaturaPaciente?.cpf || paciente.cpf}</div>
+          <div class="assinatura-detalhes">${labelDocPaciente}: ${snapshot.assinaturaPaciente?.cpf || paciente.cpf}${temValorValido(snapshot.assinaturaPaciente?.rg) ? ` • RG: ${snapshot.assinaturaPaciente.rg}` : (temValorValido(paciente.rg) ? ` • RG: ${paciente.rg}` : '')}</div>
         </div>
 
         <!-- CONTRATADA (DRA. ROSÂNGELA) -->

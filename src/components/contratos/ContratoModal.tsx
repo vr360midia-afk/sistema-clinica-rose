@@ -70,6 +70,7 @@ import {
   downloadTcleEndodontiaPdf,
   identificarTipoDocumento,
   isMetodoCartao,
+  temValorValido,
 } from '@/utils/contratoEngine';
 import { downloadTcleLentesResinaPdf } from '@/utils/tcleLentesResina';
 import { downloadTermoUsoImagemPdf } from '@/utils/termoUsoImagem';
@@ -359,7 +360,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
   const pendenciasCadastrais = useMemo(() => {
     const pendencias: string[] = [];
     if (!patient?.cpf || patient.cpf === 'Não informado') pendencias.push('CPF');
-    if (!patient?.rg || patient.rg === 'Não informado') pendencias.push('RG');
+    // RG e Estado Civil são opcionais e não bloqueiam a geração/assinatura do contrato
     if (!patient?.endereco || patient.endereco === 'Não informado') pendencias.push('Endereço');
     if (!patient?.telefone || patient.telefone === 'Não informado') pendencias.push('Telefone');
     return pendencias;
@@ -1564,7 +1565,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                         </div>
 
                         <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">RG</Label>
+                          <Label className="text-xs text-muted-foreground">RG (Opcional)</Label>
                           <Input
                             value={snapshotAtual.paciente.rg || ''}
                             onChange={(e) => handleUpdateSnapshotField('paciente.rg', e.target.value)}
@@ -1582,7 +1583,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                         </div>
 
                         <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">Profissão</Label>
+                          <Label className="text-xs text-muted-foreground">Profissão (Opcional)</Label>
                           <Input
                             value={snapshotAtual.paciente.profissao || ''}
                             onChange={(e) => handleUpdateSnapshotField('paciente.profissao', e.target.value)}
@@ -1591,7 +1592,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                         </div>
 
                         <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">Estado Civil</Label>
+                          <Label className="text-xs text-muted-foreground">Estado Civil (Opcional)</Label>
                           <Input
                             value={snapshotAtual.paciente.estadoCivil || ''}
                             onChange={(e) => handleUpdateSnapshotField('paciente.estadoCivil', e.target.value)}
@@ -2609,7 +2610,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
         requireSelfie={signerRole === 'paciente'}
         initialEmail={patient?.email}
         initialCpf={patient?.cpf}
-        initialRg={patient?.rg}
+        initialRg={temValorValido(patient?.rg) ? patient.rg : ''}
         onSignatureComplete={handleAssinaturaConcluida}
       />
     </>

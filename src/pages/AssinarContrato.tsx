@@ -42,6 +42,7 @@ import {
   identificarTipoDocumento,
   isContratoLenteResina,
   isContratoEndodontia,
+  temValorValido,
 } from '@/utils/contratoEngine';
 import { downloadHtmlAsPdf } from '@/utils/pdfDownload';
 import { openWhatsApp } from '@/lib/whatsapp';
@@ -497,7 +498,8 @@ export default function AssinarContrato() {
               </div>
               <p className="font-bold text-base text-slate-800 dark:text-slate-100">{snapshot.paciente.nome}</p>
               <p className="text-xs text-muted-foreground mt-1">
-                CPF: <span className="font-medium text-slate-700 dark:text-slate-300">{snapshot.paciente.cpf}</span> • RG: {snapshot.paciente.rg}
+                CPF: <span className="font-medium text-slate-700 dark:text-slate-300">{snapshot.paciente.cpf}</span>
+                {temValorValido(snapshot.paciente.rg) ? ` • RG: ${snapshot.paciente.rg}` : ''}
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">Telefone: {snapshot.paciente.telefone}</p>
               {snapshot.paciente.endereco && snapshot.paciente.endereco !== 'Não informado' && (
@@ -1014,7 +1016,7 @@ export default function AssinarContrato() {
                           </div>
                           <div>
                             <h5 className="font-bold text-[12px] text-slate-900 dark:text-slate-100">2. IDENTIFICAÇÃO DO PACIENTE</h5>
-                            <p className="text-[11px] mt-0.5">Nome: {snapshot.paciente.nome} • CPF: {snapshot.paciente.cpf} • RG: {snapshot.paciente.rg} • Endereço: {snapshot.paciente.endereco}</p>
+                            <p className="text-[11px] mt-0.5">Nome: {snapshot.paciente.nome} • CPF: {snapshot.paciente.cpf}{temValorValido(snapshot.paciente.rg) ? ` • RG: ${snapshot.paciente.rg}` : ''} • Endereço: {snapshot.paciente.endereco || 'Não informado'}</p>
                           </div>
                           <div>
                             <h5 className="font-bold text-[12px] text-slate-900 dark:text-slate-100">3. OBJETO DA AUTORIZAÇÃO</h5>
@@ -1105,8 +1107,10 @@ export default function AssinarContrato() {
                     : 'data registrada'}
                 </p>
                 <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-0.5">
-                  CPF: {snapshot.assinaturaPaciente?.cpf || snapshot.paciente.cpf}{' '}
-                  {snapshot.assinaturaPaciente?.rg ? `• RG: ${snapshot.assinaturaPaciente.rg}` : ''}
+                  CPF: {snapshot.assinaturaPaciente?.cpf || snapshot.paciente.cpf}
+                  {temValorValido(snapshot.assinaturaPaciente?.rg)
+                    ? ` • RG: ${snapshot.assinaturaPaciente.rg}`
+                    : (temValorValido(snapshot.paciente?.rg) ? ` • RG: ${snapshot.paciente.rg}` : '')}
                   {snapshot.assinaturaPaciente?.email ? ` • E-mail: ${snapshot.assinaturaPaciente.email}` : ''}
                 </p>
 
@@ -1176,7 +1180,7 @@ export default function AssinarContrato() {
               requireSelfie={true}
               initialEmail={snapshot.paciente.email}
               initialCpf={snapshot.paciente.cpf}
-              initialRg={snapshot.paciente.rg}
+              initialRg={temValorValido(snapshot.paciente.rg) ? snapshot.paciente.rg : ''}
               onSignatureComplete={handleSignatureComplete}
               onCancel={() => setShowSignatureModal(false)}
             />

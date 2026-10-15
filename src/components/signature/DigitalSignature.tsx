@@ -19,6 +19,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { temValorValido } from '@/utils/documentoFormat';
 
 export interface SignatureData {
   signature: string; // Base64 da rubrica desenhada
@@ -85,7 +86,7 @@ const DigitalSignature = ({
   const [nomeCompleto, setNomeCompleto] = useState(signerName || '');
   const [signerEmail, setSignerEmail] = useState(initialEmail || '');
   const [signerCpf, setSignerCpf] = useState(initialCpf ? formatCpf(initialCpf) : '');
-  const [signerRg, setSignerRg] = useState(initialRg ? formatRg(initialRg) : '');
+  const [signerRg, setSignerRg] = useState(temValorValido(initialRg) ? formatRg(initialRg) : '');
 
   // Selfie / Câmera
   const [selfiePhoto, setSelfiePhoto] = useState<string | null>(null);
@@ -325,11 +326,7 @@ const DigitalSignature = ({
         toast.error('Por favor, informe um CPF válido com 11 dígitos.');
         return;
       }
-
-      if (!signerRg.trim() || signerRg.trim().length < 4) {
-        toast.error('Por favor, informe seu número de RG.');
-        return;
-      }
+      // RG é opcional e não bloqueia a assinatura do paciente
     }
 
     // 2. Validação da Foto Selfie obrigatória
@@ -358,7 +355,7 @@ const DigitalSignature = ({
         nomeCompleto: nomeCompleto.trim() || signerName,
         email: signerEmail.trim() || undefined,
         cpf: signerCpf.trim() || undefined,
-        rg: signerRg.trim() || undefined,
+        rg: temValorValido(signerRg) ? signerRg.trim() : undefined,
         selfie: selfiePhoto || undefined,
       },
     };
@@ -450,7 +447,7 @@ const DigitalSignature = ({
 
             <div className="space-y-1">
               <Label htmlFor="signerRg" className="text-xs font-medium text-foreground">
-                RG {shouldRequireFields && <span className="text-rose-500">*</span>}
+                RG <span className="text-[10px] text-muted-foreground font-normal">(Opcional)</span>
               </Label>
               <Input
                 id="signerRg"
@@ -459,7 +456,6 @@ const DigitalSignature = ({
                 placeholder="00.000.000-0"
                 maxLength={16}
                 className="h-8 text-xs font-medium bg-background"
-                required={shouldRequireFields}
               />
             </div>
           </div>

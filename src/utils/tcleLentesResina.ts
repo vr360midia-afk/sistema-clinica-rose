@@ -1,5 +1,5 @@
 import { ContratoSnapshot, formatarData, formatarDataPorExtenso } from './contratoEngine';
-import { identificarTipoDocumento } from './documentoFormat';
+import { identificarTipoDocumento, temValorValido } from './documentoFormat';
 import { downloadHtmlAsPdf } from './pdfDownload';
 
 /**
@@ -218,7 +218,7 @@ export const gerarHtmlTcleLentesResina = (snapshot?: ContratoSnapshot | null): s
     <div class="secao-bloco">
       <div class="secao-titulo">1. IDENTIFICAÇÃO DO(A) PACIENTE E DO(A) PROFISSIONAL</div>
       <p class="paragrafo">
-        <strong>PACIENTE:</strong> <strong>${paciente.nome}</strong>, portador(a) do RG nº <strong>${paciente.rg}</strong>, inscrito(a) no ${labelDocPaciente} sob o nº <strong>${paciente.cpf}</strong>, residente e domiciliado(a) em <strong>${paciente.endereco}</strong>.
+        <strong>PACIENTE:</strong> <strong>${paciente.nome}</strong>${temValorValido(paciente.rg) ? `, portador(a) do RG nº <strong>${paciente.rg}</strong>` : ''}, inscrito(a) no ${labelDocPaciente} sob o nº <strong>${paciente.cpf}</strong>, residente e domiciliado(a) em <strong>${paciente.endereco || 'Não informado'}</strong>.
       </p>
       <p class="paragrafo">
         <strong>CIRURGIÃ(O)-DENTISTA RESPONSÁVEL:</strong> <strong>${clinica.dentistaResponsavel || clinica.nome}</strong>, inscrita(o) no CRO sob o nº <strong>${clinica.cro}</strong>.
@@ -293,7 +293,7 @@ export const gerarHtmlTcleLentesResina = (snapshot?: ContratoSnapshot | null): s
           <div class="linha-assinatura"></div>
           <div class="assinatura-nome">${snapshot.assinaturaPaciente?.nome || paciente.nome}</div>
           <div class="assinatura-papel">Paciente / Consentinte</div>
-          <div class="assinatura-detalhes">CPF: ${snapshot.assinaturaPaciente?.cpf || paciente.cpf}</div>
+          <div class="assinatura-detalhes">${labelDocPaciente}: ${snapshot.assinaturaPaciente?.cpf || paciente.cpf}${temValorValido(snapshot.assinaturaPaciente?.rg) ? ` • RG: ${snapshot.assinaturaPaciente.rg}` : (temValorValido(paciente.rg) ? ` • RG: ${paciente.rg}` : '')}</div>
         </div>
 
         <!-- Assinatura Dentista -->

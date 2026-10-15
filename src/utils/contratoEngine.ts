@@ -5,6 +5,7 @@ import {
   obterRotuloDocumento,
   formatarDocumento,
   somarMesesSeguro,
+  temValorValido,
 } from './documentoFormat';
 import type { Paciente, Transacao, AvaliacaoRestauracoesPreexistentes } from '@/types/shared';
 import type { Orcamento } from '@/hooks/useOrcamentos';
@@ -23,6 +24,7 @@ export {
   obterRotuloDocumento,
   formatarDocumento,
   somarMesesSeguro,
+  temValorValido,
   gerarHtmlContratoEndodontia,
   downloadContratoEndodontiaPdf,
   gerarHtmlTcleEndodontia,
@@ -363,14 +365,14 @@ export const mapearDadosContrato = ({
     id: patient?.id || '',
     nome: patient?.nome || 'Nome não informado',
     cpf: patient?.cpf || 'Não informado',
-    rg: patient?.rg || 'Não informado',
+    rg: temValorValido(patient?.rg) ? String(patient.rg).trim() : '',
     dataNascimento: formatarData(patient?.dataNascimento),
     idade: patient?.idade ? `${patient.idade} anos` : 'Não informada',
     endereco: patient?.endereco || 'Não informado',
     telefone: patient?.telefone || 'Não informado',
     email: patient?.email || 'Não informado',
-    profissao: patient?.profissao || 'Não informada',
-    estadoCivil: patient?.estadoCivil || 'Não informado',
+    profissao: temValorValido(patient?.profissao) ? String(patient.profissao).trim() : '',
+    estadoCivil: temValorValido(patient?.estadoCivil) ? String(patient.estadoCivil).trim() : '',
   };
 
   const cidadeDefinida = cidadeLocal && cidadeLocal !== 'São Paulo'
@@ -934,6 +936,41 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
     preambuloContratadaHtml = `<strong>CONTRATADA:</strong> <strong>${(clinica.nome || '').trim()}</strong>, pessoa jurídica de direito privado inscrita no CNPJ sob o nº <strong>${(clinica.cnpj || '').trim()}</strong>, com sede e consultório estabelecido em <strong>${(clinica.endereco || '').trim()}</strong>, telefone: <strong>${(clinica.telefone || '').trim()}</strong>, e-mail: <strong>${(clinica.email || '').trim()}</strong>, tendo como Responsável Técnico(a) o(a) Cirurgião(ã)-Dentista <strong>${(clinica.dentistaResponsavel || '').trim()}</strong>, inscrito(a) no Conselho Regional de Odontologia sob o CRO nº <strong>${(clinica.cro || '').trim()}</strong>.`;
   }
 
+  // Preâmbulo do Paciente - omite campos não informados (RG, Estado Civil, Profissão)
+  const partesPreambuloPaciente: string[] = [
+    `<strong>CONTRATANTE / PACIENTE:</strong> <strong>${(paciente.nome || '').trim()}</strong>`
+  ];
+
+  if (temValorValido(paciente.estadoCivil)) {
+    partesPreambuloPaciente.push(`estado civil: <strong>${paciente.estadoCivil.trim()}</strong>`);
+  }
+
+  if (temValorValido(paciente.profissao)) {
+    partesPreambuloPaciente.push(`profissão: <strong>${paciente.profissao.trim()}</strong>`);
+  }
+
+  if (temValorValido(paciente.rg)) {
+    partesPreambuloPaciente.push(`portador(a) do RG nº <strong>${paciente.rg.trim()}</strong>`);
+  }
+
+  partesPreambuloPaciente.push(`inscrito(a) no ${labelDocPaciente} sob o nº <strong>${paciente.cpf || 'Não informado'}</strong>`);
+
+  if (temValorValido(paciente.dataNascimento)) {
+    partesPreambuloPaciente.push(`data de nascimento: <strong>${paciente.dataNascimento.trim()}</strong>`);
+  }
+
+  partesPreambuloPaciente.push(`residente e domiciliado(a) em <strong>${paciente.endereco || 'Não informado'}</strong>`);
+
+  if (temValorValido(paciente.telefone)) {
+    partesPreambuloPaciente.push(`telefone: <strong>${paciente.telefone.trim()}</strong>`);
+  }
+
+  if (temValorValido(paciente.email)) {
+    partesPreambuloPaciente.push(`e-mail: <strong>${paciente.email.trim()}</strong>`);
+  }
+
+  const preambuloPacienteHtml = partesPreambuloPaciente.join(', ') + '.';
+
   return `<!doctype html>
 <html lang="pt-BR">
 <head>
@@ -1231,7 +1268,7 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
         E de outro lado:
       </p>
       <p class="paragrafo">
-        <strong>CONTRATANTE / PACIENTE:</strong> <strong>${(paciente.nome || '').trim()}</strong>, estado civil: <strong>${paciente.estadoCivil || 'Não informado'}</strong>, profissão: <strong>${paciente.profissao || 'Não informada'}</strong>, portador(a) do RG nº <strong>${paciente.rg || 'Não informado'}</strong>, inscrito(a) no ${labelDocPaciente} sob o nº <strong>${paciente.cpf || 'Não informado'}</strong>, data de nascimento: <strong>${paciente.dataNascimento || 'Não informada'}</strong>, residente e domiciliado(a) em <strong>${paciente.endereco || 'Não informado'}</strong>, telefone: <strong>${paciente.telefone || 'Não informado'}</strong>, e-mail: <strong>${paciente.email || 'Não informado'}</strong>.
+        ${preambuloPacienteHtml}
       </p>
       <p class="paragrafo">
         As partes acima qualificadas celebram o presente contrato, mediante as cláusulas e condições seguintes:
@@ -1567,7 +1604,7 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
           <div class="linha-assinatura"></div>
           <div class="assinatura-nome">${snapshot.assinaturaPaciente?.nome || paciente.nome}</div>
           <div class="assinatura-papel">Contratante / Paciente</div>
-          <div class="assinatura-detalhes">CPF: ${snapshot.assinaturaPaciente?.cpf || paciente.cpf} ${snapshot.assinaturaPaciente?.rg ? `• RG: ${snapshot.assinaturaPaciente.rg}` : (paciente.rg ? `• RG: ${paciente.rg}` : '')}</div>
+          <div class="assinatura-detalhes">CPF: ${snapshot.assinaturaPaciente?.cpf || paciente.cpf}${temValorValido(snapshot.assinaturaPaciente?.rg) ? ` • RG: ${snapshot.assinaturaPaciente.rg}` : (temValorValido(paciente.rg) ? ` • RG: ${paciente.rg}` : '')}</div>
           ${snapshot.assinaturaPaciente?.email ? `
             <div class="assinatura-detalhes">E-mail: ${snapshot.assinaturaPaciente.email}</div>
           ` : ''}
