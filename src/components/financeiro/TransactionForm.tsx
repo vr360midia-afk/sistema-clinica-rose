@@ -518,7 +518,7 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId }: Tra
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-lg sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Editar Transação' : 'Nova Transação'}</DialogTitle>
         </DialogHeader>
@@ -713,17 +713,18 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId }: Tra
 
           {/* Toggle de Múltiplas Formas de Pagamento */}
           {!isEdit && formData.tipo === 'receita' && (
-            <div className="flex items-center justify-between p-3 rounded-lg border border-emerald-500/30 bg-emerald-950/20">
-              <div className="space-y-0.5">
+            <div className="flex items-center justify-between gap-3 p-3 rounded-lg border border-emerald-500/30 bg-emerald-950/20">
+              <div className="space-y-0.5 flex-1 min-w-0 pr-2">
                 <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
-                  <Layers className="h-4 w-4" />
-                  Múltiplas Formas de Pagamento (Entrada + Cartão/PIX)
+                  <Layers className="h-4 w-4 shrink-0" />
+                  <span>Múltiplas Formas de Pagamento (Entrada + Cartão/PIX)</span>
                 </div>
                 <p className="text-[11px] text-muted-foreground">
                   Permite dividir o pagamento do paciente (ex: R$ 500 no PIX e o restante no Cartão).
                 </p>
               </div>
               <Switch
+                className="shrink-0"
                 checked={modoMultiplasFormas}
                 onCheckedChange={(checked) => {
                   setModoMultiplasFormas(checked);
@@ -1059,77 +1060,77 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId }: Tra
               </div>
             </div>
           ) : (
-              <div className="space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <Label htmlFor="metodo" className="text-xs font-semibold">Método de Pagamento *</Label>
-                    <Select
-                      value={formData.metodoPagamento}
-                      onValueChange={(value: MetodoPagamento) => {
-                        setFormData((prev) => {
-                          const ehAVista = value === 'pix' || value === 'dinheiro';
-                          const novoStatus = ehAVista && prev.status === 'pendente' && !prev.vencimento ? 'pago' : prev.status;
-                          return { ...prev, metodoPagamento: value, status: novoStatus };
-                        });
-                      }}
-                    >
-                      <SelectTrigger className="font-medium">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="pix">💎 PIX (Imediato / Baixa na hora)</SelectItem>
-                        <SelectItem value="cartao">💳 Cartão de Crédito / Débito</SelectItem>
-                        <SelectItem value="dinheiro">💵 Dinheiro em Espécie</SelectItem>
-                        <SelectItem value="pix_parcelado">📅 PIX Parcelado (Recorrente)</SelectItem>
-                        <SelectItem value="boleto">📄 Boleto Bancário</SelectItem>
-                        <SelectItem value="transferencia">🏦 Transferência / TED</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <Label className="text-xs font-semibold">Situação Financeira *</Label>
-                    <div className="grid grid-cols-2 gap-1.5 pt-1">
-                      <Button
-                        type="button"
-                        variant={formData.status === 'pago' ? 'default' : 'outline'}
-                        size="sm"
-                        className={`h-9 text-xs font-semibold gap-1 ${
-                          formData.status === 'pago' ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'text-muted-foreground'
-                        }`}
-                        onClick={() => setFormData((prev) => ({ ...prev, status: 'pago' }))}
-                      >
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                        {formData.tipo === 'receita' ? 'Recebido (Caixa)' : 'Pago (Saiu)'}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={formData.status === 'pendente' ? 'default' : 'outline'}
-                        size="sm"
-                        className={`h-9 text-xs font-semibold gap-1 ${
-                          formData.status === 'pendente' ? 'bg-amber-600 hover:bg-amber-700 text-white' : 'text-muted-foreground'
-                        }`}
-                        onClick={() => setFormData((prev) => ({ ...prev, status: 'pendente' }))}
-                      >
-                        <AlertCircle className="h-3.5 w-3.5" />
-                        {formData.tipo === 'receita' ? 'A Receber' : 'A Pagar'}
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-
-                {formData.status === 'pago' ? (
-                  <div className="text-[11px] text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/40 p-2 rounded-md flex items-center gap-1.5">
-                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                    <span>Este valor <strong>entra imediatamente</strong> na Receita Caixa do mês selecionado.</span>
-                  </div>
-                ) : (
-                  <div className="text-[11px] text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 p-2 rounded-md flex items-center gap-1.5">
-                    <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                    <span>Ficará como <strong>A Receber</strong> até que você confirme a baixa do pagamento.</span>
-                  </div>
-                )}
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <Label htmlFor="metodo" className="text-xs font-semibold">Método de Pagamento *</Label>
+                <Select
+                  value={formData.metodoPagamento}
+                  onValueChange={(value: MetodoPagamento) => {
+                    setFormData((prev) => {
+                      const ehAVista = value === 'pix' || value === 'dinheiro';
+                      const novoStatus = ehAVista && prev.status === 'pendente' && !prev.vencimento ? 'pago' : prev.status;
+                      return { ...prev, metodoPagamento: value, status: novoStatus };
+                    });
+                  }}
+                >
+                  <SelectTrigger className="font-medium h-10 w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pix">💎 PIX (Imediato / Baixa na hora)</SelectItem>
+                    <SelectItem value="cartao">💳 Cartão de Crédito / Débito</SelectItem>
+                    <SelectItem value="dinheiro">💵 Dinheiro em Espécie</SelectItem>
+                    <SelectItem value="pix_parcelado">📅 PIX Parcelado (Recorrente)</SelectItem>
+                    <SelectItem value="boleto">📄 Boleto Bancário</SelectItem>
+                    <SelectItem value="transferencia">🏦 Transferência / TED</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Situação Financeira *</Label>
+                <div className="grid grid-cols-2 gap-2 pt-0.5">
+                  <Button
+                    type="button"
+                    variant={formData.status === 'pago' ? 'default' : 'outline'}
+                    className={`h-10 text-xs sm:text-sm font-semibold gap-2 transition-all ${
+                      formData.status === 'pago'
+                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm ring-1 ring-emerald-500'
+                        : 'text-muted-foreground hover:bg-accent'
+                    }`}
+                    onClick={() => setFormData((prev) => ({ ...prev, status: 'pago' }))}
+                  >
+                    <CheckCircle2 className="h-4 w-4 shrink-0" />
+                    <span className="truncate">{formData.tipo === 'receita' ? 'Recebido (Caixa)' : 'Pago (Saiu)'}</span>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={formData.status === 'pendente' ? 'default' : 'outline'}
+                    className={`h-10 text-xs sm:text-sm font-semibold gap-2 transition-all ${
+                      formData.status === 'pendente'
+                        ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-sm ring-1 ring-amber-500'
+                        : 'text-muted-foreground hover:bg-accent'
+                    }`}
+                    onClick={() => setFormData((prev) => ({ ...prev, status: 'pendente' }))}
+                  >
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    <span className="truncate">{formData.tipo === 'receita' ? 'A Receber' : 'A Pagar'}</span>
+                  </Button>
+                </div>
+              </div>
+
+              {formData.status === 'pago' ? (
+                <div className="text-[11px] text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/40 p-2.5 rounded-md flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 shrink-0" />
+                  <span>Este valor <strong>entra imediatamente</strong> na Receita Caixa do mês selecionado.</span>
+                </div>
+              ) : (
+                <div className="text-[11px] text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 p-2.5 rounded-md flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  <span>Ficará como <strong>A Receber</strong> até que você confirme a baixa do pagamento.</span>
+                </div>
+              )}
+            </div>
           )}
 
           {permiteParcelamento && (
@@ -1232,17 +1233,21 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId }: Tra
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>{formData.status === 'pago' ? (formData.tipo === 'receita' ? 'Data do Recebimento (Caixa) *' : 'Data do Pagamento *') : 'Data do Lançamento'}</Label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold block min-h-[18px]">
+                {formData.status === 'pago'
+                  ? (formData.tipo === 'receita' ? 'Data do Recebimento (Caixa) *' : 'Data do Pagamento *')
+                  : 'Data do Lançamento *'}
+              </Label>
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start text-left font-normal">
-                    <CalendarIcon className="mr-2 h-4 w-4" />
+                  <Button variant="outline" className="w-full justify-start text-left font-normal h-10">
+                    <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
                     {format(formData.data, 'dd/MM/yyyy', { locale: ptBR })}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
+                <PopoverContent className="w-auto p-0 z-[60]" align="start">
                   <Calendar
                     mode="single"
                     selected={formData.data}
@@ -1258,16 +1263,18 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId }: Tra
               </Popover>
             </div>
 
-            <div>
-              <Label>{formData.status === 'pago' ? 'Vencimento (opcional)' : 'Vencimento *'}</Label>
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold block min-h-[18px]">
+                {formData.status === 'pago' ? 'Vencimento (opcional)' : 'Vencimento *'}
+              </Label>
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start text-left font-normal">
-                    <CalendarIcon className="mr-2 h-4 w-4" />
+                  <Button variant="outline" className="w-full justify-start text-left font-normal h-10">
+                    <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
                     {formData.vencimento ? format(formData.vencimento, 'dd/MM/yyyy', { locale: ptBR }) : 'Selecionar'}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
+                <PopoverContent className="w-auto p-0 z-[60]" align="start">
                   <Calendar
                     mode="single"
                     selected={formData.vencimento || undefined}
