@@ -37,10 +37,12 @@ import {
 import { toast } from 'sonner';
 import LeadModal from '@/components/crm/LeadModal';
 import LeadIntegracoesModal from '@/components/crm/LeadIntegracoesModal';
+import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { formatMoney } from '@/utils/exportCsv';
 
 export default function CRM() {
+  const navigate = useNavigate();
   const { user, clinicaId } = useAuth();
   const [leads, setLeads] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -423,6 +425,17 @@ export default function CRM() {
             >
               <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
               <span>Atualizar</span>
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/tarefas')}
+              className="h-8 gap-1.5 border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+              title="Abrir Calendário de Tarefas e Follow-up da Equipe"
+            >
+              <CalendarCheck className="h-3.5 w-3.5 text-emerald-600" />
+              <span>Calendário de Tarefas</span>
             </Button>
 
             <Button onClick={handleNew} size="sm" className="h-8 gap-1.5 shadow-sm">

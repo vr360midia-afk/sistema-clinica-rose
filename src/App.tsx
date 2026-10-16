@@ -23,6 +23,7 @@ import Estoque from '@/pages/Estoque';
 import Procedimentos from '@/pages/Procedimentos';
 import Comunicacao from '@/pages/Comunicacao';
 import Notas from '@/pages/Notas';
+import Tarefas from '@/pages/Tarefas';
 import Anamnese from '@/pages/Anamnese';
 import Admin from '@/pages/Admin';
 import Lixeira from '@/pages/Lixeira';
@@ -50,6 +51,7 @@ function App() {
               <Route path="/crm" element={<ProtectedRoute><CRM /></ProtectedRoute>} />
               <Route path="/pacientes" element={<ProtectedRoute><PermissionRoute modulo="pacientes"><Pacientes /></PermissionRoute></ProtectedRoute>} />
               <Route path="/agenda" element={<ProtectedRoute><PermissionRoute modulo="agenda"><Agenda /></PermissionRoute></ProtectedRoute>} />
+              <Route path="/tarefas" element={<ProtectedRoute><Tarefas /></ProtectedRoute>} />
               <Route path="/financeiro" element={<ProtectedRoute><PermissionRoute modulo="financeiro"><Financeiro /></PermissionRoute></ProtectedRoute>} />
               <Route path="/faturamento-parceiros" element={<ProtectedRoute><RoleRoute allow={['admin']}><FaturamentoParceiros /></RoleRoute></ProtectedRoute>} />
               <Route path="/prontuarios" element={<ProtectedRoute><PermissionRoute modulo="prontuarios"><Prontuarios /></PermissionRoute></ProtectedRoute>} />

@@ -64,8 +64,10 @@ const Notas = () => {
 
       if (error) throw error;
       
-      // Garantir que todos os campos obrigatórios existam e tipar corretamente
-      const notasWithDefaults = (data || []).map((nota: any) => ({
+      // Garantir que todos os campos obrigatórios existam e tipar corretamente (ignora tarefas internas do calendário)
+      const notasWithDefaults = (data || [])
+        .filter((nota: any) => nota.categoria !== 'tarefa_interna' && !nota.categoria?.startsWith('tarefa_'))
+        .map((nota: any) => ({
         id: nota.id,
         titulo: nota.titulo,
         conteudo: nota.conteudo || '',

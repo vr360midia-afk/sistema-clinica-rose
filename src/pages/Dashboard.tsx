@@ -8,6 +8,7 @@ import { RetornosPendentes } from '@/components/dashboard/RetornosPendentes';
 import RecentActivity from '@/components/dashboard/RecentActivity';
 import LembretesWhatsApp from '@/components/dashboard/LembretesWhatsApp';
 import LembretesPix from '@/components/dashboard/LembretesPix';
+import { TarefasHojeWidget } from '@/components/dashboard/TarefasHojeWidget';
 import DashboardCharts from '@/components/dashboard/DashboardCharts';
 import { Users, Calendar, CreditCard } from 'lucide-react';
 import { useDentalSystem } from '@/context/DentalSystemContext';
@@ -166,6 +167,7 @@ const Dashboard = () => {
           <div className="lg:col-span-2">
             <LembretesPix />
           </div>
+          <TarefasHojeWidget />
           <AppointmentsList />
           <LembretesWhatsApp />
           <ConfirmacoesPendentes />

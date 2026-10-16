@@ -20,7 +20,8 @@ import {
   X,
   StickyNote,
   Trash2,
-  Handshake
+  Handshake,
+  CalendarCheck2,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -37,10 +38,11 @@ interface NavItem {
 
 const navigation: NavItem[] = [
   { name: 'Dashboard', href: '/', icon: Home },
-  { name: 'Notas', href: '/notas', icon: StickyNote },
   { name: 'CRM / Leads', href: '/crm', icon: Target },
-    { name: 'Pacientes', href: '/pacientes', icon: Users },
   { name: 'Agenda', href: '/agenda', icon: Calendar },
+  { name: 'Tarefas da Equipe', href: '/tarefas', icon: CalendarCheck2 },
+  { name: 'Notas', href: '/notas', icon: StickyNote },
+  { name: 'Pacientes', href: '/pacientes', icon: Users },
   { name: 'Anamnese', href: '/anamnese', icon: FileText },
   { name: 'Prontuários', href: '/prontuarios', icon: Clipboard },
   { name: 'Procedimentos', href: '/procedimentos', icon: Wrench },

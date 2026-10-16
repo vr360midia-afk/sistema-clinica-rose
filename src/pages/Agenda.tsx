@@ -3,7 +3,8 @@ import Layout from '@/components/layout/Layout';
 import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CalendarDays, Plus, Bell, Lock, Smartphone } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { CalendarDays, Plus, Bell, Lock, Smartphone, CalendarCheck2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useDentalSystem } from '@/context/DentalSystemContext';
@@ -22,6 +23,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 
 const Agenda = () => {
+  const navigate = useNavigate();
   const { updateConsulta, consultas } = useDentalSystem();
   const { bloqueios, addBloqueio, updateBloqueio, deleteBloqueio } = useBloqueios();
 
@@ -391,6 +393,15 @@ const Agenda = () => {
                 Aprovações ({pendentes.length})
               </Button>
             )}
+            <Button
+              variant="outline"
+              className="flex items-center gap-2 flex-1 sm:flex-none justify-center border-teal-500/40 text-teal-700 dark:text-teal-300 hover:bg-teal-500/10 font-medium"
+              onClick={() => navigate('/tarefas')}
+              title="Ver Calendário de Tarefas e Follow-up de Leads"
+            >
+              <CalendarCheck2 className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+              Tarefas da Equipe
+            </Button>
             <Button
               variant="outline"
               className="flex items-center gap-2 flex-1 sm:flex-none justify-center border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 font-medium"
