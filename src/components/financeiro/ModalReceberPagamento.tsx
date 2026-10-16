@@ -17,6 +17,7 @@ import {
   FileText,
   CreditCard,
   Wallet,
+  Maximize2,
 } from 'lucide-react';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import { useConfiguracoesContrato } from '@/hooks/useConfiguracoesContrato';
@@ -70,6 +71,7 @@ export const ModalReceberPagamento = ({
   const [loading, setLoading] = useState(false);
   const [copiouPayload, setCopiouPayload] = useState(false);
   const [copiouChave, setCopiouChave] = useState(false);
+  const [qrTelaCheiaOpen, setQrTelaCheiaOpen] = useState(false);
 
   // Máquinas de Cartão
   const [selectedOperadoraId, setSelectedOperadoraId] = useState<string>('infinitepay');
@@ -190,9 +192,17 @@ export const ModalReceberPagamento = ({
   // QR Code gerado a partir do payload Bacen (tamanho otimizado)
   const qrCodeUrl = useMemo(() => {
     if (payloadPix) {
-      return gerarQrCodePixUrl(payloadPix, 160);
+      return gerarQrCodePixUrl(payloadPix, 200);
     }
-    return `https://api.qrserver.com/v1/create-qr-code/?size=160x160&margin=4&data=${encodeURIComponent(chavePix || 'PIX')}`;
+    return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=4&data=${encodeURIComponent(chavePix || 'PIX')}`;
+  }, [payloadPix, chavePix]);
+
+  // QR Code em Alta Resolução para Tela Cheia
+  const qrCodeUrlGrande = useMemo(() => {
+    if (payloadPix) {
+      return gerarQrCodePixUrl(payloadPix, 360);
+    }
+    return `https://api.qrserver.com/v1/create-qr-code/?size=360x360&margin=4&data=${encodeURIComponent(chavePix || 'PIX')}`;
   }, [payloadPix, chavePix]);
 
   const copiarPayloadPix = () => {
@@ -352,7 +362,8 @@ export const ModalReceberPagamento = ({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <>
+      <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-xl p-0 overflow-hidden border shadow-2xl flex flex-col max-h-[92vh]">
         {/* Header Compacto */}
         <div className="bg-gradient-to-r from-emerald-600 to-teal-700 text-white px-4 py-2.5 flex items-center justify-between shrink-0">
@@ -373,18 +384,26 @@ export const ModalReceberPagamento = ({
 
         {/* Corpo com visualização direta e compacta */}
         <div className="p-3.5 space-y-2.5 overflow-y-auto flex-1">
-          {/* Box de Cobrança PIX Compacto */}
+          {/* Box de Cobrança PIX Otimizado */}
           {metodo === 'pix' && (
-            <div className="rounded-lg border border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/20 p-2 flex items-center gap-2.5">
-              <div className="bg-white p-1 rounded-md border border-emerald-200 dark:border-emerald-800 shadow-xs shrink-0 flex flex-col items-center">
+            <div className="rounded-lg border border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/20 p-2.5 flex items-center gap-3">
+              <div
+                onClick={() => setQrTelaCheiaOpen(true)}
+                className="bg-white p-1 rounded-lg border border-emerald-300 dark:border-emerald-700 shadow-xs shrink-0 flex flex-col items-center cursor-pointer group relative hover:border-emerald-500 hover:shadow-md transition-all"
+                title="Clique para ampliar / tela cheia"
+              >
                 <img
                   src={qrCodeUrl}
                   alt="QR Code PIX"
-                  className="w-16 h-16 object-contain"
+                  className="w-20 h-20 object-contain transition-transform group-hover:scale-105"
                 />
+                <div className="absolute inset-0 bg-black/45 rounded-lg opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-white text-[9px] font-bold transition-opacity">
+                  <Maximize2 className="h-4 w-4 mb-0.5 text-white" />
+                  Ampliar
+                </div>
               </div>
 
-              <div className="flex-1 min-w-0 space-y-1">
+              <div className="flex-1 min-w-0 space-y-1.5">
                 <div className="flex items-center justify-between gap-1 text-[11px]">
                   <div className="flex items-center gap-1.5 truncate">
                     <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white text-[9px] font-bold px-1 py-0 h-4 shrink-0">
@@ -401,7 +420,7 @@ export const ModalReceberPagamento = ({
                   )}
                 </div>
 
-                <div className="flex items-center gap-1.5">
+                <div className="flex flex-wrap items-center gap-1.5">
                   <Button
                     type="button"
                     size="sm"
@@ -414,6 +433,17 @@ export const ModalReceberPagamento = ({
                       : valNum > 0
                       ? `Copiar PIX (${formatMoney(valNum)})`
                       : 'Copiar PIX Copia e Cola'}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setQrTelaCheiaOpen(true)}
+                    className="h-6 text-[11px] font-semibold gap-1 px-2 border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10"
+                  >
+                    <Maximize2 className="h-3 w-3" />
+                    Tela Cheia
                   </Button>
 
                   <Button
@@ -728,5 +758,71 @@ export const ModalReceberPagamento = ({
         </div>
       </DialogContent>
     </Dialog>
+
+    {/* Modal de QR Code em Tela Cheia / Ampliado para o Paciente Escanear */}
+    <Dialog open={qrTelaCheiaOpen} onOpenChange={setQrTelaCheiaOpen}>
+      <DialogContent className="max-w-md p-6 border shadow-2xl text-center space-y-4">
+        <DialogHeader className="text-center sm:text-center">
+          <DialogTitle className="text-xl font-bold flex items-center justify-center gap-2 text-foreground">
+            <QrCode className="h-6 w-6 text-emerald-600" />
+            Pague com PIX
+          </DialogTitle>
+          <DialogDescription className="text-xs text-muted-foreground">
+            Aponte a câmera do aplicativo do seu banco para o QR Code abaixo
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex flex-col items-center justify-center p-4 bg-white rounded-2xl border-2 border-emerald-500/40 shadow-lg mx-auto w-fit">
+          <img
+            src={qrCodeUrlGrande}
+            alt="QR Code PIX Tela Cheia"
+            className="w-64 h-64 sm:w-72 sm:h-72 object-contain"
+          />
+          <span className="text-xs font-bold text-emerald-700 mt-2.5 uppercase tracking-wider flex items-center gap-1.5">
+            <Smartphone className="h-4 w-4" /> Leitura Automática no Banco
+          </span>
+        </div>
+
+        {valNum > 0 && (
+          <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-500/30 rounded-xl p-3 text-center">
+            <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide block">
+              Valor a Pagar
+            </span>
+            <span className="text-3xl font-black text-emerald-600 dark:text-emerald-400">
+              {formatMoney(valNum)}
+            </span>
+          </div>
+        )}
+
+        <div className="text-xs text-muted-foreground space-y-1 bg-muted/40 p-2.5 rounded-lg border text-left">
+          <div className="truncate">
+            <strong className="text-foreground">Favorecido:</strong> {favorecido}
+          </div>
+          <div className="font-mono text-[11px] text-muted-foreground truncate">
+            <strong className="text-foreground">Chave:</strong> {chavePix}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-center gap-2 pt-1">
+          <Button
+            type="button"
+            onClick={copiarPayloadPix}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-1.5 h-9 px-4 text-xs shadow-sm flex-1"
+          >
+            {copiouPayload ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+            {copiouPayload ? 'Código Copiado!' : 'Copiar Código PIX'}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setQrTelaCheiaOpen(false)}
+            className="h-9 text-xs"
+          >
+            Fechar
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 };
