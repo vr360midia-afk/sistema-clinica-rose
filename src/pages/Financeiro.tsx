@@ -98,6 +98,9 @@ const Financeiro = () => {
     });
   }, [transacoes, selectedMonth]);
 
+  // Alias seguro para evitar ReferenceError em qualquer contexto de renderização
+  const transacoesMes = filteredTransacoes;
+
   // Totais do Caixa Real (Efetivamente Pagos)
   const receitasPagas = filteredTransacoes.filter(t => t?.status === 'pago' && t?.tipo === 'receita');
   const totalReceived = receitasPagas.reduce((sum, t) => sum + Number(t?.valor || 0), 0);
