@@ -86,12 +86,27 @@ const Pacientes = () => {
   const [showProcedimentoForm, setShowProcedimentoForm] = useState(false);
   const [selectedProcedimento, setSelectedProcedimento] = useState<Procedimento | null>(null);
 
+  const handleSelectPatient = (patient: any) => {
+    setSelectedPatient(patient);
+    if (patient?.id) {
+      sessionStorage.setItem('dental_ultimo_paciente_id', patient.id);
+      searchParams.set('id', patient.id);
+      setSearchParams(searchParams, { replace: true });
+    }
+  };
+
   React.useEffect(() => {
-    const id = searchParams.get('id');
+    const idFromUrl = searchParams.get('id');
+    const idFromStorage = sessionStorage.getItem('dental_ultimo_paciente_id');
+    const id = idFromUrl || idFromStorage;
     if (id && pacientes.length > 0) {
       const patient = pacientes.find(p => p.id === id);
       if (patient) {
-        setSelectedPatient((prev) => prev?.id === id ? prev : patient);
+        setSelectedPatient((prev: any) => prev?.id === id ? prev : patient);
+        if (!idFromUrl) {
+          searchParams.set('id', id);
+          setSearchParams(searchParams, { replace: true });
+        }
       }
     }
   }, [searchParams, pacientes]);
@@ -170,9 +185,10 @@ const Pacientes = () => {
 
   const handleClosePatientDetails = () => {
     setSelectedPatient(null);
+    sessionStorage.removeItem('dental_ultimo_paciente_id');
     if (searchParams.get('id')) {
       searchParams.delete('id');
-      setSearchParams(searchParams);
+      setSearchParams(searchParams, { replace: true });
     }
   };
 
@@ -533,7 +549,7 @@ const Pacientes = () => {
                       >
                         <div 
                           className="flex-1 cursor-pointer"
-                          onClick={() => setSelectedPatient(paciente)}
+                          onClick={() => handleSelectPatient(paciente)}
                         >
                           <div className="flex items-center space-x-4">
                             <div className="flex-shrink-0">

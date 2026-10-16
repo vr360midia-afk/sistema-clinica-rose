@@ -41,8 +41,11 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
   }, [user?.id]);
 
 
-  const loadAllData = async () => {
-    setLoading(true);
+  const loadAllData = async (silencioso = false) => {
+    // Se já existirem dados na memória, atualiza em segundo plano SEM travar ou resetar as telas do usuário
+    if (!silencioso && pacientes.length === 0) {
+      setLoading(true);
+    }
 
     // Tenta 2x cada recurso e nunca derruba o carregamento inteiro por uma falha isolada
     const load = async <T,>(nome: string, fn: () => Promise<T>, fallback: T): Promise<{ nome: string; ok: boolean; data: T }> => {
@@ -51,14 +54,10 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
           return { nome, ok: true, data: await fn() };
         } catch (error: any) {
           if (error.message?.toLowerCase().includes('jwt expired')) {
-             toast.error('Sessão expirada. Faça login novamente.');
-             await signOut();
+             console.warn(`[DentalSystemContext] Token expirado ao carregar ${nome}, mantendo dados anteriores.`);
              return { nome, ok: false, data: fallback };
           }
           console.error(`Erro ao carregar ${nome} (tentativa ${tentativa + 1}):`, error);
-          if (tentativa === 1 && nome === 'pacientes') {
-            alert(`Erro crítico ao carregar ${nome}: ` + (error.message || JSON.stringify(error)));
-          }
           if (tentativa === 0) await new Promise(r => setTimeout(r, 600));
         }
       }

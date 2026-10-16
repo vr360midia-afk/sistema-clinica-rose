@@ -16,18 +16,24 @@ let refreshPromise: Promise<string | null> | null = null;
 async function silentRefreshToken(): Promise<string | null> {
   if (refreshPromise) return refreshPromise;
   refreshPromise = (async () => {
-    try {
-      const { data, error } = await supabase.auth.refreshSession();
-      if (!error && data?.session?.access_token) {
-        return data.session.access_token;
+    // Tenta até 3 vezes com pequenos intervalos (essencial para quando o app ou aba acorda do segundo plano)
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const { data, error } = await supabase.auth.refreshSession();
+        if (!error && data?.session?.access_token) {
+          return data.session.access_token;
+        }
+      } catch (e) {
+        console.warn(`[Supabase] Tentativa ${attempt + 1} de renovar token expirado falhou:`, e);
       }
-    } catch (e) {
-      console.warn('[Supabase] Falha ao renovar token expirado:', e);
-    } finally {
-      refreshPromise = null;
+      if (attempt < 2) {
+        await new Promise((r) => setTimeout(r, 600 * (attempt + 1)));
+      }
     }
     return null;
-  })();
+  })().finally(() => {
+    refreshPromise = null;
+  });
   return refreshPromise;
 }
 
@@ -69,11 +75,7 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
             headers.set('Authorization', `Bearer ${newToken}`);
             res = await fetch(input, { ...init, headers });
           } else {
-            console.warn('[Supabase] Sessão expirada no servidor e renovação indisponível.');
-            try { await supabase.auth.signOut(); } catch (_) {}
-            if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/auth')) {
-              window.location.href = '/auth?expired=1';
-            }
+            console.warn('[Supabase] Não foi possível renovar o token no momento (conexão em segundo plano ou instável).');
           }
         }
       } catch (err) {

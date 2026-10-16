@@ -20,27 +20,61 @@ const defaultPermissions: UserPermissions = {
   configuracoes: true,
 };
 
+// Cache em memória compartilhado entre todas as rotas e componentes
+let cachedPermissions: { userId: string; permissoes: UserPermissions; isOwner: boolean } | null = null;
+
+const getInitialPermissions = (userId?: string): { permissoes: UserPermissions; isOwner: boolean; hasCache: boolean } => {
+  if (!userId) {
+    return { permissoes: defaultPermissions, isOwner: true, hasCache: false };
+  }
+  if (cachedPermissions && cachedPermissions.userId === userId) {
+    return { permissoes: cachedPermissions.permissoes, isOwner: cachedPermissions.isOwner, hasCache: true };
+  }
+  try {
+    const raw = sessionStorage.getItem(`dental_perms_${userId}`);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.permissoes) {
+        cachedPermissions = { userId, permissoes: parsed.permissoes, isOwner: Boolean(parsed.isOwner) };
+        return { permissoes: parsed.permissoes, isOwner: Boolean(parsed.isOwner), hasCache: true };
+      }
+    }
+  } catch (_) {}
+  return { permissoes: defaultPermissions, isOwner: true, hasCache: false };
+};
+
 export const usePermissoes = () => {
-  const { user, clinicaId } = useAuth();
-  const [permissoes, setPermissoes] = useState<UserPermissions>(defaultPermissions);
-  const [loading, setLoading] = useState(true);
-  const [isOwner, setIsOwner] = useState(true);
+  const { user } = useAuth();
+  const userId = user?.id;
+
+  const initial = getInitialPermissions(userId);
+  const [permissoes, setPermissoes] = useState<UserPermissions>(initial.permissoes);
+  const [isOwner, setIsOwner] = useState(initial.isOwner);
+  // Se já temos permissões carregadas (em memória ou sessionStorage), NÃO trava a rota com loading = true
+  const [loading, setLoading] = useState(!initial.hasCache);
 
   useEffect(() => {
-    if (!user) {
+    if (!userId) {
       setPermissoes(defaultPermissions);
       setLoading(false);
       return;
     }
 
+    // Se já temos cache para este usuário, faz a atualização em segundo plano SEM desmontar as telas
+    const hasCache = Boolean(cachedPermissions && cachedPermissions.userId === userId);
+    if (!hasCache) {
+      setLoading(true);
+    }
+
+    let isMounted = true;
+
     const loadPermissions = async () => {
       try {
-        setLoading(true);
         // Verifica se o usuário atual é funcionário de alguma clínica
         const { data, error } = await supabase
           .from('equipe')
           .select('permissoes, clinica_id')
-          .eq('usuario_id', user.id)
+          .eq('usuario_id', userId)
           .maybeSingle();
 
         if (error) {
@@ -48,28 +82,46 @@ export const usePermissoes = () => {
           return;
         }
 
+        if (!isMounted) return;
+
+        let finalPerms = defaultPermissions;
+        let finalIsOwner = true;
+
         if (data) {
           // É um funcionário
-          setIsOwner(false);
-          // Fazer merge com defaultPermissions para garantir que todas as chaves existam
-          setPermissoes({
+          finalIsOwner = false;
+          finalPerms = {
             ...defaultPermissions,
             ...((data.permissoes as unknown) as Partial<UserPermissions>)
-          });
+          };
         } else {
           // É o dono da clínica
-          setIsOwner(true);
-          setPermissoes(defaultPermissions);
+          finalIsOwner = true;
+          finalPerms = defaultPermissions;
         }
+
+        cachedPermissions = { userId, permissoes: finalPerms, isOwner: finalIsOwner };
+        try {
+          sessionStorage.setItem(`dental_perms_${userId}`, JSON.stringify({ permissoes: finalPerms, isOwner: finalIsOwner }));
+        } catch (_) {}
+
+        setIsOwner(finalIsOwner);
+        setPermissoes(finalPerms);
       } catch (err) {
         console.error('Exceção ao carregar permissões:', err);
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
     loadPermissions();
-  }, [user]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [userId]);
 
   return { permissoes, loading, isOwner };
 };

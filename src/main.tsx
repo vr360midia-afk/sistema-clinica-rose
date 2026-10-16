@@ -4,9 +4,17 @@ import './index.css';
 import ErrorBoundary from './components/common/ErrorBoundary.tsx';
 
 // Lida com atualização de chunks após novos deploys do Vite
-window.addEventListener('vite:preloadError', () => {
-  console.warn('Vite preload error detectado (nova versão disponível). Recarregando...');
-  window.location.reload();
+window.addEventListener('vite:preloadError', (event) => {
+  console.warn('Vite preload error detectado:', event);
+  // Apenas recarrega se a aplicação falhou antes de montar (evita resetar trabalho em andamento)
+  const root = document.getElementById('root');
+  if (root && (!root.hasChildNodes() || root.children.length === 0)) {
+    const lastReload = Number(sessionStorage.getItem('last_preload_reload') || 0);
+    if (Date.now() - lastReload > 15000) {
+      sessionStorage.setItem('last_preload_reload', String(Date.now()));
+      window.location.reload();
+    }
+  }
 });
 
 // Captura erros globais não tratados, ignorando erros externos inofensivos
@@ -25,9 +33,7 @@ window.addEventListener('error', (event) => {
     msg.includes('Loading chunk') ||
     msg.includes('Failed to fetch dynamically imported module')
   ) {
-    if (msg.includes('Loading chunk') || msg.includes('Failed to fetch dynamically imported module')) {
-      window.location.reload();
-    }
+    console.warn('Erro de carregamento transitório ignorado:', msg);
     return;
   }
 

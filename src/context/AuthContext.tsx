@@ -53,14 +53,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       setSession(activeSession);
-      setUser(activeSession?.user ?? null);
+      setUser((prevUser) => {
+        if (!activeSession?.user) return null;
+        if (
+          prevUser &&
+          prevUser.id === activeSession.user.id &&
+          prevUser.email === activeSession.user.email &&
+          prevUser.updated_at === activeSession.user.updated_at
+        ) {
+          return prevUser; // Preserva a mesma referência de objeto se nada mudou no usuário!
+        }
+        return activeSession.user;
+      });
 
       if (activeSession?.user?.id) {
-        try {
-          const { data, error } = await supabase.rpc('clinica_id');
-          setClinicaId(data && !error ? (data as string) : activeSession.user.id);
-        } catch {
-          setClinicaId(activeSession.user.id);
+        const cacheClinicaKey = `dental_clinica_id_${activeSession.user.id}`;
+        const cachedClinica = localStorage.getItem(cacheClinicaKey);
+        if (cachedClinica) {
+          setClinicaId(cachedClinica);
+        } else {
+          try {
+            const { data, error } = await supabase.rpc('clinica_id');
+            const finalId = data && !error ? (data as string) : activeSession.user.id;
+            localStorage.setItem(cacheClinicaKey, finalId);
+            setClinicaId(finalId);
+          } catch {
+            setClinicaId(activeSession.user.id);
+          }
         }
       } else {
         setClinicaId(null);

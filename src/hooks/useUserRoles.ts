@@ -11,23 +11,56 @@ export const ROLE_LABELS: Record<AppRole, string> = {
   recepcao: 'Recepção',
 };
 
+// Cache em memória compartilhado para perfis
+let cachedRoles: { targetId: string; roles: AppRole[] } | null = null;
+
+const getInitialRoles = (targetId?: string): { roles: AppRole[]; hasCache: boolean } => {
+  if (!targetId) return { roles: [], hasCache: false };
+  if (cachedRoles && cachedRoles.targetId === targetId) {
+    return { roles: cachedRoles.roles, hasCache: true };
+  }
+  try {
+    const raw = sessionStorage.getItem(`dental_roles_${targetId}`);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        cachedRoles = { targetId, roles: parsed };
+        return { roles: parsed, hasCache: true };
+      }
+    }
+  } catch (_) {}
+  return { roles: [], hasCache: false };
+};
+
 export const useUserRoles = () => {
   const { user, clinicaId } = useAuth();
-  const [roles, setRoles] = useState<AppRole[]>([]);
-  const [loading, setLoading] = useState(true);
+  const targetId = clinicaId || user?.id || '';
+
+  const initial = getInitialRoles(targetId);
+  const [roles, setRoles] = useState<AppRole[]>(initial.roles);
+  const [loading, setLoading] = useState(!initial.hasCache && Boolean(targetId));
 
   const load = useCallback(async () => {
-    if (!user) {
+    if (!targetId) {
       setRoles([]);
       setLoading(false);
       return;
     }
-    setLoading(true);
-    const { data, error } = await supabase.from('user_roles').select('role').eq('user_id', clinicaId);
+    // Se não temos cache, mostra o loading inicial; se temos cache, atualiza silenciosamente em segundo plano
+    const hasCache = Boolean(cachedRoles && cachedRoles.targetId === targetId);
+    if (!hasCache) {
+      setLoading(true);
+    }
+    const { data, error } = await supabase.from('user_roles').select('role').eq('user_id', targetId);
     if (error) console.error('Erro ao carregar perfis:', error);
-    setRoles(((data || []).map((r: any) => r.role) as AppRole[]) || []);
+    const parsedRoles = ((data || []).map((r: any) => r.role) as AppRole[]) || [];
+    cachedRoles = { targetId, roles: parsedRoles };
+    try {
+      sessionStorage.setItem(`dental_roles_${targetId}`, JSON.stringify(parsedRoles));
+    } catch (_) {}
+    setRoles(parsedRoles);
     setLoading(false);
-  }, [user]);
+  }, [targetId]);
 
   useEffect(() => {
     load();

@@ -25,6 +25,17 @@ interface PatientDetailsProps {
 }
 
 const PatientDetails = ({ patient, onClose, onEdit, onSchedule, onAddProcedimento }: PatientDetailsProps) => {
+  const [activeTab, setActiveTab] = React.useState<string>(() => {
+    return (patient?.id && sessionStorage.getItem(`dental_tab_${patient.id}`)) || 'personal';
+  });
+
+  const handleTabChange = (val: string) => {
+    setActiveTab(val);
+    if (patient?.id) {
+      sessionStorage.setItem(`dental_tab_${patient.id}`, val);
+    }
+  };
+
   const renderStatusBadge = (status?: string) => {
     switch (status) {
       case 'Ativo':
@@ -92,7 +103,7 @@ const PatientDetails = ({ patient, onClose, onEdit, onSchedule, onAddProcediment
         </div>
       </div>
 
-      <Tabs defaultValue="personal" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
         <TabsList className="flex overflow-x-auto sm:grid w-full sm:grid-cols-4 lg:grid-cols-8 h-auto p-1 gap-1 border border-border bg-muted/60">
           <TabsTrigger value="personal" className="flex items-center gap-1.5 shrink-0 text-xs py-2">
             <User className="h-4 w-4" />
