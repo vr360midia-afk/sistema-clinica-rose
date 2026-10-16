@@ -562,9 +562,9 @@ const PatientOrcamentos = ({ patient }: Props) => {
     try {
       setLancandoFinanceiro(true);
       await updateStatus(o.id, 'aprovado');
-      if (updatePaciente && patient?.id) {
+      if (updatePaciente && (patient?.id || o.pacienteId)) {
         try {
-          await updatePaciente(patient.id, { status: 'Em Tratamento' });
+          await updatePaciente(patient?.id || o.pacienteId, { status: 'Em Tratamento' });
         } catch (errP) {
           console.error('Erro ao atualizar status do paciente para Em Tratamento:', errP);
         }
@@ -574,7 +574,6 @@ const PatientOrcamentos = ({ patient }: Props) => {
         // Remove apenas transações pendentes vinculadas a este orçamento para atualizar parcelas, PRESERVANDO transações já pagas/recebidas!
         const existentes = (transacoes || []).filter((t: any) => t.orcamentoId === o.id);
         const jaPagas = existentes.filter((t: any) => t.status === 'pago');
-        const totalJaPago = jaPagas.reduce((acc: number, t: any) => acc + Number(t.valor || 0), 0);
 
         for (const t of existentes) {
           if (t.status !== 'pago') {
@@ -587,7 +586,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
         }
 
         const snap = mapearDadosContrato({
-          patient,
+          patient: patient || { id: o.pacienteId, nome: o.pacienteNome },
           orcamento: o,
           transacoes: [],
           configuracoes,
@@ -609,13 +608,25 @@ const PatientOrcamentos = ({ patient }: Props) => {
           if (jaExistePaga) {
             continue;
           }
-          if (p.vencimento && p.vencimento.includes('/')) {
-            const [dia, mes, ano] = p.vencimento.split('/');
-            dataVenc = new Date(Number(ano), Number(mes) - 1, Number(dia), 12, 0, 0);
-          } else {
+
+          let dataVenc: Date = new Date();
+          if (p.vencimento && typeof p.vencimento === 'string') {
+            const dateMatch = p.vencimento.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+            if (dateMatch) {
+              const [, dia, mes, ano] = dateMatch;
+              dataVenc = new Date(Number(ano), Number(mes) - 1, Number(dia), 12, 0, 0);
+            } else if (p.vencimento.includes('-')) {
+              const parsed = new Date(p.vencimento);
+              if (!isNaN(parsed.getTime())) dataVenc = parsed;
+            }
+          }
+          if (isNaN(dataVenc.getTime())) {
             const parcIdxMatch = (p.descricao || '').match(/\((\d+)\/\d+/);
             const mesOffset = parcIdxMatch ? Number(parcIdxMatch[1]) : (typeof p.numero === 'number' ? p.numero : 1);
             dataVenc = somarMesesSeguro(new Date(), mesOffset);
+          }
+          if (isNaN(dataVenc.getTime())) {
+            dataVenc = new Date();
           }
 
           // Identifica o método específico desta parcela dinamicamente
@@ -646,7 +657,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
             const infoCartao = extrairDetalhesCartaoDeTexto(
               `${o.formasPagamento || ''} ${p.descricao || ''}`,
               operadoras,
-              configMaquinas.operadoraPadraoId
+              configMaquinas?.operadoraPadraoId
             );
             const op = infoCartao.operadora || operadoraPadrao;
             operadoraTaxasNome = op?.nome || 'Cartão';
@@ -658,9 +669,13 @@ const PatientOrcamentos = ({ patient }: Props) => {
             totalTaxasCartao += calc.taxaValor;
           }
 
+          const pacId = patient?.id || o.pacienteId || '';
+          const pacNome = patient?.nome || o.pacienteNome || '';
+
           await addTransacao({
-            pacienteId: patient.id,
-            valor: p.valor,
+            pacienteId: pacId,
+            pacienteNome: pacNome,
+            valor: Number(p.valor || 0),
             tipo: 'receita',
             status: isQuitada ? 'pago' : 'pendente',
             metodoPagamento: metodoFinal,
@@ -676,17 +691,21 @@ const PatientOrcamentos = ({ patient }: Props) => {
         }
 
         // Lança taxa da máquina de cartão como despesa se configurado e houver taxa calculada
-        if (configMaquinas.lancarTaxaComoDespesa !== false && totalTaxasCartao > 0) {
-          const catDespesa = configMaquinas.categoriaDespesaPadrao || 'Taxas de Cartão';
+        if (configMaquinas?.lancarTaxaComoDespesa !== false && totalTaxasCartao > 0) {
+          const catDespesa = configMaquinas?.categoriaDespesaPadrao || 'Taxas de Cartão';
+          const pacId = patient?.id || o.pacienteId || '';
+          const pacNome = patient?.nome || o.pacienteNome || '';
+
           await addTransacao({
-            pacienteId: patient.id,
+            pacienteId: pacId,
+            pacienteNome: pacNome,
             valor: Number(totalTaxasCartao.toFixed(2)),
             tipo: 'despesa',
             status: 'pago',
             metodoPagamento: 'cartao',
             data: new Date(),
             vencimento: new Date(),
-            descricao: `Taxa da Máquina (${operadoraTaxasNome}) - Orçamento: ${o.titulo}`,
+            descricao: `Taxa da Máquina (${operadoraTaxasNome || 'Cartão'}) - Orçamento: ${o.titulo}`,
             categoria: catDespesa,
             orcamentoId: o.id,
           });
@@ -701,7 +720,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
       }
     } catch (err: any) {
       console.error('Erro ao aprovar orçamento:', err);
-      toast.error('Erro ao aprovar orçamento ou lançar parcelas');
+      toast.error('Erro ao aprovar orçamento ou lançar parcelas: ' + (err?.message || 'Verifique os dados.'));
     } finally {
       setLancandoFinanceiro(false);
       setAprovandoOrcamento(null);
