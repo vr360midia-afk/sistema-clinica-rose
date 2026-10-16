@@ -99,6 +99,16 @@ export const ModalReceberPagamento = ({
         } else {
           setMetodo('pix');
         }
+
+        // Auto-detecta operadora do cartão da transação ou descrição
+        const tDescLower = `${transacaoPendente.descricao || ''} ${transacaoPendente.operadoraCartao || ''}`.toLowerCase();
+        if (tDescLower.includes('pagbank') || tDescLower.includes('pagseguro') || tDescLower.includes('pag bank')) {
+          setSelectedOperadoraId('pagbank');
+          setMistoOperadoraCartaoId('pagbank');
+        } else if (tDescLower.includes('infinite')) {
+          setSelectedOperadoraId('infinitepay');
+          setMistoOperadoraCartaoId('infinitepay');
+        }
       } else {
         setPacienteId(pacientePredefinidoId || '');
         setOrcamentoId(orcamentoIdPredefinido || 'nenhum');
@@ -310,6 +320,15 @@ export const ModalReceberPagamento = ({
         ) {
           setDescricao(`Recebimento - ${orc.titulo}`);
         }
+        // Auto-detecta operadora da maquininha a partir do orçamento
+        const formasTexto = `${orc.formasPagamento || ''} ${orc.titulo || ''}`.toLowerCase();
+        if (formasTexto.includes('pagbank') || formasTexto.includes('pagseguro') || formasTexto.includes('pag bank')) {
+          setSelectedOperadoraId('pagbank');
+          setMistoOperadoraCartaoId('pagbank');
+        } else if (formasTexto.includes('infinite') || formasTexto.includes('infinitepay')) {
+          setSelectedOperadoraId('infinitepay');
+          setMistoOperadoraCartaoId('infinitepay');
+        }
       }
     } else {
       if (descricao.startsWith('Recebimento - ')) {
@@ -380,6 +399,7 @@ export const ModalReceberPagamento = ({
             tipo: 'receita' as const,
             status: 'pago' as const,
             metodoPagamento: 'cartao',
+            operadoraCartao: mistoOperadoraCartaoId,
             valor: mistoValCartaoNum,
             data: dataObj,
             descricao: `${descricao.trim() || 'Recebimento'} (Cartão ${mistoParcelasCartao}x ${mistoCalculoCartao?.operadora?.nome || ''})`,
@@ -402,6 +422,7 @@ export const ModalReceberPagamento = ({
               tipo: 'despesa' as const,
               status: 'pago' as const,
               metodoPagamento: 'cartao',
+              operadoraCartao: mistoOperadoraCartaoId,
               data: dataObj,
               vencimento: dataObj,
               descricao: `Taxa da Máquina (${mistoCalculoCartao.operadora?.nome || 'Cartão'}) - ${descricao.trim() || 'Recebimento'}`,
@@ -466,6 +487,7 @@ export const ModalReceberPagamento = ({
           updates.orcamentoId = orcIdFinal;
         }
         if (metodo === 'cartao' && calculoCartao) {
+          updates.operadoraCartao = selectedOperadoraId;
           updates.taxaCartaoPercentual = calculoCartao.taxaPerc;
           updates.taxaCartaoValor = calculoCartao.taxaValor;
           updates.valorLiquido = calculoCartao.valorLiquido;
@@ -480,6 +502,7 @@ export const ModalReceberPagamento = ({
               tipo: 'despesa' as const,
               status: 'pago' as const,
               metodoPagamento: 'cartao',
+              operadoraCartao: selectedOperadoraId,
               data: dataObj,
               vencimento: dataObj,
               descricao: `Taxa da Máquina (${calculoCartao.operadora?.nome || 'Cartão'}) - ${descricao.trim() || 'Recebimento'}`,
@@ -506,6 +529,7 @@ export const ModalReceberPagamento = ({
           orcamentoId: orcIdFinal,
         };
         if (metodo === 'cartao' && calculoCartao) {
+          novaData.operadoraCartao = selectedOperadoraId;
           novaData.taxaCartaoPercentual = calculoCartao.taxaPerc;
           novaData.taxaCartaoValor = calculoCartao.taxaValor;
           novaData.valorLiquido = calculoCartao.valorLiquido;

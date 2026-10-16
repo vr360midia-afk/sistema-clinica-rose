@@ -672,6 +672,9 @@ const PatientOrcamentos = ({ patient }: Props) => {
           let taxaValorItem: number | undefined = undefined;
           let liquidoItem: number | undefined = undefined;
 
+          let opItem: any = undefined;
+          let operadoraTaxasNomeItem = '';
+
           if (isCartao) {
             const infoCartao = extrairDetalhesCartaoDeTexto(
               `${o.formasPagamento || ''} ${p.descricao || ''}`,
@@ -679,7 +682,9 @@ const PatientOrcamentos = ({ patient }: Props) => {
               configMaquinas?.operadoraPadraoId
             );
             const op = infoCartao.operadora || operadoraPadrao;
+            opItem = op;
             operadoraTaxasNome = op?.nome || 'Cartão';
+            operadoraTaxasNomeItem = op?.nome || 'Cartão';
 
             const calc = calcularTaxaCartao(op, infoCartao.parcelas, Number(p.valor || 0), infoCartao.isDebito);
             taxaPercItem = calc.taxaPercentual;
@@ -691,6 +696,14 @@ const PatientOrcamentos = ({ patient }: Props) => {
           const pacId = patient?.id || o.pacienteId || '';
           const pacNome = patient?.nome || o.pacienteNome || '';
 
+          const opIdDetectado = isCartao && opItem
+            ? (opItem.id || (opItem.nome?.toLowerCase().includes('pag') ? 'pagbank' : 'infinitepay'))
+            : undefined;
+
+          const descCompleta = isCartao && operadoraTaxasNomeItem
+            ? `${o.titulo}: ${p.descricao} (${operadoraTaxasNomeItem})`
+            : `${o.titulo}: ${p.descricao}`;
+
           await addTransacao({
             pacienteId: pacId,
             pacienteNome: pacNome,
@@ -700,9 +713,10 @@ const PatientOrcamentos = ({ patient }: Props) => {
             metodoPagamento: metodoFinal,
             data: new Date(),
             vencimento: dataVenc,
-            descricao: `${o.titulo}: ${p.descricao}`,
+            descricao: descCompleta,
             categoria: 'Tratamentos',
             orcamentoId: o.id,
+            operadoraCartao: opIdDetectado,
             taxaCartaoPercentual: taxaPercItem,
             taxaCartaoValor: taxaValorItem,
             valorLiquido: liquidoItem,
@@ -714,6 +728,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
           const catDespesa = configMaquinas?.categoriaDespesaPadrao || 'Taxas de Cartão';
           const pacId = patient?.id || o.pacienteId || '';
           const pacNome = patient?.nome || o.pacienteNome || '';
+          const opIdDespesa = operadoraTaxasNome?.toLowerCase().includes('pag') ? 'pagbank' : 'infinitepay';
 
           await addTransacao({
             pacienteId: pacId,
@@ -727,6 +742,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
             descricao: `Taxa da Máquina (${operadoraTaxasNome || 'Cartão'}) - Orçamento: ${o.titulo}`,
             categoria: catDespesa,
             orcamentoId: o.id,
+            operadoraCartao: opIdDespesa,
           });
           toast.success(
             `Orçamento aprovado! Receitas geradas e taxa de ${formatMoney(totalTaxasCartao)} da maquininha (${operadoraTaxasNome}) lançada como DESPESA!`
