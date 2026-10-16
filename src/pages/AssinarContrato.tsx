@@ -390,7 +390,7 @@ export default function AssinarContrato() {
       chave: snapshot.clinica.chavePix,
       tipoChave: snapshot.clinica.tipoChavePix,
       nomeFavorecido: snapshot.clinica.favorecidoPix || snapshot.clinica.nome,
-      cidade: snapshot.clinica.cidade || 'SAO PAULO',
+      cidade: (snapshot.clinica.cidade && !snapshot.clinica.cidade.toUpperCase().includes('SAO PAULO')) ? snapshot.clinica.cidade : 'MACEIO',
       valor: valorPixContrato > 0 ? valorPixContrato : undefined,
       descricao: `Contrato ${snapshot.numero || ''}`.trim(),
     });

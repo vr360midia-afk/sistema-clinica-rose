@@ -50,7 +50,7 @@ export const Inadimplencia = () => {
   const chavePix = configContrato?.chavePix || configuracoes?.telefone || configuracoes?.cnpj || '';
   const tipoChave = configContrato?.tipoChavePix;
   const nomeClinica = configContrato?.favorecidoPix || configuracoes?.nomeClinica || 'Clínica Odontológica';
-  const cidade = configuracoes?.cidade || 'SAO PAULO';
+  const cidade = (configuracoes?.cidade && !configuracoes.cidade.toUpperCase().includes('SAO PAULO')) ? configuracoes.cidade : 'MACEIO';
 
   // Processa todas as receitas pendentes com datas
   const todasPendentes = useMemo(() => {

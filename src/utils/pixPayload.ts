@@ -120,7 +120,7 @@ export const gerarPayloadPix = ({
   chave,
   tipoChave,
   nomeFavorecido = 'Clinica Odontologica',
-  cidade = 'SAO PAULO',
+  cidade = 'MACEIO',
   valor,
   txId,
   descricao,
@@ -169,7 +169,8 @@ export const gerarPayloadPix = ({
   payload += formatarTLV('59', nomeNorm);
 
   // 60: Merchant City (Cidade, max 15 chars)
-  const cidadeNorm = removerAcentos(cidade).slice(0, 15) || 'BRASIL';
+  const cidadeLimpa = (!cidade || cidade.toUpperCase().includes('SAO PAULO')) ? 'MACEIO' : cidade;
+  const cidadeNorm = removerAcentos(cidadeLimpa).slice(0, 15) || 'MACEIO';
   payload += formatarTLV('60', cidadeNorm);
 
   // 62: Additional Data Field Template

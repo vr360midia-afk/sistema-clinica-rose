@@ -199,7 +199,7 @@ const formatarData = (d: Date | string | undefined | null): string => {
   return data.toLocaleDateString('pt-BR');
 };
 
-export const formatarDataPorExtenso = (d: Date = new Date(), cidade = 'São Paulo'): string => {
+export const formatarDataPorExtenso = (d: Date = new Date(), cidade = 'Maceió'): string => {
   const meses = [
     'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
     'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'
@@ -580,7 +580,7 @@ export const mapearDadosContrato = ({
   configuracoesContrato,
   dentistaNome,
   dentistaCro,
-  cidadeLocal = 'São Paulo',
+  cidadeLocal = 'Maceió',
   incluiLentesResina,
   tipoModeloContrato,
   dadosRestauracoesPreexistentes,
@@ -624,9 +624,12 @@ export const mapearDadosContrato = ({
     estadoCivil: temValorValido(patient?.estadoCivil) ? String(patient.estadoCivil).trim() : '',
   };
 
-  const cidadeDefinida = cidadeLocal && cidadeLocal !== 'São Paulo'
+  const cidadeLimpa = cidadeLocal && !cidadeLocal.toLowerCase().includes('são paulo') && !cidadeLocal.toLowerCase().includes('sao paulo')
     ? cidadeLocal
-    : (cfgContrato.cidadeForoContrato || cidadeLocal || 'São Paulo');
+    : (cfgContrato.cidadeForoContrato || 'Maceió');
+  const cidadeDefinida = cidadeLimpa && !cidadeLimpa.toLowerCase().includes('são paulo') && !cidadeLimpa.toLowerCase().includes('sao paulo')
+    ? cidadeLimpa
+    : 'Maceió';
 
   // 2. Dados da Clínica / Responsável Técnico
   const dadosClinica: ContratoDadosClinica = {
@@ -1671,7 +1674,7 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
           chave: chavePixContrato,
           tipoChave: clinica.tipoChavePix,
           nomeFavorecido: clinica.favorecidoPix || clinica.nome,
-          cidade: clinica.cidade || 'SAO PAULO',
+          cidade: (clinica.cidade && !clinica.cidade.toUpperCase().includes('SAO PAULO')) ? clinica.cidade : 'MACEIO',
           valor: valorPixContrato,
           descricao: `Contrato ${numIdContrato}`.trim(),
         }) : '';

@@ -109,7 +109,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
 
   const [selectedOrcamentoId, setSelectedOrcamentoId] = useState<string>('');
   const [selectedDentistaNome, setSelectedDentistaNome] = useState<string>('');
-  const [cidadeLocal, setCidadeLocal] = useState<string>('São Paulo');
+  const [cidadeLocal, setCidadeLocal] = useState<string>('Maceió');
 
   const [salvando, setSalvando] = useState<boolean>(false);
   const [baixandoPdf, setBaixandoPdf] = useState<boolean>(false);
@@ -150,6 +150,18 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
       setSelectedDentistaNome(dentistas[0].nome);
     }
   }, [dentistas, selectedDentistaNome]);
+
+  // Cidade da Comarca / Foro padrão (sempre Maceió por padrão ou o configurado no modelo de contrato)
+  useEffect(() => {
+    const cidadeConfig = (configContrato?.cidadeForoContrato || '').trim();
+    const cidadeFinal = cidadeConfig && !cidadeConfig.toLowerCase().includes('são paulo') && !cidadeConfig.toLowerCase().includes('sao paulo')
+      ? cidadeConfig
+      : 'Maceió';
+
+    if (!cidadeLocal || cidadeLocal.toLowerCase().includes('são paulo') || cidadeLocal.toLowerCase().includes('sao paulo')) {
+      setCidadeLocal(cidadeFinal);
+    }
+  }, [configContrato?.cidadeForoContrato, cidadeLocal]);
 
   // Atalho para sair da tela cheia com a tecla ESC
   useEffect(() => {
@@ -991,7 +1003,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                       type="text"
                       value={cidadeLocal}
                       onChange={(e) => setCidadeLocal(e.target.value)}
-                      placeholder="São Paulo"
+                      placeholder="Maceió"
                       className="h-9 text-xs border-border bg-background text-foreground"
                     />
                   </div>

@@ -53,7 +53,7 @@ const LembretesPix = () => {
       chave: chavePix,
       tipoChave: configContrato?.tipoChavePix,
       nomeFavorecido: configContrato?.favorecidoPix || configuracoes?.nomeClinica || 'Clinica',
-      cidade: configuracoes?.cidade || 'SAO PAULO',
+      cidade: (configuracoes?.cidade && !configuracoes.cidade.toUpperCase().includes('SAO PAULO')) ? configuracoes.cidade : 'MACEIO',
       valor: t.valor,
       descricao: t.descricao ? t.descricao.slice(0, 30) : 'Parcela Tratamento',
     }) : '';
@@ -86,7 +86,7 @@ const LembretesPix = () => {
         chave: chavePix,
         tipoChave: configContrato?.tipoChavePix,
         nomeFavorecido: configContrato?.favorecidoPix || configuracoes?.nomeClinica || 'Clinica',
-        cidade: configuracoes?.cidade || 'SAO PAULO',
+        cidade: (configuracoes?.cidade && !configuracoes.cidade.toUpperCase().includes('SAO PAULO')) ? configuracoes.cidade : 'MACEIO',
         valor: t.valor,
         descricao: t.descricao ? t.descricao.slice(0, 30) : 'Parcela',
       });

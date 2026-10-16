@@ -170,7 +170,7 @@ export const ModalReceberPagamento = ({
   const chavePix = configContrato?.chavePix || configuracoes?.telefone || configuracoes?.cnpj || '';
   const tipoChave = configContrato?.tipoChavePix;
   const favorecido = configContrato?.favorecidoPix || configuracoes?.nomeClinica || 'Clínica Odontológica';
-  const cidade = configuracoes?.cidade || 'SAO PAULO';
+  const cidade = (configuracoes?.cidade && !configuracoes.cidade.toUpperCase().includes('SAO PAULO')) ? configuracoes.cidade : 'MACEIO';
 
   const valNum = parseFloat(valor) || 0;
 
