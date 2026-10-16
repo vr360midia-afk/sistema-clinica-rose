@@ -21,7 +21,8 @@ import Inadimplencia from '@/components/financeiro/Inadimplencia';
 import OrcamentosAbertos from '@/components/financeiro/OrcamentosAbertos';
 import { FinanceiroDRE } from '@/components/financeiro/FinanceiroDRE';
 import { RaioXMaquininhas } from '@/components/financeiro/RaioXMaquininhas';
-import { gerarRecibo } from '@/utils/recibo';
+import { gerarRecibo, ReciboDados } from '@/utils/recibo';
+import { ReciboModal } from '@/components/financeiro/ReciboModal';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { useOrcamentos } from '@/hooks/useOrcamentos';
 import { useMaquinasCartao, calcularTaxaCartao } from '@/hooks/useMaquinasCartao';
@@ -42,6 +43,8 @@ const Financeiro = () => {
   const [editingTransacao, setEditingTransacao] = useState<any | null>(null);
   const [showModalReceber, setShowModalReceber] = useState(false);
   const [transacaoParaReceber, setTransacaoParaReceber] = useState<Transacao | null>(null);
+  const [reciboModalOpen, setReciboModalOpen] = useState(false);
+  const [reciboSelecionado, setReciboSelecionado] = useState<ReciboDados | null>(null);
 
   // Filtros
   const [selectedMonth, setSelectedMonth] = useState(() => {
@@ -206,24 +209,20 @@ const Financeiro = () => {
     return paciente?.nome || 'Paciente não informado';
   };
 
-  const emitirRecibo = async (transacao: any) => {
-    const t = toast.loading('Gerando recibo oficial...');
-    const ok = await gerarRecibo(
-      {
-        numero: String(transacao.id).slice(0, 8).toUpperCase(),
-        pacienteNome: transacao.pacienteNome || getPacienteName(transacao.pacienteId),
-        descricao: transacao.descricao,
-        valor: Number(transacao.valor || 0),
-        data: transacao.data,
-        metodoPagamento: transacao.metodoPagamento,
-        parcelas: transacao.parcelas,
-        valorParcela: transacao.valorParcela,
-      },
-      configuracoes
-    );
-    toast.dismiss(t);
-    if (ok) toast.success('Recibo baixado!');
-    else toast.error('Não foi possível gerar o recibo');
+  const emitirRecibo = (transacao: any) => {
+    const paciente = pacientes.find(p => p.id === transacao.pacienteId);
+    setReciboSelecionado({
+      numero: String(transacao.id).slice(0, 8).toUpperCase(),
+      pacienteNome: transacao.pacienteNome || getPacienteName(transacao.pacienteId),
+      pacienteCpf: paciente?.cpf || transacao.pacienteCpf || '',
+      descricao: transacao.descricao || 'Tratamento odontológico prestado',
+      valor: Number(transacao.valor || 0),
+      data: transacao.data || new Date(),
+      metodoPagamento: transacao.metodoPagamento || 'pix',
+      parcelas: transacao.parcelas,
+      valorParcela: transacao.valorParcela,
+    });
+    setReciboModalOpen(true);
   };
 
   // Filtragem avançada para a tabela de fluxo de caixa
@@ -790,6 +789,19 @@ const Financeiro = () => {
           }}
           transacaoPendente={transacaoParaReceber}
         />
+
+        {/* Modal Oficial de Emissão de Recibo Premium */}
+        {reciboSelecionado && (
+          <ReciboModal
+            isOpen={reciboModalOpen}
+            onClose={() => {
+              setReciboModalOpen(false);
+              setReciboSelecionado(null);
+            }}
+            dados={reciboSelecionado}
+            clinica={configuracoes}
+          />
+        )}
       </div>
     </Layout>
   );

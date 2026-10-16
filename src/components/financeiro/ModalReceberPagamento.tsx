@@ -453,6 +453,7 @@ export const ModalReceberPagamento = ({
               {
                 numero: String(Date.now()).slice(-8).toUpperCase(),
                 pacienteNome: pacienteObj.nome,
+                pacienteCpf: pacienteObj.cpf,
                 descricao:
                   descricao ||
                   (orcIdFinal ? `Pagamento - ${orcamentoSelecionado?.titulo || 'Tratamento'}` : 'Tratamento odontológico'),
@@ -550,6 +551,7 @@ export const ModalReceberPagamento = ({
             {
               numero: String(transacaoFinal?.id || Date.now()).slice(0, 8).toUpperCase(),
               pacienteNome: pacienteObj.nome,
+              pacienteCpf: pacienteObj.cpf,
               descricao:
                 descricao ||
                 (orcIdFinal ? `Pagamento - ${orcamentoSelecionado?.titulo || 'Tratamento'}` : 'Tratamento odontológico'),

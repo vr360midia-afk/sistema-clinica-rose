@@ -30,6 +30,7 @@ import Lixeira from '@/pages/Lixeira';
 import AssinarAnamnese from '@/pages/AssinarAnamnese';
 import AssinarExtrato from '@/pages/AssinarExtrato';
 import AssinarContrato from '@/pages/AssinarContrato';
+import VerificarRecibo from '@/pages/VerificarRecibo';
 import NotFound from '@/pages/NotFound';
 
 function App() {
@@ -46,6 +47,8 @@ function App() {
               <Route path="/assinar-extrato/:id" element={<AssinarExtrato />} />
               <Route path="/assinar-contrato/:id" element={<AssinarContrato />} />
               <Route path="/assinar-contrato" element={<AssinarContrato />} />
+              <Route path="/verificar/:hash" element={<VerificarRecibo />} />
+              <Route path="/verificar" element={<VerificarRecibo />} />
               <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/crm" element={<ProtectedRoute><CRM /></ProtectedRoute>} />
