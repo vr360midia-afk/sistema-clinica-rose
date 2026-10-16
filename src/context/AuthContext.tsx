@@ -31,20 +31,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [clinicaId, setClinicaId] = useState<string | null>(null);
 
   useEffect(() => {
-    // Atualiza apenas quando o usuário realmente muda (evita re-render/reload
-    // ao trocar de aba, quando o Supabase dispara TOKEN_REFRESHED/SIGNED_IN)
-    const applySession = async (newSession: Session | null) => {
-      setSession(prev => {
-        if (prev?.user?.id === newSession?.user?.id) return prev;
-        return newSession;
-      });
-      setUser(prev => {
-        if (prev?.id === newSession?.user?.id) return prev;
-        return newSession?.user ?? null;
-      });
-      if (newSession?.user?.id) {
-        const { data, error } = await supabase.rpc('clinica_id');
-        setClinicaId(data && !error ? (data as string) : newSession.user.id);
+    // Atualiza a sessão e garante que tokens renovados sejam aplicados,
+    // renovando proativamente caso o access_token esteja expirado.
+    const applySession = async (incomingSession: Session | null) => {
+      let activeSession = incomingSession;
+
+      const now = Math.floor(Date.now() / 1000);
+      if (activeSession && activeSession.expires_at && activeSession.expires_at <= now) {
+        try {
+          const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+          if (!refreshError && refreshed?.session) {
+            activeSession = refreshed.session;
+          } else {
+            console.warn('[AuthContext] Sessão expirada e não foi possível renovar:', refreshError);
+            activeSession = null;
+          }
+        } catch (err) {
+          console.warn('[AuthContext] Erro ao tentar refreshSession:', err);
+          activeSession = null;
+        }
+      }
+
+      setSession(activeSession);
+      setUser(activeSession?.user ?? null);
+
+      if (activeSession?.user?.id) {
+        try {
+          const { data, error } = await supabase.rpc('clinica_id');
+          setClinicaId(data && !error ? (data as string) : activeSession.user.id);
+        } catch {
+          setClinicaId(activeSession.user.id);
+        }
       } else {
         setClinicaId(null);
       }

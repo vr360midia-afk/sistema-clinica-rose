@@ -20,6 +20,16 @@ const Auth = () => {
   const { toast } = useToast();
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('expired') === '1') {
+      toast({
+        title: "Sessão expirada",
+        description: "Sua sessão expirou por segurança. Faça login novamente para continuar.",
+      });
+    }
+  }, [toast]);
+
+  useEffect(() => {
     if (!authLoading && user) {
       navigate('/', { replace: true });
     }

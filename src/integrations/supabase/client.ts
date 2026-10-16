@@ -68,6 +68,12 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
           if (newToken) {
             headers.set('Authorization', `Bearer ${newToken}`);
             res = await fetch(input, { ...init, headers });
+          } else {
+            console.warn('[Supabase] Sessão expirada no servidor e renovação indisponível.');
+            try { await supabase.auth.signOut(); } catch (_) {}
+            if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/auth')) {
+              window.location.href = '/auth?expired=1';
+            }
           }
         }
       } catch (err) {
