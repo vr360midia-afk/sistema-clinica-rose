@@ -695,6 +695,9 @@ export const mapearDadosContrato = ({
 
   let parcelas: ContratoParcela[] = [];
   let entrada = 0;
+  let parcelamentoQtdDetectada = 0;
+  let parcelamentoValorDetectado = 0;
+  let parcelamentoMetodoDetectado = '';
 
   // Validação rigorosa de consistência das transações com o orçamento:
   const somaTransacoes = transacoesOrcamento.reduce((acc, t) => acc + (Number(t.valor) || 0), 0);
@@ -731,6 +734,13 @@ export const mapearDadosContrato = ({
           : (t?.status === 'pago' ? 'Quitada' : t?.status === 'vencido' ? 'Vencida' : 'A vencer'),
       };
     });
+
+    const parcelasSemEntradaLocal = parcelas.filter((p) => !p.descricao.toLowerCase().includes('entrada'));
+    parcelamentoQtdDetectada = parcelasSemEntradaLocal.length || parcelas.length;
+    if (parcelasSemEntradaLocal.length > 0) {
+      parcelamentoValorDetectado = parcelasSemEntradaLocal[0].valor;
+      parcelamentoMetodoDetectado = parcelasSemEntradaLocal[0].metodo;
+    }
   } else {
     // Se ainda não foram criadas transações consistentes no financeiro,
     // extrai a negociação das opções de parcelamento do orçamento de forma infalível
@@ -738,9 +748,9 @@ export const mapearDadosContrato = ({
     const hoje = new Date();
 
     // Se possui múltiplas formas separadas por '+' (Compositor de Pagamento Misto)
-    let parcelamentoQtdDetectada = 0;
-    let parcelamentoValorDetectado = 0;
-    let parcelamentoMetodoDetectado = '';
+    parcelamentoQtdDetectada = 0;
+    parcelamentoValorDetectado = 0;
+    parcelamentoMetodoDetectado = '';
 
     if (formas.includes('+')) {
       const partes = formas.split('+').map((p) => p.trim()).filter(Boolean);
