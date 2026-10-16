@@ -35,7 +35,7 @@ import {
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { formatMoney } from '@/utils/exportCsv';
-import { gerarPayloadPix } from '@/utils/pixPayload';
+import { gerarPayloadPix, gerarQrCodePixUrl } from '@/utils/pixPayload';
 import {
   ContratoSnapshot,
   decodificarContratoUrl,
@@ -45,7 +45,16 @@ import {
   isContratoEndodontia,
   temValorValido,
   obterCardsResumoPagamento,
+  isMetodoPix,
+  isMetodoCartao,
 } from '@/utils/contratoEngine';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 import { downloadHtmlAsPdf } from '@/utils/pdfDownload';
 import { openWhatsApp } from '@/lib/whatsapp';
 import { supabase } from '@/integrations/supabase/client';
@@ -69,6 +78,17 @@ export default function AssinarContrato() {
   const [baixandoPdf, setBaixandoPdf] = useState(false);
   const [copiouPix, setCopiouPix] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
+
+  // Estado para Modal de QR Code PIX por Parcela ou Geral em Tela Cheia
+  const [modalPixParcela, setModalPixParcela] = useState<{
+    numero: number;
+    descricao: string;
+    vencimento: string;
+    valor: number;
+    payloadPix: string;
+    qrCodeUrl: string;
+  } | null>(null);
+  const [copiouModalPix, setCopiouModalPix] = useState(false);
 
   // Estados de Autorização de Uso de Imagem e Voz (Facultativo)
   const [autorizaImagem, setAutorizaImagem] = useState<boolean>(false);
@@ -682,7 +702,7 @@ export default function AssinarContrato() {
 
             {/* Chave PIX Oficial da Clínica */}
             {snapshot.clinica.chavePix && (
-              <div className="mt-3 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="mt-3 p-3.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-2.5">
                   <div className="p-2 rounded bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300">
                     <QrCode className="h-5 w-5" />
@@ -705,18 +725,38 @@ export default function AssinarContrato() {
                 </div>
                 <div className="flex flex-wrap gap-2 self-start sm:self-center">
                   {payloadPixContrato && (
-                    <Button
-                      size="sm"
-                      onClick={handleCopiarPixCopiaECola}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm text-xs font-semibold gap-1"
-                    >
-                      {copiouPayloadPix ? <Check className="h-3.5 w-3.5 text-white" /> : <Sparkles className="h-3.5 w-3.5" />}
-                      {copiouPayloadPix
-                        ? 'Código Copiado!'
-                        : valorPixContrato > 0
-                        ? `Copiar PIX c/ Valor (${formatMoney(valorPixContrato)})`
-                        : 'Copiar PIX Copia e Cola'}
-                    </Button>
+                    <>
+                      <Button
+                        size="sm"
+                        onClick={handleCopiarPixCopiaECola}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm text-xs font-semibold gap-1"
+                      >
+                        {copiouPayloadPix ? <Check className="h-3.5 w-3.5 text-white" /> : <Sparkles className="h-3.5 w-3.5" />}
+                        {copiouPayloadPix
+                          ? 'Código Copiado!'
+                          : valorPixContrato > 0
+                          ? `Copiar PIX (${formatMoney(valorPixContrato)})`
+                          : 'Copiar PIX Copia e Cola'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setModalPixParcela({
+                            numero: 1,
+                            descricao: 'Pagamento Principal / Entrada',
+                            vencimento: 'Conforme acordado',
+                            valor: valorPixContrato,
+                            payloadPix: payloadPixContrato,
+                            qrCodeUrl: gerarQrCodePixUrl(payloadPixContrato, 360),
+                          });
+                        }}
+                        className="border-emerald-300 text-emerald-800 dark:text-emerald-200 hover:bg-emerald-100 text-xs gap-1"
+                      >
+                        <QrCode className="h-3.5 w-3.5" />
+                        Ver QR Code
+                      </Button>
+                    </>
                   )}
                   <Button
                     size="sm"
@@ -725,8 +765,123 @@ export default function AssinarContrato() {
                     className="border-emerald-300 text-emerald-800 dark:text-emerald-200 hover:bg-emerald-100 text-xs gap-1"
                   >
                     {copiouPix ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
-                    {copiouPix ? 'Chave Copiada!' : 'Copiar Apenas Chave'}
+                    {copiouPix ? 'Chave Copiada!' : 'Copiar Chave'}
                   </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Cronograma Interativo de Pagamentos com PIX Copia e Cola e QR Code por Parcela */}
+            {snapshot.financeiro.parcelas && snapshot.financeiro.parcelas.length > 0 && (
+              <div className="mt-3 border rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-xs border-blue-200/80 dark:border-blue-900/60">
+                <div className="bg-slate-100/90 dark:bg-slate-800/90 px-4 py-2.5 border-b border-border flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <QrCode className="h-4 w-4 text-primary" />
+                    <span className="font-semibold text-xs text-slate-800 dark:text-slate-100 uppercase tracking-wide">
+                      Cronograma de Pagamento & PIX por Parcela
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-muted-foreground font-medium">
+                    {snapshot.financeiro.parcelas.length} {snapshot.financeiro.parcelas.length === 1 ? 'parcela' : 'parcelas configuradas'}
+                  </span>
+                </div>
+                <div className="divide-y divide-border/60">
+                  {snapshot.financeiro.parcelas.map((parc) => {
+                    const isCartao = isMetodoCartao(parc.metodo, parc.descricao);
+                    const isPix = !isCartao && (isMetodoPix(parc.metodo, parc.descricao) || snapshot.financeiro.formaPagamento.toLowerCase().includes('pix'));
+
+                    // Payload dinâmico individual para a parcela
+                    let parcPayload = parc.payloadPix || '';
+                    if (isPix && !parcPayload && snapshot.clinica.chavePix && parc.valor > 0) {
+                      parcPayload = gerarPayloadPix({
+                        chave: snapshot.clinica.chavePix,
+                        tipoChave: snapshot.clinica.tipoChavePix,
+                        nomeFavorecido: snapshot.clinica.favorecidoPix || snapshot.clinica.nome,
+                        cidade: (snapshot.clinica.cidade && !snapshot.clinica.cidade.toUpperCase().includes('SAO PAULO')) ? snapshot.clinica.cidade : 'MACEIO',
+                        valor: parc.valor,
+                        descricao: `Parc ${parc.numero} CTR-${snapshot.numero || snapshot.contratoId}`.slice(0, 25),
+                      });
+                    }
+                    const parcQrCode = parc.qrCodePixUrl || (parcPayload ? gerarQrCodePixUrl(parcPayload, 360) : '');
+                    const isPaga = parc.status && /paga|quitad/i.test(parc.status);
+
+                    return (
+                      <div key={parc.numero} className="p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/60 dark:hover:bg-slate-900/60 transition-colors">
+                        <div className="flex items-start gap-3">
+                          <div className={cn(
+                            "w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs shrink-0 mt-0.5",
+                            isPaga ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" : "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
+                          )}>
+                            {parc.numero}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-sm text-slate-800 dark:text-slate-100">
+                                {parc.descricao || `Parcela ${parc.numero}`}
+                              </span>
+                              {parc.status && (
+                                <Badge variant="outline" className={cn(
+                                  "text-[10px] px-1.5 py-0 font-medium",
+                                  isPaga ? "bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950" : "bg-slate-50 text-slate-600 border-slate-300 dark:bg-slate-800"
+                                )}>
+                                  {parc.status}
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2.5 text-xs text-muted-foreground mt-0.5 flex-wrap">
+                              <span>Vencimento: <strong className="text-slate-700 dark:text-slate-300">{parc.vencimento}</strong></span>
+                              <span>•</span>
+                              <span>Forma: <span className="font-medium text-slate-700 dark:text-slate-300">{parc.metodo || (isPix ? 'PIX' : 'A combinar')}</span></span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between sm:justify-end gap-2.5 self-stretch sm:self-center border-t sm:border-t-0 pt-2 sm:pt-0">
+                          <span className="text-sm sm:text-base font-bold text-slate-900 dark:text-slate-50">
+                            {formatMoney(parc.valor)}
+                          </span>
+
+                          {isPix && parcPayload ? (
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setModalPixParcela({
+                                    numero: parc.numero,
+                                    descricao: parc.descricao || `Parcela ${parc.numero}`,
+                                    vencimento: parc.vencimento,
+                                    valor: parc.valor,
+                                    payloadPix: parcPayload,
+                                    qrCodeUrl: parcQrCode,
+                                  });
+                                }}
+                                className="border-blue-300 text-blue-700 dark:text-blue-300 hover:bg-blue-50 text-xs gap-1 h-7 px-2"
+                              >
+                                <QrCode className="h-3.5 w-3.5" />
+                                <span className="hidden sm:inline">QR Code</span>
+                              </Button>
+                              <Button
+                                size="sm"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(parcPayload);
+                                  toast.success(`PIX Copia e Cola da parcela ${parc.numero} (${formatMoney(parc.valor)}) copiado com sucesso!`);
+                                }}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1 h-7 px-2 font-semibold"
+                              >
+                                <Copy className="h-3.5 w-3.5" />
+                                <span>Copiar PIX</span>
+                              </Button>
+                            </div>
+                          ) : isCartao ? (
+                            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-xs py-0.5">
+                              <CreditCard className="h-3 w-3 mr-1" /> Cartão
+                            </Badge>
+                          ) : null}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -1376,6 +1531,75 @@ export default function AssinarContrato() {
           </div>
         </div>
       )}
+      {/* Modal Dialog com QR Code PIX em Alta Resolução */}
+      <Dialog open={!!modalPixParcela} onOpenChange={(open) => !open && setModalPixParcela(null)}>
+        <DialogContent className="max-w-md w-full p-6 text-center">
+          <DialogHeader className="text-center">
+            <DialogTitle className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center justify-center gap-2">
+              <QrCode className="h-5 w-5 text-emerald-600" />
+              Pagamento via PIX — {modalPixParcela?.descricao}
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Aponte a câmera do aplicativo do seu banco para o QR Code abaixo. O valor de <strong>{modalPixParcela ? formatMoney(modalPixParcela.valor) : ''}</strong> já está pré-configurado.
+            </DialogDescription>
+          </DialogHeader>
+
+          {modalPixParcela && (
+            <div className="space-y-4 my-2">
+              <div className="bg-white p-4 rounded-xl border-2 border-emerald-500/40 inline-block mx-auto shadow-sm">
+                <img
+                  src={modalPixParcela.qrCodeUrl || (modalPixParcela.payloadPix ? gerarQrCodePixUrl(modalPixParcela.payloadPix, 360) : '')}
+                  alt="QR Code PIX Bacen"
+                  className="w-56 h-56 sm:w-64 sm:h-64 mx-auto block rounded"
+                />
+                <span className="text-[11px] font-bold text-emerald-700 block mt-2 tracking-wide uppercase">
+                  Padrão Oficial Banco Central (Bacen)
+                </span>
+              </div>
+
+              <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border text-left text-xs space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Valor:</span>
+                  <strong className="text-emerald-700 dark:text-emerald-400 text-sm">{formatMoney(modalPixParcela.valor)}</strong>
+                </div>
+                {modalPixParcela.vencimento && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Vencimento:</span>
+                    <strong className="text-slate-800 dark:text-slate-200">{modalPixParcela.vencimento}</strong>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Favorecido:</span>
+                  <span className="font-medium text-slate-700 dark:text-slate-300">{snapshot?.clinica.favorecidoPix || snapshot?.clinica.nome}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Chave PIX:</span>
+                  <span className="font-mono text-slate-700 dark:text-slate-300 font-semibold">{snapshot?.clinica.chavePix}</span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Button
+                  onClick={() => {
+                    navigator.clipboard.writeText(modalPixParcela.payloadPix);
+                    setCopiouModalPix(true);
+                    toast.success(`Código PIX Copia e Cola (${formatMoney(modalPixParcela.valor)}) copiado com sucesso!`);
+                    setTimeout(() => setCopiouModalPix(false), 2500);
+                  }}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 gap-2 text-sm"
+                >
+                  {copiouModalPix ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                  {copiouModalPix ? 'Código Copiado!' : 'Copiar Código PIX Copia e Cola'}
+                </Button>
+
+                <p className="text-[11px] text-muted-foreground">
+                  Após copiar, abra o aplicativo do seu banco (Nubank, Itaú, Inter, etc.), clique em <strong>Pix Copia e Cola</strong> e confirme o pagamento.
+                </p>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </Shell>
   );
 }

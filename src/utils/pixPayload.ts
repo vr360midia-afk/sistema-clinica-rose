@@ -136,18 +136,11 @@ export const gerarPayloadPix = ({
   const temValor = !isNaN(valNum) && valNum > 0;
   payload += formatarTLV('01', temValor ? '12' : '11');
 
-  // 26: Merchant Account Information (PIX)
+  // 26: Merchant Account Information (PIX Oficial Bacen)
   //   00: GUI (br.gov.bcb.pix)
   //   01: Chave PIX
-  //   02: Descrição opcional (max 40)
   let merchantInfo = formatarTLV('00', 'br.gov.bcb.pix');
   merchantInfo += formatarTLV('01', chaveLimpa);
-  if (descricao) {
-    const descNormalizada = removerAcentos(descricao).slice(0, 40);
-    if (descNormalizada) {
-      merchantInfo += formatarTLV('02', descNormalizada);
-    }
-  }
   payload += formatarTLV('26', merchantInfo);
 
   // 52: Merchant Category Code (0000 = Geral)

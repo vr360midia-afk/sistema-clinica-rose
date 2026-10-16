@@ -12,7 +12,7 @@ import type { Orcamento } from '@/hooks/useOrcamentos';
 import type { ConfiguracoesGerais } from '@/hooks/useConfiguracoes';
 import { carregarConfiguracoesContratoSync, type ConfiguracoesContrato } from '@/hooks/useConfiguracoesContrato';
 import { gerarFragmentoHtmlTermoUsoImagem } from './termoUsoImagem';
-import { gerarPayloadPix } from './pixPayload';
+import { gerarPayloadPix, gerarQrCodePixUrl } from './pixPayload';
 import {
   gerarHtmlContratoEndodontia,
   downloadContratoEndodontiaPdf,
@@ -70,6 +70,8 @@ export interface ContratoParcela {
   valor: number;
   metodo?: string;
   status?: string;
+  payloadPix?: string;
+  qrCodePixUrl?: string;
 }
 
 export interface ContratoDadosPaciente {
@@ -238,6 +240,15 @@ export const isMetodoCartao = (metodo?: string | null, descricao?: string | null
   const m = metodo || '';
   const d = descricao || '';
   return /cart[aã]o|cr[eé]dito/i.test(m) || /cart[aã]o|cr[eé]dito/i.test(d);
+};
+
+/**
+ * Verifica se o método de pagamento ou a descrição corresponde a PIX
+ */
+export const isMetodoPix = (metodo?: string | null, descricao?: string | null): boolean => {
+  const m = (metodo || '').toLowerCase();
+  const d = (descricao || '').toLowerCase();
+  return m.includes('pix') || d.includes('pix');
 };
 
 /**
@@ -1017,14 +1028,42 @@ export const mapearDadosContrato = ({
     }
   }
 
-  // Garante que nenhuma parcela em Cartão de Crédito retenha vencimento de calendário fixo
+  // Garante que nenhuma parcela em Cartão de Crédito retenha vencimento de calendário fixo,
+  // e gera o Payload PIX e QR Code individual Bacen para cada parcela via PIX com o valor exato
+  const chavePixParaParcela = dadosClinica.chavePix && dadosClinica.chavePix !== 'Chave da clínica sob consulta'
+    ? dadosClinica.chavePix
+    : '';
+  const formaTemPix = (orcamento?.formasPagamento || orcamento?.formas_pagamento || '').toLowerCase().includes('pix');
+
   parcelas = parcelas.map((parc) => {
-    if (isMetodoCartao(parc.metodo, parc.descricao)) {
+    const isCartao = isMetodoCartao(parc.metodo, parc.descricao);
+    if (isCartao) {
       return {
         ...parc,
         vencimento: 'Fatura do Cartão',
       };
     }
+
+    const isPix = isMetodoPix(parc.metodo, parc.descricao) || (formaTemPix && !/boleto|dinheiro|transfer/i.test(parc.metodo || ''));
+    if (chavePixParaParcela && isPix && parc.valor > 0) {
+      const payload = gerarPayloadPix({
+        chave: chavePixParaParcela,
+        tipoChave: dadosClinica.tipoChavePix,
+        nomeFavorecido: dadosClinica.favorecidoPix || dadosClinica.nome,
+        cidade: dadosClinica.cidade || 'MACEIO',
+        valor: parc.valor,
+        descricao: `Parc ${parc.numero} CTR-${dadosOrcamento.numeroIdentificador}`.slice(0, 25),
+      });
+
+      const qrCodeUrl = payload ? gerarQrCodePixUrl(payload, 280) : undefined;
+
+      return {
+        ...parc,
+        payloadPix: payload || undefined,
+        qrCodePixUrl: qrCodeUrl || undefined,
+      };
+    }
+
     return parc;
   });
 
@@ -1679,37 +1718,57 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
           descricao: `Contrato ${numIdContrato}`.trim(),
         }) : '';
         const qrCodeSrc = payloadPixContrato
-          ? `https://api.qrserver.com/v1/create-qr-code/?size=120x120&margin=3&data=${encodeURIComponent(payloadPixContrato)}`
-          : `https://api.qrserver.com/v1/create-qr-code/?size=100x100&margin=3&data=${encodeURIComponent(chavePixContrato || 'pix')}`;
+          ? gerarQrCodePixUrl(payloadPixContrato, 280)
+          : `https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=4&data=${encodeURIComponent(chavePixContrato || 'pix')}`;
+        const qrCodeGrandeSrc = payloadPixContrato
+          ? gerarQrCodePixUrl(payloadPixContrato, 450)
+          : qrCodeSrc;
 
         return `
-      <!-- Detalhamento Oficial para Pagamento Mensal via PIX com QR Code -->
-      <div style="margin: 12px 0; padding: 12px 14px; border: 1px dashed #0284c7; background-color: #f0f9ff; border-radius: 6px; font-family: Arial, sans-serif; font-size: 12px; color: #0369a1;">
-        <div style="font-weight: bold; margin-bottom: 6px; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px;">
-          ✦ Instruções e QR Code Oficial para Pagamento via PIX${valorPixContrato ? ` (Valor: ${formatMoney(valorPixContrato)})` : ''}:
+      <!-- Detalhamento Oficial para Pagamento via PIX com QR Code -->
+      <div style="margin: 14px 0; padding: 14px 16px; border: 1.5px dashed #0284c7; background-color: #f0f9ff; border-radius: 8px; font-family: Arial, sans-serif; font-size: 12px; color: #0369a1;">
+        <div style="font-weight: bold; margin-bottom: 8px; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; display: flex; align-items: center; justify-content: space-between;">
+          <span>✦ Instruções e QR Code Oficial para Pagamento via PIX${valorPixContrato ? ` (Valor Inicial/Total: ${formatMoney(valorPixContrato)})` : ''}</span>
+          <span style="font-size: 10px; color: #0369a1; font-weight: normal;">Padrão Oficial Banco Central (Bacen)</span>
         </div>
-        <div style="display: flex; align-items: center; gap: 14px;">
-          <div style="background: #ffffff; padding: 4px; border: 1px solid #bae6fd; border-radius: 4px; text-align: center; flex-shrink: 0;">
-            <img
-              src="${qrCodeSrc}"
-              alt="QR Code PIX Bacen"
-              style="width: 85px; height: 85px; display: block;"
-            />
-            <div style="font-size: 8px; color: #0284c7; font-weight: bold; margin-top: 2px;">ESCANEAR PIX</div>
+        <div style="display: flex; align-items: flex-start; gap: 16px;">
+          <div style="background: #ffffff; padding: 6px; border: 1.5px solid #bae6fd; border-radius: 6px; text-align: center; flex-shrink: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <a href="${qrCodeGrandeSrc}" target="_blank" rel="noopener noreferrer" title="Clique para abrir o QR Code em tela cheia" style="text-decoration: none; display: block;">
+              <img
+                src="${qrCodeSrc}"
+                alt="QR Code PIX Bacen"
+                style="width: 120px; height: 120px; display: block;"
+              />
+              <div style="font-size: 8px; color: #0284c7; font-weight: bold; margin-top: 4px; letter-spacing: 0.5px;">🔍 CLIQUE P/ AMPLIAR</div>
+            </a>
           </div>
           <div style="flex: 1;">
-            <div style="padding: 6px 10px; background-color: #ffffff; border-radius: 4px; border: 1px solid #bae6fd; font-size: 11px; color: #0c4a6e;">
-              <strong>Chave PIX:</strong> ${clinica.chavePix || clinica.cnpj || clinica.telefone || 'Chave da clínica sob consulta'} <br/>
+            <div style="padding: 8px 12px; background-color: #ffffff; border-radius: 6px; border: 1px solid #bae6fd; font-size: 11px; color: #0c4a6e; line-height: 1.5;">
+              <strong>Chave PIX:</strong> <span style="font-family: monospace; font-weight: bold; font-size: 12px;">${clinica.chavePix || clinica.cnpj || clinica.telefone || 'Chave da clínica sob consulta'}</span> <br/>
               <strong>Titular / Favorecido:</strong> ${clinica.favorecidoPix || clinica.nome} ${
                 clinica.cnpjCpfFavorecidoPix
                   ? `• ${labelDocFavorecido}: ${clinica.cnpjCpfFavorecidoPix}`
                   : (clinica.cnpj ? `• ${labelDocClinica}: ${clinica.cnpj}` : '')
               }
               ${clinica.bancoPix ? `<br/><strong>Instituição / Banco:</strong> ${clinica.bancoPix}` : ''}
-              ${valorPixContrato ? `<br/><strong>Valor Embutido no QR Code:</strong> ${formatMoney(valorPixContrato)}` : ''}
+              ${valorPixContrato ? `<br/><strong>Valor Configurado no QR Code:</strong> <span style="color: #059669; font-weight: bold;">${formatMoney(valorPixContrato)}</span>` : ''}
+
+              ${payloadPixContrato ? `
+                <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed #bae6fd;">
+                  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+                    <span style="font-size: 10px; font-weight: bold; color: #0369a1;">Código PIX Copia e Cola:</span>
+                    <button type="button" onclick="navigator.clipboard.writeText('${payloadPixContrato}');alert('Código PIX Copia e Cola copiado com sucesso! Abra o app do seu banco e cole na opção Pix Copia e Cola.');" style="background: #0284c7; color: #ffffff; border: none; padding: 4px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; cursor: pointer;">
+                      📋 Copiar Código PIX
+                    </button>
+                  </div>
+                  <div style="font-family: monospace; font-size: 9px; color: #334155; word-break: break-all; max-height: 38px; overflow-y: auto; background: #f8fafc; padding: 4px 6px; border: 1px solid #cbd5e1; border-radius: 4px; user-select: all;" title="Código PIX Copia e Cola Oficial">
+                    ${payloadPixContrato}
+                  </div>
+                </div>
+              ` : ''}
             </div>
-            <div style="margin-top: 4px; font-size: 11px; color: #0284c7;">
-              ${clinica.instrucoesPix || 'O(A) CONTRATANTE poderá utilizar a câmera do smartphone ou app do banco para leitura do QR Code acima (o valor já será preenchido automaticamente), ou efetuar a transferência direta para a chave informada.'}
+            <div style="margin-top: 6px; font-size: 11px; color: #0284c7;">
+              ${clinica.instrucoesPix || 'O(A) CONTRATANTE poderá utilizar a câmera do smartphone ou app bancário para leitura do QR Code acima (o valor e favorecido já serão preenchidos automaticamente), ou utilizar o botão Copiar Código PIX.'}
             </div>
           </div>
         </div>
@@ -1726,21 +1785,59 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
           <tr>
             <th class="col-num">Parc.</th>
             <th>Descrição / Forma de Pagamento</th>
-            <th style="width: 130px; text-align: center;">Vencimento</th>
+            <th style="width: 120px; text-align: center;">Vencimento</th>
             <th class="col-money">Valor da Parcela</th>
-            <th style="width: 90px; text-align: center;">Situação</th>
+            ${temAlgumPix ? `<th style="width: 175px; text-align: center;">PIX (QR Code / Copia e Cola)</th>` : ''}
+            <th style="width: 85px; text-align: center;">Situação</th>
           </tr>
         </thead>
         <tbody>
           ${financeiro.parcelas.map((parc) => {
             const isCartao = isMetodoCartao(parc.metodo, parc.descricao) || (parc.vencimento && /fatura/i.test(parc.vencimento));
             const vencTexto = isCartao ? 'Fatura do Cartão' : (parc.vencimento || '-');
+            const isPix = !isCartao && (isMetodoPix(parc.metodo, parc.descricao) || temAlgumPix);
+
+            let parcPayload = parc.payloadPix || '';
+            let parcQrCode = parc.qrCodePixUrl || '';
+
+            if (isPix && !parcPayload && clinica.chavePix && clinica.chavePix !== 'Chave da clínica sob consulta' && parc.valor > 0) {
+              const numIdContrato = orcamento?.numeroIdentificador || snapshot?.contratoId || '';
+              parcPayload = gerarPayloadPix({
+                chave: clinica.chavePix,
+                tipoChave: clinica.tipoChavePix,
+                nomeFavorecido: clinica.favorecidoPix || clinica.nome,
+                cidade: (clinica.cidade && !clinica.cidade.toUpperCase().includes('SAO PAULO')) ? clinica.cidade : 'MACEIO',
+                valor: parc.valor,
+                descricao: `Parc ${parc.numero} CTR-${numIdContrato}`.slice(0, 25),
+              });
+              parcQrCode = parcPayload ? gerarQrCodePixUrl(parcPayload, 280) : '';
+            }
+
             return `
             <tr>
               <td class="col-num">${parc.numero}</td>
               <td><strong>${parc.descricao || `Parcela ${parc.numero}`}</strong> ${parc.metodo ? `— ${parc.metodo}` : ''}</td>
               <td style="text-align: center;"><strong>${vencTexto}</strong></td>
               <td class="col-money"><strong>${formatMoney(parc.valor)}</strong></td>
+              ${temAlgumPix ? `
+                <td style="text-align: center; vertical-align: middle; padding: 6px;">
+                  ${isPix && parcQrCode ? `
+                    <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                      <a href="${parcQrCode}" target="_blank" rel="noopener noreferrer" title="Clique para abrir o QR Code em tela cheia" style="text-decoration: none; display: inline-block;">
+                        <img src="${parcQrCode}" alt="QR Code PIX ${formatMoney(parc.valor)}" style="width: 68px; height: 68px; border: 1px solid #bae6fd; border-radius: 4px; display: block;" />
+                        <span style="font-size: 8px; color: #0284c7; font-weight: bold; display: block; margin-top: 1px;">🔍 Abrir QR Code</span>
+                      </a>
+                      ${parcPayload ? `
+                        <button type="button" onclick="navigator.clipboard.writeText('${parcPayload}');alert('Código PIX Copia e Cola da parcela ${parc.numero} (${formatMoney(parc.valor)}) copiado com sucesso! Abra o app do seu banco e cole na opção Pix Copia e Cola.');" style="background: #0284c7; color: #ffffff; border: none; padding: 3px 6px; border-radius: 3px; font-size: 9px; font-weight: bold; cursor: pointer; display: inline-flex; align-items: center; gap: 2px;">
+                          📋 Copiar PIX
+                        </button>
+                      ` : ''}
+                    </div>
+                  ` : `
+                    <span style="font-size: 10px; color: #94a3b8;">${isCartao ? '— (Cartão)' : '—'}</span>
+                  `}
+                </td>
+              ` : ''}
               <td style="text-align: center; font-size: 11px;">${parc.status || (isCartao ? 'Autorizado' : 'A vencer')}</td>
             </tr>
           `;
