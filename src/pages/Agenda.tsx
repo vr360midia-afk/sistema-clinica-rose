@@ -3,7 +3,7 @@ import Layout from '@/components/layout/Layout';
 import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CalendarDays, Plus, Bell, Lock } from 'lucide-react';
+import { CalendarDays, Plus, Bell, Lock, Smartphone } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useDentalSystem } from '@/context/DentalSystemContext';
@@ -14,9 +14,10 @@ import { BloqueioDetailsModal } from '@/components/agenda/BloqueioDetailsModal';
 import { AgendaBigCalendar } from '@/components/agenda/AgendaBigCalendar';
 import AppointmentDetailsModal from '@/components/agenda/AppointmentDetailsModal';
 import PendentesModal from '@/components/agenda/PendentesModal';
+import { ModalSincronizarCalendario } from '@/components/agenda/ModalSincronizarCalendario';
 import { useAgendaViews } from '@/hooks/useAgendaViews';
 import { useBloqueios, BloqueioAgenda, encontrarBloqueio } from '@/hooks/useBloqueios';
-import { downloadICS } from '@/utils/calendarExport';
+import { downloadICS, AgendaEvento } from '@/utils/calendarExport';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -39,6 +40,7 @@ const Agenda = () => {
   const [isBloqueioDetailsOpen, setIsBloqueioDetailsOpen] = useState(false);
   const [selectedBloqueio, setSelectedBloqueio] = useState<BloqueioAgenda | null>(null);
   const [bloqueioEmEdicao, setBloqueioEmEdicao] = useState<BloqueioAgenda | null>(null);
+  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
 
   const carregarPendentes = async () => {
     try {
@@ -143,26 +145,89 @@ const Agenda = () => {
   };
 
   const handleExportAgenda = () => {
-    if (transformedConsultas.length === 0) {
-      toast.info('Nenhuma consulta para exportar');
+    if (transformedConsultas.length === 0 && (!bloqueios || bloqueios.length === 0)) {
+      toast.info('Nenhuma consulta ou bloqueio para exportar');
       return;
     }
-    const eventos = (transformedConsultas || []).filter(Boolean).map((c: any) => {
+
+    // 1. Consultas dos Pacientes
+    const eventosConsultas: AgendaEvento[] = (transformedConsultas || []).filter(Boolean).map((c: any) => {
       const [h, m] = (c.hora || '08:00').split(':').map(Number);
       const inicio = new Date(c.data);
       inicio.setHours(h || 8, m || 0, 0, 0);
       return {
-        id: c.id,
-        titulo: `${c.procedimento || 'Consulta'} - ${c.patient || ''}`,
-        descricao: [c?.dentista ? `Dentista: ${c.dentista}` : '', c?.status ? `Status: ${c.status}` : '']
+        id: `consulta-${c.id}`,
+        titulo: `🦷 ${c.patient || 'Paciente'} - ${c.procedimento || 'Consulta'}`,
+        descricao: [
+          c?.dentista ? `Dentista: ${c.dentista}` : '',
+          c?.status ? `Status: ${c.status}` : '',
+          c?.observacoes ? `Obs: ${c.observacoes}` : '',
+        ]
           .filter(Boolean)
           .join('\n'),
         inicio,
         duracaoMinutos: Number(c.duracao) || 60,
       };
     });
-    downloadICS(eventos);
-    toast.success('Agenda exportada! Importe o arquivo no Google Agenda ou Apple Calendário.');
+
+    // 2. Bloqueios de Horários da Agenda (férias, almoço, ausências, etc.)
+    const eventosBloqueios: AgendaEvento[] = [];
+    (bloqueios || []).forEach((b) => {
+      if (!b.dataInicio) return;
+      const dInicio = new Date(`${b.dataInicio}T00:00:00`);
+      const dataFimStr = b.dataFim || b.dataInicio;
+      const dFim = new Date(`${dataFimStr}T00:00:00`);
+      if (isNaN(dInicio.getTime())) return;
+
+      const titulo = `🔒 Bloqueio: ${b.titulo}${b.dentista ? ` (${b.dentista})` : ''}`;
+      const desc = `Horário Bloqueado na Agenda\nDentista: ${b.dentista || 'Todos'}\nMotivo: ${b.observacoes || b.titulo}`;
+
+      if (b.diaInteiro) {
+        eventosBloqueios.push({
+          id: `bloqueio-${b.id}`,
+          titulo,
+          descricao: desc,
+          inicio: dInicio,
+          fim: dFim,
+          allDay: true,
+        });
+      } else {
+        const [hiH, hiM] = (b.horaInicio || '08:00').split(':').map(Number);
+        const [hfH, hfM] = (b.horaFim || '18:00').split(':').map(Number);
+
+        const cur = new Date(dInicio);
+        let count = 0;
+        while (cur <= dFim && count < 90) {
+          const slotStart = new Date(cur);
+          slotStart.setHours(hiH, hiM, 0, 0);
+
+          const slotEnd = new Date(cur);
+          slotEnd.setHours(hfH, hfM, 0, 0);
+
+          const year = cur.getFullYear();
+          const month = String(cur.getMonth() + 1).padStart(2, '0');
+          const day = String(cur.getDate()).padStart(2, '0');
+
+          eventosBloqueios.push({
+            id: `bloqueio-${b.id}-${year}${month}${day}`,
+            titulo,
+            descricao: `${desc}\nHorário: ${b.horaInicio || '08:00'} às ${b.horaFim || '18:00'}`,
+            inicio: slotStart,
+            fim: slotEnd,
+            allDay: false,
+          });
+
+          cur.setDate(cur.getDate() + 1);
+          count++;
+        }
+      }
+    });
+
+    const todosEventos = [...eventosConsultas, ...eventosBloqueios];
+    downloadICS(todosEventos, `agenda-clinica-${new Date().toISOString().slice(0, 10)}.ics`);
+    toast.success(
+      `Agenda exportada (${eventosConsultas.length} consultas e ${eventosBloqueios.length} bloqueios de horários)!`
+    );
   };
 
   const bigCalendarEvents = useMemo(() => {
@@ -328,11 +393,11 @@ const Agenda = () => {
             )}
             <Button
               variant="outline"
-              className="flex items-center gap-2 flex-1 sm:flex-none justify-center"
-              onClick={handleExportAgenda}
+              className="flex items-center gap-2 flex-1 sm:flex-none justify-center border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 font-medium"
+              onClick={() => setIsSyncModalOpen(true)}
             >
-              <CalendarDays className="h-4 w-4" />
-              Exportar (.ics)
+              <Smartphone className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+              Sincronizar no iPhone
             </Button>
             <Button
               variant="outline"
@@ -515,6 +580,15 @@ const Agenda = () => {
             
             setIsConsultaModalOpen(true);
           }}
+        />
+
+        {/* Modal de Sincronização com iPhone e Calendários Externos */}
+        <ModalSincronizarCalendario
+          isOpen={isSyncModalOpen}
+          onClose={() => setIsSyncModalOpen(false)}
+          onDownloadICS={handleExportAgenda}
+          totalConsultas={transformedConsultas.length}
+          totalBloqueios={bloqueios?.length || 0}
         />
       </div>
     </Layout>

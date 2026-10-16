@@ -32,7 +32,7 @@ const ConfiguracoesAgenda = () => {
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          Sincronize as consultas do sistema diretamente no calendário do seu celular (iPhone/Apple Calendar, Google Agenda, Outlook). As alterações feitas no sistema refletirão automaticamente no seu calendário pessoal.
+          Sincronize as consultas e <strong>todos os bloqueios de horários (férias, almoço, ausências)</strong> do sistema diretamente no calendário do seu celular (iPhone/Apple Calendar, Google Agenda, Outlook). Os bloqueios aparecem destacados com 🔒 no seu calendário e as alterações feitas no sistema refletem automaticamente.
         </p>
 
         <div className="space-y-2 pt-2 border-t mt-4">
