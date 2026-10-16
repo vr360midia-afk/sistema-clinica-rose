@@ -1666,13 +1666,14 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
       ${temAlgumPix ? (() => {
         const chavePixContrato = clinica.chavePix || clinica.cnpj || clinica.telefone || '';
         const valorPixContrato = (financeiro.entrada && financeiro.entrada > 0) ? financeiro.entrada : (financeiro.total > 0 ? financeiro.total : undefined);
+        const numIdContrato = orcamento?.numeroIdentificador || snapshot?.contratoId || '';
         const payloadPixContrato = chavePixContrato ? gerarPayloadPix({
           chave: chavePixContrato,
           tipoChave: clinica.tipoChavePix,
           nomeFavorecido: clinica.favorecidoPix || clinica.nome,
           cidade: clinica.cidade || 'SAO PAULO',
           valor: valorPixContrato,
-          descricao: `Contrato ${dadosOrcamento.numeroIdentificador || ''}`.trim(),
+          descricao: `Contrato ${numIdContrato}`.trim(),
         }) : '';
         const qrCodeSrc = payloadPixContrato
           ? `https://api.qrserver.com/v1/create-qr-code/?size=120x120&margin=3&data=${encodeURIComponent(payloadPixContrato)}`
