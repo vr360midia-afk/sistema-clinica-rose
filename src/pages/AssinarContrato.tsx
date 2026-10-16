@@ -429,7 +429,7 @@ export default function AssinarContrato() {
   };
 
   const handleCopiarPix = () => {
-    if (!snapshot?.clinica.chavePix) return;
+    if (!snapshot?.clinica?.chavePix) return;
     navigator.clipboard.writeText(snapshot.clinica.chavePix);
     setCopiouPix(true);
     toast.success('Chave PIX copiada para a área de transferência!');
@@ -701,7 +701,7 @@ export default function AssinarContrato() {
             )}
 
             {/* Chave PIX Oficial da Clínica */}
-            {snapshot.clinica.chavePix && (
+            {snapshot?.clinica?.chavePix && (
               <div className="mt-3 p-3.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-2.5">
                   <div className="p-2 rounded bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300">
@@ -714,11 +714,11 @@ export default function AssinarContrato() {
                     <span className="font-mono text-sm font-bold text-emerald-900 dark:text-emerald-100 select-all">
                       {snapshot.clinica.chavePix}
                     </span>
-                    {(snapshot.clinica.favorecidoPix || snapshot.clinica.cnpjCpfFavorecidoPix) && (
+                    {(snapshot.clinica?.favorecidoPix || snapshot.clinica?.cnpjCpfFavorecidoPix) && (
                       <p className="text-xs text-emerald-800 dark:text-emerald-300 mt-0.5">
-                        Favorecido: <strong>{snapshot.clinica.favorecidoPix || snapshot.clinica.nome}</strong>
-                        {snapshot.clinica.cnpjCpfFavorecidoPix && ` • ${identificarTipoDocumento(snapshot.clinica.cnpjCpfFavorecidoPix) === 'cpf' ? 'CPF' : 'CNPJ'}: ${snapshot.clinica.cnpjCpfFavorecidoPix}`}
-                        {snapshot.clinica.bancoPix && ` • ${snapshot.clinica.bancoPix}`}
+                        Favorecido: <strong>{snapshot.clinica?.favorecidoPix || snapshot.clinica?.nome}</strong>
+                        {snapshot.clinica?.cnpjCpfFavorecidoPix && ` • ${identificarTipoDocumento(snapshot.clinica.cnpjCpfFavorecidoPix) === 'cpf' ? 'CPF' : 'CNPJ'}: ${snapshot.clinica.cnpjCpfFavorecidoPix}`}
+                        {snapshot.clinica?.bancoPix && ` • ${snapshot.clinica.bancoPix}`}
                       </p>
                     )}
                   </div>
@@ -792,7 +792,7 @@ export default function AssinarContrato() {
 
                     // Payload dinâmico individual para a parcela
                     let parcPayload = parc.payloadPix || '';
-                    if (isPix && !parcPayload && snapshot.clinica.chavePix && parc.valor > 0) {
+                    if (isPix && !parcPayload && snapshot?.clinica?.chavePix && parc.valor > 0) {
                       parcPayload = gerarPayloadPix({
                         chave: snapshot.clinica.chavePix,
                         tipoChave: snapshot.clinica.tipoChavePix,
@@ -1570,11 +1570,11 @@ export default function AssinarContrato() {
                 )}
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Favorecido:</span>
-                  <span className="font-medium text-slate-700 dark:text-slate-300">{snapshot?.clinica.favorecidoPix || snapshot?.clinica.nome}</span>
+                  <span className="font-medium text-slate-700 dark:text-slate-300">{snapshot?.clinica?.favorecidoPix || snapshot?.clinica?.nome}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Chave PIX:</span>
-                  <span className="font-mono text-slate-700 dark:text-slate-300 font-semibold">{snapshot?.clinica.chavePix}</span>
+                  <span className="font-mono text-slate-700 dark:text-slate-300 font-semibold">{snapshot?.clinica?.chavePix}</span>
                 </div>
               </div>
 

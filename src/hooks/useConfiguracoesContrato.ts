@@ -137,6 +137,7 @@ export const useConfiguracoesContrato = () => {
 
   return {
     configContrato,
+    config: configContrato, // Alias para compatibilidade
     setConfigContrato,
     salvarConfiguracoesContrato,
     restaurarPadrao,

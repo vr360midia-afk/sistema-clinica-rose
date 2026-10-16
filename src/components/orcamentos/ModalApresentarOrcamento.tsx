@@ -64,7 +64,7 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
   onEnviarWhatsApp,
 }) => {
   const { configuracoes } = useConfiguracoes();
-  const { config: configContrato } = useConfiguracoesContrato();
+  const { configContrato } = useConfiguracoesContrato();
 
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -248,16 +248,16 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
 
   // Dados oficiais da clínica para o PIX
   const chavePixOficial =
-    configContrato.chavePix ||
-    configuracoes.telefone ||
-    configuracoes.cnpj ||
+    configContrato?.chavePix ||
+    configuracoes?.telefone ||
+    configuracoes?.cnpj ||
     '';
-  const tipoChavePixOficial = configContrato.tipoChavePix || 'telefone';
+  const tipoChavePixOficial = configContrato?.tipoChavePix || 'telefone';
   const favorecidoPixOficial =
-    configContrato.favorecidoPix ||
-    configuracoes.nomeClinica ||
+    configContrato?.favorecidoPix ||
+    configuracoes?.nomeClinica ||
     'Clínica Odontológica';
-  const cidadePixOficial = configContrato.cidadeForoContrato || 'Maceió';
+  const cidadePixOficial = configContrato?.cidadeForoContrato || 'Maceió';
 
   // Gera o Payload Oficial Bacen com o valor em tempo real
   const payloadPix = useMemo(() => {
@@ -382,7 +382,7 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
           <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-slate-900 text-white p-4 sm:p-5 flex-shrink-0">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                {configuracoes.logoUrl ? (
+                {configuracoes?.logoUrl ? (
                   <img
                     src={configuracoes.logoUrl}
                     alt="Logo"
