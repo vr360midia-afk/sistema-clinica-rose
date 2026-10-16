@@ -18,6 +18,7 @@ import {
   CreditCard,
   Wallet,
   Maximize2,
+  Banknote,
 } from 'lucide-react';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import { useConfiguracoesContrato } from '@/hooks/useConfiguracoesContrato';
@@ -52,7 +53,7 @@ export const ModalReceberPagamento = ({
   descricaoSugerida,
   onSuccess,
 }: ModalReceberPagamentoProps) => {
-  const { pacientes, transacoes, updateTransacao, addTransacao } = useDentalSystem();
+  const { pacientes, transacoes, updateTransacao, addTransacao, deleteTransacao } = useDentalSystem();
   const { configContrato } = useConfiguracoesContrato();
   const { configuracoes } = useConfiguracoes();
   const { orcamentos, reload: reloadOrcamentos } = useOrcamentos();
@@ -92,7 +93,12 @@ export const ModalReceberPagamento = ({
         setOrcamentoId(transacaoPendente.orcamentoId || 'nenhum');
         setValor(String(transacaoPendente.valor || ''));
         setDescricao(transacaoPendente.descricao || 'Recebimento');
-        setMetodo(transacaoPendente.metodoPagamento || 'pix');
+        const m = transacaoPendente.metodoPagamento;
+        if (m && ['pix', 'cartao', 'misto', 'dinheiro', 'transferencia', 'boleto'].includes(m)) {
+          setMetodo(m as any);
+        } else {
+          setMetodo('pix');
+        }
       } else {
         setPacienteId(pacientePredefinidoId || '');
         setOrcamentoId(orcamentoIdPredefinido || 'nenhum');
@@ -405,6 +411,15 @@ export const ModalReceberPagamento = ({
           }
         }
 
+        // Se havia uma transação pendente sendo substituída por este recebimento misto, deleta a pendência antiga
+        if (transacaoPendente?.id) {
+          try {
+            await deleteTransacao(transacaoPendente.id);
+          } catch (delErr) {
+            console.error('Erro ao remover transação pendente substituída por misto:', delErr);
+          }
+        }
+
         toast.success(
           orcIdFinal
             ? `Recebimento misto de ${formatMoney(valNum)} (PIX + Cartão) baixado do orçamento!`
@@ -456,6 +471,22 @@ export const ModalReceberPagamento = ({
           updates.valorLiquido = calculoCartao.valorLiquido;
           updates.parcelas = calculoCartao.parcelas;
           updates.valorParcela = calculoCartao.valorParcela;
+
+          if (configMaquinas?.lancarTaxaComoDespesa !== false && calculoCartao.taxaValor > 0) {
+            await addTransacao({
+              pacienteId: pId,
+              pacienteNome: pacienteObj?.nome,
+              valor: calculoCartao.taxaValor,
+              tipo: 'despesa' as const,
+              status: 'pago' as const,
+              metodoPagamento: 'cartao',
+              data: dataObj,
+              vencimento: dataObj,
+              descricao: `Taxa da Máquina (${calculoCartao.operadora?.nome || 'Cartão'}) - ${descricao.trim() || 'Recebimento'}`,
+              categoria: configMaquinas?.categoriaDespesaPadrao || 'Taxas de Cartão',
+              orcamentoId: orcIdFinal,
+            });
+          }
         }
         await updateTransacao(transacaoPendente.id, updates);
         transacaoFinal = { ...transacaoPendente, ...updates };
@@ -527,16 +558,41 @@ export const ModalReceberPagamento = ({
         {/* Header Compacto */}
         <div className="bg-gradient-to-r from-emerald-600 to-teal-700 text-white px-4 py-2.5 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
-            <div className="p-1 bg-white/20 rounded-md">
-              <QrCode className="h-4 w-4 text-white" />
+            <div className="p-1.5 bg-white/20 rounded-md">
+              {metodo === 'cartao' ? (
+                <CreditCard className="h-4 w-4 text-white" />
+              ) : metodo === 'misto' ? (
+                <Wallet className="h-4 w-4 text-white" />
+              ) : metodo === 'dinheiro' ? (
+                <Banknote className="h-4 w-4 text-white" />
+              ) : metodo === 'pix' ? (
+                <QrCode className="h-4 w-4 text-white" />
+              ) : (
+                <CheckCircle2 className="h-4 w-4 text-white" />
+              )}
             </div>
             <div>
               <DialogTitle className="text-sm font-bold text-white flex items-center gap-2 leading-none">
-                Recebimento em PIX / Caixa
-                <Badge className="bg-emerald-400/30 text-emerald-100 text-[9px] uppercase px-1.5 py-0 border-0 font-semibold">
-                  {orcamentoSelecionado ? 'Abater Orçamento' : 'Baixa Imediata'}
+                {transacaoPendente ? 'Confirmar Recebimento / Dar Baixa' : 'Recebimento no Caixa'}
+                <Badge className="bg-white/20 text-white text-[9px] uppercase px-1.5 py-0 border-0 font-semibold">
+                  {metodo === 'misto'
+                    ? 'Misto (PIX + Cartão)'
+                    : metodo === 'cartao'
+                    ? 'Cartão'
+                    : metodo === 'dinheiro'
+                    ? 'Dinheiro'
+                    : metodo === 'pix'
+                    ? 'PIX'
+                    : orcamentoSelecionado
+                    ? 'Abater Orçamento'
+                    : 'Caixa'}
                 </Badge>
               </DialogTitle>
+              {transacaoPendente && (
+                <p className="text-[11px] text-emerald-100 opacity-90 mt-0.5 truncate max-w-sm">
+                  {transacaoPendente.pacienteNome || 'Paciente'} • {formatMoney(transacaoPendente.valor || 0)}
+                </p>
+              )}
             </div>
           </div>
         </div>

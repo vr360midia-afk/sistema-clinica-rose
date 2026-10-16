@@ -572,8 +572,20 @@ const PatientOrcamentos = ({ patient }: Props) => {
       }
 
       if (lancarFinanceiro) {
-        // Remove apenas transações pendentes vinculadas a este orçamento para atualizar parcelas, PRESERVANDO transações já pagas/recebidas!
-        const existentes = (transacoes || []).filter((t: any) => t.orcamentoId === o.id);
+        // Remove transações pendentes vinculadas a este orçamento ou órfãs do mesmo paciente para atualizar parcelas, PRESERVANDO transações já pagas!
+        const existentes = (transacoes || []).filter((t: any) => {
+          if (t.orcamentoId === o.id) return true;
+          const pacIdMatch = t.pacienteId && (t.pacienteId === o.pacienteId || t.pacienteId === patient?.id);
+          const pacNomeMatch = t.pacienteNome && o.pacienteNome && t.pacienteNome.trim().toLowerCase() === o.pacienteNome.trim().toLowerCase();
+          if ((pacIdMatch || pacNomeMatch) && t.status !== 'pago') {
+            const descLower = (t.descricao || '').toLowerCase();
+            const tituloLower = (o.titulo || '').toLowerCase();
+            if (tituloLower && descLower.includes(tituloLower)) return true;
+            if (descLower.includes('plano de tratamento') || descLower.includes('lentes em resina') || descLower.includes('lentes')) return true;
+            if (Math.abs(Number(t.valor || 0) - Number(o.total || 0)) < 0.05) return true;
+          }
+          return false;
+        });
         const jaPagas = existentes.filter((t: any) => t.status === 'pago');
 
         for (const t of existentes) {

@@ -9,7 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   DollarSign, TrendingUp, TrendingDown, Plus, CreditCard, Receipt, 
   Pencil, Trash2, Handshake, Target, CheckCircle2, QrCode, Search, 
-  Filter, Clock, Check, AlertCircle, ArrowUpRight, ArrowDownRight, Wallet
+  Filter, Clock, Check, AlertCircle, ArrowUpRight, ArrowDownRight, Wallet,
+  ArrowRightLeft
 } from 'lucide-react';
 import TransactionForm from '@/components/financeiro/TransactionForm';
 import { ModalReceberPagamento } from '@/components/financeiro/ModalReceberPagamento';
@@ -54,6 +55,25 @@ const Financeiro = () => {
   const handleMudarParaMesAtual = () => {
     const dataAtual = new Date();
     setSelectedMonth(`${dataAtual.getFullYear()}-${String(dataAtual.getMonth() + 1).padStart(2, '0')}`);
+  };
+
+  const handleBaixaImediata = async (transacao: Transacao) => {
+    try {
+      await updateTransacao(transacao.id, {
+        status: 'pago',
+        data: new Date(),
+      });
+      await registrarAuditoria({
+        acao: 'editar',
+        entidade: 'transacao',
+        entidadeId: transacao.id,
+        descricao: `Baixa imediata confirmada: ${formatMoney(transacao.valor || 0)} no Caixa`,
+      });
+      toast.success(`Baixa confirmada! ${formatMoney(transacao.valor || 0)} recebido e lançado no Caixa.`);
+    } catch (err) {
+      console.error('Erro ao dar baixa imediata:', err);
+      toast.error('Erro ao dar baixa imediata na transação');
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -647,20 +667,33 @@ const Financeiro = () => {
                             )}
 
                             <div className="flex items-center gap-1">
-                              {/* Botão rápido para dar baixa no Caixa se pendente */}
+                              {/* Ações para transação pendente: Baixa Imediata no Caixa ou Baixa Personalizada/Mista */}
                               {!isPago && isReceita && (
-                                <Button
-                                  size="sm"
-                                  onClick={() => {
-                                    setTransacaoParaReceber(transacao);
-                                    setShowModalReceber(true);
-                                  }}
-                                  className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1 font-semibold"
-                                  title="Confirmar recebimento e lançar no caixa"
-                                >
-                                  <CheckCircle2 className="h-3.5 w-3.5" />
-                                  <span className="hidden sm:inline">Dar Baixa</span>
-                                </Button>
+                                <div className="flex items-center gap-1">
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleBaixaImediata(transacao)}
+                                    className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1 font-semibold shadow-xs"
+                                    title="Confirmar recebimento no Caixa agora (1 clique)"
+                                  >
+                                    <CheckCircle2 className="h-3.5 w-3.5" />
+                                    <span>Dar Baixa</span>
+                                  </Button>
+
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      setTransacaoParaReceber(transacao);
+                                      setShowModalReceber(true);
+                                    }}
+                                    className="h-8 text-xs gap-1 border-emerald-500/40 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10 px-2 font-medium"
+                                    title="Dividir em Misto (PIX + Cartão), alterar forma de pagamento ou abater orçamento"
+                                  >
+                                    <ArrowRightLeft className="h-3.5 w-3.5" />
+                                    <span className="hidden xl:inline">Misto / Alterar</span>
+                                  </Button>
+                                </div>
                               )}
 
                               {isReceita && isPago && (
