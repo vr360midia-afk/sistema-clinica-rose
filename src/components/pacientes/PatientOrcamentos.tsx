@@ -91,6 +91,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
   // Aprovação com lançamento financeiro
   const [aprovandoOrcamento, setAprovandoOrcamento] = useState<Orcamento | null>(null);
   const [lancandoFinanceiro, setLancandoFinanceiro] = useState(false);
+  const [darBaixaImediataAprovacao, setDarBaixaImediataAprovacao] = useState(true);
 
   // Assistente de Máquina de Cartão (PagBank / InfinitePay)
   const [cartaoAssistenteAtivo, setCartaoAssistenteAtivo] = useState(false);
@@ -598,7 +599,16 @@ const PatientOrcamentos = ({ patient }: Props) => {
 
         for (const p of parcelas) {
           const isEntrada = (p?.descricao || '').toLowerCase().includes('entrada');
-          const isQuitada = (p?.status || '').toLowerCase().includes('quitad') || (p?.status || '').toLowerCase().includes('pago');
+          const descLower = (p.metodo || p.descricao || '').toLowerCase();
+          const isCartao = descLower.includes('cartao') || descLower.includes('cartão') || descLower.includes('crédito') || descLower.includes('debito');
+
+          // Se darBaixaImediataAprovacao estiver marcado, ou for cartão de crédito/débito autorizado, ou marcado como quitado: marca como pago!
+          const isQuitada =
+            darBaixaImediataAprovacao ||
+            isCartao ||
+            (p?.status || '').toLowerCase().includes('quitad') ||
+            (p?.status || '').toLowerCase().includes('pago') ||
+            (p?.status || '').toLowerCase().includes('autoriz');
           
           // Se já existe transação paga para este orçamento correspondente à entrada ou parcela, preserva
           const jaExistePaga = jaPagas.some((jp: any) => 
@@ -631,9 +641,6 @@ const PatientOrcamentos = ({ patient }: Props) => {
 
           // Identifica o método específico desta parcela dinamicamente
           let metodoFinal: any = 'pix';
-          const descLower = (p.metodo || p.descricao || '').toLowerCase();
-          const isCartao = descLower.includes('cartao') || descLower.includes('cartão') || descLower.includes('crédito') || descLower.includes('debito');
-
           if (isCartao) {
             metodoFinal = 'cartao';
           } else if (descLower.includes('pix_parcelado') || descLower.includes('pix mensal') || descLower.includes('pix parcelado')) {
@@ -2885,11 +2892,20 @@ const PatientOrcamentos = ({ patient }: Props) => {
                   O plano <strong>{aprovandoOrcamento.titulo}</strong> no valor total de{' '}
                   <strong className="text-foreground">{formatMoney(aprovandoOrcamento.total)}</strong> será aprovado.
                 </p>
-                <div className="rounded-md bg-muted/50 p-2.5 border border-border text-xs space-y-1">
+                <div className="rounded-md bg-muted/50 p-2.5 border border-border text-xs space-y-2">
                   <div><strong>Condição de Pagamento:</strong> {aprovandoOrcamento.formasPagamento || 'A combinar'}</div>
                   <div className="text-muted-foreground">
-                    Deseja lançar a entrada e as parcelas automaticamente no <strong>Contas a Receber (Financeiro)</strong> para monitoramento de vencimentos e lembretes de PIX?
+                    Deseja lançar no <strong>Contas a Receber (Financeiro)</strong> para monitoramento de receitas, taxas de máquina e extrato do paciente?
                   </div>
+                  <label className="flex items-center gap-2 pt-2 border-t border-border/70 text-xs font-semibold text-emerald-400 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={darBaixaImediataAprovacao}
+                      onChange={(e) => setDarBaixaImediataAprovacao(e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                    />
+                    <span>Dar baixa imediata nos pagamentos já recebidos (PIX / Cartão no balcão)</span>
+                  </label>
                 </div>
               </AlertDialogDescription>
             </AlertDialogHeader>

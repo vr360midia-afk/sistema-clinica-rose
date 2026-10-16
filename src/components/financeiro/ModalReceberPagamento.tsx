@@ -56,13 +56,13 @@ export const ModalReceberPagamento = ({
   const { configContrato } = useConfiguracoesContrato();
   const { configuracoes } = useConfiguracoes();
   const { orcamentos, reload: reloadOrcamentos } = useOrcamentos();
-  const { operadoras, operadoraPadrao } = useMaquinasCartao();
+  const { operadoras, operadoraPadrao, config: configMaquinas } = useMaquinasCartao();
 
   const [pacienteId, setPacienteId] = useState('');
   const [orcamentoId, setOrcamentoId] = useState<string>('nenhum');
   const [valor, setValor] = useState('');
   const [descricao, setDescricao] = useState('');
-  const [metodo, setMetodo] = useState<MetodoPagamento>('pix');
+  const [metodo, setMetodo] = useState<MetodoPagamento | 'misto'>('pix');
   const [dataRecebimento, setDataRecebimento] = useState(() => {
     const d = new Date();
     return d.toISOString().slice(0, 10);
@@ -73,10 +73,17 @@ export const ModalReceberPagamento = ({
   const [copiouChave, setCopiouChave] = useState(false);
   const [qrTelaCheiaOpen, setQrTelaCheiaOpen] = useState(false);
 
-  // Máquinas de Cartão
+  // Máquinas de Cartão (Pagamento 100% Cartão)
   const [selectedOperadoraId, setSelectedOperadoraId] = useState<string>('infinitepay');
   const [parcelas, setParcelas] = useState<string>('1');
   const [taxaCartaoPercentual, setTaxaCartaoPercentual] = useState<string>('');
+
+  // Suporte a Pagamento Misto (PIX + Cartão de Crédito/Débito)
+  const [mistoPixValor, setMistoPixValor] = useState('');
+  const [mistoCartaoValor, setMistoCartaoValor] = useState('');
+  const [mistoOperadoraCartaoId, setMistoOperadoraCartaoId] = useState<string>('infinitepay');
+  const [mistoParcelasCartao, setMistoParcelasCartao] = useState<string>('1');
+  const [mistoTipoCartao, setMistoTipoCartao] = useState<'credito' | 'debito'>('credito');
 
   useEffect(() => {
     if (isOpen) {
@@ -93,6 +100,8 @@ export const ModalReceberPagamento = ({
         setDescricao(descricaoSugerida || 'Recebimento de Tratamento');
         setMetodo('pix');
       }
+      setMistoPixValor('');
+      setMistoCartaoValor('');
       setDataRecebimento(new Date().toISOString().slice(0, 10));
       setGerarReciboAposBaixa(false);
       setCopiouPayload(false);
@@ -149,6 +158,32 @@ export const ModalReceberPagamento = ({
 
   const valNum = parseFloat(valor) || 0;
 
+  // Valores numéricos do pagamento misto
+  const mistoValPixNum = parseFloat(mistoPixValor) || 0;
+  const mistoValCartaoNum = parseFloat(mistoCartaoValor) || 0;
+  const mistoTotalInformado = Number((mistoValPixNum + mistoValCartaoNum).toFixed(2));
+
+  // Cálculo de taxas para a parte de Cartão no Pagamento Misto
+  const mistoCalculoCartao = useMemo(() => {
+    if (metodo !== 'misto' || mistoValCartaoNum <= 0) return null;
+    const op = operadoras.find((o) => o.id === mistoOperadoraCartaoId) || operadoraPadrao;
+    const p = Math.max(1, parseInt(mistoParcelasCartao) || 1);
+    const isDeb = mistoTipoCartao === 'debito';
+    const calc = calcularTaxaCartao(op, p, mistoValCartaoNum, isDeb);
+    return {
+      operadora: op,
+      parcelas: p,
+      isDebito: isDeb,
+      taxaPerc: calc.taxaPercentual,
+      taxaValor: calc.taxaValor,
+      valorLiquido: calc.valorLiquido,
+      valorParcela: p > 1 ? Number((mistoValCartaoNum / p).toFixed(2)) : mistoValCartaoNum,
+    };
+  }, [metodo, mistoValCartaoNum, mistoOperadoraCartaoId, mistoParcelasCartao, mistoTipoCartao, operadoras, operadoraPadrao]);
+
+  // Alvo de valor para geração de payload/QR Code de PIX
+  const valorPixAlvo = metodo === 'misto' ? mistoValPixNum : valNum;
+
   // Atualiza taxa da máquina quando muda operadora ou parcelas
   useEffect(() => {
     if (metodo === 'cartao') {
@@ -184,10 +219,10 @@ export const ModalReceberPagamento = ({
       tipoChave,
       nomeFavorecido: favorecido,
       cidade,
-      valor: valNum > 0 ? valNum : undefined,
+      valor: valorPixAlvo > 0 ? valorPixAlvo : undefined,
       descricao: descricao ? descricao.slice(0, 30) : 'Tratamento',
     });
-  }, [chavePix, tipoChave, favorecido, cidade, valNum, descricao]);
+  }, [chavePix, tipoChave, favorecido, cidade, valorPixAlvo, descricao]);
 
   // QR Code gerado a partir do payload Bacen (tamanho otimizado)
   const qrCodeUrl = useMemo(() => {
@@ -214,8 +249,8 @@ export const ModalReceberPagamento = ({
     setCopiouPayload(true);
     setTimeout(() => setCopiouPayload(false), 3000);
     toast.success(
-      valNum > 0
-        ? `PIX Copia e Cola (${formatMoney(valNum)}) copiado!`
+      valorPixAlvo > 0
+        ? `PIX Copia e Cola (${formatMoney(valorPixAlvo)}) copiado!`
         : 'Código PIX Copia e Cola copiado!'
     );
   };
@@ -230,6 +265,22 @@ export const ModalReceberPagamento = ({
     setTimeout(() => setCopiouChave(false), 3000);
     toast.success('Chave PIX copiada!');
   };
+
+  // Auto-seleciona orçamento se o paciente tiver orçamento com saldo aberto
+  useEffect(() => {
+    if (pacienteId && (!orcamentoId || orcamentoId === 'nenhum') && !orcamentoIdPredefinido) {
+      const orcComSaldo = orcamentosDoPaciente.find((o) => o.saldoInfo.saldo > 0.01);
+      if (orcComSaldo) {
+        setOrcamentoId(orcComSaldo.id);
+        if (!valor || parseFloat(valor) === 0) {
+          setValor(String(orcComSaldo.saldoInfo.saldo.toFixed(2)));
+        }
+        if (!descricao || descricao === 'Recebimento de Tratamento' || descricao === 'Recebimento') {
+          setDescricao(`Recebimento - ${orcComSaldo.titulo}`);
+        }
+      }
+    }
+  }, [pacienteId, orcamentosDoPaciente, orcamentoId, orcamentoIdPredefinido]);
 
   const handlePacienteChange = (novoPacienteId: string) => {
     setPacienteId(novoPacienteId);
@@ -261,6 +312,17 @@ export const ModalReceberPagamento = ({
     }
   };
 
+  const handleMetodoChange = (novoMetodo: any) => {
+    setMetodo(novoMetodo);
+    if (novoMetodo === 'misto' && valNum > 0) {
+      if (!mistoPixValor && !mistoCartaoValor) {
+        const metade = Number((valNum / 2).toFixed(2));
+        setMistoPixValor(String(metade));
+        setMistoCartaoValor(String(Number((valNum - metade).toFixed(2))));
+      }
+    }
+  };
+
   const handleConfirmarRecebimento = async () => {
     if (!valNum || valNum <= 0) {
       toast.error('Informe um valor válido');
@@ -272,11 +334,108 @@ export const ModalReceberPagamento = ({
       return;
     }
 
+    if (metodo === 'misto') {
+      if (mistoValPixNum <= 0 && mistoValCartaoNum <= 0) {
+        toast.error('Informe os valores de PIX e Cartão no pagamento misto');
+        return;
+      }
+      if (Math.abs(mistoTotalInformado - valNum) > 0.05) {
+        toast.error(`A soma das partes (${formatMoney(mistoTotalInformado)}) difere do total (${formatMoney(valNum)})`);
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       const pacienteObj = pacientes.find((p) => p.id === pId);
       const dataObj = new Date(`${dataRecebimento}T12:00:00`);
       const orcIdFinal = orcamentoId && orcamentoId !== 'nenhum' ? orcamentoId : undefined;
+
+      // FLUXO DE PAGAMENTO MISTO (PIX + CARTÃO)
+      if (metodo === 'misto') {
+        if (mistoValPixNum > 0) {
+          await addTransacao({
+            pacienteId: pId,
+            pacienteNome: pacienteObj?.nome,
+            tipo: 'receita' as const,
+            status: 'pago' as const,
+            metodoPagamento: 'pix',
+            valor: mistoValPixNum,
+            data: dataObj,
+            descricao: `${descricao.trim() || 'Recebimento'} (PIX)`,
+            orcamentoId: orcIdFinal,
+          });
+        }
+
+        if (mistoValCartaoNum > 0) {
+          const dadosCartao: any = {
+            pacienteId: pId,
+            pacienteNome: pacienteObj?.nome,
+            tipo: 'receita' as const,
+            status: 'pago' as const,
+            metodoPagamento: 'cartao',
+            valor: mistoValCartaoNum,
+            data: dataObj,
+            descricao: `${descricao.trim() || 'Recebimento'} (Cartão ${mistoParcelasCartao}x ${mistoCalculoCartao?.operadora?.nome || ''})`,
+            orcamentoId: orcIdFinal,
+          };
+          if (mistoCalculoCartao) {
+            dadosCartao.taxaCartaoPercentual = mistoCalculoCartao.taxaPerc;
+            dadosCartao.taxaCartaoValor = mistoCalculoCartao.taxaValor;
+            dadosCartao.valorLiquido = mistoCalculoCartao.valorLiquido;
+            dadosCartao.parcelas = mistoCalculoCartao.parcelas;
+            dadosCartao.valorParcela = mistoCalculoCartao.valorParcela;
+          }
+          await addTransacao(dadosCartao);
+
+          if (configMaquinas?.lancarTaxaComoDespesa !== false && mistoCalculoCartao && mistoCalculoCartao.taxaValor > 0) {
+            await addTransacao({
+              pacienteId: pId,
+              pacienteNome: pacienteObj?.nome,
+              valor: mistoCalculoCartao.taxaValor,
+              tipo: 'despesa' as const,
+              status: 'pago' as const,
+              metodoPagamento: 'cartao',
+              data: dataObj,
+              vencimento: dataObj,
+              descricao: `Taxa da Máquina (${mistoCalculoCartao.operadora?.nome || 'Cartão'}) - ${descricao.trim() || 'Recebimento'}`,
+              categoria: configMaquinas?.categoriaDespesaPadrao || 'Taxas de Cartão',
+              orcamentoId: orcIdFinal,
+            });
+          }
+        }
+
+        toast.success(
+          orcIdFinal
+            ? `Recebimento misto de ${formatMoney(valNum)} (PIX + Cartão) baixado do orçamento!`
+            : `Recebimento misto de ${formatMoney(valNum)} registrado no Caixa!`
+        );
+
+        if (gerarReciboAposBaixa && pacienteObj) {
+          try {
+            await gerarRecibo(
+              {
+                numero: String(Date.now()).slice(-8).toUpperCase(),
+                pacienteNome: pacienteObj.nome,
+                descricao:
+                  descricao ||
+                  (orcIdFinal ? `Pagamento - ${orcamentoSelecionado?.titulo || 'Tratamento'}` : 'Tratamento odontológico'),
+                valor: valNum,
+                data: dataObj,
+                metodoPagamento: `Misto: PIX (${formatMoney(mistoValPixNum)}) + Cartão (${formatMoney(mistoValCartaoNum)})`,
+              },
+              configuracoes
+            );
+            toast.success('Recibo baixado!');
+          } catch (rErr) {
+            console.error('Erro ao gerar recibo:', rErr);
+          }
+        }
+
+        onSuccess?.();
+        onClose();
+        return;
+      }
 
       let transacaoFinal: any = null;
 
@@ -385,7 +544,7 @@ export const ModalReceberPagamento = ({
         {/* Corpo com visualização direta e compacta */}
         <div className="p-3.5 space-y-2.5 overflow-y-auto flex-1">
           {/* Box de Cobrança PIX Otimizado */}
-          {metodo === 'pix' && (
+          {(metodo === 'pix' || (metodo === 'misto' && mistoValPixNum > 0)) && chavePix && (
             <div className="rounded-lg border border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/20 p-2.5 flex items-center gap-3">
               <div
                 onClick={() => setQrTelaCheiaOpen(true)}
@@ -407,15 +566,15 @@ export const ModalReceberPagamento = ({
                 <div className="flex items-center justify-between gap-1 text-[11px]">
                   <div className="flex items-center gap-1.5 truncate">
                     <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white text-[9px] font-bold px-1 py-0 h-4 shrink-0">
-                      PIX Bacen
+                      {metodo === 'misto' ? 'PIX (Parte 1)' : 'PIX Bacen'}
                     </Badge>
                     <span className="text-muted-foreground truncate">
                       {favorecido} • <span className="font-mono">{chavePix}</span>
                     </span>
                   </div>
-                  {valNum > 0 && (
+                  {valorPixAlvo > 0 && (
                     <span className="font-bold text-emerald-700 dark:text-emerald-400 shrink-0">
-                      QR c/ {formatMoney(valNum)}
+                      {metodo === 'misto' ? `PIX: ${formatMoney(valorPixAlvo)}` : `QR c/ ${formatMoney(valorPixAlvo)}`}
                     </span>
                   )}
                 </div>
@@ -430,8 +589,8 @@ export const ModalReceberPagamento = ({
                     {copiouPayload ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
                     {copiouPayload
                       ? 'Copiado!'
-                      : valNum > 0
-                      ? `Copiar PIX (${formatMoney(valNum)})`
+                      : valorPixAlvo > 0
+                      ? `Copiar PIX (${formatMoney(valorPixAlvo)})`
                       : 'Copiar PIX Copia e Cola'}
                   </Button>
 
@@ -576,13 +735,37 @@ export const ModalReceberPagamento = ({
             </div>
           ) : (
             pacienteId && (
-              <div className="text-[10px] text-muted-foreground flex items-center gap-1 px-1">
-                <Wallet className="h-3 w-3 text-emerald-600 shrink-0" />
-                <span>
-                  {orcamentosDoPaciente.length === 0
-                    ? 'Sem orçamentos cadastrados. O valor entrará como crédito avulso no paciente.'
-                    : 'Lançamento Avulso: o valor entrará direto no financeiro do paciente.'}
-                </span>
+              <div className="space-y-1.5">
+                {orcamentosDoPaciente.some((o) => o.saldoInfo.saldo > 0.01) && (
+                  <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 flex items-center justify-between text-xs animate-in fade-in">
+                    <div className="flex items-center gap-1.5 text-amber-500">
+                      <Sparkles className="h-3.5 w-3.5 shrink-0" />
+                      <span className="font-semibold text-[11px]">
+                        Este paciente possui orçamento com saldo em aberto!
+                      </span>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-6 text-[10px] font-bold border-amber-500/40 text-amber-500 hover:bg-amber-500/20"
+                      onClick={() => {
+                        const o = orcamentosDoPaciente.find((x) => x.saldoInfo.saldo > 0.01) || orcamentosDoPaciente[0];
+                        handleSelectOrcamento(o.id);
+                      }}
+                    >
+                      Vincular ao Orçamento ({formatMoney(orcamentosDoPaciente.find((x) => x.saldoInfo.saldo > 0.01)?.saldoInfo.saldo || 0)})
+                    </Button>
+                  </div>
+                )}
+                <div className="text-[10px] text-muted-foreground flex items-center gap-1 px-1">
+                  <Wallet className="h-3 w-3 text-emerald-600 shrink-0" />
+                  <span>
+                    {orcamentosDoPaciente.length === 0
+                      ? 'Sem orçamentos cadastrados. O valor entrará como crédito avulso no paciente.'
+                      : 'Lançamento Avulso: o valor entrará direto no financeiro do paciente.'}
+                  </span>
+                </div>
               </div>
             )
           )}
@@ -614,20 +797,198 @@ export const ModalReceberPagamento = ({
 
             <div className="space-y-0.5">
               <Label className="text-[11px] font-semibold text-foreground">Forma de Pagamento *</Label>
-              <Select value={metodo} onValueChange={(val: any) => setMetodo(val)}>
+              <Select value={metodo} onValueChange={handleMetodoChange}>
                 <SelectTrigger className="h-8 text-xs font-medium">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="pix">💎 PIX</SelectItem>
-                  <SelectItem value="dinheiro">💵 Dinheiro</SelectItem>
                   <SelectItem value="cartao">💳 Cartão Déb./Créd.</SelectItem>
+                  <SelectItem value="misto" className="font-semibold text-emerald-600 dark:text-emerald-400">
+                    🔀 Misto (PIX + Cartão)
+                  </SelectItem>
+                  <SelectItem value="dinheiro">💵 Dinheiro</SelectItem>
                   <SelectItem value="transferencia">🏦 Transferência</SelectItem>
                   <SelectItem value="boleto">📄 Boleto</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
+
+          {/* Painel de Pagamento Misto (PIX + Cartão) */}
+          {metodo === 'misto' && (
+            <div className="rounded-lg border border-emerald-500/40 bg-gradient-to-br from-emerald-950/20 via-background to-teal-950/20 p-2.5 space-y-2 animate-in fade-in-50">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-emerald-400 flex items-center gap-1.5">
+                  <CreditCard className="h-3.5 w-3.5" />
+                  Divisão do Pagamento Misto (PIX + Cartão)
+                </span>
+                <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      const metade = Number((valNum / 2).toFixed(2));
+                      setMistoPixValor(String(metade));
+                      setMistoCartaoValor(String(Number((valNum - metade).toFixed(2))));
+                    }}
+                    className="h-5 text-[10px] px-1.5 font-semibold text-emerald-400 hover:bg-emerald-500/10"
+                  >
+                    50% / 50%
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      const resto = Math.max(0, Number((valNum - mistoValPixNum).toFixed(2)));
+                      setMistoCartaoValor(String(resto));
+                    }}
+                    className="h-5 text-[10px] px-1.5 font-semibold text-teal-400 hover:bg-teal-500/10"
+                  >
+                    Restante no Cartão
+                  </Button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {/* Parte 1: PIX */}
+                <div className="p-2 rounded-md border border-emerald-500/30 bg-background/80 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-[11px] font-semibold text-emerald-400 flex items-center gap-1">
+                      💎 Parte 1: PIX
+                    </Label>
+                    <Badge className="bg-emerald-600/30 text-emerald-300 text-[9px] px-1 py-0 border-0">
+                      Baixa Imediata
+                    </Badge>
+                  </div>
+                  <div className="space-y-0.5">
+                    <Label className="text-[10px] text-muted-foreground">Valor no PIX (R$)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0,00"
+                      value={mistoPixValor}
+                      onChange={(e) => setMistoPixValor(e.target.value)}
+                      className="h-7 text-xs font-bold text-emerald-600 dark:text-emerald-400"
+                    />
+                  </div>
+                </div>
+
+                {/* Parte 2: Cartão */}
+                <div className="p-2 rounded-md border border-teal-500/30 bg-background/80 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-[11px] font-semibold text-teal-400 flex items-center gap-1">
+                      💳 Parte 2: Cartão
+                    </Label>
+                    <Badge className="bg-teal-600/30 text-teal-300 text-[9px] px-1 py-0 border-0">
+                      Maquininha
+                    </Badge>
+                  </div>
+                  <div className="space-y-0.5">
+                    <Label className="text-[10px] text-muted-foreground">Valor no Cartão (R$)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0,00"
+                      value={mistoCartaoValor}
+                      onChange={(e) => setMistoCartaoValor(e.target.value)}
+                      className="h-7 text-xs font-bold text-teal-600 dark:text-teal-400"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-1 pt-0.5">
+                    <div>
+                      <Label className="text-[9px] text-muted-foreground">Máquina</Label>
+                      <Select value={mistoOperadoraCartaoId} onValueChange={setMistoOperadoraCartaoId}>
+                        <SelectTrigger className="h-6 text-[10px] font-semibold px-1">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {operadoras
+                            .filter((o) => o.ativa !== false)
+                            .map((op) => (
+                              <SelectItem key={op.id} value={op.id} className="text-xs">
+                                {op.nome}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label className="text-[9px] text-muted-foreground">Tipo</Label>
+                      <Select value={mistoTipoCartao} onValueChange={(v: any) => setMistoTipoCartao(v)}>
+                        <SelectTrigger className="h-6 text-[10px] font-semibold px-1">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="credito" className="text-xs">Crédito</SelectItem>
+                          <SelectItem value="debito" className="text-xs">Débito</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label className="text-[9px] text-muted-foreground">Parcelas</Label>
+                      <Select
+                        value={mistoParcelasCartao}
+                        onValueChange={setMistoParcelasCartao}
+                        disabled={mistoTipoCartao === 'debito'}
+                      >
+                        <SelectTrigger className="h-6 text-[10px] font-semibold px-1">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((p) => (
+                            <SelectItem key={p} value={String(p)} className="text-xs">
+                              {p === 1 ? '1x à vista' : `${p}x`}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {mistoCalculoCartao && mistoValCartaoNum > 0 && (
+                    <div className="text-[9px] text-muted-foreground flex items-center justify-between pt-0.5 border-t border-border/40">
+                      <span>Taxa: <strong className="text-destructive">-{formatMoney(mistoCalculoCartao.taxaValor)} ({mistoCalculoCartao.taxaPerc}%)</strong></span>
+                      <span>Líquido: <strong className="text-emerald-400">{formatMoney(mistoCalculoCartao.valorLiquido)}</strong></span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Barra de Consistência da Soma */}
+              <div className="flex items-center justify-between text-[11px] px-2 py-1 rounded bg-muted/40 border border-border/60">
+                <span>
+                  Soma: <strong>{formatMoney(mistoTotalInformado)}</strong> / Total: <strong>{formatMoney(valNum)}</strong>
+                </span>
+                {Math.abs(mistoTotalInformado - valNum) < 0.05 ? (
+                  <span className="text-emerald-500 font-bold flex items-center gap-1">
+                    <CheckCircle2 className="h-3 w-3" /> Distribuído 100%
+                  </span>
+                ) : (
+                  <span className="text-amber-500 font-semibold flex items-center gap-1">
+                    Diferença: {formatMoney(valNum - mistoTotalInformado)}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const resto = Math.max(0, Number((valNum - mistoValPixNum).toFixed(2)));
+                        setMistoCartaoValor(String(resto));
+                      }}
+                      className="underline ml-1 hover:text-amber-400 font-bold"
+                    >
+                      Ajustar no Cartão
+                    </button>
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Linha 3: Descrição e Checkbox de Recibo */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">

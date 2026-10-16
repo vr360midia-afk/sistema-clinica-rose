@@ -11,8 +11,28 @@ function isNewSupabaseApiKey(value: string): boolean {
   return value.startsWith('sb_publishable_') || value.startsWith('sb_secret_');
 }
 
+let refreshPromise: Promise<string | null> | null = null;
+
+async function silentRefreshToken(): Promise<string | null> {
+  if (refreshPromise) return refreshPromise;
+  refreshPromise = (async () => {
+    try {
+      const { data, error } = await supabase.auth.refreshSession();
+      if (!error && data?.session?.access_token) {
+        return data.session.access_token;
+      }
+    } catch (e) {
+      console.warn('[Supabase] Falha ao renovar token expirado:', e);
+    } finally {
+      refreshPromise = null;
+    }
+    return null;
+  })();
+  return refreshPromise;
+}
+
 function createSupabaseFetch(supabaseKey: string): typeof fetch {
-  return (input, init) => {
+  return async (input, init) => {
     const headers = new Headers(
       typeof Request !== 'undefined' && input instanceof Request ? input.headers : undefined,
     );
@@ -27,7 +47,35 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
     }
 
     headers.set('apikey', supabaseKey);
-    return fetch(input, { ...init, headers });
+
+    let res = await fetch(input, { ...init, headers });
+
+    const urlStr = typeof input === 'string' ? input : (input instanceof Request ? input.url : '');
+    const isAuthRoute = urlStr.includes('/auth/v1/');
+
+    // Se receber 401 por token JWT expirado, renova silenciosamente e reexecuta uma vez
+    if (!isAuthRoute && res.status === 401) {
+      try {
+        const clone = res.clone();
+        const bodyText = await clone.text().catch(() => '');
+        if (
+          bodyText.includes('JWT expired') ||
+          bodyText.includes('jwt expired') ||
+          bodyText.includes('PGRST301') ||
+          bodyText.includes('token is expired')
+        ) {
+          const newToken = await silentRefreshToken();
+          if (newToken) {
+            headers.set('Authorization', `Bearer ${newToken}`);
+            res = await fetch(input, { ...init, headers });
+          }
+        }
+      } catch (err) {
+        console.warn('[Supabase] Erro ao tratar renovação transparente de 401:', err);
+      }
+    }
+
+    return res;
   };
 }
 

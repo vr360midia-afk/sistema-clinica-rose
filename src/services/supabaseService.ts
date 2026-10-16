@@ -42,7 +42,21 @@ class SupabaseService {
   private cachedSessionUserId: string | null = null;
 
   private async getCurrentUserId(): Promise<string> {
-    const { data: { session } } = await supabase.auth.getSession();
+    let { data: { session } } = await supabase.auth.getSession();
+    
+    // Se a sessão expirou ou está a menos de 30 segundos de expirar, renova
+    const now = Math.floor(Date.now() / 1000);
+    if (session && session.expires_at && session.expires_at <= now + 30) {
+      try {
+        const { data: refreshed } = await supabase.auth.refreshSession();
+        if (refreshed?.session) {
+          session = refreshed.session;
+        }
+      } catch (err) {
+        console.warn('[supabaseService] Erro ao renovar sessão:', err);
+      }
+    }
+
     const userId = session?.user?.id || (await supabase.auth.getUser()).data.user?.id;
     if (!userId) throw new Error('Usuário não autenticado');
 
