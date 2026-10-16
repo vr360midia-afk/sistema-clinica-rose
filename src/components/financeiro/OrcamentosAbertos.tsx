@@ -3,7 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
-import { FileText, Plus, ChevronDown, ChevronUp, Receipt, QrCode, CheckCircle2, Clock } from 'lucide-react';
+import { FileText, Plus, ChevronDown, ChevronUp, Receipt, QrCode, CheckCircle2, Clock, Eye } from 'lucide-react';
+import ModalApresentarOrcamento from '@/components/orcamentos/ModalApresentarOrcamento';
 import { useOrcamentos } from '@/hooks/useOrcamentos';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import { calcularSaldoOrcamento } from '@/utils/orcamentoSaldo';
@@ -19,6 +20,7 @@ const OrcamentosAbertos = ({ onLancarPagamento }: Props) => {
   const { orcamentos, loading } = useOrcamentos();
   const { transacoes } = useDentalSystem();
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [apresentarOrcamento, setApresentarOrcamento] = useState<any | null>(null);
 
   // Estado para Modal de Recebimento
   const [modalReceberOpen, setModalReceberOpen] = useState(false);
@@ -119,6 +121,20 @@ const OrcamentosAbertos = ({ onLancarPagamento }: Props) => {
 
                   {!isQuitado && (
                     <div className="flex items-center gap-1.5">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-xs text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 gap-1.5 font-medium"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setApresentarOrcamento(orcamento);
+                        }}
+                        title="Apresentar este orçamento na frente do paciente"
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                        Apresentar ao Paciente
+                      </Button>
+
                       <Button
                         size="sm"
                         onClick={(e) => {
@@ -256,6 +272,16 @@ const OrcamentosAbertos = ({ onLancarPagamento }: Props) => {
         valorSugerido={dadosRecebimentoAvulso?.valor}
         descricaoSugerida={dadosRecebimentoAvulso?.descricao}
       />
+
+      {/* Modal de Apresentação Clínica ao Paciente */}
+      {apresentarOrcamento && (
+        <ModalApresentarOrcamento
+          isOpen={!!apresentarOrcamento}
+          onClose={() => setApresentarOrcamento(null)}
+          orcamento={apresentarOrcamento}
+          patient={{ id: apresentarOrcamento.pacienteId, nome: apresentarOrcamento.pacienteNome }}
+        />
+      )}
     </>
   );
 };

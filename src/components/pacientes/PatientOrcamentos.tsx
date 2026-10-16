@@ -7,7 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ClipboardList, Plus, Trash2, MessageCircle, Check, X, Handshake, FileText, Pencil, FileSignature, Sparkles, CalendarDays, Link as LinkIcon, Layers, CreditCard, Wallet, CheckCircle2, RefreshCw, Search, ChevronsUpDown, Calculator } from 'lucide-react';
+import { ClipboardList, Plus, Trash2, MessageCircle, Check, X, Handshake, FileText, Pencil, FileSignature, Sparkles, CalendarDays, Link as LinkIcon, Layers, CreditCard, Wallet, CheckCircle2, RefreshCw, Search, ChevronsUpDown, Calculator, Eye } from 'lucide-react';
+import ModalApresentarOrcamento from '@/components/orcamentos/ModalApresentarOrcamento';
 import { Switch } from '@/components/ui/switch';
 import { useOrcamentos, OrcamentoItem, Orcamento } from '@/hooks/useOrcamentos';
 import { useProcedimentos } from '@/hooks/useProcedimentos';
@@ -87,6 +88,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
   const [statusEdicao, setStatusEdicao] = useState<'rascunho' | 'enviado' | 'aprovado' | 'recusado'>('rascunho');
   const [contratoModalOpen, setContratoModalOpen] = useState(false);
   const [contratoOrcamento, setContratoOrcamento] = useState<Orcamento | null>(null);
+  const [apresentarOrcamento, setApresentarOrcamento] = useState<Orcamento | null>(null);
 
   // Aprovação com lançamento financeiro
   const [aprovandoOrcamento, setAprovandoOrcamento] = useState<Orcamento | null>(null);
@@ -1369,6 +1371,14 @@ const PatientOrcamentos = ({ patient }: Props) => {
               </div>
 
               <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-xs gap-1.5"
+                  onClick={() => setApresentarOrcamento(o)}
+                  title="Apresentar este plano de tratamento na frente do paciente no consultório"
+                >
+                  <Eye className="h-4 w-4" /> Apresentar ao Paciente
+                </Button>
                 <Button size="sm" variant="outline" onClick={() => abrirEdicao(o)}>
                   <Pencil className="h-4 w-4 mr-1" /> Editar
                 </Button>
@@ -2903,6 +2913,34 @@ const PatientOrcamentos = ({ patient }: Props) => {
           onClose={() => setContratoModalOpen(false)}
           patient={patient}
           initialOrcamento={contratoOrcamento}
+        />
+      )}
+
+      {apresentarOrcamento && (
+        <ModalApresentarOrcamento
+          isOpen={!!apresentarOrcamento}
+          onClose={() => setApresentarOrcamento(null)}
+          orcamento={apresentarOrcamento}
+          patient={patient}
+          onSalvarAlteracoes={async (dados) => {
+            await saveOrcamento({
+              ...dados,
+              pacienteId: patient?.id,
+              pacienteNome: patient?.nome,
+            });
+            setApresentarOrcamento(null);
+          }}
+          onAprovar={async (orcamentoAtualizado, lancarFin, darBaixa) => {
+            setDarBaixaImediataAprovacao(darBaixa);
+            await handleConfirmarAprovacao(orcamentoAtualizado, lancarFin);
+            setApresentarOrcamento(null);
+          }}
+          onGerarContrato={(o) => {
+            setContratoOrcamento(o);
+            setContratoModalOpen(true);
+          }}
+          onBaixarPdf={(o) => baixarPdf(o)}
+          onEnviarWhatsApp={(o) => enviarWhatsApp(o)}
         />
       )}
 
