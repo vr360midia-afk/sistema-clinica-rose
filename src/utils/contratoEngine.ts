@@ -653,12 +653,12 @@ export const mapearDadosContrato = ({
     logoUrl: configuracoes?.logoUrl || undefined,
     cidade: cidadeDefinida,
     dentistaResponsavel: dentistaNome || cfgContrato.dentistaResponsavelContrato || configuracoes?.croResponsavel || 'Cirurgião-Dentista Responsável',
-    chavePix: cfgContrato.chavePix || configuracoes?.telefone || configuracoes?.cnpj || 'Chave da clínica sob consulta',
-    tipoChavePix: cfgContrato.tipoChavePix || 'telefone',
-    favorecidoPix: cfgContrato.favorecidoPix || configuracoes?.nomeClinica || 'Titular da Conta',
-    cnpjCpfFavorecidoPix: cfgContrato.cnpjCpfFavorecidoPix || configuracoes?.cnpj || '',
-    bancoPix: cfgContrato.bancoPix || '',
-    instrucoesPix: cfgContrato.instrucoesPix || 'O(A) CONTRATANTE poderá utilizar a câmera do smartphone para leitura do QR Code acima ou efetuar a transferência direta para a chave informada, encaminhando o comprovante para confirmação da baixa da parcela.',
+    chavePix: cfgContrato?.chavePix || configuracoes?.telefone || configuracoes?.cnpj || 'Chave da clínica sob consulta',
+    tipoChavePix: cfgContrato?.tipoChavePix || 'telefone',
+    favorecidoPix: cfgContrato?.favorecidoPix || configuracoes?.nomeClinica || 'Titular da Conta',
+    cnpjCpfFavorecidoPix: cfgContrato?.cnpjCpfFavorecidoPix || configuracoes?.cnpj || '',
+    bancoPix: cfgContrato?.bancoPix || '',
+    instrucoesPix: cfgContrato?.instrucoesPix || 'O(A) CONTRATANTE poderá utilizar a câmera do smartphone para leitura do QR Code acima ou efetuar a transferência direta para a chave informada, encaminhando o comprovante para confirmação da baixa da parcela.',
   };
 
   // 3. Procedimentos aprovados do Orçamento
@@ -1030,7 +1030,7 @@ export const mapearDadosContrato = ({
 
   // Garante que nenhuma parcela em Cartão de Crédito retenha vencimento de calendário fixo,
   // e gera o Payload PIX e QR Code individual Bacen para cada parcela via PIX com o valor exato
-  const chavePixParaParcela = dadosClinica.chavePix && dadosClinica.chavePix !== 'Chave da clínica sob consulta'
+  const chavePixParaParcela = dadosClinica?.chavePix && dadosClinica.chavePix !== 'Chave da clínica sob consulta'
     ? dadosClinica.chavePix
     : '';
   const formaTemPix = (orcamento?.formasPagamento || orcamento?.formas_pagamento || '').toLowerCase().includes('pix');
@@ -1706,14 +1706,14 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
       `}
 
       ${temAlgumPix ? (() => {
-        const chavePixContrato = clinica.chavePix || clinica.cnpj || clinica.telefone || '';
+        const chavePixContrato = clinica?.chavePix || clinica?.cnpj || clinica?.telefone || '';
         const valorPixContrato = (financeiro.entrada && financeiro.entrada > 0) ? financeiro.entrada : (financeiro.total > 0 ? financeiro.total : undefined);
         const numIdContrato = orcamento?.numeroIdentificador || snapshot?.contratoId || '';
         const payloadPixContrato = chavePixContrato ? gerarPayloadPix({
           chave: chavePixContrato,
-          tipoChave: clinica.tipoChavePix,
-          nomeFavorecido: clinica.favorecidoPix || clinica.nome,
-          cidade: (clinica.cidade && !clinica.cidade.toUpperCase().includes('SAO PAULO')) ? clinica.cidade : 'MACEIO',
+          tipoChave: clinica?.tipoChavePix,
+          nomeFavorecido: clinica?.favorecidoPix || clinica?.nome,
+          cidade: (clinica?.cidade && !clinica.cidade.toUpperCase().includes('SAO PAULO')) ? clinica.cidade : 'MACEIO',
           valor: valorPixContrato,
           descricao: `Contrato ${numIdContrato}`.trim(),
         }) : '';
@@ -1744,13 +1744,13 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
           </div>
           <div style="flex: 1;">
             <div style="padding: 8px 12px; background-color: #ffffff; border-radius: 6px; border: 1px solid #bae6fd; font-size: 11px; color: #0c4a6e; line-height: 1.5;">
-              <strong>Chave PIX:</strong> <span style="font-family: monospace; font-weight: bold; font-size: 12px;">${clinica.chavePix || clinica.cnpj || clinica.telefone || 'Chave da clínica sob consulta'}</span> <br/>
-              <strong>Titular / Favorecido:</strong> ${clinica.favorecidoPix || clinica.nome} ${
-                clinica.cnpjCpfFavorecidoPix
+              <strong>Chave PIX:</strong> <span style="font-family: monospace; font-weight: bold; font-size: 12px;">${clinica?.chavePix || clinica?.cnpj || clinica?.telefone || 'Chave da clínica sob consulta'}</span> <br/>
+              <strong>Titular / Favorecido:</strong> ${clinica?.favorecidoPix || clinica?.nome} ${
+                clinica?.cnpjCpfFavorecidoPix
                   ? `• ${labelDocFavorecido}: ${clinica.cnpjCpfFavorecidoPix}`
-                  : (clinica.cnpj ? `• ${labelDocClinica}: ${clinica.cnpj}` : '')
+                  : (clinica?.cnpj ? `• ${labelDocClinica}: ${clinica.cnpj}` : '')
               }
-              ${clinica.bancoPix ? `<br/><strong>Instituição / Banco:</strong> ${clinica.bancoPix}` : ''}
+              ${clinica?.bancoPix ? `<br/><strong>Instituição / Banco:</strong> ${clinica.bancoPix}` : ''}
               ${valorPixContrato ? `<br/><strong>Valor Configurado no QR Code:</strong> <span style="color: #059669; font-weight: bold;">${formatMoney(valorPixContrato)}</span>` : ''}
 
               ${payloadPixContrato ? `
@@ -1800,13 +1800,13 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
             let parcPayload = parc.payloadPix || '';
             let parcQrCode = parc.qrCodePixUrl || '';
 
-            if (isPix && !parcPayload && clinica.chavePix && clinica.chavePix !== 'Chave da clínica sob consulta' && parc.valor > 0) {
+            if (isPix && !parcPayload && clinica?.chavePix && clinica.chavePix !== 'Chave da clínica sob consulta' && parc.valor > 0) {
               const numIdContrato = orcamento?.numeroIdentificador || snapshot?.contratoId || '';
               parcPayload = gerarPayloadPix({
                 chave: clinica.chavePix,
-                tipoChave: clinica.tipoChavePix,
-                nomeFavorecido: clinica.favorecidoPix || clinica.nome,
-                cidade: (clinica.cidade && !clinica.cidade.toUpperCase().includes('SAO PAULO')) ? clinica.cidade : 'MACEIO',
+                tipoChave: clinica?.tipoChavePix,
+                nomeFavorecido: clinica?.favorecidoPix || clinica?.nome,
+                cidade: (clinica?.cidade && !clinica.cidade.toUpperCase().includes('SAO PAULO')) ? clinica.cidade : 'MACEIO',
                 valor: parc.valor,
                 descricao: `Parc ${parc.numero} CTR-${numIdContrato}`.slice(0, 25),
               });

@@ -518,7 +518,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
         titulo: `Contrato Odontológico - Orçamento #${snapshotAtual.orcamento.numeroIdentificador}`,
         conteudo: htmlFinal,
         itens: snapshotAtual as any,
-        dentista: snapshotAtual.clinica.dentistaResponsavel || selectedDentistaNome || null,
+        dentista: snapshotAtual?.clinica?.dentistaResponsavel || selectedDentistaNome || null,
         assinadoEm: snapshotAtual.assinaturaPaciente ? new Date() : null,
         assinanteNome: snapshotAtual.assinaturaPaciente?.nome || null,
         assinaturaData: snapshotAtual.assinaturaPaciente?.assinaturaData || null,
@@ -611,7 +611,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
           titulo: `Contrato Odontológico - Orçamento #${snapshotAtual.orcamento.numeroIdentificador}`,
           conteudo: htmlFinal,
           itens: snapshotAtual as any,
-          dentista: snapshotAtual.clinica.dentistaResponsavel || selectedDentistaNome || null,
+          dentista: snapshotAtual?.clinica?.dentistaResponsavel || selectedDentistaNome || null,
         });
         if (docCriado?.id) {
           docId = docCriado.id;
@@ -646,7 +646,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
           titulo: `Contrato Odontológico - Orçamento #${snapshotAtual.orcamento.numeroIdentificador}`,
           conteudo: htmlFinal,
           itens: snapshotAtual as any,
-          dentista: snapshotAtual.clinica.dentistaResponsavel || selectedDentistaNome || null,
+          dentista: snapshotAtual?.clinica?.dentistaResponsavel || selectedDentistaNome || null,
         });
         if (docCriado?.id) {
           docId = docCriado.id;
@@ -681,7 +681,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
           titulo: `Contrato Odontológico - Orçamento #${snapshotAtual.orcamento.numeroIdentificador}`,
           conteudo: htmlFinal,
           itens: snapshotAtual as any,
-          dentista: snapshotAtual.clinica.dentistaResponsavel || selectedDentistaNome || null,
+          dentista: snapshotAtual?.clinica?.dentistaResponsavel || selectedDentistaNome || null,
         });
         if (docCriado?.id) {
           docId = docCriado.id;
@@ -692,9 +692,9 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
       }
     }
 
-    const clinicaPix = snapshotAtual?.clinica.chavePix || configContrato?.chavePix || configuracoes?.telefone || configuracoes?.cnpj || '';
-    const favorecidoPix = snapshotAtual?.clinica.favorecidoPix || configContrato?.favorecidoPix || snapshotAtual?.clinica.nome || configuracoes?.nomeClinica || 'Dra. Rosangela Santos';
-    const bancoPix = snapshotAtual?.clinica.bancoPix || configContrato?.bancoPix || '';
+    const clinicaPix = snapshotAtual?.clinica?.chavePix || configContrato?.chavePix || configuracoes?.telefone || configuracoes?.cnpj || '';
+    const favorecidoPix = snapshotAtual?.clinica?.favorecidoPix || configContrato?.favorecidoPix || snapshotAtual?.clinica?.nome || configuracoes?.nomeClinica || 'Dra. Rosangela Santos';
+    const bancoPix = snapshotAtual?.clinica?.bancoPix || configContrato?.bancoPix || '';
     const linkAssinatura = gerarLinkAssinaturaContrato(snapshotAtual, docId || undefined);
 
     // Baixa o PDF no computador para facilitar anexar caso a recepcionista deseje arrastar na conversa
@@ -1644,7 +1644,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Cirurgião-Dentista Responsável</Label>
                           <Input
-                            value={snapshotAtual.clinica.dentistaResponsavel || ''}
+                            value={snapshotAtual?.clinica?.dentistaResponsavel || ''}
                             onChange={(e) => handleUpdateSnapshotField('clinica.dentistaResponsavel', e.target.value)}
                             className="h-8 text-xs border-border bg-background text-foreground"
                           />
@@ -1653,7 +1653,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Número do CRO</Label>
                           <Input
-                            value={snapshotAtual.clinica.cro || ''}
+                            value={snapshotAtual?.clinica?.cro || ''}
                             onChange={(e) => handleUpdateSnapshotField('clinica.cro', e.target.value)}
                             className="h-8 text-xs border-border bg-background text-foreground"
                           />
@@ -1662,7 +1662,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Nome da Clínica</Label>
                           <Input
-                            value={snapshotAtual.clinica.nome || ''}
+                            value={snapshotAtual?.clinica?.nome || ''}
                             onChange={(e) => handleUpdateSnapshotField('clinica.nome', e.target.value)}
                             className="h-8 text-xs border-border bg-background text-foreground"
                           />
@@ -1672,11 +1672,11 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                           <div className="flex items-center justify-between">
                             <Label className="text-xs text-muted-foreground">Documento da Contratada</Label>
                             <span className="text-[10px] font-semibold text-primary">
-                              {identificarTipoDocumento(snapshotAtual.clinica.cnpj) === 'cpf' ? 'CPF (Pessoa Física)' : 'CNPJ (Pessoa Jurídica)'}
+                              {identificarTipoDocumento(snapshotAtual?.clinica?.cnpj) === 'cpf' ? 'CPF (Pessoa Física)' : 'CNPJ (Pessoa Jurídica)'}
                             </span>
                           </div>
                           <Input
-                            value={snapshotAtual.clinica.cnpj || ''}
+                            value={snapshotAtual?.clinica?.cnpj || ''}
                             onChange={(e) => handleUpdateSnapshotField('clinica.cnpj', e.target.value)}
                             placeholder="000.000.000-00 ou 00.000.000/0001-00"
                             className="h-8 text-xs border-border bg-background text-foreground font-mono"
@@ -1686,7 +1686,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Chave PIX Oficial</Label>
                           <Input
-                            value={snapshotAtual.clinica.chavePix || ''}
+                            value={snapshotAtual?.clinica?.chavePix || ''}
                             onChange={(e) => handleUpdateSnapshotField('clinica.chavePix', e.target.value)}
                             className="h-8 text-xs border-border bg-background text-foreground"
                           />
@@ -1695,7 +1695,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Titular / Favorecido PIX</Label>
                           <Input
-                            value={snapshotAtual.clinica.favorecidoPix || ''}
+                            value={snapshotAtual?.clinica?.favorecidoPix || ''}
                             onChange={(e) => handleUpdateSnapshotField('clinica.favorecidoPix', e.target.value)}
                             placeholder="Ex: Dra. Rosangela Santos"
                             className="h-8 text-xs border-border bg-background text-foreground"
@@ -1705,14 +1705,14 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                         <div className="space-y-1">
                           <div className="flex items-center justify-between">
                             <Label className="text-xs text-muted-foreground">CPF / CNPJ do Titular PIX</Label>
-                            {snapshotAtual.clinica.cnpjCpfFavorecidoPix && (
+                            {snapshotAtual?.clinica?.cnpjCpfFavorecidoPix && (
                               <span className="text-[10px] font-semibold text-primary">
                                 {identificarTipoDocumento(snapshotAtual.clinica.cnpjCpfFavorecidoPix) === 'cpf' ? 'CPF' : 'CNPJ'}
                               </span>
                             )}
                           </div>
                           <Input
-                            value={snapshotAtual.clinica.cnpjCpfFavorecidoPix || ''}
+                            value={snapshotAtual?.clinica?.cnpjCpfFavorecidoPix || ''}
                             onChange={(e) => handleUpdateSnapshotField('clinica.cnpjCpfFavorecidoPix', e.target.value)}
                             placeholder="032.663.962-43"
                             className="h-8 text-xs border-border bg-background text-foreground font-mono"
@@ -1722,7 +1722,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Banco / Instituição</Label>
                           <Input
-                            value={snapshotAtual.clinica.bancoPix || ''}
+                            value={snapshotAtual?.clinica?.bancoPix || ''}
                             onChange={(e) => handleUpdateSnapshotField('clinica.bancoPix', e.target.value)}
                             placeholder="Ex: Nubank, Banco do Brasil..."
                             className="h-8 text-xs border-border bg-background text-foreground"
@@ -1732,7 +1732,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Comarca / Cidade do Foro</Label>
                           <Input
-                            value={snapshotAtual.clinica.cidade || ''}
+                            value={snapshotAtual?.clinica?.cidade || ''}
                             onChange={(e) => handleUpdateSnapshotField('clinica.cidade', e.target.value)}
                             className="h-8 text-xs border-border bg-background text-foreground"
                           />
@@ -1741,7 +1741,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                         <div className="space-y-1 sm:col-span-2 md:col-span-3">
                           <Label className="text-xs text-muted-foreground">Endereço do Consultório / Clínica</Label>
                           <Input
-                            value={snapshotAtual.clinica.endereco || ''}
+                            value={snapshotAtual?.clinica?.endereco || ''}
                             onChange={(e) => handleUpdateSnapshotField('clinica.endereco', e.target.value)}
                             className="h-8 text-xs border-border bg-background text-foreground"
                           />
@@ -2106,7 +2106,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                             <div className="space-y-1 sm:col-span-2 md:col-span-3">
                               <Label className="text-xs text-muted-foreground">Canal de Atendimento LGPD da Clínica</Label>
                               <Input
-                                value={snapshotAtual.termoUsoImagem?.canalContatoLgpd || snapshotAtual.clinica.email || ''}
+                                value={snapshotAtual.termoUsoImagem?.canalContatoLgpd || snapshotAtual?.clinica?.email || ''}
                                 onChange={(e) => handleUpdateSnapshotField('termoUsoImagem.canalContatoLgpd', e.target.value)}
                                 placeholder="E-mail ou WhatsApp oficial para solicitações de privacidade..."
                                 className="h-8 text-xs border-border bg-background text-foreground"

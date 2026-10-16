@@ -31,7 +31,7 @@ export const gerarHtmlContratoEndodontia = (snapshot: ContratoSnapshot): string 
     : 'JTR — Edifício Espanha, Rua Comerciante José Pontes de Magalhães, nº 70, Sala 405, Jatiúca, Maceió/AL, CEP 57036-250';
 
   // Chave PIX oficial da Dra. Rosângela Santos Pereira
-  const chavePixOficial = clinica.chavePix && clinica.chavePix.includes('@')
+  const chavePixOficial = clinica?.chavePix && clinica.chavePix.includes('@')
     ? clinica.chavePix
     : 'drarosesantosexpert@gmail.com';
   const titularPixOficial = 'Rosangela Santos Pereira';
