@@ -83,36 +83,36 @@ const AppointmentsList = () => {
             </div>
           ) : (
             todayConsultas.map((consulta) => (
-              <div key={consulta.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted">
-                <div className="flex items-center space-x-4">
+              <div key={consulta.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 sm:p-4 border rounded-lg hover:bg-muted gap-3">
+                <div className="flex items-center space-x-3 min-w-0 flex-1">
                   <div className="flex-shrink-0">
                     <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
                       <User className="h-5 w-5 text-blue-600" />
                     </div>
                   </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium text-foreground">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-medium text-foreground truncate">
                         {getPacienteName(consulta.pacienteId)}
                       </p>
                       <Badge className={getStatusColor(consulta.status)}>
                         {getStatusLabel(consulta.status)}
                       </Badge>
                     </div>
-                    <div className="flex items-center gap-4 mt-1">
-                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                        <Clock className="h-4 w-4" />
+                    <div className="flex items-center gap-3 sm:gap-4 mt-1 flex-wrap text-xs sm:text-sm text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        <Clock className="h-3.5 w-3.5" />
                         {consulta.hora}
                       </div>
-                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                        <Phone className="h-4 w-4" />
+                      <div className="flex items-center gap-1">
+                        <Phone className="h-3.5 w-3.5" />
                         {getPacientePhone(consulta.pacienteId)}
                       </div>
                     </div>
-                    <p className="text-sm text-muted-foreground mt-1">{consulta.procedimento}</p>
+                    <p className="text-xs sm:text-sm text-muted-foreground mt-1 truncate">{consulta.procedimento}</p>
                   </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 shrink-0 self-end sm:self-center">
                   {consulta.status === 'agendado' && (
                     <>
                       <Button variant="outline" size="sm" onClick={() => handleConfirmar(consulta.id)}>

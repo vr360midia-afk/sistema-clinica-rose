@@ -99,7 +99,7 @@ const Dashboard = () => {
               return nome ? `${saudacao}, ${nome}` : `${saudacao}!`;
             })()}
           </h1>
-          <p className="text-sm text-muted-foreground capitalize">
+          <p className="text-xs sm:text-sm text-muted-foreground capitalize">
             {today.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
             {' · '}Seus dados estão sincronizados na nuvem.
           </p>
@@ -109,7 +109,7 @@ const Dashboard = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, staggerChildren: 0.1 }}
-          className="grid grid-cols-1 sm:grid-cols-4 gap-3 sm:gap-4"
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 w-full min-w-0"
         >
           <StatsCard
             title="Pacientes Ativos"

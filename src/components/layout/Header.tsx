@@ -52,8 +52,8 @@ const Header = ({ onMenuToggle }: HeaderProps) => {
   return (
     <>
     <GlobalSearch open={commandOpen} onOpenChange={setCommandOpen} />
-    <header className="sticky top-0 z-30 bg-card border-b border-border w-full">
-      <div className="px-3 sm:px-4 lg:px-6 h-14 sm:h-16 flex items-center justify-between gap-2">
+    <header className="sticky top-0 z-30 bg-card/95 backdrop-blur-md border-b border-border w-full safe-top transition-[padding] duration-150">
+      <div className="px-3.5 sm:px-4 lg:px-6 h-14 sm:h-16 flex items-center justify-between gap-2 max-w-7xl mx-auto w-full">
         <div className="flex items-center gap-1 sm:gap-3 min-w-0">
           <Button
             variant="ghost"

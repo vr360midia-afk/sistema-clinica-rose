@@ -49,23 +49,23 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ transacoes, pa
   ];
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 min-w-0 w-full">
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.1 }}
-        className="col-span-1 lg:col-span-2"
+        className="col-span-1 lg:col-span-2 min-w-0 w-full overflow-hidden"
       >
         <Card className="h-full bg-card/50 backdrop-blur-sm border-border/50 shadow-sm overflow-hidden relative group">
           <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-          <CardHeader>
-            <CardTitle className="text-lg font-medium">Fluxo de Caixa (Últimos 6 meses)</CardTitle>
-            <CardDescription>Receitas e despesas consolidadas mês a mês.</CardDescription>
+          <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-3">
+            <CardTitle className="text-base sm:text-lg font-medium">Fluxo de Caixa (Últimos 6 meses)</CardTitle>
+            <CardDescription className="text-xs sm:text-sm">Receitas e despesas consolidadas mês a mês.</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="h-[300px] w-full">
+          <CardContent className="p-2 sm:p-6 pt-0">
+            <div className="h-[250px] sm:h-[300px] w-full min-w-0 overflow-hidden">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={revenueData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <AreaChart data={revenueData} margin={{ top: 10, right: 8, left: -10, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorReceita" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
@@ -77,20 +77,21 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ transacoes, pa
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.5} />
-                  <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
+                  <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} axisLine={false} />
                   <YAxis 
                     stroke="hsl(var(--muted-foreground))" 
-                    fontSize={12} 
+                    fontSize={11} 
                     tickLine={false} 
                     axisLine={false}
+                    width={42}
                     tickFormatter={(value) => `R$${value >= 1000 ? (value/1000).toFixed(0) + 'k' : value}`}
                   />
                   <Tooltip 
                     contentStyle={{ backgroundColor: 'hsl(var(--card))', borderRadius: '8px', border: '1px solid hsl(var(--border))', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                     formatter={(value: number) => [formatMoney(value), '']}
                   />
-                  <Area type="monotone" dataKey="Receita" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorReceita)" />
-                  <Area type="monotone" dataKey="Despesa" stroke="#ef4444" strokeWidth={3} fillOpacity={1} fill="url(#colorDespesa)" />
+                  <Area type="monotone" dataKey="Receita" stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#colorReceita)" />
+                  <Area type="monotone" dataKey="Despesa" stroke="#ef4444" strokeWidth={2.5} fillOpacity={1} fill="url(#colorDespesa)" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -102,25 +103,25 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ transacoes, pa
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.2 }}
-        className="col-span-1"
+        className="col-span-1 min-w-0 w-full overflow-hidden"
       >
         <Card className="h-full bg-card/50 backdrop-blur-sm border-border/50 shadow-sm overflow-hidden relative group">
           <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-cyan-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-          <CardHeader>
-            <CardTitle className="text-lg font-medium">Status dos Pacientes</CardTitle>
-            <CardDescription>Visão geral da base de clientes.</CardDescription>
+          <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-3">
+            <CardTitle className="text-base sm:text-lg font-medium">Status dos Pacientes</CardTitle>
+            <CardDescription className="text-xs sm:text-sm">Visão geral da base de clientes.</CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-col justify-center h-[calc(100%-5rem)]">
-            <div className="h-[250px] w-full">
+          <CardContent className="p-2 sm:p-6 pt-0 flex flex-col justify-center">
+            <div className="h-[220px] sm:h-[250px] w-full min-w-0 overflow-hidden">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={patientsData} margin={{ top: 20, right: 0, left: 0, bottom: 0 }} barSize={80}>
+                <BarChart data={patientsData} margin={{ top: 15, right: 0, left: 0, bottom: 0 }} barSize={60}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.5} />
-                  <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
+                  <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} axisLine={false} />
                   <Tooltip 
                     cursor={{fill: 'hsl(var(--muted)/0.5)'}}
                     contentStyle={{ backgroundColor: 'hsl(var(--card))', borderRadius: '8px', border: '1px solid hsl(var(--border))' }}
                   />
-                  <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                  <Legend wrapperStyle={{ paddingTop: '15px', fontSize: '12px' }} />
                   <Bar dataKey="Ativos" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="Inativos" fill="#94a3b8" radius={[4, 4, 0, 0]} />
                 </BarChart>

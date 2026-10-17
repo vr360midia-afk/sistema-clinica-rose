@@ -75,7 +75,7 @@ const ConfirmacoesPendentes = () => {
                   {format(new Date(c.data), "dd 'de' MMM", { locale: ptBR })} às {c.hora} · {c.dentista || 'sem dentista'}
                 </p>
               </div>
-              <div className="flex gap-2 shrink-0">
+              <div className="flex flex-wrap gap-2 shrink-0 self-end sm:self-center">
                 <Button size="sm" variant="outline" className="gap-1" onClick={() => enviar(c)}>
                   <MessageCircle className="h-4 w-4" />
                   WhatsApp

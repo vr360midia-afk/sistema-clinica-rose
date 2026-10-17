@@ -24,9 +24,9 @@ const Layout = ({ children }: LayoutProps) => {
       <CommandPalette />
       <Sidebar isOpen={sidebarOpen} onClose={closeSidebar} />
 
-      <div className="flex-1 flex flex-col min-w-0 w-full lg:pl-60">
+      <div className="flex-1 flex flex-col min-w-0 w-full lg:pl-60 overflow-x-hidden">
         <Header onMenuToggle={toggleSidebar} />
-        <main className="flex-1 overflow-x-hidden w-full px-3 sm:px-4 lg:px-6 py-3 sm:py-4 pb-20 lg:pb-10 safe-bottom">
+        <main className="flex-1 overflow-x-hidden w-full px-3.5 sm:px-6 py-4 sm:py-6 pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] lg:pb-12 safe-left safe-right">
           <AnimatePresence mode="wait">
             <motion.div
               key={location.pathname}
@@ -34,7 +34,7 @@ const Layout = ({ children }: LayoutProps) => {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.3 }}
-              className="w-full max-w-7xl mx-auto h-full"
+              className="w-full max-w-7xl mx-auto h-full min-w-0"
             >
               {children}
             </motion.div>
@@ -43,7 +43,7 @@ const Layout = ({ children }: LayoutProps) => {
       </div>
 
       {/* Barra de Navegação Inferior no Mobile (Símbolo + Texto sempre visíveis) */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-card/95 backdrop-blur-md border-t border-border flex items-center justify-around h-14 px-1 lg:hidden safe-bottom shadow-lg">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-card/95 backdrop-blur-md border-t border-border flex items-center justify-around px-1 lg:hidden shadow-lg h-[calc(3.5rem+env(safe-area-inset-bottom,0px))] pb-[env(safe-area-inset-bottom,0px)]">
         <Link
           to="/"
           className={cn(

@@ -58,7 +58,7 @@ const LembretesWhatsApp = () => {
           <p className="text-sm text-muted-foreground">Nenhuma consulta para lembrar.</p>
         ) : (
           lembretes.map(({ consulta, paciente }) => (
-            <div key={consulta.id} className="flex items-center justify-between gap-3 rounded-lg border border-border p-2.5">
+            <div key={consulta.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 rounded-lg border border-border p-2.5">
               <div className="min-w-0">
                 <p className="text-sm font-medium truncate">{paciente?.nome || 'Paciente'}</p>
                 <p className="text-xs text-muted-foreground">
@@ -66,7 +66,7 @@ const LembretesWhatsApp = () => {
                   {consulta.dentista ? ` • ${consulta.dentista}` : ''}
                 </p>
               </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="flex items-center gap-2 flex-shrink-0 self-end sm:self-center">
                 <Badge variant={consulta.confirmacaoStatus === 'confirmado' ? 'default' : 'secondary'}>
                   {consulta.confirmacaoStatus === 'confirmado' ? 'Confirmado' : 'Pendente'}
                 </Badge>

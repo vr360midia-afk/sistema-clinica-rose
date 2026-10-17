@@ -77,23 +77,24 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
       {/* Sidebar */}
       <div
         className={cn(
-          'fixed inset-y-0 left-0 z-50 w-60 bg-card border-r border-border transform transition-transform duration-300 ease-in-out lg:translate-x-0',
+          'fixed inset-y-0 left-0 z-50 w-64 max-w-[85vw] bg-card border-r border-border transform transition-transform duration-300 ease-in-out lg:translate-x-0 flex flex-col safe-top',
           isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         )}
       >
-        <div className="flex items-center justify-between h-16 px-4 border-b border-border lg:hidden">
-                    <div className="flex items-center gap-3 min-w-0">
-            <img src="/logo.png" alt="Dental Angel" className="h-10 object-contain" />
+        <div className="flex items-center justify-between h-14 sm:h-16 px-4 border-b border-border lg:hidden shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <img src="/logo.png" alt="Dental Angel" className="h-9 sm:h-10 object-contain" />
           </div>
           <button
             onClick={onClose}
             className="p-2 rounded-md text-muted-foreground hover:bg-muted flex-shrink-0"
+            aria-label="Fechar menu"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        <nav className="mt-2 px-2 pb-24 h-full overflow-y-auto overscroll-contain safe-bottom">
+        <nav className="mt-2 px-2 pb-[calc(5rem+env(safe-area-inset-bottom,0px))] flex-1 overflow-y-auto overscroll-contain safe-bottom">
           <ul className="space-y-1">
             {itensVisiveis.map((item) => {
               const isActive =
