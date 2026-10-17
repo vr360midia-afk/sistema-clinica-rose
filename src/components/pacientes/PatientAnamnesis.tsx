@@ -56,10 +56,15 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
           pacienteNome: patient.nome,
           data: new Date(),
           queixaPrincipal: 'Avaliação Inicial e Questionário de Saúde',
+          historiaAtual: 'Aguardando preenchimento pelo paciente via link digital',
           statusAssinatura: 'pendente' as const,
         });
-        id = nova.id;
+        id = nova?.id;
       }
+    }
+
+    if (!id) {
+      throw new Error('Não foi possível identificar a anamnese');
     }
 
     const link = await generateSignatureLink(id);
@@ -80,9 +85,9 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
       setCopiandoId(targetId || 'geral');
       toast.success('Link da anamnese copiado para a área de transferência!');
       setTimeout(() => setCopiandoId(null), 3000);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Erro ao copiar link da anamnese:', err);
-      toast.error('Erro ao gerar/copiar link da anamnese');
+      toast.error('Erro ao gerar/copiar link da anamnese: ' + (err?.message || 'Tente novamente'));
     } finally {
       setGerandoLink(false);
     }
@@ -104,11 +109,15 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
         `👉 ${link}\n\n` +
         `O preenchimento leva menos de 2 minutos pelo seu celular e fica registrado de forma segura no seu prontuário. Qualquer dúvida, estamos à disposição!`;
 
-      openWhatsApp(patient.telefone || '', mensagem);
-      toast.success('Abrindo WhatsApp com o link da anamnese...');
-    } catch (err) {
+      if (!patient?.telefone || !openWhatsApp(patient.telefone, mensagem)) {
+        await navigator.clipboard.writeText(link);
+        toast.info('Paciente sem telefone válido cadastrado. O link foi copiado para a área de transferência!');
+      } else {
+        toast.success('Abrindo WhatsApp com o link da anamnese...');
+      }
+    } catch (err: any) {
       console.error('Erro ao enviar anamnese pelo WhatsApp:', err);
-      toast.error('Erro ao gerar link para o WhatsApp');
+      toast.error('Erro ao gerar link para o WhatsApp: ' + (err?.message || 'Tente novamente'));
     } finally {
       setGerandoLink(false);
     }

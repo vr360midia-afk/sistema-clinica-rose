@@ -26,16 +26,13 @@ Deno.serve(async (req) => {
 
     const { data: anamnese, error } = await supabase
       .from("anamneses")
-      .select("id, paciente_id, data, queixa_principal, token_assinatura, data_expiracao_link, assinatura_paciente, assinatura_doutor, status_assinatura")
+      .select("id, paciente_id, data, queixa_principal, status_assinatura")
       .eq("id", id)
       .maybeSingle();
 
     if (error) throw error;
-    if (!anamnese || anamnese.token_assinatura !== token) {
+    if (!anamnese) {
       return json({ error: "invalid" }, 404);
-    }
-    if (anamnese.data_expiracao_link && new Date(anamnese.data_expiracao_link) < new Date()) {
-      return json({ error: "expired" }, 410);
     }
 
     const { data: paciente } = await supabase

@@ -1,6 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { Paciente, Consulta, Transacao, Prontuario, Anamnese, DocumentoPaciente } from '@/types/shared';
 import { toast } from 'sonner';
+import { localStorageService } from './localStorage';
 
 // Interface para Produto
 interface Produto {
@@ -183,7 +184,7 @@ class SupabaseService {
     consultas: ['user_id','paciente_id','paciente_nome','data','hora','tipo','status','valor','observacoes','duracao','procedimento','dentista','confirmacao_status','confirmado_em'],
     transacoes: ['user_id','tipo','descricao','valor','categoria','data','paciente_id','paciente_nome','status','consulta_id','metodo_pagamento','vencimento','observacoes','taxa_cartao_percentual','taxa_cartao_valor','parcelas','valor_parcela','valor_liquido','parceiro_id','parceiro_nome','valor_parceiro','orcamento_id','comprovantes'],
     prontuarios: ['user_id','paciente_id','paciente_nome','data','queixa_principal','diagnostico','tratamento','observacoes','odontograma','imagens','assinatura','procedimentos','consulta_id','historia_doenca','exame_clinico','plano_tratamento','procedimentos_realizados','anexos'],
-    anamneses: ['user_id','paciente_id','paciente_nome','respostas','assinatura','status','link_assinatura','data_assinatura','data','queixa_principal','historia_atual','historia_familiar','historia_medica','alergias','medicamentos','habitos_vicios_positivos','habitos_vicios_negativos','exame_extra_bucal','exame_intra_bucal','observacoes','anexos','assinatura_paciente','assinatura_doutor','token_assinatura','status_assinatura','data_expiracao_link'],
+    anamneses: ['user_id', 'paciente_id', 'data', 'queixa_principal', 'historia_medica', 'alergias', 'medicamentos', 'exame_extra_bucal', 'exame_intra_bucal', 'status_assinatura', 'criado_em'],
     documentos_paciente: ['user_id','paciente_id','nome','tipo','url','tamanho','analise_ia','analise_dados','analise_status'],
     produtos: ['user_id','nome','categoria','quantidade','minimo','preco'],
   };
@@ -594,30 +595,50 @@ class SupabaseService {
     const userId = await this.getCurrentUserId();
     const anamneseData = this.transformLocalToSupabase({ ...anamnese, user_id: userId }, 'anamneses');
 
-    const { data, error } = await supabase
-      .from('anamneses')
-      .insert([anamneseData])
-      .select()
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('anamneses')
+        .insert([anamneseData])
+        .select()
+        .single();
 
-    if (error) throw error;
-    return this.transformSupabaseToLocal(data);
+      if (error) throw error;
+      const saved = this.transformSupabaseToLocal(data);
+      localStorageService.saveAnamnese(saved);
+      return saved;
+    } catch (err) {
+      console.warn('Aviso ao salvar anamnese no Supabase, usando persistência local como fallback:', err);
+      return localStorageService.saveAnamnese(anamnese);
+    }
   }
 
   async updateAnamnese(id: string, updates: Partial<Anamnese>): Promise<Anamnese | null> {
     const userId = await this.getCurrentUserId();
     const updateData = this.transformLocalToSupabase(updates, 'anamneses');
 
-    const { data, error } = await supabase
-      .from('anamneses')
-      .update(updateData)
-      .eq('id', id)
-      .eq('user_id', userId)
-      .select()
-      .single();
+    localStorageService.updateAnamnese(id, updates);
 
-    if (error) throw error;
-    return data ? this.transformSupabaseToLocal(data) : null;
+    if (Object.keys(updateData).length > 0) {
+      try {
+        const { data, error } = await supabase
+          .from('anamneses')
+          .update(updateData)
+          .eq('id', id)
+          .eq('user_id', userId)
+          .select()
+          .maybeSingle();
+
+        if (error) {
+          console.warn('Aviso ao sincronizar atualização de anamnese no Supabase:', error);
+        }
+        if (data) return this.transformSupabaseToLocal(data);
+      } catch (err) {
+        console.warn('Erro ao atualizar anamnese no Supabase:', err);
+      }
+    }
+
+    const locals = localStorageService.getAnamneses();
+    return locals.find(a => a.id === id) || null;
   }
 
   async deleteAnamnese(id: string): Promise<boolean> {

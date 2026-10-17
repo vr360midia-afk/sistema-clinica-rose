@@ -120,7 +120,7 @@ const AssinarAnamnese = () => {
             habitosViciosPositivos: anamneseDb.habitos_vicios_positivos,
             habitosViciosNegativos: anamneseDb.habitos_vicios_negativos,
             observacoes: anamneseDb.observacoes,
-            jaAssinado: !!anamneseDb.assinatura_paciente,
+            jaAssinado: anamneseDb.status_assinatura === 'paciente_assinado' || anamneseDb.status_assinatura === 'completo' || !!anamneseDb.assinatura_paciente,
             assinaturaPaciente: anamneseDb.assinatura_paciente,
           },
           paciente: {
@@ -157,9 +157,17 @@ const AssinarAnamnese = () => {
           if (r.observacoes !== undefined) updatePayload.observacoes = r.observacoes;
         }
 
-        // Tenta atualizar no Supabase direto
+        // Tenta atualizar no Supabase direto com apenas as colunas suportadas no schema
         try {
-          await supabase.from('anamneses').update(updatePayload).eq('id', id);
+          const supabasePayload: any = {
+            status_assinatura: 'paciente_assinado',
+          };
+          if (updatePayload.queixa_principal !== undefined) supabasePayload.queixa_principal = updatePayload.queixa_principal;
+          if (updatePayload.historia_medica !== undefined) supabasePayload.historia_medica = updatePayload.historia_medica;
+          if (updatePayload.alergias !== undefined) supabasePayload.alergias = updatePayload.alergias;
+          if (updatePayload.medicamentos !== undefined) supabasePayload.medicamentos = updatePayload.medicamentos;
+
+          await supabase.from('anamneses').update(supabasePayload).eq('id', id);
         } catch (dbUpErr) {
           console.warn('Erro na atualização direta:', dbUpErr);
         }
