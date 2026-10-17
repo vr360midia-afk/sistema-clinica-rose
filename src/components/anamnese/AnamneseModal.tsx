@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -8,12 +8,22 @@ import { useDentalSystem } from '@/context/DentalSystemContext';
 import PatientSelector from './PatientSelector';
 import DigitalSignature, { SignatureData } from '@/components/signature/DigitalSignature';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { FileSignature, Share, Eye } from 'lucide-react';
+import {
+  FileSignature,
+  Share2,
+  Copy,
+  Check,
+  ExternalLink,
+  MessageCircle,
+  Clock,
+  Sparkles,
+} from 'lucide-react';
+import { openWhatsApp } from '@/lib/whatsapp';
 
 interface AnamneseModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (data: any) => void;
+  onSave?: (data: any) => void;
   preSelectedPatient?: string;
 }
 
@@ -23,6 +33,8 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
   const [step, setStep] = useState<'form' | 'signature-patient' | 'signature-dentist' | 'link'>('form');
   const [anamneseId, setAnamneseId] = useState<string>('');
   const [signatureLink, setSignatureLink] = useState<string>('');
+  const [isCopied, setIsCopied] = useState(false);
+  const [salvando, setSalvando] = useState(false);
   
   const [queixaPrincipal, setQueixaPrincipal] = useState('');
   const [historiaAtual, setHistoriaAtual] = useState('');
@@ -36,6 +48,12 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
   const [exameIntraBucal, setExameIntraBucal] = useState('');
   const [observacoes, setObservacoes] = useState('');
 
+  useEffect(() => {
+    if (preSelectedPatient) {
+      setSelectedPatient(preSelectedPatient);
+    }
+  }, [preSelectedPatient]);
+
   const handleSaveForm = async () => {
     if (!selectedPatient) {
       toast.error('Selecione um paciente');
@@ -48,8 +66,7 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
     }
 
     try {
-      const patient = pacientes.find(p => p.id === selectedPatient);
-      
+      setSalvando(true);
       const anamneseData = {
         pacienteId: selectedPatient,
         data: new Date(),
@@ -69,18 +86,71 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
 
       const savedAnamnese = await addAnamnese(anamneseData);
       setAnamneseId(savedAnamnese.id);
+
+      // Gera o link imediatamente para que o profissional possa enviar com 1 clique
+      try {
+        const link = await generateSignatureLink(savedAnamnese.id);
+        setSignatureLink(link);
+      } catch (err) {
+        console.warn('Erro ao gerar link de assinatura inicial:', err);
+      }
+
       setStep('link');
-      
-      toast.success('Anamnese salva! Escolha como coletar as assinaturas.');
+      toast.success('Anamnese registrada! O link para envio ou assinatura está pronto.');
     } catch (error) {
       console.error('Erro ao salvar anamnese:', error);
+      toast.error('Erro ao salvar anamnese. Tente novamente.');
+    } finally {
+      setSalvando(false);
     }
   };
 
   const handleGenerateLink = async () => {
-    const link = await generateSignatureLink(anamneseId);
-    setSignatureLink(link);
-    toast.success('Link gerado! Envie para o paciente assinar.');
+    if (!anamneseId) return;
+    try {
+      const link = await generateSignatureLink(anamneseId);
+      setSignatureLink(link);
+      toast.success('Link gerado com sucesso!');
+    } catch (e) {
+      toast.error('Erro ao gerar link');
+    }
+  };
+
+  const handleEnviarWhatsApp = () => {
+    if (!signatureLink) {
+      toast.error('Link ainda não gerado.');
+      return;
+    }
+    const patient = pacientes.find(p => p.id === selectedPatient);
+    const mensagem =
+      `Olá, *${patient?.nome || 'Paciente'}*!\n\n` +
+      `Para agilizar o seu atendimento e garantir sua máxima segurança clínica, acesse o link abaixo para conferir e assinar digitalmente a sua *Ficha de Anamnese*:\n\n` +
+      `👉 ${signatureLink}\n\n` +
+      `Você pode responder e assinar diretamente pelo celular. Fica salvo no seu prontuário odontológico. Qualquer dúvida, estamos à disposição!`;
+
+    if (!patient?.telefone || !openWhatsApp(patient.telefone, mensagem)) {
+      navigator.clipboard.writeText(signatureLink);
+      toast.info('Paciente sem telefone cadastrado. O link foi copiado para a área de transferência!');
+    } else {
+      toast.success('Abrindo WhatsApp com o link da anamnese...');
+    }
+  };
+
+  const copyToClipboard = async () => {
+    if (!signatureLink) return;
+    try {
+      await navigator.clipboard.writeText(signatureLink);
+      setIsCopied(true);
+      toast.success('Link copiado para a área de transferência!');
+      setTimeout(() => setIsCopied(false), 2500);
+    } catch (error) {
+      toast.error('Erro ao copiar link');
+    }
+  };
+
+  const handleAbrirLink = () => {
+    if (!signatureLink) return;
+    window.open(signatureLink, '_blank', 'noopener,noreferrer');
   };
 
   const handleDirectSignature = () => {
@@ -100,7 +170,7 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
     try {
       await signAnamnese(anamneseId, signatureData, 'dentista');
       toast.success('Anamnese finalizada com ambas as assinaturas!');
-      onSave({ id: anamneseId });
+      onSave?.({ id: anamneseId });
       resetForm();
       onClose();
     } catch (error) {
@@ -124,34 +194,33 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
     setStep('form');
     setAnamneseId('');
     setSignatureLink('');
+    setIsCopied(false);
   };
 
-  const copyToClipboard = async () => {
-    try {
-      await navigator.clipboard.writeText(signatureLink);
-      toast.success('Link copiado para a área de transferência!');
-    } catch (error) {
-      toast.error('Erro ao copiar link');
-    }
+  const getCurrentPatient = () => {
+    return pacientes.find(p => p.id === selectedPatient);
   };
 
   const getCurrentPatientName = () => {
-    const patient = pacientes.find(p => p.id === selectedPatient);
+    const patient = getCurrentPatient();
     return patient ? patient.nome : 'Paciente';
   };
 
   if (step === 'signature-patient') {
+    const patient = getCurrentPatient();
     return (
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Assinatura do Paciente</DialogTitle>
+            <DialogTitle>Assinatura Presencial do Paciente</DialogTitle>
           </DialogHeader>
           <DigitalSignature
-            title="Assinatura do Paciente"
+            title="Assinatura da Ficha de Anamnese"
             signerName={getCurrentPatientName()}
             signerRole="paciente"
             documentType="anamnese"
+            initialEmail={patient?.email || ''}
+            initialCpf={patient?.cpf || ''}
             onSignatureComplete={handlePatientSignature}
             onCancel={() => setStep('link')}
           />
@@ -163,12 +232,12 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
   if (step === 'signature-dentist') {
     return (
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Assinatura do Dentista</DialogTitle>
+            <DialogTitle>Assinatura do Dentista / Responsável</DialogTitle>
           </DialogHeader>
           <DigitalSignature
-            title="Assinatura do Dentista"
+            title="Assinatura do Cirurgião-Dentista"
             signerName="Dr. Dentista"
             signerRole="dentista"
             documentType="anamnese"
@@ -181,72 +250,128 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
   }
 
   if (step === 'link') {
+    const patient = getCurrentPatient();
     return (
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Opções de Assinatura</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-emerald-500" />
+              Anamnese Criada com Sucesso!
+            </DialogTitle>
           </DialogHeader>
           
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Share className="h-5 w-5 text-blue-600" />
-                  Enviar Link para Assinatura
+          <div className="space-y-4">
+            {/* Opção 1: Enviar Link Remoto (Destaque Principal) */}
+            <Card className="border-2 border-emerald-500/30 bg-emerald-50/40 dark:bg-emerald-950/20 shadow-xs">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base font-bold flex items-center justify-between">
+                  <span className="flex items-center gap-2 text-foreground">
+                    <Share2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                    Enviar Link para o Paciente Assinar Remotamente
+                  </span>
+                  <span className="text-xs font-normal text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/60 px-2 py-0.5 rounded-full">
+                    Recomendado
+                  </span>
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  Gere um link único para que o paciente possa assinar remotamente pelo celular ou computador.
+              <CardContent className="space-y-3.5">
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  O paciente pode revisar as informações de saúde e fazer a assinatura digital com validade jurídica diretamente pela tela do próprio smartphone ou computador.
                 </p>
-                
-                {!signatureLink ? (
+
+                {signatureLink ? (
+                  <div className="space-y-3">
+                    <div className="p-2.5 bg-background rounded-md border text-xs font-mono break-all select-all flex items-center justify-between gap-2">
+                      <span className="truncate text-foreground">{signatureLink}</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <Button
+                        type="button"
+                        onClick={handleEnviarWhatsApp}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-9 shadow-xs"
+                      >
+                        <MessageCircle className="h-4 w-4 mr-1.5" />
+                        Enviar WhatsApp
+                      </Button>
+
+                      <Button
+                        type="button"
+                        onClick={copyToClipboard}
+                        variant="outline"
+                        className="text-xs h-9"
+                      >
+                        {isCopied ? (
+                          <>
+                            <Check className="h-4 w-4 mr-1.5 text-emerald-600" />
+                            Copiado!
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="h-4 w-4 mr-1.5" />
+                            Copiar Link
+                          </>
+                        )}
+                      </Button>
+
+                      <Button
+                        type="button"
+                        onClick={handleAbrirLink}
+                        variant="outline"
+                        className="text-xs h-9"
+                      >
+                        <ExternalLink className="h-4 w-4 mr-1.5" />
+                        Abrir Link
+                      </Button>
+                    </div>
+
+                    {patient?.telefone && (
+                      <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                        <span>📱 WhatsApp do paciente:</span>
+                        <strong className="text-foreground">{patient.telefone}</strong>
+                      </p>
+                    )}
+                  </div>
+                ) : (
                   <Button onClick={handleGenerateLink} className="w-full">
-                    <Share className="h-4 w-4 mr-2" />
+                    <Share2 className="h-4 w-4 mr-2" />
                     Gerar Link de Assinatura
                   </Button>
-                ) : (
-                  <div className="space-y-3">
-                    <div className="p-3 bg-muted rounded border">
-                      <p className="text-xs text-muted-foreground mb-1">Link gerado:</p>
-                      <p className="text-sm font-mono break-all">{signatureLink}</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button onClick={copyToClipboard} variant="outline" className="flex-1">
-                        Copiar Link
-                      </Button>
-                      <Button onClick={() => window.open(`mailto:?subject=Assinatura de Anamnese&body=Por favor, acesse este link para assinar sua anamnese: ${signatureLink}`, '_blank')} variant="outline" className="flex-1">
-                        Enviar por Email
-                      </Button>
-                    </div>
-                  </div>
                 )}
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileSignature className="h-5 w-5 text-green-600" />
-                  Assinatura Presencial
+            {/* Opção 2: Assinatura Presencial */}
+            <Card className="border border-border/80 bg-card shadow-xs">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2 text-foreground">
+                  <FileSignature className="h-4 w-4 text-primary" />
+                  Ou coletar Assinatura Presencial agora no consultório
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Colete a assinatura diretamente no consultório usando tablet, celular ou mouse.
+              <CardContent className="space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  Se o paciente estiver presente no consultório, você pode coletar a assinatura diretamente neste dispositivo.
                 </p>
-                <Button onClick={handleDirectSignature} className="w-full" variant="outline">
-                  <FileSignature className="h-4 w-4 mr-2" />
-                  Iniciar Assinatura Presencial
+                <Button onClick={handleDirectSignature} className="w-full" variant="outline" size="sm">
+                  <FileSignature className="h-4 w-4 mr-1.5 text-primary" />
+                  Iniciar Assinatura Presencial na Tela
                 </Button>
               </CardContent>
             </Card>
           </div>
 
-          <div className="flex justify-end gap-2 pt-4 border-t">
-            <Button variant="outline" onClick={() => { resetForm(); onClose(); }}>
-              Fechar
+          <div className="flex justify-end gap-2 pt-3 border-t">
+            <Button
+              variant="default"
+              onClick={() => {
+                onSave?.({ id: anamneseId });
+                resetForm();
+                onClose();
+              }}
+            >
+              Concluir
             </Button>
           </div>
         </DialogContent>
@@ -258,7 +383,7 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Nova Anamnese</DialogTitle>
+          <DialogTitle>Nova Anamnese Odontológica</DialogTitle>
         </DialogHeader>
         
         <div className="space-y-4">
@@ -267,130 +392,125 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
           )}
 
           <div>
-            <Label htmlFor="queixa">Queixa Principal *</Label>
+            <Label htmlFor="queixa" className="text-xs font-semibold">Queixa Principal *</Label>
             <Textarea
               id="queixa"
               placeholder="Descreva a queixa principal do paciente..."
               value={queixaPrincipal}
               onChange={(e) => setQueixaPrincipal(e.target.value)}
+              className="mt-1"
+              rows={2}
             />
           </div>
 
           <div>
-            <Label htmlFor="historia-atual">História Atual</Label>
+            <Label htmlFor="historia-atual" className="text-xs font-semibold">História Atual</Label>
             <Textarea
               id="historia-atual"
-              placeholder="Descreva a história atual da doença..."
+              placeholder="Descreva a história atual da queixa ou motivo do tratamento..."
               value={historiaAtual}
               onChange={(e) => setHistoriaAtual(e.target.value)}
+              className="mt-1"
+              rows={2}
             />
           </div>
 
           <div>
-            <Label htmlFor="historia-familiar">História Familiar</Label>
+            <Label htmlFor="historia-familiar" className="text-xs font-semibold">História Familiar</Label>
             <Textarea
               id="historia-familiar"
-              placeholder="Descreva a história familiar relevante..."
+              placeholder="Descreva histórico familiar relevante (diabetes, cardiopatias, etc.)..."
               value={historiaFamiliar}
               onChange={(e) => setHistoriaFamiliar(e.target.value)}
+              className="mt-1"
+              rows={2}
             />
           </div>
 
           <div>
-            <Label htmlFor="historia-medica">História Médica</Label>
+            <Label htmlFor="historia-medica" className="text-xs font-semibold">História Médica Pregressa</Label>
             <Textarea
               id="historia-medica"
-              placeholder="Descreva a história médica pregressa..."
+              placeholder="Doenças crônicas, cirurgias anteriores, internações..."
               value={historiaMedica}
               onChange={(e) => setHistoriaMedica(e.target.value)}
+              className="mt-1"
+              rows={2}
             />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="alergias">Alergias</Label>
+              <Label htmlFor="alergias" className="text-xs font-semibold">Alergias Conhecidas</Label>
               <Textarea
                 id="alergias"
-                placeholder="Liste alergias conhecidas..."
+                placeholder="Alergias a medicamentos (penicilina, dipirona), látex, etc..."
                 value={alergias}
                 onChange={(e) => setAlergias(e.target.value)}
+                className="mt-1"
+                rows={2}
               />
             </div>
 
             <div>
-              <Label htmlFor="medicamentos">Medicamentos</Label>
+              <Label htmlFor="medicamentos" className="text-xs font-semibold">Medicamentos em Uso Contínuo</Label>
               <Textarea
                 id="medicamentos"
-                placeholder="Liste medicamentos em uso..."
+                placeholder="Anti-hipertensivos, anticoagulantes, insulina, etc..."
                 value={medicamentos}
                 onChange={(e) => setMedicamentos(e.target.value)}
+                className="mt-1"
+                rows={2}
               />
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="habitos-positivos">Hábitos e Vícios (Positivos)</Label>
+              <Label htmlFor="habitos-positivos" className="text-xs font-semibold">Hábitos e Higiene Bucal</Label>
               <Textarea
                 id="habitos-positivos"
-                placeholder="Hábitos saudáveis..."
+                placeholder="Frequência de escovação, uso de fio dental..."
                 value={habitosViciosPositivos}
                 onChange={(e) => setHabitosViciosPositivos(e.target.value)}
+                className="mt-1"
+                rows={2}
               />
             </div>
 
             <div>
-              <Label htmlFor="habitos-negativos">Hábitos e Vícios (Negativos)</Label>
+              <Label htmlFor="habitos-negativos" className="text-xs font-semibold">Vícios / Hábitos Nocivos</Label>
               <Textarea
                 id="habitos-negativos"
-                placeholder="Hábitos prejudiciais..."
+                placeholder="Tabagismo, etilismo, bruxismo, roer unhas..."
                 value={habitosViciosNegativos}
                 onChange={(e) => setHabitosViciosNegativos(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="exame-extra">Exame Extra-Bucal</Label>
-              <Textarea
-                id="exame-extra"
-                placeholder="Achados do exame extra-bucal..."
-                value={exameExtraBucal}
-                onChange={(e) => setExameExtraBucal(e.target.value)}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="exame-intra">Exame Intra-Bucal</Label>
-              <Textarea
-                id="exame-intra"
-                placeholder="Achados do exame intra-bucal..."
-                value={exameIntraBucal}
-                onChange={(e) => setExameIntraBucal(e.target.value)}
+                className="mt-1"
+                rows={2}
               />
             </div>
           </div>
 
           <div>
-            <Label htmlFor="observacoes">Observações</Label>
+            <Label htmlFor="observacoes" className="text-xs font-semibold">Observações Gerais</Label>
             <Textarea
               id="observacoes"
-              placeholder="Observações adicionais..."
+              placeholder="Outras observações importantes para o atendimento..."
               value={observacoes}
               onChange={(e) => setObservacoes(e.target.value)}
+              className="mt-1"
+              rows={2}
             />
           </div>
-        </div>
 
-        <div className="flex justify-end gap-2 pt-4 border-t">
-          <Button variant="outline" onClick={onClose}>
-            Cancelar
-          </Button>
-          <Button onClick={handleSaveForm}>
-            <FileSignature className="h-4 w-4 mr-2" />
-            Salvar e Configurar Assinaturas
-          </Button>
+          <div className="flex justify-end gap-2 pt-4 border-t">
+            <Button variant="outline" onClick={onClose} disabled={salvando}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveForm} disabled={salvando} className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold">
+              {salvando ? 'Salvando...' : 'Salvar e Gerar Link de Assinatura'}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

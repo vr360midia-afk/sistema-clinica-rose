@@ -1,768 +1,761 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import Layout from '@/components/layout/Layout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Textarea } from '@/components/ui/textarea';
-import { useToast } from '@/hooks/use-toast';
-import { Clipboard, Save, Plus, Eye, ArrowLeft, FileSignature } from 'lucide-react';
-import PatientSelector from '@/components/anamnese/PatientSelector';
-import SignatureModal from '@/components/signature/SignatureModal';
-import { SignatureData } from '@/components/signature/DigitalSignature';
-import { useSignatures } from '@/hooks/useSignatures';
+import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
+import {
+  ClipboardList,
+  Plus,
+  Eye,
+  MessageCircle,
+  Copy,
+  Check,
+  ExternalLink,
+  Trash2,
+  Search,
+  CheckCircle2,
+  Clock,
+  User,
+  Calendar,
+  AlertTriangle,
+  Pill,
+  HeartPulse,
+  ShieldCheck,
+  Phone,
+} from 'lucide-react';
+import { toast } from 'sonner';
 import { useDentalSystem } from '@/context/DentalSystemContext';
+import AnamneseModal from '@/components/anamnese/AnamneseModal';
+import { openWhatsApp } from '@/lib/whatsapp';
+import { Anamnese as AnamneseType } from '@/types/shared';
 
 const Anamnese = () => {
-  const { toast } = useToast();
-  const { saveSignature, generateSignedPDF } = useSignatures();
-  const { anamneses } = useDentalSystem();
-  const [showForm, setShowForm] = useState(false);
-  const [showSignatureModal, setShowSignatureModal] = useState(false);
-  const [currentSigner, setCurrentSigner] = useState<'paciente' | 'dentista'>('paciente');
-  const [patientSignature, setPatientSignature] = useState<SignatureData | null>(null);
-  const [dentistSignature, setDentistSignature] = useState<SignatureData | null>(null);
+  const { anamneses, pacientes, generateSignatureLink, deleteAnamnese } = useDentalSystem();
   
-  const [formData, setFormData] = useState({
-    patientId: '',
-    medicamento: '',
-    medicamentoDescricao: '',
-    alergia: '',
-    alergiaDescricao: '',
-    pressao: '',
-    problemasCoracao: '',
-    problemasCoracaoDescricao: '',
-    faltaAr: '',
-    diabetes: '',
-    sangramento: '',
-    cicatrizacao: '',
-    cirurgia: '',
-    cirurgiaDescricao: '',
-    gestante: '',
-    gestanteSemanas: '',
-    problemasSaude: '',
-    reacaoAnestesia: '',
-    reacaoAnestesiaDescricao: '',
-    ultimoTratamento: '',
-    dorDentes: '',
-    gengivaSangra: '',
-    gostoRuim: '',
-    escovacoes: '',
-    fioDental: '',
-    doresMaxilar: '',
-    rangeDentes: '',
-    feridaLabios: '',
-    fuma: '',
-    fumaQuantidade: ''
-  });
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'todos' | 'pendente' | 'assinado'>('todos');
+  const [isNewModalOpen, setIsNewModalOpen] = useState(false);
+  const [copiandoId, setCopiandoId] = useState<string | null>(null);
+  const [gerandoLinkId, setGerandoLinkId] = useState<string | null>(null);
+  const [selectedAnamnese, setSelectedAnamnese] = useState<AnamneseType | null>(null);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
 
-  const handleSave = () => {
-    if (!formData.patientId) {
-      toast({
-        title: "Erro",
-        description: "Por favor, selecione um paciente.",
-        variant: "destructive"
-      });
+  // Mapeamento rápido de pacientes por id
+  const pacientesMap = useMemo(() => {
+    const map = new Map<string, any>();
+    (pacientes || []).forEach((p) => {
+      map.set(p.id, p);
+    });
+    return map;
+  }, [pacientes]);
+
+  const obterPaciente = (pacienteId: string) => {
+    return pacientesMap.get(pacienteId);
+  };
+
+  const isAnamneseAssinada = (a: AnamneseType) => {
+    return Boolean(
+      a.assinaturaPaciente ||
+      a.statusAssinatura === 'completo' ||
+      a.statusAssinatura === 'paciente_assinado'
+    );
+  };
+
+  // Estatísticas rápidas
+  const stats = useMemo(() => {
+    const total = (anamneses || []).length;
+    const assinadas = (anamneses || []).filter(isAnamneseAssinada).length;
+    const pendentes = total - assinadas;
+    return { total, assinadas, pendentes };
+  }, [anamneses]);
+
+  // Filtro de anamneses
+  const filteredAnamneses = useMemo(() => {
+    return (anamneses || [])
+      .filter((a) => {
+        const paciente = obterPaciente(a.pacienteId);
+        const pacienteNome = (paciente?.nome || (a as any).pacienteNome || '').toLowerCase();
+        const telefone = (paciente?.telefone || '').toLowerCase();
+        const cpf = (paciente?.cpf || '').toLowerCase();
+        const queixa = (a.queixaPrincipal || '').toLowerCase();
+        const termo = searchTerm.toLowerCase().trim();
+
+        const matchBusca =
+          !termo ||
+          pacienteNome.includes(termo) ||
+          telefone.includes(termo) ||
+          cpf.includes(termo) ||
+          queixa.includes(termo);
+
+        if (!matchBusca) return false;
+
+        const assinada = isAnamneseAssinada(a);
+        if (statusFilter === 'assinado') return assinada;
+        if (statusFilter === 'pendente') return !assinada;
+        return true;
+      })
+      .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
+  }, [anamneses, searchTerm, statusFilter, pacientesMap]);
+
+  // Obter ou gerar link dinâmico
+  const obterLink = async (anamnese: AnamneseType): Promise<string> => {
+    if (anamnese.linkAssinatura && anamnese.tokenAssinatura) {
+      return anamnese.linkAssinatura;
+    }
+    const link = await generateSignatureLink(anamnese.id);
+    return link;
+  };
+
+  // Copiar link para área de transferência
+  const handleCopiarLink = async (anamnese: AnamneseType) => {
+    try {
+      setGerandoLinkId(anamnese.id);
+      const link = await obterLink(anamnese);
+      if (!link) {
+        toast.error('Não foi possível gerar o link da anamnese.');
+        return;
+      }
+      await navigator.clipboard.writeText(link);
+      setCopiandoId(anamnese.id);
+      toast.success('Link da anamnese copiado para a área de transferência!');
+      setTimeout(() => setCopiandoId(null), 2500);
+    } catch (err) {
+      console.error('Erro ao copiar link:', err);
+      toast.error('Erro ao gerar/copiar link da anamnese');
+    } finally {
+      setGerandoLinkId(null);
+    }
+  };
+
+  // Enviar link via WhatsApp
+  const handleEnviarWhatsApp = async (anamnese: AnamneseType) => {
+    try {
+      setGerandoLinkId(anamnese.id);
+      const link = await obterLink(anamnese);
+      if (!link) {
+        toast.error('Não foi possível gerar o link da anamnese.');
+        return;
+      }
+
+      const paciente = obterPaciente(anamnese.pacienteId);
+      const pacienteNome = paciente?.nome || (anamnese as any).pacienteNome || 'Paciente';
+      const telefone = paciente?.telefone;
+
+      const mensagem =
+        `Olá, *${pacienteNome}*!\n\n` +
+        `Para agilizar o seu atendimento e garantir sua máxima segurança clínica, por favor acesse o link abaixo para conferir e assinar digitalmente a sua *Ficha de Anamnese*:\n\n` +
+        `👉 ${link}\n\n` +
+        `Você pode responder e assinar diretamente pelo celular. Fica salvo no seu prontuário odontológico. Qualquer dúvida, estamos à disposição!`;
+
+      if (!telefone || !openWhatsApp(telefone, mensagem)) {
+        await navigator.clipboard.writeText(link);
+        toast.info('Paciente sem telefone válido cadastrado. O link foi copiado para a área de transferência!');
+      } else {
+        toast.success('Abrindo WhatsApp com o link da anamnese...');
+      }
+    } catch (err) {
+      console.error('Erro ao enviar por WhatsApp:', err);
+      toast.error('Erro ao preparar mensagem do WhatsApp');
+    } finally {
+      setGerandoLinkId(null);
+    }
+  };
+
+  // Abrir link no navegador
+  const handleAbrirLink = async (anamnese: AnamneseType) => {
+    try {
+      setGerandoLinkId(anamnese.id);
+      const link = await obterLink(anamnese);
+      if (!link) {
+        toast.error('Não foi possível obter o link.');
+        return;
+      }
+      window.open(link, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      toast.error('Erro ao abrir link');
+    } finally {
+      setGerandoLinkId(null);
+    }
+  };
+
+  // Visualizar modal com detalhes
+  const handleVisualizar = (anamnese: AnamneseType) => {
+    setSelectedAnamnese(anamnese);
+    setIsViewModalOpen(true);
+  };
+
+  // Excluir anamnese
+  const handleExcluir = async (anamnese: AnamneseType) => {
+    const paciente = obterPaciente(anamnese.pacienteId);
+    const nome = paciente?.nome || 'este paciente';
+    if (!window.confirm(`Tem certeza que deseja excluir a anamnese de ${nome}?`)) {
       return;
     }
-
-    // Iniciar processo de assinatura com o paciente
-    setCurrentSigner('paciente');
-    setShowSignatureModal(true);
-  };
-
-  const handleSignatureComplete = (signatureData: SignatureData) => {
-    if (currentSigner === 'paciente') {
-      setPatientSignature(signatureData);
-      saveSignature(signatureData, `anamnese-${Date.now()}`, formData.patientId);
-      
-      // Após assinatura do paciente, solicitar assinatura do dentista
-      setCurrentSigner('dentista');
-      setShowSignatureModal(true);
-    } else {
-      setDentistSignature(signatureData);
-      saveSignature(signatureData, `anamnese-${Date.now()}`, formData.patientId);
-      
-      // Finalizar processo
-      toast({
-        title: "Anamnese salva com sucesso!",
-        description: "Documento assinado digitalmente por ambas as partes.",
-      });
-      
-      // Gerar PDF com assinaturas
-      const documentContent = `ANAMNESE ODONTOLÓGICA\n\nPaciente: [Nome do Paciente]\nData: ${new Date().toLocaleDateString()}\n\n[Conteúdo da anamnese...]`;
-      generateSignedPDF(documentContent, [patientSignature!, signatureData]);
-      
-      // Reset form
-      setShowForm(false);
-      setPatientSignature(null);
-      setDentistSignature(null);
-      setFormData({
-        patientId: '',
-        medicamento: '',
-        medicamentoDescricao: '',
-        alergia: '',
-        alergiaDescricao: '',
-        pressao: '',
-        problemasCoracao: '',
-        problemasCoracaoDescricao: '',
-        faltaAr: '',
-        diabetes: '',
-        sangramento: '',
-        cicatrizacao: '',
-        cirurgia: '',
-        cirurgiaDescricao: '',
-        gestante: '',
-        gestanteSemanas: '',
-        problemasSaude: '',
-        reacaoAnestesia: '',
-        reacaoAnestesiaDescricao: '',
-        ultimoTratamento: '',
-        dorDentes: '',
-        gengivaSangra: '',
-        gostoRuim: '',
-        escovacoes: '',
-        fioDental: '',
-        doresMaxilar: '',
-        rangeDentes: '',
-        feridaLabios: '',
-        fuma: '',
-        fumaQuantidade: ''
-      });
+    try {
+      await deleteAnamnese(anamnese.id);
+      if (selectedAnamnese?.id === anamnese.id) {
+        setIsViewModalOpen(false);
+        setSelectedAnamnese(null);
+      }
+    } catch (e) {
+      console.error('Erro ao excluir anamnese:', e);
     }
   };
-
-  const getCurrentSignerName = () => {
-    if (currentSigner === 'paciente') {
-      return 'Paciente Selecionado'; // Em um caso real, você pegaria o nome do paciente
-    }
-    return 'Dr. Dentista'; // Em um caso real, você pegaria o nome do dentista logado
-  };
-
-  if (showForm) {
-    return (
-      <Layout>
-        <div className="space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <Button variant="ghost" size="sm" onClick={() => setShowForm(false)}>
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-              <Clipboard className="h-6 w-6 text-blue-600" />
-              <h1 className="text-xl sm:text-2xl font-bold text-foreground">Nova Anamnese</h1>
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setShowForm(false)}>
-                Cancelar
-              </Button>
-              <Button onClick={handleSave} className="bg-blue-600 hover:bg-blue-700">
-                <FileSignature className="h-4 w-4 mr-2" />
-                Finalizar e Assinar
-              </Button>
-            </div>
-          </div>
-
-          {/* Status das assinaturas */}
-          {(patientSignature || dentistSignature) && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h3 className="text-sm font-medium text-blue-800 mb-2">Status das Assinaturas:</h3>
-              <div className="space-y-1 text-sm">
-                <div className="flex items-center gap-2">
-                  <div className={`w-3 h-3 rounded-full ${patientSignature ? 'bg-green-500' : 'bg-muted'}`} />
-                  <span>Paciente: {patientSignature ? 'Assinado' : 'Pendente'}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className={`w-3 h-3 rounded-full ${dentistSignature ? 'bg-green-500' : 'bg-muted'}`} />
-                  <span>Dentista: {dentistSignature ? 'Assinado' : 'Pendente'}</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Questionário de Anamnese</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-8">
-              {/* Seletor de Paciente */}
-              <PatientSelector
-                value={formData.patientId}
-                onChange={(value) => setFormData({...formData, patientId: value})}
-              />
-
-              {/* Seção: Medicamentos e Alergias */}
-              <div className="space-y-6">
-                <h3 className="text-lg font-semibold text-foreground border-b pb-2">Medicamentos e Alergias</h3>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-sm font-medium">Está tomando algum medicamento?</Label>
-                    <RadioGroup 
-                      value={formData.medicamento} 
-                      onValueChange={(value) => setFormData({...formData, medicamento: value})}
-                      className="flex gap-4 mt-2"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="sim" id="med-sim" />
-                        <Label htmlFor="med-sim">Sim</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="nao" id="med-nao" />
-                        <Label htmlFor="med-nao">Não</Label>
-                      </div>
-                    </RadioGroup>
-                    {formData.medicamento === 'sim' && (
-                      <div className="mt-3">
-                        <Label className="text-sm">Quais (posologia e dose)?</Label>
-                        <Input
-                          placeholder="Descreva os medicamentos, posologia e dose..."
-                          value={formData.medicamentoDescricao}
-                          onChange={(e) => setFormData({...formData, medicamentoDescricao: e.target.value})}
-                          className="mt-1"
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  <div>
-                    <Label className="text-sm font-medium">Tem algum tipo de alergia?</Label>
-                    <RadioGroup 
-                      value={formData.alergia} 
-                      onValueChange={(value) => setFormData({...formData, alergia: value})}
-                      className="flex gap-4 mt-2"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="sim" id="aler-sim" />
-                        <Label htmlFor="aler-sim">Sim</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="nao" id="aler-nao" />
-                        <Label htmlFor="aler-nao">Não</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="nao-sei" id="aler-nao-sei" />
-                        <Label htmlFor="aler-nao-sei">Não Sei</Label>
-                      </div>
-                    </RadioGroup>
-                    {formData.alergia === 'sim' && (
-                      <div className="mt-3">
-                        <Label className="text-sm">Qual?</Label>
-                        <Input
-                          placeholder="Descreva as alergias..."
-                          value={formData.alergiaDescricao}
-                          onChange={(e) => setFormData({...formData, alergiaDescricao: e.target.value})}
-                          className="mt-1"
-                        />
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Seção: Condições Médicas */}
-              <div className="space-y-6">
-                <h3 className="text-lg font-semibold text-foreground border-b pb-2">Condições Médicas Gerais</h3>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-sm font-medium">Sua pressão é:</Label>
-                    <RadioGroup 
-                      value={formData.pressao} 
-                      onValueChange={(value) => setFormData({...formData, pressao: value})}
-                      className="flex flex-col gap-2 mt-2"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="normal" id="pressao-normal" />
-                        <Label htmlFor="pressao-normal">Normal</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="alta" id="pressao-alta" />
-                        <Label htmlFor="pressao-alta">Alta</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="baixa" id="pressao-baixa" />
-                        <Label htmlFor="pressao-baixa">Baixa</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="controlada" id="pressao-controlada" />
-                        <Label htmlFor="pressao-controlada">Controlada com medicamento</Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
-
-                  <div>
-                    <Label className="text-sm font-medium">Tem ou teve algum problema de coração?</Label>
-                    <RadioGroup 
-                      value={formData.problemasCoracao} 
-                      onValueChange={(value) => setFormData({...formData, problemasCoracao: value})}
-                      className="flex gap-4 mt-2"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="sim" id="coracao-sim" />
-                        <Label htmlFor="coracao-sim">Sim</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="nao" id="coracao-nao" />
-                        <Label htmlFor="coracao-nao">Não</Label>
-                      </div>
-                    </RadioGroup>
-                    {formData.problemasCoracao === 'sim' && (
-                      <div className="mt-3">
-                        <Label className="text-sm">Qual?</Label>
-                        <Input
-                          placeholder="Descreva o problema cardíaco..."
-                          value={formData.problemasCoracaoDescricao}
-                          onChange={(e) => setFormData({...formData, problemasCoracaoDescricao: e.target.value})}
-                          className="mt-1"
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  <div>
-                    <Label className="text-sm font-medium">Sente falta de ar com frequência?</Label>
-                    <RadioGroup 
-                      value={formData.faltaAr} 
-                      onValueChange={(value) => setFormData({...formData, faltaAr: value})}
-                      className="flex gap-4 mt-2"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="sim" id="falta-ar-sim" />
-                        <Label htmlFor="falta-ar-sim">Sim</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="nao" id="falta-ar-nao" />
-                        <Label htmlFor="falta-ar-nao">Não</Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
-
-                  <div>
-                    <Label className="text-sm font-medium">Tem diabetes?</Label>
-                    <RadioGroup 
-                      value={formData.diabetes} 
-                      onValueChange={(value) => setFormData({...formData, diabetes: value})}
-                      className="flex gap-4 mt-2"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="sim" id="diabetes-sim" />
-                        <Label htmlFor="diabetes-sim">Sim</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="nao" id="diabetes-nao" />
-                        <Label htmlFor="diabetes-nao">Não</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="nao-sei" id="diabetes-nao-sei" />
-                        <Label htmlFor="diabetes-nao-sei">Não Sei</Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
-
-                  <div>
-                    <Label className="text-sm font-medium">Quando se corta há um sangramento:</Label>
-                    <RadioGroup 
-                      value={formData.sangramento} 
-                      onValueChange={(value) => setFormData({...formData, sangramento: value})}
-                      className="flex gap-4 mt-2"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="normal" id="sangramento-normal" />
-                        <Label htmlFor="sangramento-normal">Normal</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="excessivo" id="sangramento-excessivo" />
-                        <Label htmlFor="sangramento-excessivo">Excessivo</Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
-
-                  <div>
-                    <Label className="text-sm font-medium">Sua cicatrização é:</Label>
-                    <RadioGroup 
-                      value={formData.cicatrizacao} 
-                      onValueChange={(value) => setFormData({...formData, cicatrizacao: value})}
-                      className="flex gap-4 mt-2"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="normal" id="cicatrizacao-normal" />
-                        <Label htmlFor="cicatrizacao-normal">Normal</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="complicada" id="cicatrizacao-complicada" />
-                        <Label htmlFor="cicatrizacao-complicada">Complicada</Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
-
-                  <div>
-                    <Label className="text-sm font-medium">Já fez alguma cirurgia?</Label>
-                    <RadioGroup 
-                      value={formData.cirurgia} 
-                      onValueChange={(value) => setFormData({...formData, cirurgia: value})}
-                      className="flex gap-4 mt-2"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="sim" id="cirurgia-sim" />
-                        <Label htmlFor="cirurgia-sim">Sim</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="nao" id="cirurgia-nao" />
-                        <Label htmlFor="cirurgia-nao">Não</Label>
-                      </div>
-                    </RadioGroup>
-                    {formData.cirurgia === 'sim' && (
-                      <div className="mt-3">
-                        <Label className="text-sm">Qual?</Label>
-                        <Input
-                          placeholder="Descreva a cirurgia realizada..."
-                          value={formData.cirurgiaDescricao}
-                          onChange={(e) => setFormData({...formData, cirurgiaDescricao: e.target.value})}
-                          className="mt-1"
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  <div>
-                    <Label className="text-sm font-medium">Gestante?</Label>
-                    <RadioGroup 
-                      value={formData.gestante} 
-                      onValueChange={(value) => setFormData({...formData, gestante: value})}
-                      className="flex gap-4 mt-2"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="sim" id="gestante-sim" />
-                        <Label htmlFor="gestante-sim">Sim</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="nao" id="gestante-nao" />
-                        <Label htmlFor="gestante-nao">Não</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="nao-sei" id="gestante-nao-sei" />
-                        <Label htmlFor="gestante-nao-sei">Não Sei</Label>
-                      </div>
-                    </RadioGroup>
-                    {formData.gestante === 'sim' && (
-                      <div className="mt-3">
-                        <Label className="text-sm">Semanas:</Label>
-                        <Input
-                          placeholder="Número de semanas..."
-                          value={formData.gestanteSemanas}
-                          onChange={(e) => setFormData({...formData, gestanteSemanas: e.target.value})}
-                          className="mt-1"
-                        />
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div>
-                  <Label htmlFor="problemasSaude" className="text-sm font-medium">Problemas de saúde que já teve:</Label>
-                  <Textarea
-                    id="problemasSaude"
-                    value={formData.problemasSaude}
-                    onChange={(e) => setFormData({...formData, problemasSaude: e.target.value})}
-                    className="mt-2"
-                    rows={3}
-                    placeholder="Descreva problemas de saúde anteriores..."
-                  />
-                </div>
-
-                <div>
-                  <Label className="text-sm font-medium">Já teve alguma reação com anestesia dental?</Label>
-                  <RadioGroup 
-                    value={formData.reacaoAnestesia} 
-                    onValueChange={(value) => setFormData({...formData, reacaoAnestesia: value})}
-                    className="flex gap-4 mt-2"
-                  >
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="sim" id="anestesia-sim" />
-                      <Label htmlFor="anestesia-sim">Sim</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="nao" id="anestesia-nao" />
-                      <Label htmlFor="anestesia-nao">Não</Label>
-                    </div>
-                  </RadioGroup>
-                  {formData.reacaoAnestesia === 'sim' && (
-                    <div className="mt-3">
-                      <Label className="text-sm">Qual?</Label>
-                      <Input
-                        placeholder="Descreva a reação à anestesia..."
-                        value={formData.reacaoAnestesiaDescricao}
-                        onChange={(e) => setFormData({...formData, reacaoAnestesiaDescricao: e.target.value})}
-                        className="mt-1"
-                      />
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <Label htmlFor="ultimoTratamento" className="text-sm font-medium">Quando foi seu último tratamento dentário?</Label>
-                  <Input
-                    id="ultimoTratamento"
-                    value={formData.ultimoTratamento}
-                    onChange={(e) => setFormData({...formData, ultimoTratamento: e.target.value})}
-                    className="mt-2"
-                    placeholder="Ex: Há 6 meses, há 1 ano, nunca fiz..."
-                  />
-                </div>
-              </div>
-
-              {/* Seção: Saúde Bucal */}
-              <div className="space-y-6">
-                <h3 className="text-lg font-semibold text-foreground border-b pb-2">Saúde Bucal</h3>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-sm font-medium">Tem sentido alguma dor nos dentes ou na gengiva?</Label>
-                    <RadioGroup 
-                      value={formData.dorDentes} 
-                      onValueChange={(value) => setFormData({...formData, dorDentes: value})}
-                      className="flex gap-4 mt-2"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="sim" id="dor-sim" />
-                        <Label htmlFor="dor-sim">Sim</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="nao" id="dor-nao" />
-                        <Label htmlFor="dor-nao">Não</Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
-
-                  <div>
-                    <Label className="text-sm font-medium">Sua gengiva sangra?</Label>
-                    <RadioGroup 
-                      value={formData.gengivaSangra} 
-                      onValueChange={(value) => setFormData({...formData, gengivaSangra: value})}
-                      className="flex flex-col gap-2 mt-2"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="sim" id="gengiva-sim" />
-                        <Label htmlFor="gengiva-sim">Sim</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="nao" id="gengiva-nao" />
-                        <Label htmlFor="gengiva-nao">Não</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="durante-higiene" id="gengiva-higiene" />
-                        <Label htmlFor="gengiva-higiene">Durante a higiene</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="as-vezes" id="gengiva-as-vezes" />
-                        <Label htmlFor="gengiva-as-vezes">Às vezes</Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
-
-                  <div>
-                    <Label className="text-sm font-medium">Tem sentido gosto ruim na boca ou boca seca?</Label>
-                    <RadioGroup 
-                      value={formData.gostoRuim} 
-                      onValueChange={(value) => setFormData({...formData, gostoRuim: value})}
-                      className="flex gap-4 mt-2"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="sim" id="gosto-sim" />
-                        <Label htmlFor="gosto-sim">Sim</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="nao" id="gosto-nao" />
-                        <Label htmlFor="gosto-nao">Não</Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
-
-                  <div>
-                    <Label htmlFor="escovacoes" className="text-sm font-medium">Quantas vezes escova os dentes por dia?</Label>
-                    <Input
-                      id="escovacoes"
-                      value={formData.escovacoes}
-                      onChange={(e) => setFormData({...formData, escovacoes: e.target.value})}
-                      className="mt-2"
-                      placeholder="Ex: 2 vezes, 3 vezes..."
-                    />
-                  </div>
-
-                  <div>
-                    <Label className="text-sm font-medium">Usa fio dental?</Label>
-                    <RadioGroup 
-                      value={formData.fioDental} 
-                      onValueChange={(value) => setFormData({...formData, fioDental: value})}
-                      className="flex gap-4 mt-2"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="diariamente" id="fio-diariamente" />
-                        <Label htmlFor="fio-diariamente">Diariamente</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="as-vezes" id="fio-as-vezes" />
-                        <Label htmlFor="fio-as-vezes">Às vezes</Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
-
-                  <div>
-                    <Label className="text-sm font-medium">Sente dores ou estalos no maxilar ou no ouvido?</Label>
-                    <RadioGroup 
-                      value={formData.doresMaxilar} 
-                      onValueChange={(value) => setFormData({...formData, doresMaxilar: value})}
-                      className="flex gap-4 mt-2"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="sim" id="maxilar-sim" />
-                        <Label htmlFor="maxilar-sim">Sim</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="nao" id="maxilar-nao" />
-                        <Label htmlFor="maxilar-nao">Não</Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
-
-                  <div>
-                    <Label className="text-sm font-medium">Range os dentes de dia ou de noite?</Label>
-                    <RadioGroup 
-                      value={formData.rangeDentes} 
-                      onValueChange={(value) => setFormData({...formData, rangeDentes: value})}
-                      className="flex gap-4 mt-2"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="sim" id="range-sim" />
-                        <Label htmlFor="range-sim">Sim</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="nao" id="range-nao" />
-                        <Label htmlFor="range-nao">Não</Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
-
-                  <div>
-                    <Label className="text-sm font-medium">Já teve alguma ferida ou bolha na face ou nos lábios?</Label>
-                    <RadioGroup 
-                      value={formData.feridaLabios} 
-                      onValueChange={(value) => setFormData({...formData, feridaLabios: value})}
-                      className="flex gap-4 mt-2"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="sim" id="ferida-sim" />
-                        <Label htmlFor="ferida-sim">Sim</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="nao" id="ferida-nao" />
-                        <Label htmlFor="ferida-nao">Não</Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
-
-                  <div>
-                    <Label className="text-sm font-medium">Fuma?</Label>
-                    <RadioGroup 
-                      value={formData.fuma} 
-                      onValueChange={(value) => setFormData({...formData, fuma: value})}
-                      className="flex gap-4 mt-2"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="sim" id="fuma-sim" />
-                        <Label htmlFor="fuma-sim">Sim</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="nao" id="fuma-nao" />
-                        <Label htmlFor="fuma-nao">Não</Label>
-                      </div>
-                    </RadioGroup>
-                    {formData.fuma === 'sim' && (
-                      <div className="mt-3">
-                        <Label className="text-sm">Quantidade:</Label>
-                        <Input
-                          placeholder="Ex: 1 maço por dia, 5 cigarros por dia..."
-                          value={formData.fumaQuantidade}
-                          onChange={(e) => setFormData({...formData, fumaQuantidade: e.target.value})}
-                          className="mt-1"
-                        />
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Declaração */}
-              <div className="p-4 bg-muted border-l-4 border-blue-500 rounded">
-                <p className="text-sm text-foreground italic">
-                  <strong>Declaração:</strong> Declaro para fins de direito que as informações acima prestadas são verdadeiras, 
-                  assumindo a responsabilidade por omissões ou informações incorretas.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Modal de Assinatura */}
-          <SignatureModal
-            isOpen={showSignatureModal}
-            onClose={() => setShowSignatureModal(false)}
-            title={`Assinatura ${currentSigner === 'paciente' ? 'do Paciente' : 'do Dentista'}`}
-            signerName={getCurrentSignerName()}
-            signerRole={currentSigner}
-            documentType="anamnese"
-            onSignatureComplete={handleSignatureComplete}
-          />
-        </div>
-      </Layout>
-    );
-  }
 
   return (
     <Layout>
       <div className="space-y-6">
+        {/* Cabeçalho da Página */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-3">
-            <Clipboard className="h-6 w-6 text-blue-600" />
-            <h1 className="text-xl sm:text-2xl font-bold text-foreground">Anamnese</h1>
+            <div className="p-2.5 rounded-xl bg-blue-600/10 text-blue-600 dark:text-blue-400">
+              <ClipboardList className="h-6 w-6" />
+            </div>
+            <div>
+              <h1 className="text-xl sm:text-2xl font-bold text-foreground">Anamnese Odontológica</h1>
+              <p className="text-xs sm:text-sm text-muted-foreground">
+                Questionários de saúde, histórico clínico e assinaturas digitais com envio por link e WhatsApp.
+              </p>
+            </div>
           </div>
-          <Button onClick={() => setShowForm(true)} className="bg-blue-600 hover:bg-blue-700">
-            <Plus className="h-4 w-4 mr-2" />
+
+          <Button
+            onClick={() => setIsNewModalOpen(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-xs gap-1.5"
+          >
+            <Plus className="h-4 w-4" />
             Nova Anamnese
           </Button>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Anamneses Cadastradas</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {anamneses.length === 0 ? (
-              <div className="text-center py-8">
-                <div className="text-muted-foreground mb-4">
-                  <Clipboard className="h-12 w-12 mx-auto" />
-                </div>
-                <h3 className="text-lg font-medium text-foreground mb-2">Nenhuma anamnese encontrada</h3>
-                <p className="text-muted-foreground">Crie sua primeira anamnese para começar.</p>
+        {/* Estatísticas Rápidas */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <Card className="p-4 border-border/80 shadow-xs">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground font-medium">Total de Anamneses</p>
+                <p className="text-2xl font-bold text-foreground mt-0.5">{stats.total}</p>
               </div>
-            ) : (
-              <div className="space-y-4">
-                {anamneses.map((anamnese) => (
-                  <div key={anamnese.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted">
-                    <div>
-                      <h3 className="font-medium">{anamnese.queixaPrincipal}</h3>
-                      <p className="text-sm text-muted-foreground">Data: {new Date(anamnese.data).toLocaleDateString('pt-BR')}</p>
+              <div className="p-2 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                <ClipboardList className="h-5 w-5" />
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-4 border-border/80 shadow-xs">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground font-medium">Assinadas Digitalmente</p>
+                <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                  {stats.assinadas}
+                </p>
+              </div>
+              <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                <CheckCircle2 className="h-5 w-5" />
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-4 border-border/80 shadow-xs">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground font-medium">Aguardando Assinatura</p>
+                <p className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-0.5">
+                  {stats.pendentes}
+                </p>
+              </div>
+              <div className="p-2 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                <Clock className="h-5 w-5" />
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        {/* Barra de Busca e Filtros */}
+        <Card className="p-3 sm:p-4 border-border/80 shadow-xs">
+          <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por paciente, telefone, CPF ou queixa..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9 text-xs sm:text-sm bg-background"
+              />
+            </div>
+
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+              <Button
+                size="sm"
+                variant={statusFilter === 'todos' ? 'default' : 'outline'}
+                onClick={() => setStatusFilter('todos')}
+                className="text-xs h-8"
+              >
+                Todas ({stats.total})
+              </Button>
+              <Button
+                size="sm"
+                variant={statusFilter === 'pendente' ? 'default' : 'outline'}
+                onClick={() => setStatusFilter('pendente')}
+                className="text-xs h-8"
+              >
+                Aguardando ({stats.pendentes})
+              </Button>
+              <Button
+                size="sm"
+                variant={statusFilter === 'assinado' ? 'default' : 'outline'}
+                onClick={() => setStatusFilter('assinado')}
+                className="text-xs h-8"
+              >
+                Assinadas ({stats.assinadas})
+              </Button>
+            </div>
+          </div>
+        </Card>
+
+        {/* Lista de Anamneses */}
+        {filteredAnamneses.length === 0 ? (
+          <Card className="text-center py-12 border-dashed border-2 border-border/80">
+            <CardContent className="space-y-3">
+              <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mx-auto text-muted-foreground">
+                <ClipboardList className="h-6 w-6" />
+              </div>
+              <h3 className="text-base font-semibold text-foreground">Nenhuma anamnese encontrada</h3>
+              <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                {searchTerm || statusFilter !== 'todos'
+                  ? 'Tente ajustar os filtros ou o termo de busca pesquisado.'
+                  : 'Crie a primeira anamnese para coletar o histórico médico e enviar o link de assinatura para o paciente.'}
+              </p>
+              <Button
+                onClick={() => setIsNewModalOpen(true)}
+                className="mt-2 text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+              >
+                <Plus className="h-3.5 w-3.5 mr-1" />
+                Criar Nova Anamnese
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-3.5">
+            {filteredAnamneses.map((anamnese) => {
+              const paciente = obterPaciente(anamnese.pacienteId);
+              const pacienteNome = paciente?.nome || (anamnese as any).pacienteNome || 'Paciente';
+              const assinada = isAnamneseAssinada(anamnese);
+              const isGerandoEste = gerandoLinkId === anamnese.id;
+
+              return (
+                <Card
+                  key={anamnese.id}
+                  className="hover:border-primary/40 transition-colors border-border/80 shadow-xs overflow-hidden"
+                >
+                  <CardHeader className="p-4 pb-2.5 border-b border-border/40">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <div className="h-9 w-9 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs uppercase shrink-0">
+                          {pacienteNome.slice(0, 2)}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-foreground text-sm sm:text-base">
+                              {pacienteNome}
+                            </span>
+                            {assinada ? (
+                              <Badge className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 text-[11px] gap-1 font-semibold">
+                                <CheckCircle2 className="h-3 w-3" />
+                                Assinada Digitalmente
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20 text-[11px] gap-1 font-semibold">
+                                <Clock className="h-3 w-3" />
+                                Aguardando Assinatura
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5 flex-wrap">
+                            <span className="flex items-center gap-1">
+                              <Calendar className="h-3 w-3" />
+                              {new Date(anamnese.data).toLocaleDateString('pt-BR')}
+                            </span>
+                            {paciente?.telefone && (
+                              <span className="flex items-center gap-1">
+                                <Phone className="h-3 w-3" />
+                                {paciente.telefone}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Botões de Ação Principais */}
+                      <div className="flex items-center gap-1.5 flex-wrap pt-2 sm:pt-0">
+                        {/* Botão WhatsApp */}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleEnviarWhatsApp(anamnese)}
+                          disabled={isGerandoEste}
+                          className="h-8 text-xs border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-300 gap-1.5 font-semibold"
+                          title="Enviar link de preenchimento e assinatura pelo WhatsApp"
+                        >
+                          <MessageCircle className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                          <span className="hidden sm:inline">WhatsApp</span>
+                        </Button>
+
+                        {/* Botão Copiar Link */}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleCopiarLink(anamnese)}
+                          disabled={isGerandoEste}
+                          className="h-8 text-xs gap-1.5"
+                          title="Copiar link para a área de transferência"
+                        >
+                          {copiandoId === anamnese.id ? (
+                            <>
+                              <Check className="h-3.5 w-3.5 text-emerald-600" />
+                              <span className="text-emerald-600 font-semibold">Copiado!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+                              <span className="hidden sm:inline">Copiar Link</span>
+                            </>
+                          )}
+                        </Button>
+
+                        {/* Botão Abrir Link */}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleAbrirLink(anamnese)}
+                          disabled={isGerandoEste}
+                          className="h-8 text-xs gap-1.5"
+                          title="Abrir formulário e tela de assinatura em nova guia"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span className="hidden md:inline">Abrir Link</span>
+                        </Button>
+
+                        {/* Botão Visualizar Detalhes */}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleVisualizar(anamnese)}
+                          className="h-8 text-xs gap-1.5"
+                          title="Ver respostas completas e assinaturas"
+                        >
+                          <Eye className="h-3.5 w-3.5 text-blue-600" />
+                          <span>Visualizar</span>
+                        </Button>
+
+                        {/* Botão Excluir */}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleExcluir(anamnese)}
+                          className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                          title="Excluir anamnese"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </div>
-                    <Button variant="outline" size="sm">
-                      <Eye className="h-4 w-4 mr-2" />
-                      Visualizar
+                  </CardHeader>
+
+                  <CardContent className="p-4 pt-3 space-y-2 text-xs">
+                    <div>
+                      <span className="font-semibold text-foreground">Queixa Principal: </span>
+                      <span className="text-muted-foreground">
+                        {anamnese.queixaPrincipal || 'Avaliação clínica odontológica'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap pt-1">
+                      {anamnese.alergias && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300 text-[11px] font-medium border border-amber-500/20">
+                          <AlertTriangle className="h-3 w-3" />
+                          Alergias: {anamnese.alergias}
+                        </span>
+                      )}
+
+                      {anamnese.medicamentos && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 text-[11px] font-medium border border-blue-500/20">
+                          <Pill className="h-3 w-3" />
+                          Medicamentos: {anamnese.medicamentos}
+                        </span>
+                      )}
+
+                      {anamnese.historiaMedica && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-500/10 text-slate-700 dark:text-slate-300 text-[11px] font-medium border border-slate-500/20">
+                          <HeartPulse className="h-3 w-3" />
+                          Histórico Médico registrado
+                        </span>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Modal de Criação de Nova Anamnese */}
+        <AnamneseModal
+          isOpen={isNewModalOpen}
+          onClose={() => setIsNewModalOpen(false)}
+          onSave={() => {
+            setIsNewModalOpen(false);
+          }}
+        />
+
+        {/* Modal de Visualização Detalhada da Anamnese */}
+        <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <ClipboardList className="h-5 w-5 text-primary" />
+                Ficha de Anamnese Odontológica
+              </DialogTitle>
+              <DialogDescription>
+                Registro clínico detalhado e comprovante de assinatura digital
+              </DialogDescription>
+            </DialogHeader>
+
+            {selectedAnamnese && (() => {
+              const paciente = obterPaciente(selectedAnamnese.pacienteId);
+              const pacienteNome = paciente?.nome || (selectedAnamnese as any).pacienteNome || 'Paciente';
+              const assinada = isAnamneseAssinada(selectedAnamnese);
+              const assinatura = selectedAnamnese.assinaturaPaciente;
+
+              return (
+                <div className="space-y-4 pt-2 text-xs sm:text-sm">
+                  {/* Resumo do Paciente e Status */}
+                  <div className="p-3.5 rounded-lg bg-muted/60 border border-border/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <div>
+                      <p className="text-[11px] text-muted-foreground uppercase font-semibold">Paciente</p>
+                      <p className="font-bold text-base text-foreground">{pacienteNome}</p>
+                      {paciente?.cpf && (
+                        <p className="text-xs text-muted-foreground">CPF: {paciente.cpf}</p>
+                      )}
+                    </div>
+
+                    <div className="sm:text-right">
+                      <p className="text-[11px] text-muted-foreground uppercase font-semibold">Data</p>
+                      <p className="font-semibold text-foreground">
+                        {new Date(selectedAnamnese.data).toLocaleDateString('pt-BR')}
+                      </p>
+                      <div className="mt-1">
+                        {assinada ? (
+                          <Badge className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 text-[11px]">
+                            Assinada Digitalmente
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20 text-[11px]">
+                            Aguardando Assinatura
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Respostas da Anamnese */}
+                  <div className="space-y-3 divide-y divide-border/50">
+                    <div className="pt-2">
+                      <p className="font-bold text-foreground">1. Queixa Principal:</p>
+                      <p className="text-muted-foreground mt-0.5">
+                        {selectedAnamnese.queixaPrincipal || 'Não informada'}
+                      </p>
+                    </div>
+
+                    {selectedAnamnese.historiaAtual && (
+                      <div className="pt-2">
+                        <p className="font-bold text-foreground">2. História Atual:</p>
+                        <p className="text-muted-foreground mt-0.5">{selectedAnamnese.historiaAtual}</p>
+                      </div>
+                    )}
+
+                    <div className="pt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <p className="font-bold text-foreground flex items-center gap-1">
+                          <AlertTriangle className="h-3.5 w-3.5 text-amber-600" /> Alergias:
+                        </p>
+                        <p className="text-muted-foreground mt-0.5">
+                          {selectedAnamnese.alergias || 'Nenhuma alergia informada'}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="font-bold text-foreground flex items-center gap-1">
+                          <Pill className="h-3.5 w-3.5 text-blue-600" /> Medicamentos em Uso:
+                        </p>
+                        <p className="text-muted-foreground mt-0.5">
+                          {selectedAnamnese.medicamentos || 'Nenhum medicamento informado'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {selectedAnamnese.historiaMedica && (
+                      <div className="pt-2">
+                        <p className="font-bold text-foreground">3. História Médica Pregressa:</p>
+                        <p className="text-muted-foreground mt-0.5">{selectedAnamnese.historiaMedica}</p>
+                      </div>
+                    )}
+
+                    {selectedAnamnese.historiaFamiliar && (
+                      <div className="pt-2">
+                        <p className="font-bold text-foreground">4. História Familiar:</p>
+                        <p className="text-muted-foreground mt-0.5">{selectedAnamnese.historiaFamiliar}</p>
+                      </div>
+                    )}
+
+                    {(selectedAnamnese.habitosViciosPositivos || selectedAnamnese.habitosViciosNegativos) && (
+                      <div className="pt-2">
+                        <p className="font-bold text-foreground">5. Hábitos e Vícios:</p>
+                        <p className="text-muted-foreground mt-0.5">
+                          {[selectedAnamnese.habitosViciosPositivos, selectedAnamnese.habitosViciosNegativos]
+                            .filter(Boolean)
+                            .join(' • ')}
+                        </p>
+                      </div>
+                    )}
+
+                    {selectedAnamnese.observacoes && (
+                      <div className="pt-2">
+                        <p className="font-bold text-foreground">6. Observações Gerais:</p>
+                        <p className="text-muted-foreground mt-0.5">{selectedAnamnese.observacoes}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Bloco de Assinatura Digital */}
+                  <div className="rounded-lg border-2 border-border/80 p-3.5 bg-card space-y-2 mt-4">
+                    <div className="flex items-center justify-between border-b pb-2">
+                      <span className="font-bold flex items-center gap-1.5 text-foreground text-xs uppercase tracking-wide">
+                        <ShieldCheck className="h-4 w-4 text-emerald-500" />
+                        Autenticação e Assinatura Digital
+                      </span>
+                      {assinada ? (
+                        <Badge className="bg-emerald-600 text-white text-[10px]">Documento Assinado</Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-amber-600 border-amber-500/40 text-[10px]">
+                          Pendente de Assinatura
+                        </Badge>
+                      )}
+                    </div>
+
+                    {assinada && assinatura ? (
+                      <div className="space-y-3 pt-1">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                          <div>
+                            <span className="text-muted-foreground block text-[11px]">Assinado por:</span>
+                            <span className="font-semibold text-foreground">
+                              {assinatura.signerName || pacienteNome}
+                            </span>
+                          </div>
+
+                          <div>
+                            <span className="text-muted-foreground block text-[11px]">Data e Hora:</span>
+                            <span className="font-semibold text-foreground">
+                              {assinatura.timestamp ? new Date(assinatura.timestamp).toLocaleString('pt-BR') : 'Registrada'}
+                            </span>
+                          </div>
+
+                          {assinatura.signerInfo?.cpf && (
+                            <div>
+                              <span className="text-muted-foreground block text-[11px]">CPF:</span>
+                              <span className="font-mono text-foreground">{assinatura.signerInfo.cpf}</span>
+                            </div>
+                          )}
+
+                          {assinatura.signerInfo?.email && (
+                            <div>
+                              <span className="text-muted-foreground block text-[11px]">E-mail:</span>
+                              <span className="text-foreground">{assinatura.signerInfo.email}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Imagem do Traço de Assinatura */}
+                        {assinatura.signature && (
+                          <div className="pt-2">
+                            <span className="text-[11px] text-muted-foreground block mb-1">Traço Digital:</span>
+                            <div className="p-2 border rounded-md bg-white max-w-sm">
+                              <img
+                                src={assinatura.signature}
+                                alt="Assinatura Digital"
+                                className="h-20 w-auto object-contain mx-auto"
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Foto Selfie (se houver) */}
+                        {(assinatura as any).selfie && (
+                          <div className="pt-2">
+                            <span className="text-[11px] text-muted-foreground block mb-1">Foto Selfie de Validação:</span>
+                            <img
+                              src={(assinatura as any).selfie}
+                              alt="Selfie do Assinante"
+                              className="h-24 w-24 rounded-md object-cover border"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="space-y-3 py-2">
+                        <p className="text-xs text-muted-foreground">
+                          Esta anamnese ainda não foi assinada pelo paciente. Envie o link pelo WhatsApp ou copie o link para que o paciente assine em seu celular.
+                        </p>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            onClick={() => handleEnviarWhatsApp(selectedAnamnese)}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1.5"
+                          >
+                            <MessageCircle className="h-3.5 w-3.5" />
+                            Enviar WhatsApp
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleCopiarLink(selectedAnamnese)}
+                            className="text-xs gap-1.5"
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                            Copiar Link
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleAbrirLink(selectedAnamnese)}
+                            className="text-xs gap-1.5"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                            Abrir Link
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-3 border-t">
+                    <Button variant="outline" onClick={() => setIsViewModalOpen(false)}>
+                      Fechar
                     </Button>
                   </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                </div>
+              );
+            })()}
+          </DialogContent>
+        </Dialog>
       </div>
     </Layout>
   );

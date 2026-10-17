@@ -355,7 +355,7 @@ const DigitalSignature = ({
         nomeCompleto: nomeCompleto.trim() || signerName,
         email: signerEmail.trim() || undefined,
         cpf: signerCpf.trim() || undefined,
-        rg: temValorValido(signerRg) ? signerRg.trim() : undefined,
+        rg: documentType !== 'anamnese' && temValorValido(signerRg) ? signerRg.trim() : undefined,
         selfie: selfiePhoto || undefined,
       },
     };
@@ -401,7 +401,7 @@ const DigitalSignature = ({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            <div className="space-y-1">
+            <div className={`space-y-1 ${documentType === 'anamnese' ? 'sm:col-span-2' : ''}`}>
               <Label htmlFor="signerNome" className="text-xs font-medium text-foreground">
                 Nome Completo {shouldRequireFields && <span className="text-rose-500">*</span>}
               </Label>
@@ -445,19 +445,21 @@ const DigitalSignature = ({
               />
             </div>
 
-            <div className="space-y-1">
-              <Label htmlFor="signerRg" className="text-xs font-medium text-foreground">
-                RG <span className="text-[10px] text-muted-foreground font-normal">(Opcional)</span>
-              </Label>
-              <Input
-                id="signerRg"
-                value={signerRg}
-                onChange={(e) => setSignerRg(formatRg(e.target.value))}
-                placeholder="00.000.000-0"
-                maxLength={16}
-                className="h-8 text-xs font-medium bg-background"
-              />
-            </div>
+            {documentType !== 'anamnese' && (
+              <div className="space-y-1">
+                <Label htmlFor="signerRg" className="text-xs font-medium text-foreground">
+                  RG <span className="text-[10px] text-muted-foreground font-normal">(Opcional)</span>
+                </Label>
+                <Input
+                  id="signerRg"
+                  value={signerRg}
+                  onChange={(e) => setSignerRg(formatRg(e.target.value))}
+                  placeholder="00.000.000-0"
+                  maxLength={16}
+                  className="h-8 text-xs font-medium bg-background"
+                />
+              </div>
+            )}
           </div>
         </div>
 

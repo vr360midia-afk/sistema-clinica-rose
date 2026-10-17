@@ -373,6 +373,8 @@ const AssinarAnamnese = () => {
             signerName={paciente?.nome || 'Paciente'}
             signerRole="paciente"
             documentType="anamnese"
+            initialEmail={paciente?.email || ''}
+            initialCpf={paciente?.cpf || ''}
             onSignatureComplete={handleSignature}
             onCancel={() => setShowSignature(false)}
           />
