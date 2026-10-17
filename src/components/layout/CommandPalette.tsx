@@ -99,16 +99,19 @@ export const CommandPalette = () => {
 
             {pacientes.length > 0 && (
               <Command.Group heading="Pacientes" className="text-xs font-medium text-muted-foreground px-2 py-1.5 mb-1 mt-3">
-                {pacientes.slice(0, 5).map(paciente => (
+                {pacientes.slice(0, 80).map(paciente => (
                   <Command.Item 
                     key={paciente.id}
-                    value={`paciente ${paciente.nome}`}
-                    onSelect={() => runCommand(() => navigate('/pacientes'))}
+                    value={`paciente ${paciente.nome} ${paciente.telefone || ''} ${paciente.cpf || ''}`}
+                    onSelect={() => runCommand(() => navigate(`/pacientes?q=${encodeURIComponent(paciente.nome)}`))}
                     className="flex items-center px-2 py-2.5 text-sm rounded-md cursor-pointer hover:bg-accent hover:text-accent-foreground aria-selected:bg-accent aria-selected:text-accent-foreground"
                   >
-                    <Users className="w-4 h-4 mr-2 opacity-50" />
+                    <Users className="w-4 h-4 mr-2 opacity-50 shrink-0" />
                     <span className="flex-1 truncate">{paciente.nome}</span>
-                    <span className="text-xs opacity-50 ml-2 border border-border px-1.5 rounded">Ficha</span>
+                    {paciente.telefone && (
+                      <span className="text-xs text-muted-foreground mr-2 shrink-0">{paciente.telefone}</span>
+                    )}
+                    <span className="text-[10px] opacity-70 border border-border px-1.5 py-0.5 rounded shrink-0">Ficha</span>
                   </Command.Item>
                 ))}
               </Command.Group>

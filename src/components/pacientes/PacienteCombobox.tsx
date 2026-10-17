@@ -75,17 +75,22 @@ export const PacienteCombobox: React.FC<PacienteComboboxProps> = ({
       const telDigitos = (p.telefone || '').replace(/\D/g, '');
       const cpfDigitos = (p.cpf || '').replace(/\D/g, '');
 
-      // Todos os tokens de texto precisam casar no nome ou email
-      const casaTexto = tokens.every(
-        (token) => nomeNorm.includes(token) || emailNorm.includes(token)
-      );
+      // Cada termo digitado pode casar no nome, email, telefone ou CPF
+      const casaTokens = tokens.every((token) => {
+        const tokenDigitos = token.replace(/\D/g, '');
+        const bateNomeEmail = nomeNorm.includes(token) || emailNorm.includes(token);
+        const bateNumeros =
+          tokenDigitos.length >= 2 &&
+          (telDigitos.includes(tokenDigitos) || cpfDigitos.includes(tokenDigitos));
+        return bateNomeEmail || bateNumeros;
+      });
 
-      // Ou se o usuário digitou números, busca no telefone ou CPF
-      const casaNumero =
+      // Busca direta por dígitos caso o usuário tenha colado número com traços/parênteses
+      const casaNumeroDireto =
         apenasDigitosTermo.length >= 2 &&
         (telDigitos.includes(apenasDigitosTermo) || cpfDigitos.includes(apenasDigitosTermo));
 
-      return casaTexto || casaNumero;
+      return casaTokens || casaNumeroDireto;
     }).slice(0, 80);
   }, [pacientes, search]);
 
@@ -156,14 +161,19 @@ export const PacienteCombobox: React.FC<PacienteComboboxProps> = ({
                   <div className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold text-xs flex items-center justify-center shrink-0">
                     {nomeExibicao.trim().charAt(0).toUpperCase()}
                   </div>
-                  <span className="truncate font-medium text-foreground text-sm">
+                  <span className="truncate font-medium text-foreground text-xs sm:text-sm">
                     {nomeExibicao}
                   </span>
+                  {pacienteSelecionado?.telefone && (
+                    <span className="text-[11px] text-muted-foreground truncate hidden sm:inline shrink-0 opacity-80">
+                      {pacienteSelecionado.telefone}
+                    </span>
+                  )}
                 </>
               ) : (
                 <>
                   <Search className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <span className="truncate text-sm">{placeholder}</span>
+                  <span className="truncate text-xs sm:text-sm">{placeholder}</span>
                 </>
               )}
             </div>

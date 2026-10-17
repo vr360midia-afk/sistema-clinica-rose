@@ -163,13 +163,35 @@ const Pacientes = () => {
     )
   ).sort((a, b) => Number(b) - Number(a));
 
-  const termo = searchTerm.toLowerCase();
+  const normalizar = (txt: string) =>
+    (txt || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+
+  const termoNorm = normalizar(searchTerm);
+  const apenasDigitosTermo = searchTerm.replace(/\D/g, '');
+
   const filteredPacientes = currentPacientes.filter(paciente => {
-    const buscaOk =
-      (paciente.nome || '').toLowerCase().includes(termo) ||
-      (paciente.email || '').toLowerCase().includes(termo) ||
-      (paciente.telefone || '').includes(searchTerm);
-    if (!buscaOk) return false;
+    if (termoNorm) {
+      const nomeNorm = normalizar(paciente.nome);
+      const emailNorm = normalizar(paciente.email);
+      const telDigitos = (paciente.telefone || '').replace(/\D/g, '');
+      const cpfDigitos = (paciente.cpf || '').replace(/\D/g, '');
+
+      const tokens = termoNorm.split(/\s+/).filter(Boolean);
+      const matchTokens = tokens.length === 0 || tokens.every(tok => {
+        const tokDigitos = tok.replace(/\D/g, '');
+        return (
+          nomeNorm.includes(tok) ||
+          emailNorm.includes(tok) ||
+          (tokDigitos.length >= 2 && (telDigitos.includes(tokDigitos) || cpfDigitos.includes(tokDigitos)))
+        );
+      });
+
+      const matchDigitos =
+        apenasDigitosTermo.length >= 2 &&
+        (telDigitos.includes(apenasDigitosTermo) || cpfDigitos.includes(apenasDigitosTermo));
+
+      if (!matchTokens && !matchDigitos) return false;
+    }
 
     if (statusFiltro !== 'todos' && (paciente.status || 'Ativo') !== statusFiltro) return false;
 
@@ -451,14 +473,24 @@ const Pacientes = () => {
 
             <Card className="w-full lg:w-96">
               <CardContent className="p-2 sm:p-3">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                <div className="relative flex items-center">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4 pointer-events-none" />
                   <Input
-                    placeholder="Buscar paciente..."
-                    className="pl-10 border-0"
+                    placeholder="Buscar por nome, telefone ou CPF..."
+                    className="pl-10 pr-8 border-0 text-[16px] sm:text-sm"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
+                  {searchTerm && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchTerm('')}
+                      className="absolute right-3 p-1 text-muted-foreground hover:text-foreground text-xs rounded-full hover:bg-muted"
+                      title="Limpar busca"
+                    >
+                      ✕
+                    </button>
+                  )}
                 </div>
               </CardContent>
             </Card>

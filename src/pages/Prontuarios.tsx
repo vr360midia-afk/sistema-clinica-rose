@@ -28,13 +28,29 @@ const Prontuarios = () => {
     setSelectedProntuario(data.pacienteId);
   };
 
-  // Filtrar prontuários baseado na busca
+  // Filtrar prontuários baseado na busca com suporte a acentos, telefone e CPF
+  const normalizar = (txt?: string) =>
+    (txt || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+
+  const termoNorm = normalizar(searchTerm);
+  const apenasDigitosTermo = searchTerm.replace(/\D/g, '');
+
   const filteredProntuarios = prontuarios.filter(prontuario => {
+    if (!termoNorm) return true;
     const paciente = pacientes.find(p => p.id === prontuario.pacienteId);
     if (!paciente) return false;
-    
-    return paciente.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-           prontuario.queixaPrincipal.toLowerCase().includes(searchTerm.toLowerCase());
+
+    const nomeNorm = normalizar(paciente.nome);
+    const queixaNorm = normalizar(prontuario.queixaPrincipal);
+    const telDigitos = (paciente.telefone || '').replace(/\D/g, '');
+    const cpfDigitos = (paciente.cpf || '').replace(/\D/g, '');
+
+    const matchTexto = nomeNorm.includes(termoNorm) || queixaNorm.includes(termoNorm);
+    const matchDigitos =
+      apenasDigitosTermo.length >= 2 &&
+      (telDigitos.includes(apenasDigitosTermo) || cpfDigitos.includes(apenasDigitosTermo));
+
+    return matchTexto || matchDigitos;
   });
 
   const selectedProntuarioData = prontuarios.find(p => p.pacienteId === selectedProntuario);
@@ -62,18 +78,31 @@ const Prontuarios = () => {
                 <FileText className="h-5 w-5" />
                 Prontuários ({filteredProntuarios.length})
               </CardTitle>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+              <div className="relative flex items-center">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4 pointer-events-none" />
                 <Input
-                  placeholder="Buscar paciente..."
+                  placeholder="Buscar paciente por nome, queixa ou telefone..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
+                  className="pl-10 pr-8 text-[16px] sm:text-sm"
                 />
+                {searchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchTerm('')}
+                    className="absolute right-3 p-1 text-muted-foreground hover:text-foreground text-xs"
+                    title="Limpar busca"
+                  >
+                    ✕
+                  </button>
+                )}
               </div>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
+              <div
+                className="space-y-3 max-h-[min(560px,70vh)] overflow-y-auto overscroll-contain touch-pan-y pr-1"
+                style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+              >
                 {filteredProntuarios.map((prontuario) => {
                   const paciente = pacientes.find(p => p.id === prontuario.pacienteId);
                   if (!paciente) return null;

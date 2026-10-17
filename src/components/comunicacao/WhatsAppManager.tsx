@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,6 +16,16 @@ const WhatsAppManager = () => {
   const [selectedTemplate, setSelectedTemplate] = useState('');
   const [customMessage, setCustomMessage] = useState('');
   const [selectedPatients, setSelectedPatients] = useState<string[]>([]);
+  const [searchPatient, setSearchPatient] = useState('');
+
+  const pacientesFiltrados = useMemo(() => {
+    if (!searchPatient.trim()) return pacientes;
+    const termo = searchPatient.toLowerCase().trim();
+    return (pacientes || []).filter((p) =>
+      (p.nome || '').toLowerCase().includes(termo) ||
+      (p.telefone || '').includes(termo)
+    );
+  }, [pacientes, searchPatient]);
 
   const messageTemplates = [
     {
@@ -184,48 +194,77 @@ const WhatsAppManager = () => {
                     <Users className="h-5 w-5" />
                     Pacientes ({selectedPatients.length}/{pacientes.length})
                   </span>
-                  <Button variant="outline" size="sm" onClick={selectAllPatients}>
-                    {selectedPatients.length === pacientes.length ? 'Desmarcar Todos' : 'Selecionar Todos'}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={selectAllPatients}>
+                      {selectedPatients.length === pacientes.length ? 'Desmarcar Todos' : 'Selecionar Todos'}
+                    </Button>
+                  </div>
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-2 max-h-96 overflow-y-auto">
-                  {pacientes.map((paciente) => (
-                    <div
-                      key={paciente.id}
-                      className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                        selectedPatients.includes(paciente.id)
-                          ? 'bg-green-50 border-green-200'
-                          : 'hover:bg-muted'
-                      }`}
-                      onClick={() => togglePatientSelection(paciente.id)}
+              <CardContent className="space-y-3">
+                <div className="relative">
+                  <Input
+                    value={searchPatient}
+                    onChange={(e) => setSearchPatient(e.target.value)}
+                    placeholder="Buscar paciente por nome, telefone..."
+                    className="h-9 text-xs pr-8"
+                  />
+                  {searchPatient && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchPatient('')}
+                      className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground text-xs"
                     >
-                      <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
-                        selectedPatients.includes(paciente.id)
-                          ? 'bg-green-600 border-green-600'
-                          : 'border-border'
-                      }`}>
-                        {selectedPatients.includes(paciente.id) && (
-                          <CheckCircle className="h-3 w-3 text-white" />
-                        )}
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium text-sm">{paciente.nome}</p>
-                        <p className="text-xs text-muted-foreground">{paciente.telefone}</p>
-                      </div>
-                      <Badge
-                        variant={paciente.status === 'Ativo' ? 'default' : 'secondary'}
-                        className={
-                          paciente.status === 'Pendente' ? 'bg-amber-100 text-amber-800 border-amber-300' :
-                          paciente.status === 'Em Tratamento' ? 'bg-blue-100 text-blue-800 border-blue-300' :
-                          paciente.status === 'Tratamento Concluido' ? 'bg-purple-100 text-purple-800 border-purple-300' : ''
-                        }
+                      ×
+                    </button>
+                  )}
+                </div>
+
+                <div
+                  className="space-y-2 max-h-96 overflow-y-auto overscroll-contain touch-pan-y"
+                  style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+                >
+                  {pacientesFiltrados.length === 0 ? (
+                    <p className="text-center text-xs text-muted-foreground py-6">
+                      Nenhum paciente encontrado.
+                    </p>
+                  ) : (
+                    pacientesFiltrados.map((paciente) => (
+                      <div
+                        key={paciente.id}
+                        className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                          selectedPatients.includes(paciente.id)
+                            ? 'bg-green-500/10 border-green-500/30'
+                            : 'hover:bg-muted'
+                        }`}
+                        onClick={() => togglePatientSelection(paciente.id)}
                       >
-                        {paciente.status}
-                      </Badge>
-                    </div>
-                  ))}
+                        <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${
+                          selectedPatients.includes(paciente.id)
+                            ? 'bg-green-600 border-green-600'
+                            : 'border-border'
+                        }`}>
+                          {selectedPatients.includes(paciente.id) && (
+                            <CheckCircle className="h-3 w-3 text-white" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{paciente.nome}</p>
+                          <p className="text-xs text-muted-foreground truncate">{paciente.telefone}</p>
+                        </div>
+                        <Badge
+                          variant={paciente.status === 'Ativo' ? 'default' : 'secondary'}
+                          className={
+                            paciente.status === 'Pendente' ? 'bg-amber-100 text-amber-800 border-amber-300 shrink-0' :
+                            paciente.status === 'Em Tratamento' ? 'bg-blue-100 text-blue-800 border-blue-300 shrink-0' :
+                            paciente.status === 'Tratamento Concluido' ? 'bg-purple-100 text-purple-800 border-purple-300 shrink-0' : 'shrink-0'
+                          }
+                        >
+                          {paciente.status}
+                        </Badge>
+                      </div>
+                    ))
+                  )}
                 </div>
               </CardContent>
             </Card>

@@ -36,22 +36,30 @@ const GlobalSearch = ({ open, onOpenChange }: GlobalSearchProps) => {
     if (!open) setQuery('');
   }, [open]);
 
-  const termo = query.trim().toLowerCase();
+  const normalizar = (txt?: string) =>
+    (txt || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
 
-  const pacientesFiltrados = useMemo(
-    () =>
-      termo
-        ? pacientes
-            .filter(
-              (p) =>
-                p.nome?.toLowerCase().includes(termo) ||
-                p.telefone?.includes(termo) ||
-                p.email?.toLowerCase().includes(termo)
-            )
-            .slice(0, 6)
-        : pacientes.slice(0, 5),
-    [pacientes, termo]
-  );
+  const termoNorm = normalizar(query);
+  const apenasDigitosTermo = query.replace(/\D/g, '');
+
+  const pacientesFiltrados = useMemo(() => {
+    if (!termoNorm) return pacientes.slice(0, 6);
+    return pacientes
+      .filter((p) => {
+        const nomeNorm = normalizar(p.nome);
+        const emailNorm = normalizar(p.email);
+        const telDigitos = (p.telefone || '').replace(/\D/g, '');
+        const cpfDigitos = (p.cpf || '').replace(/\D/g, '');
+
+        const matchNome = nomeNorm.includes(termoNorm) || emailNorm.includes(termoNorm);
+        const matchDigitos =
+          apenasDigitosTermo.length >= 2 &&
+          (telDigitos.includes(apenasDigitosTermo) || cpfDigitos.includes(apenasDigitosTermo));
+
+        return matchNome || matchDigitos;
+      })
+      .slice(0, 10);
+  }, [pacientes, termoNorm, apenasDigitosTermo]);
 
   const nomePaciente = useMemo(() => {
     const map = new Map(pacientes.map((p) => [p.id, p.nome]));
