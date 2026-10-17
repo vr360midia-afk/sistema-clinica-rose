@@ -407,12 +407,12 @@ export default function AssinarContrato() {
   const payloadPixContrato = useMemo(() => {
     if (!snapshot?.clinica?.chavePix) return '';
     return gerarPayloadPix({
-      chave: snapshot.clinica.chavePix,
-      tipoChave: snapshot.clinica.tipoChavePix,
-      nomeFavorecido: snapshot.clinica.favorecidoPix || snapshot.clinica.nome,
-      cidade: (snapshot.clinica.cidade && !snapshot.clinica.cidade.toUpperCase().includes('SAO PAULO')) ? snapshot.clinica.cidade : 'MACEIO',
+      chave: snapshot?.clinica?.chavePix || '',
+      tipoChave: snapshot?.clinica?.tipoChavePix,
+      nomeFavorecido: snapshot?.clinica?.favorecidoPix || snapshot?.clinica?.nome,
+      cidade: (snapshot?.clinica?.cidade && !snapshot.clinica.cidade.toUpperCase().includes('SAO PAULO')) ? snapshot.clinica.cidade : 'MACEIO',
       valor: valorPixContrato > 0 ? valorPixContrato : undefined,
-      descricao: `Contrato ${snapshot.numero || ''}`.trim(),
+      descricao: `Contrato ${snapshot?.numero || ''}`.trim(),
     });
   }, [snapshot, valorPixContrato]);
 
@@ -430,7 +430,7 @@ export default function AssinarContrato() {
 
   const handleCopiarPix = () => {
     if (!snapshot?.clinica?.chavePix) return;
-    navigator.clipboard.writeText(snapshot.clinica.chavePix);
+    navigator.clipboard.writeText(snapshot.clinica?.chavePix || '');
     setCopiouPix(true);
     toast.success('Chave PIX copiada para a área de transferência!');
     setTimeout(() => setCopiouPix(false), 2500);
@@ -712,13 +712,13 @@ export default function AssinarContrato() {
                       Dados para Pagamento via PIX Oficial
                     </span>
                     <span className="font-mono text-sm font-bold text-emerald-900 dark:text-emerald-100 select-all">
-                      {snapshot.clinica.chavePix}
+                      {snapshot?.clinica?.chavePix}
                     </span>
-                    {(snapshot.clinica?.favorecidoPix || snapshot.clinica?.cnpjCpfFavorecidoPix) && (
+                    {(snapshot?.clinica?.favorecidoPix || snapshot?.clinica?.cnpjCpfFavorecidoPix) && (
                       <p className="text-xs text-emerald-800 dark:text-emerald-300 mt-0.5">
-                        Favorecido: <strong>{snapshot.clinica?.favorecidoPix || snapshot.clinica?.nome}</strong>
-                        {snapshot.clinica?.cnpjCpfFavorecidoPix && ` • ${identificarTipoDocumento(snapshot.clinica.cnpjCpfFavorecidoPix) === 'cpf' ? 'CPF' : 'CNPJ'}: ${snapshot.clinica.cnpjCpfFavorecidoPix}`}
-                        {snapshot.clinica?.bancoPix && ` • ${snapshot.clinica.bancoPix}`}
+                        Favorecido: <strong>{snapshot?.clinica?.favorecidoPix || snapshot?.clinica?.nome}</strong>
+                        {snapshot?.clinica?.cnpjCpfFavorecidoPix && ` • ${identificarTipoDocumento(snapshot?.clinica?.cnpjCpfFavorecidoPix) === 'cpf' ? 'CPF' : 'CNPJ'}: ${snapshot?.clinica?.cnpjCpfFavorecidoPix}`}
+                        {snapshot?.clinica?.bancoPix && ` • ${snapshot?.clinica?.bancoPix}`}
                       </p>
                     )}
                   </div>
@@ -788,18 +788,18 @@ export default function AssinarContrato() {
                 <div className="divide-y divide-border/60">
                   {snapshot.financeiro.parcelas.map((parc) => {
                     const isCartao = isMetodoCartao(parc.metodo, parc.descricao);
-                    const isPix = !isCartao && (isMetodoPix(parc.metodo, parc.descricao) || snapshot.financeiro.formaPagamento.toLowerCase().includes('pix'));
+                    const isPix = !isCartao && (isMetodoPix(parc.metodo, parc.descricao) || (snapshot?.financeiro?.formaPagamento || '').toLowerCase().includes('pix'));
 
                     // Payload dinâmico individual para a parcela
                     let parcPayload = parc.payloadPix || '';
                     if (isPix && !parcPayload && snapshot?.clinica?.chavePix && parc.valor > 0) {
                       parcPayload = gerarPayloadPix({
-                        chave: snapshot.clinica.chavePix,
-                        tipoChave: snapshot.clinica.tipoChavePix,
-                        nomeFavorecido: snapshot.clinica.favorecidoPix || snapshot.clinica.nome,
-                        cidade: (snapshot.clinica.cidade && !snapshot.clinica.cidade.toUpperCase().includes('SAO PAULO')) ? snapshot.clinica.cidade : 'MACEIO',
+                        chave: snapshot?.clinica?.chavePix || '',
+                        tipoChave: snapshot?.clinica?.tipoChavePix,
+                        nomeFavorecido: snapshot?.clinica?.favorecidoPix || snapshot?.clinica?.nome,
+                        cidade: (snapshot?.clinica?.cidade && !snapshot.clinica.cidade.toUpperCase().includes('SAO PAULO')) ? snapshot.clinica.cidade : 'MACEIO',
                         valor: parc.valor,
-                        descricao: `Parc ${parc.numero} CTR-${snapshot.numero || snapshot.contratoId}`.slice(0, 25),
+                        descricao: `Parc ${parc.numero} CTR-${snapshot?.numero || snapshot?.contratoId || ''}`.slice(0, 25),
                       });
                     }
                     const parcQrCode = parc.qrCodePixUrl || (parcPayload ? gerarQrCodePixUrl(parcPayload, 360) : '');

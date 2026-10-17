@@ -66,9 +66,17 @@ export const carregarConfiguracoesContratoSync = (clinicaId?: string | null, con
   try {
     const key = getStorageKey(clinicaId);
     const salvo = localStorage.getItem(key) || localStorage.getItem(STORAGE_KEY_PREFIX + 'padrao');
-    if (salvo) {
+    if (salvo && typeof salvo === 'string' && salvo !== 'undefined' && salvo !== 'null') {
       const parsed = JSON.parse(salvo);
-      return { ...padrao, ...parsed };
+      if (parsed && typeof parsed === 'object') {
+        return {
+          ...padrao,
+          ...parsed,
+          chavePix: parsed.chavePix || padrao.chavePix,
+          tipoChavePix: parsed.tipoChavePix || padrao.tipoChavePix,
+          favorecidoPix: parsed.favorecidoPix || padrao.favorecidoPix,
+        };
+      }
     }
   } catch (err) {
     console.error('Erro ao ler configuracoes do contrato do localStorage:', err);
@@ -79,6 +87,7 @@ export const carregarConfiguracoesContratoSync = (clinicaId?: string | null, con
 export const useConfiguracoesContrato = () => {
   const { clinicaId } = useAuth();
   const { configuracoes: configGerais } = useConfiguracoes();
+  const padrao = getDefaultConfigContrato(configGerais);
   const [configContrato, setConfigContrato] = useState<ConfiguracoesContrato>(() =>
     carregarConfiguracoesContratoSync(clinicaId, configGerais)
   );
@@ -107,6 +116,7 @@ export const useConfiguracoesContrato = () => {
     try {
       setSalvando(true);
       const atualizados: ConfiguracoesContrato = {
+        ...padrao,
         ...configContrato,
         ...novosDados,
       };
@@ -130,14 +140,17 @@ export const useConfiguracoesContrato = () => {
   };
 
   const restaurarPadrao = () => {
-    const padrao = getDefaultConfigContrato(configGerais);
-    salvarConfiguracoesContrato(padrao);
+    const padraoAtual = getDefaultConfigContrato(configGerais);
+    salvarConfiguracoesContrato(padraoAtual);
     toast.info('Configurações redefinidas para os valores padrão.');
   };
 
+  const dadosGarantidos = configContrato || padrao;
+
   return {
-    configContrato,
-    config: configContrato, // Alias para compatibilidade
+    ...dadosGarantidos,
+    configContrato: dadosGarantidos,
+    config: dadosGarantidos, // Alias para compatibilidade
     setConfigContrato,
     salvarConfiguracoesContrato,
     restaurarPadrao,

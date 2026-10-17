@@ -342,9 +342,9 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
       transacoes: transacoesOrcamento,
       configuracoes,
       configuracoesContrato: configContrato,
-      dentistaNome: selectedDentistaNome || configContrato.dentistaResponsavelContrato || configuracoes?.croResponsavel,
-      dentistaCro: dentistaAtual?.cro || configContrato.croResponsavelContrato || configuracoes?.croResponsavel,
-      cidadeLocal: cidadeLocal || configContrato.cidadeForoContrato,
+      dentistaNome: selectedDentistaNome || configContrato?.dentistaResponsavelContrato || configuracoes?.croResponsavel,
+      dentistaCro: dentistaAtual?.cro || configContrato?.croResponsavelContrato || configuracoes?.croResponsavel,
+      cidadeLocal: cidadeLocal || configContrato?.cidadeForoContrato,
       dadosRestauracoesPreexistentes: patient?.restauracoesPreexistentes,
     });
 
@@ -460,9 +460,9 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
       transacoes: transacoesOrcamento,
       configuracoes,
       configuracoesContrato: configContrato,
-      dentistaNome: selectedDentistaNome || configContrato.dentistaResponsavelContrato || configuracoes?.croResponsavel,
-      dentistaCro: dentistaAtual?.cro || configContrato.croResponsavelContrato || configuracoes?.croResponsavel,
-      cidadeLocal: cidadeLocal || configContrato.cidadeForoContrato,
+      dentistaNome: selectedDentistaNome || configContrato?.dentistaResponsavelContrato || configuracoes?.croResponsavel,
+      dentistaCro: dentistaAtual?.cro || configContrato?.croResponsavelContrato || configuracoes?.croResponsavel,
+      cidadeLocal: cidadeLocal || configContrato?.cidadeForoContrato,
       dadosRestauracoesPreexistentes: patient?.restauracoesPreexistentes,
     });
     setSnapshotAtual(snap);

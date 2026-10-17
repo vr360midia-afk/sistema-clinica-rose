@@ -396,7 +396,7 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
                 {configuracoes?.logoUrl ? (
                   <div className="h-11 w-11 rounded-xl bg-background border border-border/70 p-1 flex items-center justify-center shrink-0 shadow-xs">
                     <img
-                      src={configuracoes.logoUrl}
+                      src={configuracoes?.logoUrl}
                       alt="Logo da Clínica"
                       className="h-full w-full object-contain rounded-lg"
                     />

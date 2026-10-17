@@ -1030,8 +1030,8 @@ export const mapearDadosContrato = ({
 
   // Garante que nenhuma parcela em Cartão de Crédito retenha vencimento de calendário fixo,
   // e gera o Payload PIX e QR Code individual Bacen para cada parcela via PIX com o valor exato
-  const chavePixParaParcela = dadosClinica?.chavePix && dadosClinica.chavePix !== 'Chave da clínica sob consulta'
-    ? dadosClinica.chavePix
+  const chavePixParaParcela = (dadosClinica?.chavePix && dadosClinica?.chavePix !== 'Chave da clínica sob consulta')
+    ? (dadosClinica?.chavePix || '')
     : '';
   const formaTemPix = (orcamento?.formasPagamento || orcamento?.formas_pagamento || '').toLowerCase().includes('pix');
 
@@ -1048,9 +1048,9 @@ export const mapearDadosContrato = ({
     if (chavePixParaParcela && isPix && parc.valor > 0) {
       const payload = gerarPayloadPix({
         chave: chavePixParaParcela,
-        tipoChave: dadosClinica.tipoChavePix,
-        nomeFavorecido: dadosClinica.favorecidoPix || dadosClinica.nome,
-        cidade: dadosClinica.cidade || 'MACEIO',
+        tipoChave: dadosClinica?.tipoChavePix,
+        nomeFavorecido: dadosClinica?.favorecidoPix || dadosClinica?.nome,
+        cidade: dadosClinica?.cidade || 'MACEIO',
         valor: parc.valor,
         descricao: `Parc ${parc.numero} CTR-${dadosOrcamento.numeroIdentificador}`.slice(0, 25),
       });
@@ -1800,10 +1800,10 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
             let parcPayload = parc.payloadPix || '';
             let parcQrCode = parc.qrCodePixUrl || '';
 
-            if (isPix && !parcPayload && clinica?.chavePix && clinica.chavePix !== 'Chave da clínica sob consulta' && parc.valor > 0) {
+            if (isPix && !parcPayload && clinica?.chavePix && clinica?.chavePix !== 'Chave da clínica sob consulta' && parc.valor > 0) {
               const numIdContrato = orcamento?.numeroIdentificador || snapshot?.contratoId || '';
               parcPayload = gerarPayloadPix({
-                chave: clinica.chavePix,
+                chave: clinica?.chavePix || '',
                 tipoChave: clinica?.tipoChavePix,
                 nomeFavorecido: clinica?.favorecidoPix || clinica?.nome,
                 cidade: (clinica?.cidade && !clinica.cidade.toUpperCase().includes('SAO PAULO')) ? clinica.cidade : 'MACEIO',

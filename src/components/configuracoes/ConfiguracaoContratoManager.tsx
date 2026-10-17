@@ -26,18 +26,20 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { useConfiguracoesContrato, ConfiguracoesContrato } from '@/hooks/useConfiguracoesContrato';
+import { useConfiguracoesContrato, ConfiguracoesContrato, carregarConfiguracoesContratoSync } from '@/hooks/useConfiguracoesContrato';
 import { identificarTipoDocumento } from '@/utils/documentoFormat';
 
 export const ConfiguracaoContratoManager: React.FC = () => {
   const { configContrato, salvarConfiguracoesContrato, restaurarPadrao, loading, salvando } =
     useConfiguracoesContrato();
 
-  const [form, setForm] = useState<ConfiguracoesContrato>(configContrato);
+  const [form, setForm] = useState<ConfiguracoesContrato>(() => configContrato || carregarConfiguracoesContratoSync());
   const [copiouChave, setCopiouChave] = useState(false);
 
   useEffect(() => {
-    setForm(configContrato);
+    if (configContrato) {
+      setForm(configContrato);
+    }
   }, [configContrato]);
 
   const handleChange = (campo: keyof ConfiguracoesContrato, valor: any) => {
@@ -45,18 +47,20 @@ export const ConfiguracaoContratoManager: React.FC = () => {
   };
 
   const handleSalvar = async () => {
-    await salvarConfiguracoesContrato(form);
+    if (form) {
+      await salvarConfiguracoesContrato(form);
+    }
   };
 
   const handleCopiarChave = () => {
-    if (!form.chavePix) return;
-    navigator.clipboard.writeText(form.chavePix);
+    if (!form?.chavePix) return;
+    navigator.clipboard.writeText(form?.chavePix || '');
     setCopiouChave(true);
     toast.success('Chave PIX copiada para a área de transferência!');
     setTimeout(() => setCopiouChave(false), 2000);
   };
 
-  if (loading) {
+  if (loading || !form) {
     return (
       <div className="flex justify-center items-center py-12">
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -65,7 +69,7 @@ export const ConfiguracaoContratoManager: React.FC = () => {
   }
 
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&margin=4&data=${encodeURIComponent(
-    form.chavePix || 'pix'
+    form?.chavePix || 'pix'
   )}`;
 
   return (
@@ -151,7 +155,7 @@ export const ConfiguracaoContratoManager: React.FC = () => {
                 <div className="sm:col-span-2">
                   <Label className="text-xs font-semibold">Chave PIX Oficial *</Label>
                   <Input
-                    value={form.chavePix}
+                    value={form?.chavePix || ''}
                     onChange={(e) => handleChange('chavePix', e.target.value)}
                     placeholder="Ex: 82974002213 ou contato@clinica.com.br"
                     className="h-9 text-xs mt-1 font-mono"
@@ -472,13 +476,13 @@ export const ConfiguracaoContratoManager: React.FC = () => {
                       }}
                     >
                       <div>
-                        <strong>Chave PIX:</strong> {form.chavePix || 'Chave sob consulta'}
+                        <strong>Chave PIX:</strong> {form?.chavePix || 'Chave sob consulta'}
                       </div>
                       <div>
-                        <strong>Titular / Favorecido:</strong> {form.favorecidoPix || 'Dra. Rosangela Santos'}
-                        {form.cnpjCpfFavorecidoPix ? ` • CNPJ/CPF: ${form.cnpjCpfFavorecidoPix}` : ''}
+                        <strong>Titular / Favorecido:</strong> {form?.favorecidoPix || 'Dra. Rosangela Santos'}
+                        {form?.cnpjCpfFavorecidoPix ? ` • CNPJ/CPF: ${form.cnpjCpfFavorecidoPix}` : ''}
                       </div>
-                      {form.bancoPix && (
+                      {form?.bancoPix && (
                         <div>
                           <strong>Instituição / Banco:</strong> {form.bancoPix}
                         </div>
@@ -486,7 +490,7 @@ export const ConfiguracaoContratoManager: React.FC = () => {
                     </div>
 
                     <div style={{ fontSize: '10px', color: '#0284c7', lineHeight: '1.3' }}>
-                      {form.instrucoesPix ||
+                      {form?.instrucoesPix ||
                         'O(A) CONTRATANTE poderá utilizar a câmera do smartphone para leitura do QR Code acima ou efetuar a transferência direta para a chave informada, encaminhando o comprovante para confirmação da baixa da parcela.'}
                     </div>
                   </div>
@@ -501,7 +505,7 @@ export const ConfiguracaoContratoManager: React.FC = () => {
                   size="sm"
                   className="w-full text-xs gap-1.5"
                   onClick={handleCopiarChave}
-                  disabled={!form.chavePix}
+                  disabled={!form?.chavePix}
                 >
                   {copiouChave ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
                   {copiouChave ? 'Chave Copiada!' : 'Copiar Chave PIX'}

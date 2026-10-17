@@ -26,12 +26,12 @@ export const gerarHtmlContratoEndodontia = (snapshot: ContratoSnapshot): string 
   const dentistaNomeContratada = 'Dra. Rosângela Santos Pereira';
   const dentistaCroContratada = 'CRO-AL 06267';
   const dentistaCpfContratada = '032.663.962-43';
-  const enderecoProfissional = clinica.endereco && clinica.endereco !== 'Endereço da clínica'
+  const enderecoProfissional = clinica?.endereco && clinica?.endereco !== 'Endereço da clínica'
     ? clinica.endereco
     : 'JTR — Edifício Espanha, Rua Comerciante José Pontes de Magalhães, nº 70, Sala 405, Jatiúca, Maceió/AL, CEP 57036-250';
 
   // Chave PIX oficial da Dra. Rosângela Santos Pereira
-  const chavePixOficial = clinica?.chavePix && clinica.chavePix.includes('@')
+  const chavePixOficial = (clinica?.chavePix && typeof clinica.chavePix === 'string' && clinica.chavePix.includes('@'))
     ? clinica.chavePix
     : 'drarosesantosexpert@gmail.com';
   const titularPixOficial = 'Rosangela Santos Pereira';
