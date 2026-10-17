@@ -61,9 +61,40 @@ createRoot(document.getElementById('root')!).render(
   </ErrorBoundary>
 );
 
-// Registro do service worker (PWA instalável)
+// Registro do service worker (PWA instalável com atualização imediata)
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => undefined);
+    navigator.serviceWorker
+      .register('/sw.js')
+      .then((registration) => {
+        // Checa por atualizações imediatamente ao carregar
+        registration.update().catch(() => undefined);
+
+        // Se houver worker esperando (waiting), força ativação imediata
+        if (registration.waiting) {
+          registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+        }
+
+        registration.addEventListener('updatefound', () => {
+          const installingWorker = registration.installing;
+          if (installingWorker) {
+            installingWorker.addEventListener('statechange', () => {
+              if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                installingWorker.postMessage({ type: 'SKIP_WAITING' });
+              }
+            });
+          }
+        });
+      })
+      .catch(() => undefined);
+  });
+
+  // Atualiza suavemente a página quando o novo service worker assumir o controle
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!refreshing) {
+      refreshing = true;
+      window.location.reload();
+    }
   });
 }

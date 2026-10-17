@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
-import { Check, ChevronsUpDown, Search, User, X, UserX, UserPlus, Phone } from 'lucide-react';
+import { Check, ChevronsUpDown, Search, X, UserX, UserPlus, Phone } from 'lucide-react';
 import { Paciente } from '@/types/shared';
 import { cn } from '@/lib/utils';
 
@@ -33,7 +33,7 @@ export const PacienteCombobox: React.FC<PacienteComboboxProps> = ({
   value,
   onChange,
   fallbackNome,
-  placeholder = 'Selecione ou busque o paciente...',
+  placeholder = 'Buscar paciente por nome...',
   disabled = false,
   className,
   triggerClassName,
@@ -89,14 +89,15 @@ export const PacienteCombobox: React.FC<PacienteComboboxProps> = ({
     }).slice(0, 80);
   }, [pacientes, search]);
 
-  // Foco no input ao abrir o popover
+  // Reset de busca ao abrir e foco suave
   useEffect(() => {
     if (open) {
       setSearch('');
       setHighlightedIndex(0);
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         inputRef.current?.focus();
       }, 60);
+      return () => clearTimeout(timer);
     }
   }, [open]);
 
@@ -133,8 +134,8 @@ export const PacienteCombobox: React.FC<PacienteComboboxProps> = ({
   };
 
   return (
-    <div className={cn('relative w-full', className)}>
-      <Popover open={open} onOpenChange={setOpen}>
+    <div className={cn('relative w-full min-w-0', className)}>
+      <Popover modal={true} open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
             type="button"
@@ -143,7 +144,7 @@ export const PacienteCombobox: React.FC<PacienteComboboxProps> = ({
             aria-expanded={open}
             disabled={disabled}
             className={cn(
-              'w-full h-10 px-3 justify-between font-normal text-left bg-background border border-input hover:bg-accent/40 hover:text-accent-foreground transition-all duration-150',
+              'w-full h-10 px-3 justify-between font-normal text-left bg-background border border-input hover:bg-accent/40 hover:text-accent-foreground transition-all duration-150 select-none',
               !nomeExibicao && 'text-muted-foreground',
               triggerClassName
             )}
@@ -188,19 +189,34 @@ export const PacienteCombobox: React.FC<PacienteComboboxProps> = ({
         </PopoverTrigger>
 
         <PopoverContent
-          className="w-[var(--radix-popover-trigger-width)] min-w-[290px] sm:min-w-[360px] max-w-[95vw] p-0 z-[70] shadow-2xl rounded-xl border bg-popover text-popover-foreground flex flex-col overflow-hidden"
+          className={cn(
+            "p-0 z-[70] shadow-2xl rounded-xl border border-border/80 bg-popover text-popover-foreground flex flex-col overflow-hidden",
+            // Responsividade blindada: no celular fica com margem lateral perfeita, no desktop acompanha o gatilho
+            "w-[calc(100vw-2.5rem)] max-w-[420px] sm:w-[var(--radix-popover-trigger-width)] sm:min-w-[320px]"
+          )}
           align="start"
-          sideOffset={4}
+          side="bottom"
+          sideOffset={6}
+          avoidCollisions={true}
+          collisionPadding={{ top: 12, right: 14, bottom: 12, left: 14 }}
           onOpenAutoFocus={(e) => {
             // Evita scroll jump do Dialog mantendo o foco suave no input
             e.preventDefault();
-            inputRef.current?.focus();
+            setTimeout(() => {
+              inputRef.current?.focus();
+            }, 50);
+          }}
+          onCloseAutoFocus={(e) => {
+            e.preventDefault();
+          }}
+          onPointerDownCapture={(e) => {
+            e.stopPropagation();
           }}
         >
-          {/* Cabeçalho de Busca com Input Real */}
-          <div className="p-2 border-b bg-muted/20">
+          {/* Cabeçalho de Busca com Input Real - 16px font-size para evitar zoom no iOS */}
+          <div className="p-2.5 border-b bg-muted/20">
             <div className="relative flex items-center">
-              <Search className="absolute left-2.5 h-4 w-4 text-emerald-500 shrink-0 pointer-events-none" />
+              <Search className="absolute left-3 h-4 w-4 text-emerald-500 shrink-0 pointer-events-none" />
               <input
                 ref={inputRef}
                 type="text"
@@ -211,7 +227,7 @@ export const PacienteCombobox: React.FC<PacienteComboboxProps> = ({
                 }}
                 onKeyDown={handleKeyDown}
                 placeholder="Digite o nome, telefone ou CPF..."
-                className="w-full h-9 pl-8 pr-8 rounded-lg bg-background border border-input text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-emerald-500 shadow-inner"
+                className="w-full h-10 pl-9 pr-9 rounded-lg bg-background border border-input text-[16px] sm:text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 shadow-inner transition-all"
               />
               {search && (
                 <button
@@ -220,33 +236,56 @@ export const PacienteCombobox: React.FC<PacienteComboboxProps> = ({
                     setSearch('');
                     inputRef.current?.focus();
                   }}
-                  className="absolute right-2 p-1 text-muted-foreground hover:text-foreground rounded-full"
+                  className="absolute right-2.5 p-1 text-muted-foreground hover:text-foreground rounded-full hover:bg-muted transition-colors"
                   title="Limpar busca"
                 >
-                  <X className="h-3.5 w-3.5" />
+                  <X className="h-4 w-4" />
                 </button>
               )}
             </div>
 
             {/* Contador sutil */}
-            <div className="flex items-center justify-between text-[11px] text-muted-foreground px-1 pt-1.5">
+            <div className="flex items-center justify-between text-[11px] text-muted-foreground px-1 pt-1.5 font-medium">
               <span>
                 {pacientesFiltrados.length === 1
                   ? '1 paciente encontrado'
                   : `${pacientesFiltrados.length} pacientes`}
               </span>
-              {search && (
-                <span className="text-emerald-500 font-medium">Filtro ativo</span>
+              {search ? (
+                <span className="text-emerald-500 font-semibold flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Filtrando
+                </span>
+              ) : (
+                pacientes.length > 100 && (
+                  <span className="text-muted-foreground text-[10px]">
+                    (Mostrando 100 de {pacientes.length})
+                  </span>
+                )
               )}
             </div>
           </div>
 
-          {/* Lista de Pacientes com Rolagem Nativa Fluida no Celular e Desktop */}
+          {/* Lista de Pacientes com Rolagem Fluida, Protegida contra Trava de Toque e Descarte de Teclado ao Rolar */}
           <div
             ref={listRef}
-            className="max-h-60 sm:max-h-72 overflow-y-auto overscroll-contain touch-pan-y divide-y divide-border/30 select-none"
+            className="max-h-[min(280px,46vh)] sm:max-h-72 overflow-y-auto overscroll-contain touch-pan-y divide-y divide-border/30 select-none"
             style={{
               WebkitOverflowScrolling: 'touch',
+              touchAction: 'pan-y',
+            }}
+            onTouchStart={() => {
+              // Se o teclado virtual estiver aberto no celular e o usuário começar a rolar, esconde o teclado suavemente para dar visibilidade aos itens
+              if (document.activeElement === inputRef.current) {
+                inputRef.current?.blur();
+              }
+            }}
+            onTouchMove={(e) => {
+              // Impede que eventos de toque sejam cancelados por react-remove-scroll de modais superiores
+              e.stopPropagation();
+            }}
+            onWheel={(e) => {
+              e.stopPropagation();
             }}
           >
             {pacientesFiltrados.length === 0 ? (

@@ -351,8 +351,8 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
                       <User className="h-4 w-4" />
                       Paciente
                     </FormLabel>
-                    <div className="flex gap-2">
-                      <div className="flex-1">
+                    <div className="flex gap-2 items-center">
+                      <div className="flex-1 min-w-0">
                         <PacienteCombobox
                           pacientes={pacientes}
                           value={field.value}
@@ -366,7 +366,7 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
                         variant="outline"
                         size="icon"
                         onClick={() => setIsQuickPatientModalOpen(true)}
-                        className="shrink-0 h-10 w-10"
+                        className="shrink-0 h-10 w-10 hover:bg-emerald-500/10 hover:text-emerald-600 hover:border-emerald-500/40 transition-colors"
                         title="Cadastrar novo paciente"
                       >
                         <UserPlus className="h-4 w-4" />
