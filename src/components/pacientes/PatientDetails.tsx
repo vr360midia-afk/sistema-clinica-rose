@@ -101,12 +101,13 @@ const PatientDetails = ({ patient, onClose, onEdit, onSchedule, onAddProcediment
         </div>
 
         {/* Linha 2: Barra de Ações Rápida e Elegante */}
-        <div className="pt-3 border-t border-border/60">
-          <div className="grid grid-cols-3 sm:flex sm:flex-wrap items-center gap-1.5 sm:gap-2 w-full">
+        <div className="pt-3 border-t border-border/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          {/* Ações Principais: Agendar, Procedimento, Editar */}
+          <div className="grid grid-cols-3 sm:flex sm:items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
             <Button
               onClick={onSchedule}
               size="sm"
-              className="h-9 px-2 sm:px-3.5 text-xs font-semibold gap-1.5 shadow-xs justify-center"
+              className="h-9 px-2 sm:px-3 text-xs font-semibold gap-1.5 shadow-xs justify-center"
             >
               <CalendarPlus className="h-3.5 w-3.5 shrink-0" />
               <span>Agendar</span>
@@ -134,7 +135,10 @@ const PatientDetails = ({ patient, onClose, onEdit, onSchedule, onAddProcediment
               <Edit2 className="h-3.5 w-3.5 shrink-0" />
               <span>Editar</span>
             </Button>
+          </div>
 
+          {/* Documentos & Assinaturas: Anamnese, Contrato, Atestado, Receita */}
+          <div className="grid grid-cols-4 sm:flex sm:items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
             <ImpressaoDocs patient={patient} />
           </div>
         </div>

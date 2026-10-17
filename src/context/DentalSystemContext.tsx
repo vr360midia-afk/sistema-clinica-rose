@@ -356,14 +356,14 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   };
 
-  const generateSignatureLink = async (anamneseId: string): Promise<string> => {
+  const generateSignatureLink = async (anamneseId: string, modo: 'preencher' | 'assinar' = 'preencher'): Promise<string> => {
     if (!anamneseId) return '';
     const anamnese = anamneses.find(a => a.id === anamneseId);
     
     const token = anamnese?.tokenAssinatura || Math.random().toString(36).substring(2, 15);
     const expiracaoLink = new Date();
     expiracaoLink.setDate(expiracaoLink.getDate() + 7); // 7 dias para expirar
-    const fullLink = `${window.location.origin}/assinar-anamnese/${anamneseId}?token=${token}`;
+    const fullLink = `${window.location.origin}/assinar-anamnese/${anamneseId}?token=${token}&modo=${modo}`;
     
     // Atualizar anamnese com token
     try {

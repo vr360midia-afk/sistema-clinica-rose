@@ -30,10 +30,12 @@ import {
   HeartPulse,
   ShieldCheck,
   Phone,
+  Link2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import AnamneseModal from '@/components/anamnese/AnamneseModal';
+import { ModalEnviarAnamnese } from '@/components/anamnese/ModalEnviarAnamnese';
 import { openWhatsApp } from '@/lib/whatsapp';
 import { Anamnese as AnamneseType } from '@/types/shared';
 
@@ -47,6 +49,7 @@ const Anamnese = () => {
   const [gerandoLinkId, setGerandoLinkId] = useState<string | null>(null);
   const [selectedAnamnese, setSelectedAnamnese] = useState<AnamneseType | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [pacienteEnvio, setPacienteEnvio] = useState<any>(null);
 
   // Mapeamento rápido de pacientes por id
   const pacientesMap = useMemo(() => {
@@ -396,6 +399,26 @@ const Anamnese = () => {
 
                       {/* Botões de Ação Principais */}
                       <div className="flex items-center gap-1.5 flex-wrap pt-2 sm:pt-0">
+                        {/* Botão Enviar Link Inteligente (Preencher ou Apenas Assinar) */}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            setPacienteEnvio(
+                              paciente || {
+                                id: anamnese.pacienteId,
+                                nome: pacienteNome,
+                                telefone: paciente?.telefone,
+                              }
+                            )
+                          }
+                          className="h-8 text-xs border-indigo-300 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:border-indigo-800 dark:text-indigo-300 gap-1.5 font-semibold"
+                          title="Opções de envio de link: Preencher e Assinar ou Apenas Assinar"
+                        >
+                          <Link2 className="h-3.5 w-3.5 text-indigo-600" />
+                          <span>Enviar Link</span>
+                        </Button>
+
                         {/* Botão WhatsApp */}
                         <Button
                           size="sm"
@@ -403,7 +426,7 @@ const Anamnese = () => {
                           onClick={() => handleEnviarWhatsApp(anamnese)}
                           disabled={isGerandoEste}
                           className="h-8 text-xs border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-300 gap-1.5 font-semibold"
-                          title="Enviar link de preenchimento e assinatura pelo WhatsApp"
+                          title="Enviar link pelo WhatsApp"
                         >
                           <MessageCircle className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
                           <span className="hidden sm:inline">WhatsApp</span>
@@ -756,6 +779,14 @@ const Anamnese = () => {
             })()}
           </DialogContent>
         </Dialog>
+
+        {pacienteEnvio && (
+          <ModalEnviarAnamnese
+            isOpen={Boolean(pacienteEnvio)}
+            onClose={() => setPacienteEnvio(null)}
+            patient={pacienteEnvio}
+          />
+        )}
       </div>
     </Layout>
   );

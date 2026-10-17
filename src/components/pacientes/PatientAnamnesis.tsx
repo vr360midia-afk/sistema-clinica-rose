@@ -20,6 +20,7 @@ import {
 import { toast } from 'sonner';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import AnamneseModal from '@/components/anamnese/AnamneseModal';
+import { ModalEnviarAnamnese } from '@/components/anamnese/ModalEnviarAnamnese';
 import { openWhatsApp } from '@/lib/whatsapp';
 
 interface PatientAnamnesisProps {
@@ -29,6 +30,7 @@ interface PatientAnamnesisProps {
 const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
   const { anamneses, addAnamnese, generateSignatureLink, deleteAnamnese } = useDentalSystem();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEnviarModalOpen, setIsEnviarModalOpen] = useState(false);
   const [copiandoId, setCopiandoId] = useState<string | null>(null);
   const [gerandoLink, setGerandoLink] = useState(false);
 
@@ -171,43 +173,31 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5 pt-2">
               <Button
-                onClick={() => handleEnviarWhatsApp()}
-                disabled={gerandoLink}
-                className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-xs"
+                onClick={() => setIsEnviarModalOpen(true)}
+                className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-xs gap-1.5"
               >
-                {gerandoLink ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <MessageCircle className="h-4 w-4 mr-2" />
-                )}
-                Enviar Link pelo WhatsApp
+                <Link2 className="h-4 w-4" />
+                <span>Enviar Link ao Paciente (Opções)</span>
               </Button>
 
               <Button
                 variant="outline"
-                onClick={() => handleCopiarLink()}
-                disabled={gerandoLink}
-                className="w-full sm:w-auto border-blue-200 hover:bg-blue-50 text-blue-800 dark:text-blue-300 dark:border-blue-800"
-              >
-                {copiandoId === 'geral' ? (
-                  <Check className="h-4 w-4 mr-2 text-emerald-600" />
-                ) : (
-                  <Link2 className="h-4 w-4 mr-2" />
-                )}
-                {copiandoId === 'geral' ? 'Link Copiado!' : 'Copiar Link de Anamnese'}
-              </Button>
-
-              <Button
-                variant="ghost"
                 onClick={handleNewAnamnesis}
-                className="w-full sm:w-auto text-muted-foreground hover:text-foreground"
+                className="w-full sm:w-auto gap-1.5"
               >
-                <Plus className="h-4 w-4 mr-1.5" />
-                Preencher na Clínica
+                <Plus className="h-4 w-4" />
+                <span>Preencher na Clínica</span>
               </Button>
             </div>
           </CardContent>
         </Card>
+
+        <ModalEnviarAnamnese
+          isOpen={isEnviarModalOpen}
+          onClose={() => setIsEnviarModalOpen(false)}
+          patient={patient}
+          onOpenClinicaModal={handleNewAnamnesis}
+        />
 
         <AnamneseModal
           isOpen={isModalOpen}
@@ -236,39 +226,22 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
         <div className="flex items-center gap-2 flex-wrap">
           <Button
             size="sm"
-            variant="outline"
-            onClick={() => handleCopiarLink()}
-            disabled={gerandoLink}
-            className="text-xs h-8"
-            title="Copiar link para o paciente preencher/assinar"
+            onClick={() => setIsEnviarModalOpen(true)}
+            className="text-xs h-8 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold gap-1.5 shadow-xs"
+            title="Enviar link individual ao paciente para preencher ou apenas assinar"
           >
-            {copiandoId === 'geral' ? (
-              <Check className="h-3.5 w-3.5 mr-1.5 text-emerald-600" />
-            ) : (
-              <Copy className="h-3.5 w-3.5 mr-1.5 text-blue-600" />
-            )}
-            {copiandoId === 'geral' ? 'Copiado!' : 'Copiar Link'}
+            <Link2 className="h-3.5 w-3.5" />
+            <span>Enviar Link ao Paciente</span>
           </Button>
 
           <Button
             size="sm"
             variant="outline"
-            onClick={() => handleEnviarWhatsApp()}
-            disabled={gerandoLink}
-            className="text-xs h-8 border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-300"
-            title="Enviar link da anamnese diretamente no WhatsApp do paciente"
-          >
-            <MessageCircle className="h-3.5 w-3.5 mr-1.5" />
-            WhatsApp
-          </Button>
-
-          <Button
-            size="sm"
             onClick={handleNewAnamnesis}
-            className="text-xs h-8 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
+            className="text-xs h-8 font-semibold gap-1"
           >
-            <Plus className="h-3.5 w-3.5 mr-1.5" />
-            Nova Anamnese
+            <Plus className="h-3.5 w-3.5" />
+            <span>Nova Anamnese</span>
           </Button>
         </div>
       </div>
@@ -324,17 +297,12 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleCopiarLink(anamnese.id)}
-                      disabled={gerandoLink}
-                      className="h-8 text-xs font-medium"
-                      title="Copiar link para o paciente preencher ou assinar"
+                      onClick={() => setIsEnviarModalOpen(true)}
+                      className="h-8 text-xs font-semibold border-indigo-300 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:border-indigo-800 dark:text-indigo-300 gap-1.5"
+                      title="Opções de envio por link (Preencher e Assinar ou Apenas Assinar)"
                     >
-                      {copiandoId === anamnese.id ? (
-                        <Check className="h-3.5 w-3.5 mr-1 text-emerald-600" />
-                      ) : (
-                        <Copy className="h-3.5 w-3.5 mr-1 text-blue-600" />
-                      )}
-                      {copiandoId === anamnese.id ? 'Copiado!' : 'Copiar Link'}
+                      <Link2 className="h-3.5 w-3.5" />
+                      <span>Enviar Link</span>
                     </Button>
 
                     <Button
@@ -444,6 +412,13 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
           );
         })}
       </div>
+
+      <ModalEnviarAnamnese
+        isOpen={isEnviarModalOpen}
+        onClose={() => setIsEnviarModalOpen(false)}
+        patient={patient}
+        onOpenClinicaModal={handleNewAnamnesis}
+      />
 
       <AnamneseModal
         isOpen={isModalOpen}

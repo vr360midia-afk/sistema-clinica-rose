@@ -34,7 +34,7 @@ export interface DentalSystemContextType {
   addAnamnese: (anamnese: Omit<Anamnese, 'id' | 'criadoEm' | 'atualizadoEm'>) => Promise<Anamnese>;
   updateAnamnese: (id: string, updates: Partial<Anamnese>) => Promise<void>;
   deleteAnamnese: (id: string) => Promise<void>;
-  generateSignatureLink: (anamneseId: string) => Promise<string>;
+  generateSignatureLink: (anamneseId: string, modo?: 'preencher' | 'assinar') => Promise<string>;
   signAnamnese: (id: string, signatureData: any, signerType: 'paciente' | 'dentista') => Promise<void>;
 
   addDocumento: (documento: Omit<DocumentoPaciente, 'id' | 'criadoEm' | 'atualizadoEm'>) => Promise<void>;

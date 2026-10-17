@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { FileSignature, FileText, Pill } from 'lucide-react';
+import { FileSignature, FileText, Pill, ClipboardList } from 'lucide-react';
 import ContratoModal from '@/components/contratos/ContratoModal';
 import { ModalGerarAtestado } from './ModalGerarAtestado';
 import { ModalGerarReceita } from './ModalGerarReceita';
+import { ModalEnviarAnamnese } from '@/components/anamnese/ModalEnviarAnamnese';
+import AnamneseModal from '@/components/anamnese/AnamneseModal';
 import { cn } from '@/lib/utils';
 
 interface ImpressaoDocsProps {
@@ -15,6 +17,8 @@ export const ImpressaoDocs = ({ patient, buttonClassName }: ImpressaoDocsProps) 
   const [contratoOpen, setContratoOpen] = useState(false);
   const [atestadoOpen, setAtestadoOpen] = useState(false);
   const [receitaOpen, setReceitaOpen] = useState(false);
+  const [anamneseLinkOpen, setAnamneseLinkOpen] = useState(false);
+  const [anamneseClinicaOpen, setAnamneseClinicaOpen] = useState(false);
 
   return (
     <>
@@ -22,7 +26,21 @@ export const ImpressaoDocs = ({ patient, buttonClassName }: ImpressaoDocsProps) 
         variant="outline"
         size="sm"
         className={cn(
-          "h-9 px-2 sm:px-2.5 text-xs font-medium gap-1 sm:gap-1.5 hover:bg-muted justify-center",
+          "h-9 px-1.5 sm:px-2.5 text-[11px] sm:text-xs font-medium gap-1 sm:gap-1.5 hover:bg-muted justify-center",
+          buttonClassName
+        )}
+        onClick={() => setAnamneseLinkOpen(true)}
+        title="Enviar link de anamnese para preencher e assinar digitalmente"
+      >
+        <ClipboardList className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+        <span>Anamnese</span>
+      </Button>
+
+      <Button
+        variant="outline"
+        size="sm"
+        className={cn(
+          "h-9 px-1.5 sm:px-2.5 text-[11px] sm:text-xs font-medium gap-1 sm:gap-1.5 hover:bg-muted justify-center",
           buttonClassName
         )}
         onClick={() => setContratoOpen(true)}
@@ -36,7 +54,7 @@ export const ImpressaoDocs = ({ patient, buttonClassName }: ImpressaoDocsProps) 
         variant="outline"
         size="sm"
         className={cn(
-          "h-9 px-2 sm:px-2.5 text-xs font-medium gap-1 sm:gap-1.5 hover:bg-muted justify-center",
+          "h-9 px-1.5 sm:px-2.5 text-[11px] sm:text-xs font-medium gap-1 sm:gap-1.5 hover:bg-muted justify-center",
           buttonClassName
         )}
         onClick={() => setAtestadoOpen(true)}
@@ -50,7 +68,7 @@ export const ImpressaoDocs = ({ patient, buttonClassName }: ImpressaoDocsProps) 
         variant="outline"
         size="sm"
         className={cn(
-          "h-9 px-2 sm:px-2.5 text-xs font-medium gap-1 sm:gap-1.5 hover:bg-muted justify-center",
+          "h-9 px-1.5 sm:px-2.5 text-[11px] sm:text-xs font-medium gap-1 sm:gap-1.5 hover:bg-muted justify-center",
           buttonClassName
         )}
         onClick={() => setReceitaOpen(true)}
@@ -59,6 +77,23 @@ export const ImpressaoDocs = ({ patient, buttonClassName }: ImpressaoDocsProps) 
         <Pill className="h-3.5 w-3.5 text-amber-500 shrink-0" />
         <span>Receita</span>
       </Button>
+
+      {anamneseLinkOpen && (
+        <ModalEnviarAnamnese
+          isOpen={anamneseLinkOpen}
+          onClose={() => setAnamneseLinkOpen(false)}
+          patient={patient}
+          onOpenClinicaModal={() => setAnamneseClinicaOpen(true)}
+        />
+      )}
+
+      {anamneseClinicaOpen && (
+        <AnamneseModal
+          isOpen={anamneseClinicaOpen}
+          onClose={() => setAnamneseClinicaOpen(false)}
+          preSelectedPatient={patient?.id}
+        />
+      )}
 
       {contratoOpen && (
         <ContratoModal
