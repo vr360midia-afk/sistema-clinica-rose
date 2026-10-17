@@ -14,6 +14,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useAuth } from '@/context/AuthContext';
 import QuickPatientModal from './QuickPatientModal';
+import { PacienteCombobox } from '@/components/pacientes/PacienteCombobox';
 import { useDentistas } from '@/hooks/useDentistas';
 import { useProcedimentos } from '@/hooks/useProcedimentos';
 import { useBloqueios, encontrarBloqueio, toISODate } from '@/hooks/useBloqueios';
@@ -351,26 +352,22 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
                       Paciente
                     </FormLabel>
                     <div className="flex gap-2">
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger className="flex-1">
-                            <SelectValue placeholder="Selecione um paciente" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {pacientes.map((paciente) => (
-                            <SelectItem key={paciente.id} value={paciente.id}>
-                              {paciente.nome}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="flex-1">
+                        <PacienteCombobox
+                          pacientes={pacientes}
+                          value={field.value}
+                          onChange={field.onChange}
+                          onAddNew={() => setIsQuickPatientModalOpen(true)}
+                          placeholder="Buscar paciente por nome..."
+                        />
+                      </div>
                       <Button
                         type="button"
                         variant="outline"
                         size="icon"
                         onClick={() => setIsQuickPatientModalOpen(true)}
-                        className="shrink-0"
+                        className="shrink-0 h-10 w-10"
+                        title="Cadastrar novo paciente"
                       >
                         <UserPlus className="h-4 w-4" />
                       </Button>

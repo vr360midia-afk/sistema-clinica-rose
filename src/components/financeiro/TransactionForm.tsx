@@ -24,6 +24,8 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { somarMesesSeguro } from '@/utils/documentoFormat';
 import { useMaquinasCartao, calcularTaxaCartao } from '@/hooks/useMaquinasCartao';
+import { PacienteCombobox } from '@/components/pacientes/PacienteCombobox';
+import QuickPatientModal from '@/components/agenda/QuickPatientModal';
 
 interface TransactionFormProps {
   isOpen: boolean;
@@ -43,6 +45,7 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId }: Tra
   const { orcamentos } = useOrcamentos();
   const { operadoras, operadoraPadrao, config: configMaquinas } = useMaquinasCartao();
   const [selectedOperadoraId, setSelectedOperadoraId] = useState<string>('infinitepay');
+  const [isQuickPatientModalOpen, setIsQuickPatientModalOpen] = useState(false);
   const isEdit = !!transacao?.id;
   const anoAtual = new Date().getFullYear();
 
@@ -589,7 +592,8 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId }: Tra
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <>
+      <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-lg sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Editar Transação' : 'Nova Transação'}</DialogTitle>
@@ -597,19 +601,29 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId }: Tra
         
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <Label htmlFor="paciente">Paciente *</Label>
-            <Select value={formData.pacienteId} onValueChange={(value) => setFormData(prev => ({ ...prev, pacienteId: value }))}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione o paciente" />
-              </SelectTrigger>
-              <SelectContent>
-                {pacientes.map((paciente) => (
-                  <SelectItem key={paciente.id} value={paciente.id}>
-                    {paciente.nome}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex items-center justify-between mb-1">
+              <Label htmlFor="paciente" className="text-xs font-semibold">
+                Paciente *
+              </Label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsQuickPatientModalOpen(true)}
+                className="h-6 text-[11px] text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 hover:bg-emerald-500/10 gap-1 px-1.5 font-medium"
+              >
+                <Plus className="h-3 w-3" /> Novo Paciente
+              </Button>
+            </div>
+            <PacienteCombobox
+              id="paciente"
+              pacientes={pacientes}
+              value={formData.pacienteId}
+              fallbackNome={(transacao as any)?.pacienteNome}
+              onChange={(value) => setFormData((prev) => ({ ...prev, pacienteId: value }))}
+              onAddNew={() => setIsQuickPatientModalOpen(true)}
+              placeholder="Digite o nome para buscar ou selecione..."
+            />
           </div>
 
           {orcamentosDisponiveis.length > 0 && (
@@ -1415,7 +1429,18 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId }: Tra
         </form>
       </DialogContent>
     </Dialog>
-  );
+
+    <QuickPatientModal
+      isOpen={isQuickPatientModalOpen}
+      onClose={() => setIsQuickPatientModalOpen(false)}
+      onPatientCreated={(newPatientId) => {
+        setFormData((prev) => ({ ...prev, pacienteId: newPatientId }));
+        setIsQuickPatientModalOpen(false);
+        toast.success('Novo paciente cadastrado e selecionado!');
+      }}
+    />
+  </>
+);
 };
 
 export default TransactionForm;

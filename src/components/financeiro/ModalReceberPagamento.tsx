@@ -31,6 +31,7 @@ import { gerarRecibo } from '@/utils/recibo';
 import { gerarPayloadPix, gerarQrCodePixUrl } from '@/utils/pixPayload';
 import { MetodoPagamento, Transacao } from '@/types/shared';
 import { toast } from 'sonner';
+import { PacienteCombobox } from '@/components/pacientes/PacienteCombobox';
 
 interface ModalReceberPagamentoProps {
   isOpen: boolean;
@@ -709,27 +710,15 @@ export const ModalReceberPagamento = ({
                 <User className="h-3 w-3 text-primary" />
                 Paciente *
               </Label>
-              <Select
+              <PacienteCombobox
+                pacientes={pacientesOrdenados}
                 value={pacienteId}
-                onValueChange={handlePacienteChange}
+                fallbackNome={transacaoPendente?.pacienteNome}
+                onChange={handlePacienteChange}
                 disabled={!!transacaoPendente}
-              >
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue placeholder="Selecione o paciente" />
-                </SelectTrigger>
-                <SelectContent className="max-h-56">
-                  {pacientesOrdenados.map((p) => (
-                    <SelectItem key={p.id} value={p.id} className="text-xs">
-                      <div className="flex items-center justify-between gap-2 w-full">
-                        <span className="font-medium truncate">{p.nome}</span>
-                        {p.telefone && (
-                          <span className="text-[10px] text-muted-foreground shrink-0">{p.telefone}</span>
-                        )}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                triggerClassName="h-8 text-xs"
+                placeholder="Buscar paciente por nome..."
+              />
             </div>
 
             <div className="space-y-0.5">
