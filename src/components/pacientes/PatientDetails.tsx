@@ -3,7 +3,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, CalendarPlus, Edit2, Plus, User, FileText, ClipboardList, ListChecks, FolderOpen, History, DollarSign, Stethoscope } from 'lucide-react';
+import { ArrowLeft, CalendarPlus, Edit2, Plus, User, FileText, ClipboardList, ListChecks, FolderOpen, History, DollarSign, Stethoscope, MessageCircle } from 'lucide-react';
 import { openWhatsApp } from '@/lib/whatsapp';
 import PatientPersonalInfo from './PatientPersonalInfo';
 import PatientMedicalRecords from './PatientMedicalRecords';
@@ -56,55 +56,96 @@ const PatientDetails = ({ patient, onClose, onEdit, onSchedule, onAddProcediment
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            <ArrowLeft className="h-4 w-4" />
+    <div className="space-y-4 sm:space-y-6">
+      {/* Cabeçalho do Paciente com Ações Elegantes e Responsivas */}
+      <div className="bg-card border border-border rounded-xl p-3.5 sm:p-5 shadow-xs space-y-3.5">
+        {/* Linha 1: Voltar + Dados de Identificação */}
+        <div className="flex items-start gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            className="h-9 w-9 shrink-0 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground mt-0.5"
+            title="Voltar para a lista de pacientes"
+          >
+            <ArrowLeft className="h-5 w-5" />
           </Button>
-          <div>
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <h1 className="text-xl sm:text-2xl font-bold text-foreground">{patient?.nome}</h1>
+
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-lg sm:text-2xl font-bold text-foreground leading-tight truncate">
+                {patient?.nome}
+              </h1>
               {renderStatusBadge(patient?.status || 'Ativo')}
             </div>
-            <p className="text-sm text-muted-foreground">
-              {patient.email}
-              {patient.email && patient.telefone ? ' • ' : ''}
-              {patient.telefone ? (
+            <div className="flex items-center gap-2.5 mt-1 text-xs sm:text-sm text-muted-foreground flex-wrap">
+              {patient.telefone && (
                 <button
                   type="button"
                   onClick={() => openWhatsApp(patient.telefone, '')}
-                  className="text-primary hover:underline focus:outline-none"
+                  className="inline-flex items-center gap-1 font-medium text-emerald-600 dark:text-emerald-400 hover:underline"
                   title="Abrir conversa no WhatsApp"
                 >
-                  {patient.telefone}
+                  <MessageCircle className="h-3.5 w-3.5" />
+                  <span>{patient.telefone}</span>
                 </button>
-              ) : null}
-            </p>
+              )}
+              {patient.telefone && patient.email && <span>•</span>}
+              {patient.email && (
+                <span className="truncate max-w-[200px] sm:max-w-none text-muted-foreground/90">
+                  {patient.email}
+                </span>
+              )}
+            </div>
           </div>
         </div>
-        <div className="flex flex-col sm:flex-row gap-2">
-          <ImpressaoDocs patient={patient} />
-          
-          <Button onClick={onSchedule}>
-            <CalendarPlus className="h-4 w-4 mr-2" />
-            Agendar
-          </Button>
-          {onAddProcedimento && (
-            <Button onClick={onAddProcedimento} variant="secondary">
-              <Plus className="h-4 w-4 mr-2" />
-              Procedimento
+
+        {/* Linha 2: Barra de Ações Rápida e Elegante */}
+        <div className="pt-3 border-t border-border/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+          {/* Ações Principais: Agendar & Procedimento */}
+          <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto">
+            <Button
+              onClick={onSchedule}
+              size="sm"
+              className="h-9 px-4 text-xs sm:text-sm font-semibold gap-1.5 shadow-xs justify-center"
+            >
+              <CalendarPlus className="h-4 w-4 shrink-0" />
+              <span>Agendar</span>
             </Button>
-          )}
-          <Button onClick={onEdit} variant="outline">
-            <Edit2 className="h-4 w-4 mr-2" />
-            Editar
-          </Button>
+
+            {onAddProcedimento && (
+              <Button
+                onClick={onAddProcedimento}
+                variant="secondary"
+                size="sm"
+                className="h-9 px-3.5 text-xs sm:text-sm font-semibold gap-1.5 border border-border/80 shadow-xs justify-center"
+              >
+                <Plus className="h-4 w-4 shrink-0" />
+                <span>Procedimento</span>
+              </Button>
+            )}
+          </div>
+
+          {/* Ações Rápidas: Editar + Documentos (Contrato, Atestado, Receita) */}
+          <div className="grid grid-cols-4 sm:flex sm:items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
+            <Button
+              onClick={onEdit}
+              variant="outline"
+              size="sm"
+              className="h-9 px-2 sm:px-3 text-xs font-medium gap-1.5 hover:bg-muted justify-center"
+              title="Editar dados cadastrais"
+            >
+              <Edit2 className="h-3.5 w-3.5 shrink-0" />
+              <span>Editar</span>
+            </Button>
+
+            <ImpressaoDocs patient={patient} />
+          </div>
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
-        <TabsList className="flex overflow-x-auto sm:grid w-full sm:grid-cols-4 lg:grid-cols-8 h-auto p-1 gap-1 border border-border bg-muted/60">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4 sm:space-y-6">
+        <TabsList className="flex overflow-x-auto sm:grid w-full sm:grid-cols-4 lg:grid-cols-8 h-auto p-1 gap-1 border border-border bg-muted/60 no-scrollbar">
           <TabsTrigger value="personal" className="flex items-center gap-1.5 shrink-0 text-xs py-2">
             <User className="h-4 w-4" />
             <span>Dados Pessoais</span>

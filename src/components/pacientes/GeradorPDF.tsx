@@ -7,7 +7,27 @@ import jsPDF from 'jspdf';
 import { toast } from 'sonner';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 
-export const GeradorPDF = ({ patient, tipo = 'atestado', conteudo = '' }: { patient: any, tipo?: string, conteudo?: string }) => {
+interface GeradorPDFProps {
+  patient: any;
+  tipo?: string;
+  conteudo?: string;
+  label?: React.ReactNode;
+  icon?: React.ReactNode;
+  className?: string;
+  variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link';
+  size?: 'default' | 'sm' | 'lg' | 'icon';
+}
+
+export const GeradorPDF = ({
+  patient,
+  tipo = 'atestado',
+  conteudo = '',
+  label,
+  icon,
+  className,
+  variant = 'outline',
+  size = 'sm',
+}: GeradorPDFProps) => {
   const { configuracoes } = useConfiguracoes();
   const [gerando, setGerando] = useState(false);
   const pdfRef = useRef<HTMLDivElement>(null);
@@ -50,12 +70,17 @@ export const GeradorPDF = ({ patient, tipo = 'atestado', conteudo = '' }: { pati
       <Button 
         onClick={gerarPDF} 
         disabled={gerando}
-        variant="outline"
-        size="sm"
-        className="flex items-center gap-2"
+        variant={variant}
+        size={size}
+        className={className || "flex items-center gap-2"}
+        title={`Gerar ${tipo.charAt(0).toUpperCase() + tipo.slice(1)} em PDF`}
       >
-        {gerando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
-        Gerar {tipo.charAt(0).toUpperCase() + tipo.slice(1)} em PDF
+        {gerando ? (
+          <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+        ) : (
+          icon || <Printer className="w-3.5 h-3.5 shrink-0" />
+        )}
+        <span>{label || `Gerar ${tipo.charAt(0).toUpperCase() + tipo.slice(1)} em PDF`}</span>
       </Button>
 
       {/* Hidden Div that forms the PDF Structure */}
