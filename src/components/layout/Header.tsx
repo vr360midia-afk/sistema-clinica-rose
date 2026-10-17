@@ -67,7 +67,7 @@ const Header = ({ onMenuToggle }: HeaderProps) => {
           </Button>
 
                     <div className="flex items-center gap-2 min-w-0">
-            <img src="/logo.png" alt="Dental Angel" className="h-8 sm:h-10 object-contain" />
+            <img src="/logo.png" alt="Dra. Rosangela Santos" className="h-8 sm:h-10 object-contain" />
           </div>
         </div>
 

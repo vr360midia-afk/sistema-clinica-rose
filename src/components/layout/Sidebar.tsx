@@ -83,7 +83,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
       >
         <div className="flex items-center justify-between h-14 sm:h-16 px-4 border-b border-border lg:hidden shrink-0">
           <div className="flex items-center gap-3 min-w-0">
-            <img src="/logo.png" alt="Dental Angel" className="h-9 sm:h-10 object-contain" />
+            <img src="/logo.png" alt="Dra. Rosangela Santos" className="h-9 sm:h-10 object-contain" />
           </div>
           <button
             onClick={onClose}

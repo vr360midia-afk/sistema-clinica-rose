@@ -17,7 +17,8 @@ export const gerarDocumentoClinicoPdf = async (doc: DocumentoClinico, clinica: C
     return downloadHtmlAsPdf(doc.conteudo, filename);
   }
 
-  const emissor = clinica.nomeClinica || 'Clínica Odontológica';
+  const emissor = clinica.nomeClinica || 'Dra. Rosangela Santos - Clínica Odontológica';
+  const logo = clinica.logoUrl || '/logo.png';
   const dataFmt = new Date(doc.criadoEm).toLocaleDateString('pt-BR');
   const isAtestado = doc.tipo === 'atestado';
 
@@ -87,7 +88,7 @@ export const gerarDocumentoClinicoPdf = async (doc: DocumentoClinico, clinica: C
   <div class="doc">
     <div class="topo">
       <div class="clinica">
-        ${clinica.logoUrl ? `<img src="${clinica.logoUrl}" alt="Logo" style="max-height:64px;max-width:200px;margin-bottom:8px;display:block;" />` : ''}
+        ${logo ? `<img src="${logo}" alt="Logo" style="max-height:64px;max-width:200px;margin-bottom:8px;display:block;" />` : ''}
         <h1>${emissor}</h1>
         ${clinica.cnpj ? `<p>${identificarTipoDocumento(clinica.cnpj) === 'cpf' ? 'CPF' : 'CNPJ'}: ${clinica.cnpj}</p>` : ''}
         ${clinica.endereco ? `<p>${clinica.endereco}</p>` : ''}

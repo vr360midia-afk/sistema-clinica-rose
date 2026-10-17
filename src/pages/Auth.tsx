@@ -114,7 +114,7 @@ const Auth = () => {
           style={{ background: 'radial-gradient(ellipse 80% 60% at 20% 10%, hsl(var(--primary) / 0.18), transparent 70%)' }}
         />
                   <div className="relative flex items-center gap-3">
-            <img src="/logo.png" alt="Dental Angel" className="h-10 object-contain" />
+            <img src="/logo.png" alt="Dra. Rosangela Santos" className="h-10 object-contain" />
           </div>
         <div className="relative space-y-8">
           <h1 className="text-4xl font-bold tracking-tight leading-tight">

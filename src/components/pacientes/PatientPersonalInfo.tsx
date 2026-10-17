@@ -93,41 +93,47 @@ const PatientPersonalInfo = ({ patient }: PatientPersonalInfoProps) => {
               </div>
             </div>
             
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex items-center gap-2">
-                <Mail className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">{patient.email}</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              <div className="flex items-center gap-2 min-w-0">
+                <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span className="text-sm truncate" title={patient.email || ''}>
+                  {patient.email || 'E-mail não informado'}
+                </span>
               </div>
-              <div className="flex items-center gap-2">
-                <Phone className="h-4 w-4 text-muted-foreground" />
-                <button
-                  type="button"
-                  onClick={() => openWhatsApp(patient.telefone, '')}
-                  className="text-sm text-primary hover:underline focus:outline-none"
-                  title="Abrir conversa no WhatsApp"
-                >
-                  {patient.telefone}
-                </button>
+              <div className="flex items-center gap-2 min-w-0">
+                <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
+                {patient.telefone ? (
+                  <button
+                    type="button"
+                    onClick={() => openWhatsApp(patient.telefone, '')}
+                    className="text-sm text-primary hover:underline focus:outline-none truncate"
+                    title="Abrir conversa no WhatsApp"
+                  >
+                    {patient.telefone}
+                  </button>
+                ) : (
+                  <span className="text-sm text-muted-foreground">Telefone não informado</span>
+                )}
               </div>
             </div>
             
-            <div className="grid grid-cols-2 gap-4">
-              <div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              <div className="min-w-0">
                 <span className="text-sm font-medium">CPF: </span>
                 <span className="text-sm">{patient.cpf || 'Não informado'}</span>
               </div>
-              <div>
+              <div className="min-w-0">
                 <span className="text-sm font-medium">RG: </span>
                 <span className="text-sm">{patient.rg || 'Não informado'}</span>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              <div className="min-w-0">
                 <span className="text-sm font-medium">Profissão: </span>
                 <span className="text-sm">{patient.profissao || 'Não informado'}</span>
               </div>
-              <div>
+              <div className="min-w-0">
                 <span className="text-sm font-medium">Estado Civil: </span>
                 <span className="text-sm">{patient.estadoCivil || 'Não informado'}</span>
               </div>

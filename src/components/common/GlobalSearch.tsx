@@ -40,6 +40,7 @@ const GlobalSearch = ({ open, onOpenChange }: GlobalSearchProps) => {
     (txt || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
 
   const termoNorm = normalizar(query);
+  const termo = termoNorm;
   const apenasDigitosTermo = query.replace(/\D/g, '');
 
   const pacientesFiltrados = useMemo(() => {

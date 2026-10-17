@@ -24,9 +24,9 @@ export default defineConfig(({ mode }) => ({
         cleanupOutdatedCaches: true,
       },
       manifest: {
-        name: 'Dental Angel',
-        short_name: 'Dental Angel',
-        description: 'Sistema de Gestão Odontológica Premium',
+        name: 'Dra. Rosangela Santos - Clínica Odontológica',
+        short_name: 'Dra. Rosangela',
+        description: 'Sistema de Gestão Odontológica Dra. Rosangela Santos',
         theme_color: '#ffffff',
         background_color: '#ffffff',
         display: 'standalone',

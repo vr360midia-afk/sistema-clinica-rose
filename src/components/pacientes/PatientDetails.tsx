@@ -101,15 +101,14 @@ const PatientDetails = ({ patient, onClose, onEdit, onSchedule, onAddProcediment
         </div>
 
         {/* Linha 2: Barra de Ações Rápida e Elegante */}
-        <div className="pt-3 border-t border-border/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
-          {/* Ações Principais: Agendar & Procedimento */}
-          <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto">
+        <div className="pt-3 border-t border-border/60">
+          <div className="grid grid-cols-3 sm:flex sm:flex-wrap items-center gap-1.5 sm:gap-2 w-full">
             <Button
               onClick={onSchedule}
               size="sm"
-              className="h-9 px-4 text-xs sm:text-sm font-semibold gap-1.5 shadow-xs justify-center"
+              className="h-9 px-2 sm:px-3.5 text-xs font-semibold gap-1.5 shadow-xs justify-center"
             >
-              <CalendarPlus className="h-4 w-4 shrink-0" />
+              <CalendarPlus className="h-3.5 w-3.5 shrink-0" />
               <span>Agendar</span>
             </Button>
 
@@ -118,16 +117,13 @@ const PatientDetails = ({ patient, onClose, onEdit, onSchedule, onAddProcediment
                 onClick={onAddProcedimento}
                 variant="secondary"
                 size="sm"
-                className="h-9 px-3.5 text-xs sm:text-sm font-semibold gap-1.5 border border-border/80 shadow-xs justify-center"
+                className="h-9 px-2 sm:px-3 text-xs font-semibold gap-1.5 border border-border/80 shadow-xs justify-center"
               >
-                <Plus className="h-4 w-4 shrink-0" />
-                <span>Procedimento</span>
+                <Plus className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">Procedimento</span>
               </Button>
             )}
-          </div>
 
-          {/* Ações Rápidas: Editar + Documentos (Contrato, Atestado, Receita) */}
-          <div className="grid grid-cols-4 sm:flex sm:items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
             <Button
               onClick={onEdit}
               variant="outline"
