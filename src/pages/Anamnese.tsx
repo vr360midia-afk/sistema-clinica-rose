@@ -212,7 +212,7 @@ const Anamnese = () => {
 
   return (
     <Layout>
-      <div className="space-y-6">
+      <div className="space-y-6 pb-16 lg:pb-6">
         {/* Cabeçalho da Página */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-3">

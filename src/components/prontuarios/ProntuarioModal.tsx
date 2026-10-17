@@ -550,19 +550,19 @@ const ProntuarioModal = ({ isOpen, onClose, onSave, preSelectedPatient, prontuar
           </TabsContent>
         </Tabs>
 
-        <div className="flex justify-between items-center pt-4 border-t">
-          <div className="text-sm text-muted-foreground">
+        <div className="sticky bottom-0 z-10 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2 pt-3 pb-1 border-t bg-background/95 backdrop-blur-md mt-4">
+          <div className="text-sm text-muted-foreground text-center sm:text-left">
             {selectedProcedimentos.length > 0 && (
-              <span className="font-medium text-green-600">
+              <span className="font-semibold text-emerald-600 dark:text-emerald-400">
                 Total: {formatMoney(calcularValorTotal())}
               </span>
             )}
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={onClose}>
+            <Button variant="outline" onClick={onClose} className="flex-1 sm:flex-none">
               Cancelar
             </Button>
-            <Button onClick={handleSave}>
+            <Button onClick={handleSave} className="flex-1 sm:flex-none font-bold bg-primary text-primary-foreground">
               {prontuario ? 'Atualizar Prontuário' : 'Salvar Prontuário'}
             </Button>
           </div>

@@ -542,15 +542,15 @@ export const ModalNovaTarefa: React.FC<ModalNovaTarefaProps> = ({
             />
           </div>
 
-          <DialogFooter className="pt-2 gap-2 sm:gap-0">
-            <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={saving}>
+          <DialogFooter className="sticky bottom-0 z-10 pt-2 pb-1 gap-2 sm:gap-0 bg-background/95 backdrop-blur-md border-t">
+            <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={saving} className="w-full sm:w-auto">
               Cancelar
             </Button>
             <Button
               type="submit"
               size="sm"
               disabled={saving}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+              className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
             >
               {saving ? 'Salvando...' : tarefaToEdit ? 'Salvar Alterações' : 'Adicionar ao Calendário'}
             </Button>

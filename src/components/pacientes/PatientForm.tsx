@@ -151,7 +151,7 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-20 lg:pb-8">
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="sm" onClick={onClose}>
           <ArrowLeft className="h-4 w-4" />
@@ -432,11 +432,23 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
         </div>
       </div>
 
-      <div className="flex justify-end gap-4 pt-6 border-t bg-muted -mx-6 px-6 py-4">
-        <Button variant="outline" onClick={onClose} disabled={loading} className="min-w-[120px]">
+      {/* Barra de Ações com Salvar e Cancelar - Destaque Responsivo e Visível */}
+      <div className="sticky bottom-14 bottom-mobile-nav lg:static z-30 flex flex-col-reverse sm:flex-row justify-end items-stretch sm:items-center gap-3 pt-3.5 pb-4 border-t border-border bg-card/95 backdrop-blur-md -mx-3.5 sm:-mx-6 px-4 sm:px-6 shadow-lg sm:shadow-none mt-6 rounded-t-xl sm:rounded-none">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onClose}
+          disabled={loading}
+          className="w-full sm:w-auto min-w-[120px] h-11 sm:h-10 text-sm font-medium"
+        >
           Cancelar
         </Button>
-        <Button onClick={handleSave} className="bg-blue-600 hover:bg-blue-700 min-w-[140px]" disabled={loading}>
+        <Button
+          type="button"
+          onClick={handleSave}
+          className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 min-w-[160px] h-11 sm:h-10 text-sm font-bold shadow-md gap-2"
+          disabled={loading}
+        >
           {loading ? (
             <>
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -445,7 +457,7 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
           ) : (
             <>
               <Save className="h-4 w-4 mr-2" />
-              {patient ? 'Atualizar' : 'Salvar'} Paciente
+              {patient ? 'Atualizar Paciente' : 'Salvar Paciente'}
             </>
           )}
         </Button>

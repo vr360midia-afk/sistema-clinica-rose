@@ -669,11 +669,11 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
                 )}
               />
 
-              <div className="flex flex-col-reverse sm:flex-row gap-2 pt-4">
+              <div className="sticky bottom-0 z-10 flex flex-col-reverse sm:flex-row gap-2 pt-3 pb-1 border-t bg-background/95 backdrop-blur-md">
                 <Button type="button" variant="outline" onClick={onClose} className="w-full sm:w-auto">
                   Cancelar
                 </Button>
-                <Button type="submit" disabled={isLoading} className="w-full sm:w-auto">
+                <Button type="submit" disabled={isLoading} className="w-full sm:w-auto font-semibold bg-primary text-primary-foreground">
                   {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {editingConsulta ? 'Salvar Alterações / Remarcação' : 'Agendar Consulta'}
                 </Button>

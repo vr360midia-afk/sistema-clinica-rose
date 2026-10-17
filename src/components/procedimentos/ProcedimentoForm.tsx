@@ -388,11 +388,11 @@ const ProcedimentoForm = ({ procedimento, onSave, onCancel }: ProcedimentoFormPr
             </TabsContent>
           </Tabs>
 
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={onCancel}>
+          <div className="sticky bottom-0 z-10 flex gap-2 pt-3 pb-1 border-t bg-background/95 backdrop-blur-md">
+            <Button type="button" variant="outline" onClick={onCancel} className="flex-1">
               Cancelar
             </Button>
-            <Button type="submit">
+            <Button type="submit" className="flex-1 font-bold">
               {procedimento ? 'Atualizar' : 'Salvar'} Procedimento
             </Button>
           </div>

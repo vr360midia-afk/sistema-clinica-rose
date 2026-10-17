@@ -235,11 +235,11 @@ const Estoque = () => {
                     />
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <Button type="submit">
+                <div className="flex flex-col sm:flex-row gap-2 pt-2">
+                  <Button type="submit" className="w-full sm:w-auto font-bold">
                     {editingId ? 'Atualizar' : 'Criar'} Produto
                   </Button>
-                  <Button type="button" variant="outline" onClick={resetForm}>
+                  <Button type="button" variant="outline" onClick={resetForm} className="w-full sm:w-auto">
                     Cancelar
                   </Button>
                 </div>

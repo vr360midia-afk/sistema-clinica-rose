@@ -529,7 +529,7 @@ export default function KanbanBoard({
                     <div
                       ref={provided.innerRef}
                       {...provided.droppableProps}
-                      className={`flex-1 p-2.5 overflow-y-auto min-h-[160px] transition-colors rounded-b-xl ${
+                      className={`flex-1 p-2.5 pb-12 overflow-y-auto min-h-[160px] transition-colors rounded-b-xl ${
                         snapshot.isDraggingOver
                           ? 'bg-blue-50/50 dark:bg-blue-950/30 ring-2 ring-primary/30 ring-inset'
                           : ''

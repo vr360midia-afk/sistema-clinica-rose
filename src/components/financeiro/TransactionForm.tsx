@@ -1459,11 +1459,11 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId, tipoI
             />
           </div>
 
-          <div className="flex gap-2 pt-4">
-            <Button type="button" variant="outline" onClick={onClose} className="flex-1">
+          <div className="sticky bottom-0 z-10 flex gap-2 pt-3 pb-1 border-t bg-background/95 backdrop-blur-md">
+            <Button type="button" variant="outline" onClick={onClose} className="flex-1 h-10">
               Cancelar
             </Button>
-            <Button type="submit" className="flex-1">
+            <Button type="submit" className="flex-1 h-10 font-bold bg-primary text-primary-foreground">
               Salvar
             </Button>
           </div>

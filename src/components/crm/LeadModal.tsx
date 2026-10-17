@@ -185,7 +185,7 @@ export default function LeadModal({ isOpen, onClose, lead, onSave }: LeadModalPr
             </div>
           </div>
 
-          <DialogFooter className="mt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <DialogFooter className="sticky bottom-0 z-10 mt-6 pt-3 pb-1 border-t bg-background/95 backdrop-blur-md flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div>
               {lead?.id && formData.telefone ? (
                 <WhatsAppLeadMenu
@@ -200,9 +200,9 @@ export default function LeadModal({ isOpen, onClose, lead, onSave }: LeadModalPr
               ) : null}
             </div>
 
-            <div className="flex items-center gap-2">
-              <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
-              <Button type="submit" disabled={loading}>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <Button type="button" variant="outline" onClick={onClose} className="flex-1 sm:flex-none">Cancelar</Button>
+              <Button type="submit" disabled={loading} className="flex-1 sm:flex-none font-bold">
                 {loading ? 'Salvando...' : 'Salvar Lead'}
               </Button>
             </div>

@@ -226,7 +226,7 @@ const Configuracoes = () => {
 
   return (
     <Layout>
-      <div className="space-y-6">
+      <div className="space-y-6 pb-20 lg:pb-8">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-3">
             <Settings className="h-6 w-6 text-blue-600" />

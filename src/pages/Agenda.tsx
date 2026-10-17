@@ -375,7 +375,7 @@ const Agenda = () => {
 
   return (
     <Layout>
-      <div className="space-y-1 w-full max-w-none">
+      <div className="space-y-1 w-full max-w-none pb-16 lg:pb-6">
         {/* Header */}
         <div className="flex flex-col space-y-2 lg:flex-row lg:justify-between lg:items-start lg:space-y-0">
           <div className="space-y-1">

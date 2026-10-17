@@ -657,7 +657,8 @@ const DigitalSignature = ({
         </div>
 
         {/* Rodapé e Botões de Ação */}
-        <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-2.5 border-t border-border/60">
+        {/* Barra de Ações com Assinatura - Sticky e Acessível */}
+        <div className="sticky bottom-0 z-20 pt-2.5 pb-1 flex flex-col sm:flex-row items-center justify-between gap-2.5 border-t border-border/60 bg-background/95 backdrop-blur-md">
           <div className="text-[10px] text-muted-foreground text-center sm:text-left">
             <span>Data: {new Date().toLocaleDateString('pt-BR')} • IP & Dispositivo auditados eletronicamente</span>
           </div>
@@ -672,7 +673,7 @@ const DigitalSignature = ({
                   stopCamera();
                   onCancel();
                 }}
-                className="h-9 text-xs border-border"
+                className="h-9 text-xs border-border flex-1 sm:flex-none"
               >
                 Cancelar
               </Button>
@@ -682,7 +683,7 @@ const DigitalSignature = ({
               type="button"
               size="sm"
               onClick={handleConfirmSignature}
-              className="h-9 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1.5 px-4 shadow-md w-full sm:w-auto"
+              className="h-9 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1.5 px-4 shadow-md flex-1 sm:flex-none"
             >
               <Save className="h-4 w-4" />
               Confirmar Assinatura Oficial

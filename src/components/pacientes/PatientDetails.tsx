@@ -56,7 +56,7 @@ const PatientDetails = ({ patient, onClose, onEdit, onSchedule, onAddProcediment
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-4 sm:space-y-6 pb-16 lg:pb-6">
       {/* Cabeçalho do Paciente com Ações Elegantes e Responsivas */}
       <div className="bg-card border border-border rounded-xl p-3.5 sm:p-5 shadow-xs space-y-3.5">
         {/* Linha 1: Voltar + Dados de Identificação */}

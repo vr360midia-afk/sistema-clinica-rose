@@ -32,20 +32,20 @@ const QuickPatientModal = ({ isOpen, onClose, onPatientCreated }: QuickPatientMo
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
             <QuickPatientFormFields form={form} />
 
-            <div className="flex flex-col-reverse sm:flex-row gap-4 pt-8 border-t bg-muted -mx-6 px-6 py-6 mt-8">
+            <div className="sticky bottom-0 z-20 flex flex-col-reverse sm:flex-row gap-3 pt-4 border-t bg-card/95 backdrop-blur-md -mx-4 sm:-mx-6 px-4 sm:px-6 py-4 mt-6 shadow-md sm:shadow-none">
               <Button 
                 type="button" 
                 variant="outline" 
                 onClick={onClose} 
                 disabled={isLoading}
-                className="w-full sm:w-auto sm:min-w-[120px]"
+                className="w-full sm:w-auto sm:min-w-[120px] h-10"
               >
                 Cancelar
               </Button>
               <Button 
                 type="submit" 
                 disabled={isLoading} 
-                className="w-full sm:w-auto sm:min-w-[140px] bg-blue-600 hover:bg-blue-700"
+                className="w-full sm:w-auto sm:min-w-[140px] bg-blue-600 hover:bg-blue-700 h-10 font-bold"
               >
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {isLoading ? 'Salvando...' : 'Criar Paciente'}
