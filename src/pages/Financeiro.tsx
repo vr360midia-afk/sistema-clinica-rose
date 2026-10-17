@@ -40,6 +40,7 @@ const Financeiro = () => {
   const navigate = useNavigate();
 
   const [showTransactionForm, setShowTransactionForm] = useState(false);
+  const [tipoInicialTransacao, setTipoInicialTransacao] = useState<'receita' | 'despesa'>('receita');
   const [editingTransacao, setEditingTransacao] = useState<any | null>(null);
   const [showModalReceber, setShowModalReceber] = useState(false);
   const [transacaoParaReceber, setTransacaoParaReceber] = useState<Transacao | null>(null);
@@ -312,16 +313,29 @@ const Financeiro = () => {
               Receber c/ PIX (Caixa)
             </Button>
 
+            <Button
+              onClick={() => {
+                setEditingTransacao(null);
+                setTipoInicialTransacao('despesa');
+                setShowTransactionForm(true);
+              }}
+              className="bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs h-9 gap-1.5 shadow-sm"
+            >
+              <TrendingDown className="h-4 w-4" />
+              Lançar Despesa
+            </Button>
+
             <Button 
               onClick={() => { 
                 setEditingTransacao(null); 
+                setTipoInicialTransacao('receita');
                 setShowTransactionForm(true); 
               }} 
               variant="outline"
               className="text-xs h-9 gap-1.5 shadow-sm"
             >
               <Plus className="h-4 w-4" />
-              Novo Lançamento
+              Nova Receita
             </Button>
           </div>
         </div>
@@ -404,9 +418,19 @@ const Financeiro = () => {
                 <span className="text-xs font-semibold text-red-700 dark:text-red-300 uppercase tracking-wider flex items-center gap-1">
                   <ArrowDownRight className="h-4 w-4 text-red-600" /> Despesas & Custos
                 </span>
-                <span className="p-1.5 rounded-full bg-red-500/20 text-red-600">
-                  <CreditCard className="h-4 w-4" />
-                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setEditingTransacao(null);
+                    setTipoInicialTransacao('despesa');
+                    setShowTransactionForm(true);
+                  }}
+                  className="h-6 text-[11px] text-rose-600 dark:text-rose-400 hover:text-rose-700 hover:bg-rose-500/10 gap-1 px-1.5 font-medium"
+                >
+                  <Plus className="h-3 w-3" /> Lançar Despesa
+                </Button>
               </div>
               <div>
                 <p className="text-2xl font-black text-red-600 dark:text-red-400">
@@ -546,23 +570,36 @@ const Financeiro = () => {
                         {buscaTexto ? 'Tente mudar os termos da busca.' : 'Não há registros para os filtros selecionados neste mês.'}
                       </p>
                     </div>
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        setTransacaoParaReceber(null);
-                        setShowModalReceber(true);
-                      }}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1.5"
-                    >
-                      <QrCode className="h-3.5 w-3.5" /> Registrar Recebimento PIX
-                    </Button>
+                    <div className="flex items-center justify-center gap-2 flex-wrap pt-1">
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          setEditingTransacao(null);
+                          setTipoInicialTransacao('despesa');
+                          setShowTransactionForm(true);
+                        }}
+                        className="bg-rose-600 hover:bg-rose-700 text-white text-xs gap-1.5"
+                      >
+                        <TrendingDown className="h-3.5 w-3.5" /> Lançar Despesa
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          setTransacaoParaReceber(null);
+                          setShowModalReceber(true);
+                        }}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1.5"
+                      >
+                        <QrCode className="h-3.5 w-3.5" /> Registrar Recebimento PIX
+                      </Button>
+                    </div>
                   </div>
                 ) : (
                   <div className="space-y-2">
                     {transacoesExibicao.map((transacao) => {
                       const isReceita = transacao.tipo === 'receita';
                       const isPago = transacao.status === 'pago';
-                      const pacNome = getPacienteName(transacao.pacienteId);
+                      const pacNome = transacao.pacienteId ? getPacienteName(transacao.pacienteId) : '';
                       const detalhesCartao = getDetalhesCartao(transacao);
 
                       return (
@@ -586,7 +623,9 @@ const Financeiro = () => {
                             <div className="min-w-0 space-y-0.5">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className="font-semibold text-sm text-foreground truncate">
-                                  {!isReceita && transacao.parceiroNome ? transacao.parceiroNome : pacNome}
+                                  {!isReceita
+                                    ? (transacao.parceiroNome || pacNome || transacao.descricao || 'Despesa')
+                                    : (pacNome || transacao.descricao || 'Receita')}
                                 </span>
                                 {renderMetodoIcon(transacao.metodoPagamento)}
                                 {transacao.orcamentoId && (
@@ -778,6 +817,7 @@ const Financeiro = () => {
             setEditingTransacao(null);
           }}
           transacao={editingTransacao}
+          tipoInicial={tipoInicialTransacao}
         />
 
         {/* Modal Rápido de Recebimento PIX / Baixa Direta */}

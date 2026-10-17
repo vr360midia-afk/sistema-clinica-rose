@@ -34,9 +34,10 @@ interface TransactionFormProps {
   transacao?: any | null;
   pacienteId?: string;
   isEdit?: boolean;
+  tipoInicial?: TipoTransacao;
 }
 
-const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId }: TransactionFormProps) => {
+const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId, tipoInicial = 'receita' }: TransactionFormProps) => {
   const { user } = useAuth();
   const [uploading, setUploading] = useState(false);
   const { pacientes, transacoes, addTransacao, updateTransacao, deleteTransacao, addDocumento } = useDentalSystem();
@@ -161,8 +162,10 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId }: Tra
             : (transacao.comprovanteUrl ? [transacao.comprovanteUrl] : [])
         });
       } else {
+        const tipoDefinido = tipoInicial || 'receita';
         setFormData({
           ...emptyForm,
+          tipo: tipoDefinido,
           status: 'pago',
           metodoPagamento: 'pix',
           pacienteId: pacienteId || '',
@@ -293,8 +296,12 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId }: Tra
     e.preventDefault();
     
     const pid = formData.pacienteId || pacienteId;
-    if (!pid || !formData.descricao) {
-      toast.error('Preencha os campos obrigatórios (Paciente e Descrição)');
+    if (formData.tipo === 'receita' && !pid) {
+      toast.error('Selecione o paciente para lançar a receita');
+      return;
+    }
+    if (!formData.descricao) {
+      toast.error('Informe a descrição do lançamento');
       return;
     }
 
@@ -596,24 +603,32 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId }: Tra
       <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-lg sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>{isEdit ? 'Editar Transação' : 'Nova Transação'}</DialogTitle>
+          <DialogTitle>
+            {isEdit
+              ? 'Editar Transação'
+              : formData.tipo === 'despesa'
+              ? 'Lançar Despesa'
+              : 'Nova Transação'}
+          </DialogTitle>
         </DialogHeader>
         
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <div className="flex items-center justify-between mb-1">
               <Label htmlFor="paciente" className="text-xs font-semibold">
-                Paciente *
+                {formData.tipo === 'despesa' ? 'Paciente (opcional)' : 'Paciente *'}
               </Label>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsQuickPatientModalOpen(true)}
-                className="h-6 text-[11px] text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 hover:bg-emerald-500/10 gap-1 px-1.5 font-medium"
-              >
-                <Plus className="h-3 w-3" /> Novo Paciente
-              </Button>
+              {formData.tipo === 'receita' && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsQuickPatientModalOpen(true)}
+                  className="h-6 text-[11px] text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 hover:bg-emerald-500/10 gap-1 px-1.5 font-medium"
+                >
+                  <Plus className="h-3 w-3" /> Novo Paciente
+                </Button>
+              )}
             </div>
             <PacienteCombobox
               id="paciente"
@@ -622,11 +637,11 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId }: Tra
               fallbackNome={(transacao as any)?.pacienteNome}
               onChange={(value) => setFormData((prev) => ({ ...prev, pacienteId: value }))}
               onAddNew={() => setIsQuickPatientModalOpen(true)}
-              placeholder="Digite o nome para buscar ou selecione..."
+              placeholder={formData.tipo === 'despesa' ? 'Vincular a um paciente (opcional)...' : 'Digite o nome para buscar ou selecione...'}
             />
           </div>
 
-          {orcamentosDisponiveis.length > 0 && (
+          {formData.tipo === 'receita' && orcamentosDisponiveis.length > 0 && (
             <div>
               <Label htmlFor="orcamento">Orçamento aprovado (opcional)</Label>
               <Select
@@ -680,40 +695,66 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId }: Tra
             </div>
           )}
 
-
-
-          <div>
-            <Label htmlFor="procedimento">Procedimento cadastrado ou texto livre</Label>
-            <div className="relative">
-              <Stethoscope className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                id="procedimento"
-                list="procedimentos-financeiro"
-                className="pl-8"
-                placeholder="Selecione ou escreva algo..."
-                value={formData.descricao}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  const proc = procedimentos.find((p) => p.nome === value);
-                  setFormData((prev) => ({
-                    ...prev,
-                    descricao: value,
-                    valor: proc ? String(proc.preco || '') : prev.valor,
-                  }));
-                }}
-              />
-              <datalist id="procedimentos-financeiro">
-                {procedimentos.map((proc) => (
-                  <option key={proc.id} value={proc.nome}>
-                    {Number(proc.preco || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                  </option>
-                ))}
-              </datalist>
+          {formData.tipo === 'receita' ? (
+            <div>
+              <Label htmlFor="procedimento">Procedimento cadastrado (preenchimento rápido)</Label>
+              <div className="relative">
+                <Stethoscope className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="procedimento"
+                  list="procedimentos-financeiro"
+                  className="pl-8"
+                  placeholder="Selecione um procedimento ou escreva livremente..."
+                  value={formData.descricao}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    const proc = procedimentos.find((p) => p.nome === value);
+                    setFormData((prev) => ({
+                      ...prev,
+                      descricao: value,
+                      valor: proc ? String(proc.preco || '') : prev.valor,
+                    }));
+                  }}
+                />
+                <datalist id="procedimentos-financeiro">
+                  {procedimentos.map((proc) => (
+                    <option key={proc.id} value={proc.nome}>
+                      {Number(proc.preco || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    </option>
+                  ))}
+                </datalist>
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Escolher um procedimento preenche a descrição e o valor. Você também pode digitar qualquer texto.
-            </p>
-          </div>
+          ) : (
+            <div>
+              <Label htmlFor="sugestao-despesa">Categoria ou Tipo de Despesa</Label>
+              <div className="relative">
+                <CreditCard className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-rose-500" />
+                <Input
+                  id="sugestao-despesa"
+                  list="despesas-sugestoes"
+                  className="pl-8"
+                  placeholder="Selecione uma despesa comum ou digite..."
+                  value={formData.descricao}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, descricao: e.target.value }))}
+                />
+                <datalist id="despesas-sugestoes">
+                  <option value="Aluguel do Consultório" />
+                  <option value="Energia Elétrica / Luz" />
+                  <option value="Água e Saneamento" />
+                  <option value="Internet, Telefonia e Software" />
+                  <option value="Materiais Odontológicos / Dental Cremer" />
+                  <option value="Laboratório de Prótese Dentária" />
+                  <option value="Salários e Colaboradores" />
+                  <option value="Manutenção de Equipamentos" />
+                  <option value="Marketing, Google e Instagram Ads" />
+                  <option value="Material de Limpeza e Copa" />
+                  <option value="Taxas Bancárias e de Máquinas" />
+                  <option value="Impostos, CRO e Contabilidade" />
+                </datalist>
+              </div>
+            </div>
+          )}
 
 
           <div>
