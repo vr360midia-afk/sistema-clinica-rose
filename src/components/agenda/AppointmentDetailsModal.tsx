@@ -1,16 +1,28 @@
-
 import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { User, Clock, Phone, Calendar, FileText, Edit, Trash2, CheckCircle, XCircle, MessageCircle, CalendarClock } from 'lucide-react';
-import { ConfirmacaoStatus } from '@/types/shared';
+import {
+  User,
+  Clock,
+  Phone,
+  Calendar,
+  CalendarDays,
+  FileText,
+  Edit,
+  Trash2,
+  CheckCircle,
+  XCircle,
+  MessageCircle,
+  CalendarClock,
+} from 'lucide-react';
+import { ConfirmacaoStatus, StatusConsulta } from '@/types/shared';
 import { buildConfirmacaoPacienteMessage, openWhatsApp } from '@/lib/whatsapp';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { StatusConsulta } from '@/types/shared';
+import { cn } from '@/lib/utils';
 import { calcularHoraFim, formatarDuracaoAmigavel } from '@/utils/horarioConsulta';
 
 interface AppointmentDetailsModalProps {
@@ -43,31 +55,25 @@ interface AppointmentDetailsModalProps {
   onReschedule?: (appointment: any) => void;
 }
 
-const AppointmentDetailsModal = ({ 
-  isOpen, 
-  onClose, 
-  appointment, 
-  onEdit, 
-  onDelete, 
+const AppointmentDetailsModal = ({
+  isOpen,
+  onClose,
+  appointment,
+  onEdit,
+  onDelete,
   onStatusChange,
   onConfirmacaoChange,
-  onReschedule
+  onReschedule,
 }: AppointmentDetailsModalProps) => {
   if (!appointment) return null;
 
   const confirmacao: ConfirmacaoStatus = appointment.confirmacaoStatus || 'pendente';
 
-  const confirmacaoInfo: Record<ConfirmacaoStatus, { label: string; className: string }> = {
-    pendente: { label: 'Aguardando confirmação', className: 'bg-yellow-100 text-yellow-800' },
-    confirmado: { label: 'Paciente confirmou', className: 'bg-green-100 text-green-800' },
-    recusado: { label: 'Paciente não confirmou', className: 'bg-red-100 text-red-800' },
-  };
-
   const handleWhatsAppPaciente = () => {
     const telefone = appointment.patientData?.phone;
     const mensagem = buildConfirmacaoPacienteMessage({
       pacienteNome: appointment.patient,
-      data: appointment.date || new Date(),
+      data: appointment.date || appointment.data || new Date(),
       hora: appointment.time,
       dentistaNome: appointment.dentist,
       procedimento: appointment.procedure,
@@ -77,288 +83,370 @@ const AppointmentDetailsModal = ({
     }
   };
 
-  const getStatusColor = (status: StatusConsulta) => {
+  const getStatusBadge = (status: StatusConsulta) => {
     switch (status) {
-      case 'confirmado': return 'bg-green-100 text-green-800';
-      case 'agendado': return 'bg-blue-100 text-blue-800';
-      case 'realizado': return 'bg-muted text-foreground';
-      case 'cancelado': return 'bg-red-100 text-red-800';
-      case 'faltou': return 'bg-yellow-100 text-yellow-800';
-      case 'remarcado': return 'bg-purple-100 text-purple-800';
-      default: return 'bg-muted text-foreground';
+      case 'confirmado':
+        return (
+          <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 text-xs font-bold">
+            Confirmado
+          </Badge>
+        );
+      case 'agendado':
+        return (
+          <Badge className="bg-blue-500/15 text-blue-700 dark:text-blue-400 border border-blue-500/30 text-xs font-bold">
+            Agendado
+          </Badge>
+        );
+      case 'realizado':
+        return (
+          <Badge className="bg-slate-500/15 text-slate-700 dark:text-slate-300 border border-slate-500/30 text-xs font-bold">
+            Consulta Realizada
+          </Badge>
+        );
+      case 'cancelado':
+        return (
+          <Badge className="bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/30 text-xs font-bold">
+            Cancelada
+          </Badge>
+        );
+      case 'faltou':
+        return (
+          <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 text-xs font-bold">
+            Não Compareceu
+          </Badge>
+        );
+      case 'remarcado':
+        return (
+          <Badge className="bg-purple-500/15 text-purple-700 dark:text-purple-400 border border-purple-500/30 text-xs font-bold">
+            Reagendada
+          </Badge>
+        );
+      default:
+        return (
+          <Badge variant="outline" className="text-xs font-bold">
+            {status}
+          </Badge>
+        );
     }
   };
 
-  const getStatusLabel = (status: StatusConsulta) => {
-    switch (status) {
-      case 'confirmado': return 'Confirmado';
-      case 'agendado': return 'Agendado';
-      case 'realizado': return 'Realizado';
-      case 'cancelado': return 'Cancelado';
-      case 'faltou': return 'Faltou';
-      case 'remarcado': return 'Remarcado';
-      default: return status;
+  const getConfirmacaoBadge = (conf: ConfirmacaoStatus) => {
+    switch (conf) {
+      case 'confirmado':
+        return (
+          <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 text-xs font-bold">
+            ✓ Paciente confirmou
+          </Badge>
+        );
+      case 'recusado':
+        return (
+          <Badge className="bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/30 text-xs font-bold">
+            ✕ Paciente não confirmou
+          </Badge>
+        );
+      default:
+        return (
+          <Badge className="bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30 text-xs font-bold">
+            ⏳ Aguardando confirmação
+          </Badge>
+        );
     }
   };
+
+  // Tratamento e formatação segura da data da consulta
+  const rawDate = appointment.date || appointment.data;
+  let dataExtenso = 'Data não informada';
+
+  if (rawDate) {
+    let d: Date | null = null;
+    if (rawDate instanceof Date && !isNaN(rawDate.getTime())) {
+      d = rawDate;
+    } else if (typeof rawDate === 'string') {
+      if (rawDate.includes('-')) {
+        const parts = rawDate.split('T')[0].split('-');
+        if (parts.length === 3) {
+          d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        }
+      } else {
+        const parsed = new Date(rawDate);
+        if (!isNaN(parsed.getTime())) d = parsed;
+      }
+    }
+
+    if (d && !isNaN(d.getTime())) {
+      const diaSemana = format(d, 'EEEE', { locale: ptBR });
+      const diaSemanaCap = diaSemana.charAt(0).toUpperCase() + diaSemana.slice(1);
+      dataExtenso = `${diaSemanaCap}, ${format(d, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}`;
+    }
+  }
+
+  // Duração e horário final
+  const duracaoMinutos =
+    appointment.duracao ||
+    (typeof appointment.duration === 'string'
+      ? parseInt(appointment.duration, 10)
+      : Number(appointment.duration)) ||
+    60;
+  const horaFim = calcularHoraFim(appointment.time, duracaoMinutos);
+  const duracaoFormatada = formatarDuracaoAmigavel(duracaoMinutos);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Calendar className="h-5 w-5" />
-            Detalhes da Consulta
-          </DialogTitle>
+      <DialogContent className="max-w-2xl w-[calc(100vw-1.5rem)] sm:w-full max-h-[92vh] overflow-y-auto overflow-x-hidden p-4 sm:p-5">
+        <DialogHeader className="pb-1 border-b border-border/60">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <DialogTitle className="flex items-center gap-2 text-base sm:text-lg font-bold">
+              <Calendar className="h-5 w-5 text-primary shrink-0" />
+              <span>Detalhes da Consulta</span>
+            </DialogTitle>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {getStatusBadge(appointment.status)}
+              {getConfirmacaoBadge(confirmacao)}
+            </div>
+          </div>
         </DialogHeader>
 
-        <div className="space-y-6">
-          {/* Status e Ações */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex flex-wrap gap-2">
-              <Badge className={getStatusColor(appointment.status)}>
-                {getStatusLabel(appointment.status)}
-              </Badge>
-              <Badge className={confirmacaoInfo[confirmacao].className}>
-                {confirmacaoInfo[confirmacao].label}
-              </Badge>
-            </div>
-            
-            <div className="flex flex-wrap gap-2">
-              {onEdit && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onEdit(appointment)}
-                  className="gap-2"
-                >
-                  <Edit className="h-4 w-4" />
-                  Editar
-                </Button>
-              )}
+        <div className="space-y-3.5 pt-2">
+          {/* Bloco 1: Ações Rápidas de WhatsApp e Confirmação */}
+          <div className="p-2.5 rounded-xl bg-muted/40 border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleWhatsAppPaciente}
+                className="h-8 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 shadow-xs"
+              >
+                <MessageCircle className="h-3.5 w-3.5" />
+                <span>Enviar WhatsApp</span>
+              </Button>
 
-              {onStatusChange && appointment.status === 'agendado' && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onStatusChange(appointment.id, 'confirmado')}
-                  className="gap-2 text-green-600 hover:text-green-700"
-                >
-                  <CheckCircle className="h-4 w-4" />
-                  Confirmar
-                </Button>
-              )}
-
-              {onStatusChange && (appointment.status === 'agendado' || appointment.status === 'confirmado') && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onStatusChange(appointment.id, 'realizado')}
-                  className="gap-2 text-green-600 hover:text-green-700"
-                >
-                  <CheckCircle className="h-4 w-4" />
-                  Consulta Realizada
-                </Button>
-              )}
-
-              {onReschedule && (appointment.status === 'agendado' || appointment.status === 'confirmado' || appointment.status === 'faltou' || appointment.status === 'remarcado') && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onReschedule(appointment)}
-                  className="gap-2 text-purple-600 hover:text-purple-700"
-                >
-                  <CalendarClock className="h-4 w-4" />
-                  Remarcar
-                </Button>
-              )}
-
-              {onStatusChange && appointment.status !== 'cancelado' && appointment.status !== 'realizado' && appointment.status !== 'faltou' && appointment.status !== 'remarcado' && (
+              {onConfirmacaoChange && (
                 <>
                   <Button
-                    variant="outline"
+                    type="button"
                     size="sm"
-                    onClick={() => onStatusChange(appointment.id, 'remarcado')}
-                    className="gap-2 text-orange-600 hover:text-orange-700"
+                    variant={confirmacao === 'confirmado' ? 'default' : 'outline'}
+                    onClick={() => onConfirmacaoChange(appointment.id, 'confirmado')}
+                    className={cn(
+                      'h-8 text-xs font-semibold gap-1.5 transition-colors',
+                      confirmacao === 'confirmado'
+                        ? 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-xs'
+                        : 'border-border text-foreground hover:bg-accent'
+                    )}
                   >
-                    <CalendarClock className="h-4 w-4" />
-                    Foi reagendada
+                    <CheckCircle className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                    <span>Confirmou</span>
                   </Button>
+
                   <Button
-                    variant="outline"
+                    type="button"
                     size="sm"
-                    onClick={() => onStatusChange(appointment.id, 'faltou')}
-                    className="gap-2 text-yellow-600 hover:text-yellow-700"
+                    variant={confirmacao === 'recusado' ? 'destructive' : 'outline'}
+                    onClick={() => onConfirmacaoChange(appointment.id, 'recusado')}
+                    className="h-8 text-xs font-semibold gap-1.5"
                   >
-                    <XCircle className="h-4 w-4" />
-                    Não compareceu
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onStatusChange(appointment.id, 'cancelado')}
-                    className="gap-2 text-red-600 hover:text-red-700"
-                  >
-                    <XCircle className="h-4 w-4" />
-                    Cancelou a consulta
+                    <XCircle className="h-3.5 w-3.5" />
+                    <span>Não confirmou</span>
                   </Button>
                 </>
               )}
             </div>
-          </div>
 
-          {/* Confirmação do paciente */}
-          <div className="flex flex-wrap gap-2 rounded-lg border p-3">
-            <Button variant="outline" size="sm" className="gap-2" onClick={handleWhatsAppPaciente}>
-              <MessageCircle className="h-4 w-4" />
-              Enviar WhatsApp
-            </Button>
-            {onConfirmacaoChange && (
-              <>
-                <Button
-                  variant={confirmacao === 'confirmado' ? 'default' : 'outline'}
-                  size="sm"
-                  className="gap-2"
-                  onClick={() => onConfirmacaoChange(appointment.id, 'confirmado')}
-                >
-                  <CheckCircle className="h-4 w-4" />
-                  Confirmou
-                </Button>
-                <Button
-                  variant={confirmacao === 'recusado' ? 'destructive' : 'outline'}
-                  size="sm"
-                  className="gap-2"
-                  onClick={() => onConfirmacaoChange(appointment.id, 'recusado')}
-                >
-                  <XCircle className="h-4 w-4" />
-                  Não confirmou
-                </Button>
-              </>
+            {onEdit && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => onEdit(appointment)}
+                className="h-8 text-xs font-medium gap-1.5 shrink-0"
+              >
+                <Edit className="h-3.5 w-3.5" />
+                <span>Editar</span>
+              </Button>
             )}
           </div>
 
-          {/* Informações da Consulta */}
-          <Card>
-            <CardContent className="p-4">
-              <h3 className="font-semibold mb-3 flex items-center gap-2">
-                <Calendar className="h-4 w-4" />
-                Informações da Consulta
-              </h3>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-primary" />
-                  <div>
-                    <p className="text-sm text-muted-foreground">Horário</p>
-                    <p className="font-semibold text-foreground">
-                      {appointment.time} às {calcularHoraFim(appointment.time, appointment.duracao || (typeof appointment.duration === 'string' ? parseInt(appointment.duration, 10) : Number(appointment.duration)) || 60)}
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-muted-foreground" />
-                  <div>
-                    <p className="text-sm text-muted-foreground">Duração</p>
-                    <p className="font-medium">
-                      {formatarDuracaoAmigavel(appointment.duracao || (typeof appointment.duration === 'string' ? parseInt(appointment.duration, 10) : Number(appointment.duration)) || 60)}
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-muted-foreground" />
-                  <div>
-                    <p className="text-sm text-muted-foreground">Procedimento</p>
-                    <p className="font-medium">{appointment.procedure}</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-2">
-                  <User className="h-4 w-4 text-muted-foreground" />
-                  <div>
-                    <p className="text-sm text-muted-foreground">Dentista</p>
-                    <p className="font-medium">{appointment.dentist}</p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          {/* Bloco 2: Ações de Mudança de Status da Consulta */}
+          <div className="flex items-center justify-between gap-2 flex-wrap p-2 rounded-lg bg-card border border-border/80">
+            <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide">
+              Status Clínico:
+            </span>
 
-          {/* Informações do Paciente */}
-          <Card>
-            <CardContent className="p-4">
-              <h3 className="font-semibold mb-3 flex items-center gap-2">
-                <User className="h-4 w-4" />
-                Informações do Paciente
-              </h3>
-              
-              <div className="space-y-3">
-                <div>
-                  <p className="text-sm text-muted-foreground">Nome</p>
-                  <p className="font-medium text-lg">{appointment.patient}</p>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {onStatusChange && appointment.status !== 'realizado' && (
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => onStatusChange(appointment.id, 'realizado')}
+                  className="h-7.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 shadow-xs"
+                >
+                  <CheckCircle className="h-3.5 w-3.5" />
+                  <span>Realizada</span>
+                </Button>
+              )}
+
+              {onReschedule && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onReschedule(appointment)}
+                  className="h-7.5 text-xs font-semibold gap-1.5 text-purple-600 dark:text-purple-400 border-purple-500/30 hover:bg-purple-50 dark:hover:bg-purple-950/40"
+                >
+                  <CalendarClock className="h-3.5 w-3.5" />
+                  <span>Remarcar</span>
+                </Button>
+              )}
+
+              {onStatusChange && appointment.status !== 'faltou' && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onStatusChange(appointment.id, 'faltou')}
+                  className="h-7.5 text-xs font-semibold gap-1.5 text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-50 dark:hover:bg-amber-950/40"
+                >
+                  <XCircle className="h-3.5 w-3.5" />
+                  <span>Não compareceu</span>
+                </Button>
+              )}
+
+              {onStatusChange && appointment.status !== 'cancelado' && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onStatusChange(appointment.id, 'cancelado')}
+                  className="h-7.5 text-xs font-semibold gap-1.5 text-rose-600 dark:text-rose-400 border-rose-500/30 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                >
+                  <XCircle className="h-3.5 w-3.5" />
+                  <span>Cancelar</span>
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Bloco 3: Grid Unificada das Informações (Consulta e Paciente) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-0.5">
+            {/* Informações da Consulta */}
+            <Card className="border border-border/80 bg-card/60 shadow-xs">
+              <CardContent className="p-3.5 space-y-2.5">
+                <div className="flex items-center gap-1.5 font-bold text-foreground text-xs sm:text-sm border-b pb-2">
+                  <CalendarDays className="h-4 w-4 text-primary" />
+                  <span>Informações da Consulta</span>
                 </div>
-                
-                {appointment.patientData && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {appointment.patientData.phone && (
-                      <div className="flex items-center gap-2">
-                        <Phone className="h-4 w-4 text-muted-foreground" />
-                        <div>
-                          <p className="text-sm text-muted-foreground">Telefone</p>
-                          <p className="font-medium">{appointment.patientData.phone}</p>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {appointment.patientData.age > 0 && (
+
+                {/* DIA DA CONSULTA EM DESTAQUE */}
+                <div className="p-2.5 rounded-lg bg-primary/10 border border-primary/25 space-y-0.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-primary block">
+                    Dia da Consulta
+                  </span>
+                  <p className="font-extrabold text-foreground text-xs sm:text-sm">
+                    {dataExtenso}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <span className="text-[10px] text-muted-foreground uppercase font-semibold block">Horário</span>
+                    <span className="font-bold text-foreground flex items-center gap-1">
+                      <Clock className="h-3 w-3 text-muted-foreground shrink-0" />
+                      {appointment.time} às {horaFim}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] text-muted-foreground uppercase font-semibold block">Duração</span>
+                    <span className="font-medium text-foreground">{duracaoFormatada}</span>
+                  </div>
+
+                  <div className="col-span-2">
+                    <span className="text-[10px] text-muted-foreground uppercase font-semibold block">Procedimento</span>
+                    <p className="font-semibold text-foreground truncate">{appointment.procedure || 'Consulta Geral'}</p>
+                  </div>
+
+                  <div className="col-span-2">
+                    <span className="text-[10px] text-muted-foreground uppercase font-semibold block">Dentista</span>
+                    <p className="font-medium text-foreground truncate">{appointment.dentist || 'Dra. Rosangela Santos'}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Informações do Paciente */}
+            <Card className="border border-border/80 bg-card/60 shadow-xs">
+              <CardContent className="p-3.5 space-y-2.5">
+                <div className="flex items-center gap-1.5 font-bold text-foreground text-xs sm:text-sm border-b pb-2">
+                  <User className="h-4 w-4 text-blue-600" />
+                  <span>Informações do Paciente</span>
+                </div>
+
+                <div className="space-y-2 text-xs">
+                  <div>
+                    <span className="text-[10px] text-muted-foreground uppercase font-semibold block">Nome</span>
+                    <p className="font-bold text-foreground text-sm truncate">{appointment.patient}</p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    {appointment.patientData?.phone && (
                       <div>
-                        <p className="text-sm text-muted-foreground">Idade</p>
-                        <p className="font-medium">{appointment.patientData.age} anos</p>
+                        <span className="text-[10px] text-muted-foreground uppercase font-semibold block">Telefone</span>
+                        <span className="font-semibold text-foreground flex items-center gap-1">
+                          <Phone className="h-3 w-3 text-muted-foreground shrink-0" />
+                          {appointment.patientData.phone}
+                        </span>
                       </div>
                     )}
-                    
-                    {appointment.patientData.insurance && (
+
+                    <div>
+                      <span className="text-[10px] text-muted-foreground uppercase font-semibold block">Convênio</span>
+                      <span className="font-medium text-foreground uppercase text-[11px]">
+                        {appointment.patientData?.insurance || 'Particular'}
+                      </span>
+                    </div>
+
+                    {appointment.patientData?.age > 0 && (
                       <div>
-                        <p className="text-sm text-muted-foreground">Convênio</p>
-                        <p className="font-medium">{appointment.patientData.insurance}</p>
+                        <span className="text-[10px] text-muted-foreground uppercase font-semibold block">Idade</span>
+                        <span className="font-medium text-foreground">{appointment.patientData.age} anos</span>
                       </div>
                     )}
-                    
-                    {appointment.patientData.lastVisit && (
+
+                    {appointment.patientData?.lastVisit && (
                       <div>
-                        <p className="text-sm text-muted-foreground">Última Visita</p>
-                        <p className="font-medium">{appointment.patientData.lastVisit}</p>
-                      </div>
-                    )}
-                    
-                    {appointment.patientData.allergies && (
-                      <div className="sm:col-span-2">
-                        <p className="text-sm text-muted-foreground">Alergias</p>
-                        <p className="font-medium text-red-600">{appointment.patientData.allergies}</p>
+                        <span className="text-[10px] text-muted-foreground uppercase font-semibold block">Última Visita</span>
+                        <span className="font-medium text-foreground">{appointment.patientData.lastVisit}</span>
                       </div>
                     )}
                   </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
 
-          {/* Ações de Rodapé */}
-          <div className="flex flex-col-reverse sm:flex-row gap-2 pt-4 border-t">
-            <Button variant="outline" onClick={onClose} className="w-full sm:w-auto">
+                  {appointment.patientData?.allergies && (
+                    <div className="p-1.5 rounded bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-400 text-[11px]">
+                      <strong>Alergias:</strong> {appointment.patientData.allergies}
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Rodapé Concentrado */}
+          <div className="flex items-center justify-between gap-2 pt-3 border-t border-border/60">
+            <Button variant="outline" size="sm" onClick={onClose} className="h-8.5 px-4 text-xs font-semibold">
               Fechar
             </Button>
-            
+
             {onDelete && (
               <Button
                 variant="destructive"
+                size="sm"
                 onClick={() => {
                   onDelete(appointment.id);
                   onClose();
                 }}
-                className="w-full sm:w-auto gap-2"
+                className="h-8.5 text-xs font-semibold gap-1.5"
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="h-3.5 w-3.5" />
                 Excluir Consulta
               </Button>
             )}
