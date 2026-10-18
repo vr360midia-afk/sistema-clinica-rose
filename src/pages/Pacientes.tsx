@@ -707,7 +707,8 @@ const Pacientes = () => {
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
-                    ))}
+                    </div>
+                  ))}
                   </div>
                 )}
               </CardContent>
