@@ -271,3 +271,8 @@
   }
 }
 
+/* react-day-picker utility overrides */
+.rdp-vhidden {
+  @apply sr-only;
+}
+

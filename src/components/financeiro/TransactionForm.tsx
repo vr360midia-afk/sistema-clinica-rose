@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { DatePickerInput } from '@/components/ui/date-picker-input';
 import { CalendarIcon, Stethoscope, Handshake, FileText, UploadCloud, Eye, Loader2, X, Plus, Trash2, Layers, CheckCircle2, AlertCircle, CreditCard, Wallet, Split } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -1367,54 +1368,27 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId, tipoI
                   ? (formData.tipo === 'receita' ? 'Data do Recebimento (Caixa) *' : 'Data do Pagamento *')
                   : 'Data do Lançamento *'}
               </Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start text-left font-normal h-10">
-                    <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
-                    {format(formData.data, 'dd/MM/yyyy', { locale: ptBR })}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0 z-[60]" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={formData.data}
-                    defaultMonth={formData.data}
-                    onSelect={(date) => setFormData(prev => ({ ...prev, data: date || prev.data }))}
-                    locale={ptBR}
-                    captionLayout="dropdown-buttons"
-                    fromYear={anoAtual - 10}
-                    toYear={anoAtual + 10}
-                    className="p-3 pointer-events-auto"
-                  />
-                </PopoverContent>
-              </Popover>
+              <DatePickerInput
+                value={formData.data}
+                onChange={(date) => setFormData(prev => ({ ...prev, data: date || prev.data }))}
+                required
+                fromYear={anoAtual - 10}
+                toYear={anoAtual + 10}
+              />
             </div>
 
             <div className="space-y-1">
               <Label className="text-xs font-semibold block min-h-[18px]">
                 {formData.status === 'pago' ? 'Vencimento (opcional)' : 'Vencimento *'}
               </Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start text-left font-normal h-10">
-                    <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
-                    {formData.vencimento ? format(formData.vencimento, 'dd/MM/yyyy', { locale: ptBR }) : 'Selecionar'}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0 z-[60]" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={formData.vencimento || undefined}
-                    defaultMonth={formData.vencimento || formData.data}
-                    onSelect={(date) => setFormData(prev => ({ ...prev, vencimento: date || null }))}
-                    locale={ptBR}
-                    captionLayout="dropdown-buttons"
-                    fromYear={anoAtual - 10}
-                    toYear={anoAtual + 10}
-                    className="p-3 pointer-events-auto"
-                  />
-                </PopoverContent>
-              </Popover>
+              <DatePickerInput
+                value={formData.vencimento}
+                onChange={(date) => setFormData(prev => ({ ...prev, vencimento: date }))}
+                required={formData.status !== 'pago'}
+                placeholder="DD/MM/AAAA"
+                fromYear={anoAtual - 10}
+                toYear={anoAtual + 10}
+              />
             </div>
           </div>
 
