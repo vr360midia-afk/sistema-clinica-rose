@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import DigitalSignature, { SignatureData } from '@/components/signature/DigitalSignature';
 import { supabase } from '@/integrations/supabase/client';
+import { cn } from '@/lib/utils';
 import {
   CheckCircle,
   AlertCircle,
@@ -25,6 +26,13 @@ import {
   ShieldCheck,
   Lock,
   MessageCircle,
+  Activity,
+  Smile,
+  ShieldAlert,
+  Sparkles,
+  Users,
+  Flame,
+  Stethoscope,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { openWhatsApp } from '@/lib/whatsapp';
@@ -38,10 +46,114 @@ import {
 type Status = 'loading' | 'valid' | 'invalid' | 'expired' | 'completed' | 'blocked';
 
 const Shell = ({ children }: { children: React.ReactNode }) => (
-  <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-start py-8 px-3 sm:px-6">
-    <div className="w-full max-w-3xl space-y-6">{children}</div>
+  <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-start py-6 sm:py-8 px-3 sm:px-6 overflow-x-hidden w-full max-w-full">
+    <div className="w-full max-w-3xl space-y-6 overflow-x-hidden">{children}</div>
   </div>
 );
+
+// Componente interativo para perguntas objetivas de Sim / Não na triagem
+const PerguntaSimNao = ({
+  titulo,
+  descricao,
+  valor,
+  onChange,
+  alertaSeSim = false,
+}: {
+  titulo: string;
+  descricao?: string;
+  valor?: 'sim' | 'nao';
+  onChange: (val: 'sim' | 'nao') => void;
+  alertaSeSim?: boolean;
+}) => (
+  <div className="p-3 rounded-lg border bg-card/70 hover:bg-card transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+    <div className="space-y-0.5 pr-2">
+      <p className="text-xs sm:text-sm font-semibold text-foreground flex items-center gap-1.5">
+        {alertaSeSim && valor === 'sim' && <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />}
+        {titulo}
+      </p>
+      {descricao && <p className="text-[11px] text-muted-foreground leading-relaxed">{descricao}</p>}
+    </div>
+    <div className="flex items-center gap-1.5 shrink-0 self-start sm:self-auto">
+      <button
+        type="button"
+        onClick={() => onChange('nao')}
+        className={cn(
+          "px-3 py-1 text-xs font-semibold rounded-md border transition-all cursor-pointer",
+          valor === 'nao'
+            ? "bg-slate-800 text-white border-slate-800 dark:bg-slate-200 dark:text-slate-900 shadow-xs"
+            : "bg-background text-muted-foreground border-border hover:bg-accent"
+        )}
+      >
+        Não
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange('sim')}
+        className={cn(
+          "px-3 py-1 text-xs font-semibold rounded-md border transition-all cursor-pointer",
+          valor === 'sim'
+            ? alertaSeSim
+              ? "bg-amber-600 text-white border-amber-600 shadow-xs"
+              : "bg-primary text-primary-foreground border-primary shadow-xs"
+            : "bg-background text-muted-foreground border-border hover:bg-accent"
+        )}
+      >
+        Sim
+      </button>
+    </div>
+  </div>
+);
+
+const ITENS_TRIAGEM = [
+  {
+    id: 'hipertensao',
+    titulo: 'Possui Hipertensão (Pressão Alta)?',
+    descricao: 'Diagnóstico prévio ou em tratamento com anti-hipertensivo.',
+    alertaSeSim: true,
+  },
+  {
+    id: 'diabetes',
+    titulo: 'Possui Diabetes?',
+    descricao: 'Glicemia alterada ou uso diário de medicação/insulina.',
+    alertaSeSim: true,
+  },
+  {
+    id: 'cardiopatia',
+    titulo: 'Problemas Cardíacos (Coração)?',
+    descricao: 'Infarto prévio, sopro, angina, marca-passo ou cirurgia cardíaca.',
+    alertaSeSim: true,
+  },
+  {
+    id: 'coagulacao',
+    titulo: 'Distúrbio de Coagulação ou Sangramento Excessivo?',
+    descricao: 'Dificuldade de estancar sangue ou uso de anticoagulantes/aspirina.',
+    alertaSeSim: true,
+  },
+  {
+    id: 'alergia_anestesia',
+    titulo: 'Reação ou Alergia a Anestesia Odontológica?',
+    descricao: 'Já passou mal, teve taquicardia severa ou alergia durante anestesia.',
+    alertaSeSim: true,
+  },
+  {
+    id: 'bisfosfonatos',
+    titulo: 'Uso de Remédios para Ossos / Osteoporose?',
+    descricao: 'Uso atual ou pregresso de bisfosfonatos (ex: Alendronato, Prolia, Zometa).',
+    alertaSeSim: true,
+  },
+  {
+    id: 'bruxismo_atm',
+    titulo: 'Aperta/Ranger os Dentes ou Dores na Mandíbula (ATM)?',
+    descricao: 'Bruxismo diurno/noturno, estalos na articulação ou dores de cabeça.',
+    alertaSeSim: false,
+  },
+  {
+    id: 'gestante_lactante',
+    titulo: 'Está Grávida ou Amamentando?',
+    descricao: 'Importante para a seleção segura de anestésicos, fármacos e radiografias.',
+    alertaSeSim: true,
+  },
+];
 
 const AssinarAnamnese = () => {
   const { id, slug } = useParams<{ id?: string; slug?: string }>();
@@ -63,12 +175,21 @@ const AssinarAnamnese = () => {
 
   // Campos preenchíveis/editáveis pelo paciente
   const [queixaPrincipal, setQueixaPrincipal] = useState('');
+  const [historiaAtual, setHistoriaAtual] = useState('');
+  const [historiaFamiliar, setHistoriaFamiliar] = useState('');
+  const [historiaMedica, setHistoriaMedica] = useState('');
   const [alergias, setAlergias] = useState('');
   const [medicamentos, setMedicamentos] = useState('');
-  const [historiaMedica, setHistoriaMedica] = useState('');
-  const [historiaAtual, setHistoriaAtual] = useState('');
-  const [habitos, setHabitos] = useState('');
+  const [habitosViciosPositivos, setHabitosViciosPositivos] = useState('');
+  const [habitosViciosNegativos, setHabitosViciosNegativos] = useState('');
   const [observacoes, setObservacoes] = useState('');
+
+  // Triagem de Segurança Odontológica (Perguntas Objetivas Sim / Não)
+  const [triagem, setTriagem] = useState<Record<string, 'sim' | 'nao'>>({});
+
+  const handleTriagemChange = (campo: string, valor: 'sim' | 'nao') => {
+    setTriagem((prev) => ({ ...prev, [campo]: valor }));
+  };
 
   const call = useCallback(
     async (action: 'get' | 'sign', extra: Record<string, unknown> = {}) => {
@@ -111,6 +232,7 @@ const AssinarAnamnese = () => {
                   habitosViciosPositivos: localMatch.habitosViciosPositivos,
                   habitosViciosNegativos: localMatch.habitosViciosNegativos,
                   observacoes: localMatch.observacoes,
+                  respostas: localMatch.respostas,
                   jaAssinado: !!localMatch.assinaturaPaciente,
                   assinaturaPaciente: localMatch.assinaturaPaciente,
                 },
@@ -136,6 +258,7 @@ const AssinarAnamnese = () => {
             habitosViciosPositivos: anamneseDb.habitos_vicios_positivos,
             habitosViciosNegativos: anamneseDb.habitos_vicios_negativos,
             observacoes: anamneseDb.observacoes,
+            respostas: anamneseDb.respostas,
             jaAssinado: anamneseDb.status_assinatura === 'paciente_assinado' || anamneseDb.status_assinatura === 'completo' || !!anamneseDb.assinatura_paciente,
             assinaturaPaciente: anamneseDb.assinatura_paciente,
           },
@@ -166,22 +289,33 @@ const AssinarAnamnese = () => {
           const r = extra.respostasAtualizadas as any;
           if (r.queixaPrincipal !== undefined) updatePayload.queixa_principal = r.queixaPrincipal;
           if (r.historiaAtual !== undefined) updatePayload.historia_atual = r.historiaAtual;
+          if (r.historiaFamiliar !== undefined) updatePayload.historia_familiar = r.historiaFamiliar;
           if (r.historiaMedica !== undefined) updatePayload.historia_medica = r.historiaMedica;
           if (r.alergias !== undefined) updatePayload.alergias = r.alergias;
           if (r.medicamentos !== undefined) updatePayload.medicamentos = r.medicamentos;
-          if (r.habitos !== undefined) updatePayload.habitos_vicios_positivos = r.habitos;
+          if (r.habitosViciosPositivos !== undefined) updatePayload.habitos_vicios_positivos = r.habitosViciosPositivos;
+          if (r.habitosViciosNegativos !== undefined) updatePayload.habitos_vicios_negativos = r.habitosViciosNegativos;
           if (r.observacoes !== undefined) updatePayload.observacoes = r.observacoes;
+          if (r.respostas !== undefined) updatePayload.respostas = r.respostas;
         }
 
-        // Tenta atualizar no Supabase direto com apenas as colunas suportadas no schema
+        // Tenta atualizar no Supabase com todas as colunas suportadas
         try {
           const supabasePayload: any = {
             status_assinatura: 'paciente_assinado',
+            data_assinatura: new Date().toISOString(),
+            assinatura_paciente: assinaturaData,
           };
           if (updatePayload.queixa_principal !== undefined) supabasePayload.queixa_principal = updatePayload.queixa_principal;
+          if (updatePayload.historia_atual !== undefined) supabasePayload.historia_atual = updatePayload.historia_atual;
+          if (updatePayload.historia_familiar !== undefined) supabasePayload.historia_familiar = updatePayload.historia_familiar;
           if (updatePayload.historia_medica !== undefined) supabasePayload.historia_medica = updatePayload.historia_medica;
           if (updatePayload.alergias !== undefined) supabasePayload.alergias = updatePayload.alergias;
           if (updatePayload.medicamentos !== undefined) supabasePayload.medicamentos = updatePayload.medicamentos;
+          if (updatePayload.habitos_vicios_positivos !== undefined) supabasePayload.habitos_vicios_positivos = updatePayload.habitos_vicios_positivos;
+          if (updatePayload.habitos_vicios_negativos !== undefined) supabasePayload.habitos_vicios_negativos = updatePayload.habitos_vicios_negativos;
+          if (updatePayload.observacoes !== undefined) supabasePayload.observacoes = updatePayload.observacoes;
+          if (updatePayload.respostas !== undefined) supabasePayload.respostas = updatePayload.respostas;
 
           await supabase.from('anamneses').update(supabasePayload).eq('id', targetId);
         } catch (dbUpErr) {
@@ -199,11 +333,15 @@ const AssinarAnamnese = () => {
               statusAssinatura: 'paciente_assinado',
               dataAssinatura: new Date(),
               queixaPrincipal: updatePayload.queixa_principal || localAnams[idx].queixaPrincipal,
+              historiaAtual: updatePayload.historia_atual || localAnams[idx].historiaAtual,
+              historiaFamiliar: updatePayload.historia_familiar || localAnams[idx].historiaFamiliar,
+              historiaMedica: updatePayload.historia_medica || localAnams[idx].historiaMedica,
               alergias: updatePayload.alergias || localAnams[idx].alergias,
               medicamentos: updatePayload.medicamentos || localAnams[idx].medicamentos,
-              historiaMedica: updatePayload.historia_medica || localAnams[idx].historiaMedica,
-              historiaAtual: updatePayload.historia_atual || localAnams[idx].historiaAtual,
+              habitosViciosPositivos: updatePayload.habitos_vicios_positivos || localAnams[idx].habitosViciosPositivos,
+              habitosViciosNegativos: updatePayload.habitos_vicios_negativos || localAnams[idx].habitosViciosNegativos,
               observacoes: updatePayload.observacoes || localAnams[idx].observacoes,
+              respostas: updatePayload.respostas || localAnams[idx].respostas,
             };
             localStorage.setItem('dental-system-anamneses', JSON.stringify(localAnams));
           }
@@ -230,17 +368,26 @@ const AssinarAnamnese = () => {
         });
       }
       setQueixaPrincipal(anamneseData.queixaPrincipal || anamneseData.queixa_principal || '');
+      setHistoriaAtual(anamneseData.historiaAtual || anamneseData.historia_atual || '');
+      setHistoriaFamiliar(anamneseData.historiaFamiliar || anamneseData.historia_familiar || '');
+      setHistoriaMedica(anamneseData.historiaMedica || anamneseData.historia_medica || '');
       setAlergias(anamneseData.alergias || '');
       setMedicamentos(anamneseData.medicamentos || '');
-      setHistoriaMedica(anamneseData.historiaMedica || anamneseData.historia_medica || '');
-      setHistoriaAtual(anamneseData.historiaAtual || anamneseData.historia_atual || '');
-      const hab = [
-        anamneseData.habitos,
-        anamneseData.habitosViciosPositivos || anamneseData.habitos_vicios_positivos,
-        anamneseData.habitosViciosNegativos || anamneseData.habitos_vicios_negativos,
-      ].filter(Boolean).join(', ');
-      setHabitos(hab);
+      setHabitosViciosPositivos(
+        anamneseData.habitosViciosPositivos || anamneseData.habitos_vicios_positivos || ''
+      );
+      setHabitosViciosNegativos(
+        anamneseData.habitosViciosNegativos ||
+          anamneseData.habitos_vicios_negativos ||
+          anamneseData.habitos ||
+          ''
+      );
       setObservacoes(anamneseData.observacoes || '');
+
+      const resp = anamneseData.respostas || {};
+      if (typeof resp === 'object' && resp !== null) {
+        setTriagem({ ...resp });
+      }
     };
 
     // 1. Tenta decodificar o payload seguro da URL
@@ -382,12 +529,15 @@ const AssinarAnamnese = () => {
           cpf: paciente?.cpf,
           telefone: paciente?.telefone,
           queixaPrincipal: queixaPrincipal.trim(),
+          historiaAtual: historiaAtual.trim(),
+          historiaFamiliar: historiaFamiliar.trim(),
           alergias: alergias.trim(),
           medicamentos: medicamentos.trim(),
           historiaMedica: historiaMedica.trim(),
-          historiaAtual: historiaAtual.trim(),
-          habitos: habitos.trim(),
+          habitosViciosPositivos: habitosViciosPositivos.trim(),
+          habitosViciosNegativos: habitosViciosNegativos.trim(),
           observacoes: observacoes.trim(),
+          respostas: triagem,
           assinaturaPaciente: assinaturaCompleta,
           status: 'paciente_assinado',
           data: dataHoraIso,
@@ -406,12 +556,15 @@ const AssinarAnamnese = () => {
           signerName: signatureData.signerName,
           respostasAtualizadas: {
             queixaPrincipal: queixaPrincipal.trim(),
+            historiaAtual: historiaAtual.trim(),
+            historiaFamiliar: historiaFamiliar.trim(),
             alergias: alergias.trim(),
             medicamentos: medicamentos.trim(),
             historiaMedica: historiaMedica.trim(),
-            historiaAtual: historiaAtual.trim(),
-            habitos: habitos.trim(),
+            habitosViciosPositivos: habitosViciosPositivos.trim(),
+            habitosViciosNegativos: habitosViciosNegativos.trim(),
             observacoes: observacoes.trim(),
+            respostas: triagem,
           },
         });
       } catch (err) {
@@ -441,12 +594,13 @@ const AssinarAnamnese = () => {
     );
   }
 
-  // TELA VISUALIZADOR DA FICHA PREENCHIDA / BLOQUEADA (Mobile-Friendly)
+  // TELA VISUALIZADOR DA FICHA PREENCHIDA / BLOQUEADA (Mobile-Friendly & Completa)
   if (status === 'blocked') {
     const dataFormatada = anamnese?.data
       ? new Date(anamnese.data).toLocaleDateString('pt-BR')
       : new Date().toLocaleDateString('pt-BR');
     const assinaturaData = anamnese?.assinaturaPaciente;
+    const respostasTriagem = anamnese?.respostas || triagem;
 
     return (
       <Shell>
@@ -485,6 +639,7 @@ const AssinarAnamnese = () => {
 
               {/* Seções com as Respostas Preenchidas */}
               <div className="space-y-3 pt-1">
+                {/* 1. Queixa Principal */}
                 <div className="p-3.5 rounded-lg border bg-card text-xs space-y-1">
                   <span className="font-bold text-foreground flex items-center gap-1.5 text-sm">
                     <ClipboardList className="h-4 w-4 text-primary" />
@@ -495,6 +650,7 @@ const AssinarAnamnese = () => {
                   </p>
                 </div>
 
+                {/* 2. História da Queixa Atual */}
                 {(historiaAtual || anamnese?.historiaAtual) && (
                   <div className="p-3.5 rounded-lg border bg-card text-xs space-y-1">
                     <span className="font-bold text-foreground flex items-center gap-1.5 text-sm">
@@ -507,6 +663,50 @@ const AssinarAnamnese = () => {
                   </div>
                 )}
 
+                {/* 3. Triagem Rápida Odontológica (Sim/Não) */}
+                {Object.keys(respostasTriagem).length > 0 && (
+                  <div className="p-3.5 rounded-lg border bg-card text-xs space-y-2">
+                    <span className="font-bold text-foreground flex items-center gap-1.5 text-sm">
+                      <HeartPulse className="h-4 w-4 text-rose-500" />
+                      3. Triagem Rápida de Saúde
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-1 pt-1">
+                      {ITENS_TRIAGEM.map((item) => {
+                        const resposta = respostasTriagem[item.id];
+                        if (!resposta) return null;
+                        const isSim = resposta === 'sim';
+                        return (
+                          <div
+                            key={item.id}
+                            className={cn(
+                              "p-2 rounded-md border text-[11px] flex items-center justify-between gap-2",
+                              isSim && item.alertaSeSim
+                                ? "bg-amber-500/10 border-amber-500/30 text-amber-900 dark:text-amber-200"
+                                : "bg-muted/40 border-border text-foreground"
+                            )}
+                          >
+                            <span className="truncate pr-1">{item.titulo.replace('?', '')}</span>
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "text-[10px] shrink-0 font-bold",
+                                isSim
+                                  ? item.alertaSeSim
+                                    ? "bg-amber-500 text-white border-amber-500"
+                                    : "bg-primary text-primary-foreground border-primary"
+                                  : "bg-muted text-muted-foreground border-border"
+                              )}
+                            >
+                              {isSim ? 'SIM' : 'NÃO'}
+                            </Badge>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* 4. Alergias e Medicamentos */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="p-3.5 rounded-lg border bg-card text-xs space-y-1">
                     <span className="font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1.5 text-sm">
@@ -529,11 +729,12 @@ const AssinarAnamnese = () => {
                   </div>
                 </div>
 
+                {/* 5. Histórico Médico e Familiar */}
                 {(historiaMedica || anamnese?.historiaMedica) && (
                   <div className="p-3.5 rounded-lg border bg-card text-xs space-y-1">
                     <span className="font-bold text-foreground flex items-center gap-1.5 text-sm">
-                      <HeartPulse className="h-4 w-4 text-red-500" />
-                      3. Histórico Médico e Doenças Pregressas
+                      <Stethoscope className="h-4 w-4 text-red-500" />
+                      Histórico Médico Pregresso
                     </span>
                     <p className="text-muted-foreground text-xs sm:text-sm pl-5 pt-0.5">
                       {historiaMedica || anamnese?.historiaMedica}
@@ -541,23 +742,49 @@ const AssinarAnamnese = () => {
                   </div>
                 )}
 
-                {(habitos || anamnese?.habitosViciosPositivos || anamnese?.habitosViciosNegativos) && (
+                {(historiaFamiliar || anamnese?.historiaFamiliar) && (
                   <div className="p-3.5 rounded-lg border bg-card text-xs space-y-1">
                     <span className="font-bold text-foreground flex items-center gap-1.5 text-sm">
-                      <User className="h-4 w-4 text-purple-500" />
-                      4. Hábitos e Vícios
+                      <Users className="h-4 w-4 text-indigo-500" />
+                      Histórico Familiar
                     </span>
                     <p className="text-muted-foreground text-xs sm:text-sm pl-5 pt-0.5">
-                      {habitos || [anamnese?.habitosViciosPositivos, anamnese?.habitosViciosNegativos].filter(Boolean).join(', ')}
+                      {historiaFamiliar || anamnese?.historiaFamiliar}
                     </p>
                   </div>
                 )}
 
+                {/* 6. Hábitos Bucais e Nocivos */}
+                {(habitosViciosPositivos || anamnese?.habitosViciosPositivos) && (
+                  <div className="p-3.5 rounded-lg border bg-card text-xs space-y-1">
+                    <span className="font-bold text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5 text-sm">
+                      <Smile className="h-4 w-4 text-emerald-500" />
+                      Hábitos de Higiene Bucal
+                    </span>
+                    <p className="text-muted-foreground text-xs sm:text-sm pl-5 pt-0.5">
+                      {habitosViciosPositivos || anamnese?.habitosViciosPositivos}
+                    </p>
+                  </div>
+                )}
+
+                {(habitosViciosNegativos || anamnese?.habitosViciosNegativos) && (
+                  <div className="p-3.5 rounded-lg border bg-card text-xs space-y-1">
+                    <span className="font-bold text-foreground flex items-center gap-1.5 text-sm">
+                      <Flame className="h-4 w-4 text-purple-500" />
+                      Hábitos Nocivos / Vícios
+                    </span>
+                    <p className="text-muted-foreground text-xs sm:text-sm pl-5 pt-0.5">
+                      {habitosViciosNegativos || anamnese?.habitosViciosNegativos}
+                    </p>
+                  </div>
+                )}
+
+                {/* 7. Observações Gerais */}
                 {(observacoes || anamnese?.observacoes) && (
                   <div className="p-3.5 rounded-lg border bg-card text-xs space-y-1">
                     <span className="font-bold text-foreground flex items-center gap-1.5 text-sm">
                       <ClipboardList className="h-4 w-4 text-slate-500" />
-                      5. Observações Gerais
+                      Observações Adicionais
                     </span>
                     <p className="text-muted-foreground text-xs sm:text-sm pl-5 pt-0.5">
                       {observacoes || anamnese?.observacoes}
@@ -683,8 +910,6 @@ const AssinarAnamnese = () => {
     );
   }
 
-
-
   if (showSignature) {
     return (
       <Shell>
@@ -781,9 +1006,55 @@ const AssinarAnamnese = () => {
                   </p>
                 </div>
 
+                {(historiaAtual || anamnese?.historiaAtual) && (
+                  <div className="p-3 rounded-lg bg-muted/40 border border-border">
+                    <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
+                      2. História Atual da Queixa
+                    </span>
+                    <p className="text-sm font-medium text-foreground mt-0.5">
+                      {historiaAtual || anamnese?.historiaAtual}
+                    </p>
+                  </div>
+                )}
+
+                {Object.keys(triagem).length > 0 && (
+                  <div className="p-3 rounded-lg bg-muted/40 border border-border">
+                    <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block mb-1.5">
+                      3. Triagem de Saúde (Sim / Não)
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                      {ITENS_TRIAGEM.map((item) => {
+                        const resposta = triagem[item.id];
+                        if (!resposta) return null;
+                        return (
+                          <div
+                            key={item.id}
+                            className="p-1.5 rounded bg-background border text-[11px] flex items-center justify-between"
+                          >
+                            <span className="truncate pr-1">{item.titulo.replace('?', '')}</span>
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "text-[10px] font-bold shrink-0",
+                                resposta === 'sim'
+                                  ? item.alertaSeSim
+                                    ? "bg-amber-500 text-white border-amber-500"
+                                    : "bg-primary text-primary-foreground border-primary"
+                                  : "bg-muted text-muted-foreground border-border"
+                              )}
+                            >
+                              {resposta === 'sim' ? 'SIM' : 'NÃO'}
+                            </Badge>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 <div className="p-3 rounded-lg bg-muted/40 border border-border">
                   <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
-                    2. Alergias Conhecidas (Medicamentos / Anestésicos / Materiais)
+                    4. Alergias Conhecidas (Medicamentos / Anestésicos / Materiais)
                   </span>
                   <p className="text-sm font-medium text-foreground mt-0.5">
                     {alergias || anamnese?.alergias || 'Nenhuma alergia relatada'}
@@ -792,7 +1063,7 @@ const AssinarAnamnese = () => {
 
                 <div className="p-3 rounded-lg bg-muted/40 border border-border">
                   <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
-                    3. Medicamentos em Uso Contínuo
+                    5. Medicamentos em Uso Contínuo
                   </span>
                   <p className="text-sm font-medium text-foreground mt-0.5">
                     {medicamentos || anamnese?.medicamentos || 'Nenhum medicamento informado'}
@@ -801,26 +1072,39 @@ const AssinarAnamnese = () => {
 
                 <div className="p-3 rounded-lg bg-muted/40 border border-border">
                   <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
-                    4. Histórico Médico Geral
+                    6. Histórico Médico Pregresso
                   </span>
                   <p className="text-sm font-medium text-foreground mt-0.5">
-                    {historiaMedica || anamnese?.historiaMedica || 'Sem comorbidades ou histórico médico adverso registrado'}
+                    {historiaMedica || anamnese?.historiaMedica || 'Sem histórico médico prévio relevante'}
                   </p>
                 </div>
 
-                <div className="p-3 rounded-lg bg-muted/40 border border-border">
-                  <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
-                    5. Hábitos e Vícios
-                  </span>
-                  <p className="text-sm font-medium text-foreground mt-0.5">
-                    {habitos || 'Nenhum hábito prejudicial informado'}
-                  </p>
-                </div>
+                {(historiaFamiliar || anamnese?.historiaFamiliar) && (
+                  <div className="p-3 rounded-lg bg-muted/40 border border-border">
+                    <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
+                      7. Histórico Familiar
+                    </span>
+                    <p className="text-sm font-medium text-foreground mt-0.5">
+                      {historiaFamiliar || anamnese?.historiaFamiliar}
+                    </p>
+                  </div>
+                )}
+
+                {(habitosViciosPositivos || habitosViciosNegativos) && (
+                  <div className="p-3 rounded-lg bg-muted/40 border border-border">
+                    <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
+                      8. Hábitos de Higiene e Vícios
+                    </span>
+                    <p className="text-sm font-medium text-foreground mt-0.5">
+                      {[habitosViciosPositivos, habitosViciosNegativos].filter(Boolean).join(' • ') || 'Nenhum hábito prejudicial informado'}
+                    </p>
+                  </div>
+                )}
 
                 {observacoes && (
                   <div className="p-3 rounded-lg bg-muted/40 border border-border">
                     <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
-                      6. Observações Adicionais
+                      9. Observações Adicionais
                     </span>
                     <p className="text-sm font-medium text-foreground mt-0.5">
                       {observacoes}
@@ -830,9 +1114,9 @@ const AssinarAnamnese = () => {
               </div>
             </div>
           ) : (
-            /* Modo 1: Preencher e Assinar (Formulário Completo) */
+            /* Modo 1: Preencher e Assinar (Formulário Clínico Completo) */
             <>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <p className="text-xs text-muted-foreground leading-relaxed">
                   Por favor, responda com atenção às perguntas de saúde abaixo. Suas respostas são indispensáveis para garantir procedimentos seguros.
                 </p>
@@ -847,87 +1131,193 @@ const AssinarAnamnese = () => {
                 </Button>
               </div>
 
-              {/* Questionário Clínico */}
-              <div className="space-y-4 text-xs sm:text-sm">
-                {/* Queixa Principal */}
-                <div className="space-y-1.5">
+              {/* Questionário Clínico Estruturado */}
+              <div className="space-y-6 text-xs sm:text-sm">
+                {/* Seção 1: Motivo da Consulta */}
+                <div className="p-4 rounded-xl border border-border bg-card/50 space-y-3.5 shadow-xs">
+                  <div className="border-b border-border pb-2 flex items-center gap-2 text-primary font-bold text-sm">
+                    <ClipboardList className="h-4 w-4" />
+                    <span>1. Motivo da Consulta & Queixa Atual</span>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="font-semibold text-foreground flex items-center gap-1.5 text-xs sm:text-sm">
+                      <HeartPulse className="h-3.5 w-3.5 text-rose-500" />
+                      Qual é a sua Queixa Principal ou motivo do atendimento? *
+                    </Label>
+                    <Textarea
+                      rows={2}
+                      placeholder="Ex: Dor de dente, limpeza e avaliação geral, restauração, clareamento, troca de prótese..."
+                      value={queixaPrincipal}
+                      onChange={(e) => setQueixaPrincipal(e.target.value)}
+                      className="text-xs sm:text-sm bg-background border-border"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="font-semibold text-foreground flex items-center gap-1.5 text-xs sm:text-sm">
+                      <Clock className="h-3.5 w-3.5 text-blue-500" />
+                      História Atual da Queixa (Quando começou? Sente dor contínua ou ao mastigar/gelado?)
+                    </Label>
+                    <Textarea
+                      rows={2}
+                      placeholder="Ex: Começou há 3 dias, dói quando tomo água gelada, piora à noite..."
+                      value={historiaAtual}
+                      onChange={(e) => setHistoriaAtual(e.target.value)}
+                      className="text-xs sm:text-sm bg-background border-border"
+                    />
+                  </div>
+                </div>
+
+                {/* Seção 2: Triagem Rápida Odontológica (Perguntas Objetivas Sim / Não) */}
+                <div className="p-4 rounded-xl border border-border bg-card/50 space-y-3.5 shadow-xs">
+                  <div className="border-b border-border pb-2 flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2 text-foreground font-bold text-sm">
+                      <Activity className="h-4 w-4 text-emerald-600" />
+                      <span>2. Triagem Rápida de Saúde (Marque Sim ou Não)</span>
+                    </div>
+                    <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                      Segurança Clínica
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Estas informações são vitais para evitar hemorragias, interações medicamentosas ou choques alérgicos durante o atendimento.
+                  </p>
+
+                  <div className="grid grid-cols-1 gap-2 pt-1">
+                    {ITENS_TRIAGEM.map((item) => (
+                      <PerguntaSimNao
+                        key={item.id}
+                        titulo={item.titulo}
+                        descricao={item.descricao}
+                        valor={triagem[item.id]}
+                        onChange={(val) => handleTriagemChange(item.id, val)}
+                        alertaSeSim={item.alertaSeSim}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Seção 3: Alergias e Medicamentos */}
+                <div className="p-4 rounded-xl border border-border bg-card/50 space-y-3.5 shadow-xs">
+                  <div className="border-b border-border pb-2 flex items-center gap-2 text-amber-700 dark:text-amber-400 font-bold text-sm">
+                    <ShieldAlert className="h-4 w-4" />
+                    <span>3. Alergias e Medicamentos em Uso Contínuo</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="font-semibold text-foreground flex items-center gap-1.5 text-xs sm:text-sm">
+                        <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                        Possui alguma Alergia Conhecida?
+                      </Label>
+                      <Textarea
+                        rows={2}
+                        placeholder="Ex: Dipirona, Penicilina, Anti-inflamatórios, Iodo, Látex (ou informe 'Não possuo')"
+                        value={alergias}
+                        onChange={(e) => setAlergias(e.target.value)}
+                        className="text-xs sm:text-sm bg-background border-border"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="font-semibold text-foreground flex items-center gap-1.5 text-xs sm:text-sm">
+                        <Pill className="h-3.5 w-3.5 text-blue-500" />
+                        Medicamentos que você toma regularmente
+                      </Label>
+                      <Textarea
+                        rows={2}
+                        placeholder="Ex: Remédios de pressão, anticoncepcional, insulina, calmantes, AAS (ou 'Nenhum')"
+                        value={medicamentos}
+                        onChange={(e) => setMedicamentos(e.target.value)}
+                        className="text-xs sm:text-sm bg-background border-border"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Seção 4: Histórico Médico e Familiar */}
+                <div className="p-4 rounded-xl border border-border bg-card/50 space-y-3.5 shadow-xs">
+                  <div className="border-b border-border pb-2 flex items-center gap-2 text-foreground font-bold text-sm">
+                    <Stethoscope className="h-4 w-4 text-red-500" />
+                    <span>4. Histórico Médico Pregresso & Familiar</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="font-semibold text-foreground flex items-center gap-1.5 text-xs sm:text-sm">
+                        Histórico Médico Pessoal (Cirurgias, internações, comorbidades)
+                      </Label>
+                      <Textarea
+                        rows={2}
+                        placeholder="Ex: Cirurgia de apendicite em 2020, problemas gástricos, refluxo, anemia..."
+                        value={historiaMedica}
+                        onChange={(e) => setHistoriaMedica(e.target.value)}
+                        className="text-xs sm:text-sm bg-background border-border"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="font-semibold text-foreground flex items-center gap-1.5 text-xs sm:text-sm">
+                        <Users className="h-3.5 w-3.5 text-indigo-500" />
+                        Histórico Familiar (Doenças relevantes na família)
+                      </Label>
+                      <Textarea
+                        rows={2}
+                        placeholder="Ex: Pais hipertensos, histórico de diabetes ou câncer na família..."
+                        value={historiaFamiliar}
+                        onChange={(e) => setHistoriaFamiliar(e.target.value)}
+                        className="text-xs sm:text-sm bg-background border-border"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Seção 5: Higiene Bucal, Hábitos e Vícios */}
+                <div className="p-4 rounded-xl border border-border bg-card/50 space-y-3.5 shadow-xs">
+                  <div className="border-b border-border pb-2 flex items-center gap-2 text-foreground font-bold text-sm">
+                    <Smile className="h-4 w-4 text-emerald-600" />
+                    <span>5. Hábitos de Higiene Bucal & Hábitos Gerais</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="font-semibold text-foreground text-xs sm:text-sm">
+                        Higiene Bucal (Escovação, uso de fio dental, sangramento na gengiva)
+                      </Label>
+                      <Textarea
+                        rows={2}
+                        placeholder="Ex: Escovo 3x ao dia, uso fio dental diariamente, gengiva sangra ao escovar..."
+                        value={habitosViciosPositivos}
+                        onChange={(e) => setHabitosViciosPositivos(e.target.value)}
+                        className="text-xs sm:text-sm bg-background border-border"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="font-semibold text-foreground text-xs sm:text-sm">
+                        Hábitos Nocivos / Vícios (Fumo, bebidas alcoólicas, roer unhas, mastigação unilateral)
+                      </Label>
+                      <Textarea
+                        rows={2}
+                        placeholder="Ex: Fumo eventual, mastigo mais do lado direito, hábito de morder caneta..."
+                        value={habitosViciosNegativos}
+                        onChange={(e) => setHabitosViciosNegativos(e.target.value)}
+                        className="text-xs sm:text-sm bg-background border-border"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Seção 6: Observações Gerais */}
+                <div className="p-4 rounded-xl border border-border bg-card/50 space-y-2 shadow-xs">
                   <Label className="font-semibold text-foreground flex items-center gap-1.5 text-xs sm:text-sm">
-                    <HeartPulse className="h-4 w-4 text-blue-600" />
-                    1. Qual é a sua Queixa Principal ou motivo da consulta?
+                    <ClipboardList className="h-3.5 w-3.5 text-muted-foreground" />
+                    6. Alguma outra informação importante que você gostaria de nos avisar?
                   </Label>
                   <Textarea
                     rows={2}
-                    placeholder="Ex: Avaliação de rotina, dor no dente, limpeza, tratamento estético..."
-                    value={queixaPrincipal}
-                    onChange={(e) => setQueixaPrincipal(e.target.value)}
-                    className="text-xs sm:text-sm bg-background border-border"
-                  />
-                </div>
-
-                {/* Alergias */}
-                <div className="space-y-1.5">
-                  <Label className="font-semibold text-foreground flex items-center gap-1.5 text-xs sm:text-sm">
-                    <AlertTriangle className="h-4 w-4 text-amber-600" />
-                    2. Possui alguma Alergia a medicamentos, anestésicos locais ou materiais?
-                  </Label>
-                  <Input
-                    placeholder="Ex: Não possui alergias conhecidas OU Dipirona, Penicilina, Látex..."
-                    value={alergias}
-                    onChange={(e) => setAlergias(e.target.value)}
-                    className="text-xs sm:text-sm bg-background border-border"
-                  />
-                </div>
-
-                {/* Medicamentos em Uso */}
-                <div className="space-y-1.5">
-                  <Label className="font-semibold text-foreground flex items-center gap-1.5 text-xs sm:text-sm">
-                    <Pill className="h-4 w-4 text-emerald-600" />
-                    3. Faz uso contínuo de algum Medicamento no momento?
-                  </Label>
-                  <Input
-                    placeholder="Ex: Nenhum OU Losartana, anticoncepcional, anticoagulante, insulina..."
-                    value={medicamentos}
-                    onChange={(e) => setMedicamentos(e.target.value)}
-                    className="text-xs sm:text-sm bg-background border-border"
-                  />
-                </div>
-
-                {/* Histórico Médico Geral */}
-                <div className="space-y-1.5">
-                  <Label className="font-semibold text-foreground flex items-center gap-1.5 text-xs sm:text-sm">
-                    <Check className="h-4 w-4 text-primary" />
-                    4. Histórico Médico (Pressão alta, diabetes, problemas cardíacos, gestação, etc.)
-                  </Label>
-                  <Textarea
-                    rows={2}
-                    placeholder="Ex: Pressão controlada, sem outras comorbidades..."
-                    value={historiaMedica}
-                    onChange={(e) => setHistoriaMedica(e.target.value)}
-                    className="text-xs sm:text-sm bg-background border-border"
-                  />
-                </div>
-
-                {/* Hábitos e Vícios */}
-                <div className="space-y-1.5">
-                  <Label className="font-semibold text-foreground text-xs sm:text-sm">
-                    5. Hábitos e Vícios (Fumo, bruxismo/apertamento de dentes, etc.):
-                  </Label>
-                  <Input
-                    placeholder="Ex: Não fuma, aperta os dentes durante o sono..."
-                    value={habitos}
-                    onChange={(e) => setHabitos(e.target.value)}
-                    className="text-xs sm:text-sm bg-background border-border"
-                  />
-                </div>
-
-                {/* Observações Gerais */}
-                <div className="space-y-1.5">
-                  <Label className="font-semibold text-foreground text-xs sm:text-sm">
-                    6. Alguma outra informação ou observação que o dentista deva saber?
-                  </Label>
-                  <Textarea
-                    rows={2}
-                    placeholder="Alguma cirurgia recente, medo de dentista, histórico de sangramentos..."
+                    placeholder="Ex: Ansiedade ou medo de anestesia/agulha, sensibilidade dental geral, dificuldade para abrir a boca muito tempo..."
                     value={observacoes}
                     onChange={(e) => setObservacoes(e.target.value)}
                     className="text-xs sm:text-sm bg-background border-border"
@@ -952,7 +1342,13 @@ const AssinarAnamnese = () => {
           <div className="pt-2 flex flex-col items-center justify-center gap-2">
             <Button
               size="lg"
-              onClick={() => setShowSignature(true)}
+              onClick={() => {
+                if (modoVisualizacao === 'preencher' && !queixaPrincipal.trim()) {
+                  toast.error('Por favor, informe a queixa principal ou motivo da consulta antes de assinar.');
+                  return;
+                }
+                setShowSignature(true);
+              }}
               className="w-full sm:w-auto px-8 py-5 text-sm sm:text-base font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-md gap-2"
             >
               <FileSignature className="h-5 w-5" />

@@ -19,6 +19,7 @@ import {
   gerarHtmlTcleEndodontia,
   downloadTcleEndodontiaPdf,
 } from './contratoEndodontia';
+import { slugifyNome } from './anamneseEngine';
 
 export {
   identificarTipoDocumento,
@@ -2192,17 +2193,21 @@ export function decodificarContratoUrl(encoded: string): ContratoSnapshot | null
 export function gerarLinkAssinaturaContrato(snapshot: ContratoSnapshot, docId?: string): string {
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const id = docId || snapshot.contratoId;
+  const slug = slugifyNome(snapshot.pacienteNome || 'paciente');
+  const slugCompleto = `assinar-contrato-${slug}`;
 
   // Garante que o snapshot esteja salvo no localStorage para carregamento imediato
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
       window.localStorage.setItem(`contrato_${id}`, JSON.stringify(snapshot));
       window.localStorage.setItem(`contrato_${snapshot.contratoId}`, JSON.stringify(snapshot));
+      window.localStorage.setItem(`contrato_slug_${slug}`, JSON.stringify(snapshot));
+      window.localStorage.setItem(`contrato_slug_${slugCompleto}`, JSON.stringify(snapshot));
     } catch (_) {}
   }
 
-  // URL curta e direta: https://meudominio/assinar-contrato/{id}
-  return `${origin}/assinar-contrato/${id}`;
+  // URL otimizada: https://meudominio/assinar-contrato-nome-do-paciente?id={id}
+  return `${origin}/${slugCompleto}?id=${id}`;
 }
 
 

@@ -50,6 +50,11 @@ export function slugifyNome(nome: string): string {
 export function unslugifyNome(slug: string): string {
   if (!slug) return 'Paciente';
   const clean = slug
+    .replace(/^preencher-anamnese-/, '')
+    .replace(/^assinar-anamnese-/, '')
+    .replace(/^assinar-contrato-/, '')
+    .replace(/^assinar-extrato-/, '')
+    .replace(/^anamnese-paciente-/, '')
     .replace(/^anamnese-/, '')
     .replace(/^ficha-/, '')
     .replace(/-[a-f0-9]{4,10}$/i, ''); // remove eventual sufixo de hash
@@ -174,6 +179,11 @@ export function gerarLinkAmigavelAnamnese(params: {
     paramD = `&d=${codificarAnamnesePayload(compactPayload)}`;
   }
 
+  // Nome da rota otimizada: {dominio}/{qual ficha a pessoa vai preencher ou assinar}-{nomedopaciente}
+  // Ex: {dominio}/preencher-anamnese-diego-duracenski ou {dominio}/assinar-anamnese-diego-duracenski
+  const prefixoFicha = modo === 'assinar' ? 'assinar-anamnese' : 'preencher-anamnese';
+  const rotaPersonalizada = `${prefixoFicha}-${slug}`;
+
   // Armazena também em localStorage para cache imediato na mesma máquina/navegador
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
@@ -191,11 +201,12 @@ export function gerarLinkAmigavelAnamnese(params: {
       window.localStorage.setItem(`anamnese_payload_${params.anamneseId}`, JSON.stringify(fullPayload));
       window.localStorage.setItem(`anamnese_payload_${token}`, JSON.stringify(fullPayload));
       window.localStorage.setItem(`anamnese_slug_${slug}`, JSON.stringify(fullPayload));
+      window.localStorage.setItem(`anamnese_slug_${rotaPersonalizada}`, JSON.stringify(fullPayload));
     } catch (_) {}
   }
 
-  // Monta a URL limpa e legível com o slug do paciente no path
-  return `${origin}/anamnese/${slug}?id=${params.anamneseId}&modo=${modo}&token=${token}${paramD}`;
+  // Monta a URL otimizada no padrão: {dominio}/{qual-ficha-preencher-ou-assinar}-{nomedopaciente}
+  return `${origin}/${rotaPersonalizada}?id=${params.anamneseId}&token=${token}${paramD}`;
 }
 
 /**
@@ -208,7 +219,7 @@ export function getChaveBloqueio(anamneseId?: string, token?: string): string {
 /**
  * Verifica se esta ficha já foi respondida/assinada e deve ficar bloqueada contra novos acessos
  */
-export function isAnamneseBloqueada(anamneseId?: string, token?: string): boolean {
+export function isAnamneseBloqueada(anamneseId?: string, token?: string, slug?: string): boolean {
   if (typeof window === 'undefined' || !window.localStorage) return false;
   try {
     if (anamneseId && window.localStorage.getItem(`anamnese_bloqueada_${anamneseId}`)) {
@@ -216,6 +227,20 @@ export function isAnamneseBloqueada(anamneseId?: string, token?: string): boolea
     }
     if (token && window.localStorage.getItem(`anamnese_bloqueada_${token}`)) {
       return true;
+    }
+    if (slug) {
+      const clean = slug
+        .replace(/^preencher-anamnese-/, '')
+        .replace(/^assinar-anamnese-/, '')
+        .replace(/^anamnese-/, '');
+      if (
+        window.localStorage.getItem(`anamnese_bloqueada_${slug}`) ||
+        window.localStorage.getItem(`anamnese_bloqueada_${clean}`) ||
+        window.localStorage.getItem(`anamnese_bloqueada_preencher-anamnese-${clean}`) ||
+        window.localStorage.getItem(`anamnese_bloqueada_assinar-anamnese-${clean}`)
+      ) {
+        return true;
+      }
     }
   } catch (_) {}
   return false;

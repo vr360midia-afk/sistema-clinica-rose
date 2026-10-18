@@ -18,8 +18,8 @@ import { formatMoney } from '@/utils/exportCsv';
 import { useOrcamentos } from '@/hooks/useOrcamentos';
 import { calcularSaldosOrcamentos } from '@/utils/orcamentoSaldo';
 import { FinanceiroComprovantes } from '@/components/financeiro/FinanceiroComprovantes';
-import { EditProcedimentoValorModal } from './EditProcedimentoValorModal';
 import { useMaquinasCartao, calcularTaxaCartao } from '@/hooks/useMaquinasCartao';
+import { slugifyNome } from '@/utils/anamneseEngine';
 
 interface PatientFinancialProps {
   patient: any;
@@ -277,7 +277,8 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
         .single();
       if (error) throw error;
 
-      const link = `${window.location.origin}/assinar-extrato/${data.id}?token=${token}`;
+      const slug = slugifyNome(patient?.nome || 'paciente');
+      const link = `${window.location.origin}/assinar-extrato-${slug}?id=${data.id}&token=${token}`;
       const msg = buildExtratoMessage({
         pacienteNome: patient.nome,
         clinicaNome: configuracoes?.nomeClinica || undefined,

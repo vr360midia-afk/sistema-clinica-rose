@@ -181,7 +181,7 @@ export const ModalEnviarAnamnese = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-xl max-h-[92vh] overflow-y-auto overscroll-contain touch-pan-y p-4 sm:p-6">
+      <DialogContent className="max-w-xl w-[calc(100vw-2rem)] sm:w-full max-h-[92vh] overflow-y-auto overflow-x-hidden overscroll-contain touch-pan-y p-4 sm:p-6">
         <DialogHeader className="space-y-1">
           <div className="flex items-center gap-2 text-primary">
             <ClipboardList className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
@@ -237,11 +237,11 @@ export const ModalEnviarAnamnese = ({
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2 pt-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                 <Button
                   size="sm"
                   onClick={handleWhatsAppPreencher}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8 gap-1.5 font-semibold shadow-xs"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-9 gap-1.5 font-semibold shadow-xs"
                 >
                   <MessageCircle className="h-3.5 w-3.5" />
                   <span>Enviar WhatsApp</span>
@@ -251,7 +251,7 @@ export const ModalEnviarAnamnese = ({
                   size="sm"
                   variant="outline"
                   onClick={() => handleCopiar('preencher')}
-                  className="text-xs h-8 gap-1.5"
+                  className="text-xs h-9 gap-1.5"
                 >
                   {copiadoPreencher ? (
                     <>
@@ -264,17 +264,6 @@ export const ModalEnviarAnamnese = ({
                       <span>Copiar Link</span>
                     </>
                   )}
-                </Button>
-
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => handleAbrir('preencher')}
-                  className="text-xs h-8 text-muted-foreground hover:text-foreground gap-1.5"
-                  title="Abrir o link como o paciente verá"
-                >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                  <span>Testar Link</span>
                 </Button>
               </div>
             </div>
@@ -298,11 +287,11 @@ export const ModalEnviarAnamnese = ({
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2 pt-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                 <Button
                   size="sm"
                   onClick={handleWhatsAppAssinar}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8 gap-1.5 font-semibold shadow-xs"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-9 gap-1.5 font-semibold shadow-xs"
                 >
                   <MessageCircle className="h-3.5 w-3.5" />
                   <span>Enviar WhatsApp</span>
@@ -312,7 +301,7 @@ export const ModalEnviarAnamnese = ({
                   size="sm"
                   variant="outline"
                   onClick={() => handleCopiar('assinar')}
-                  className="text-xs h-8 gap-1.5"
+                  className="text-xs h-9 gap-1.5"
                 >
                   {copiadoAssinar ? (
                     <>
@@ -325,17 +314,6 @@ export const ModalEnviarAnamnese = ({
                       <span>Copiar Link</span>
                     </>
                   )}
-                </Button>
-
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => handleAbrir('assinar')}
-                  className="text-xs h-8 text-muted-foreground hover:text-foreground gap-1.5"
-                  title="Abrir o link apenas para assinatura"
-                >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                  <span>Testar Link</span>
                 </Button>
               </div>
             </div>

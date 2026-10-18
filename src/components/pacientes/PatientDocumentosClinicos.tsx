@@ -18,6 +18,7 @@ import { gerarDocumentoClinicoPdf } from '@/utils/documentoClinicoPdf';
 import { openWhatsApp } from '@/lib/whatsapp';
 import { toast } from 'sonner';
 import ContratoModal from '@/components/contratos/ContratoModal';
+import { slugifyNome } from '@/utils/anamneseEngine';
 
 interface Props {
   patient: any;
@@ -118,7 +119,8 @@ const PatientDocumentosClinicos = ({ patient }: Props) => {
     }
 
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    const linkAssinatura = `${origin}/assinar-contrato/${doc.id}`;
+    const slug = slugifyNome(patient?.nome || 'paciente');
+    const linkAssinatura = `${origin}/assinar-contrato-${slug}?id=${doc.id}`;
 
     // Baixa o PDF do documento no computador para facilitar o anexo
     try {
@@ -296,7 +298,8 @@ const PatientDocumentosClinicos = ({ patient }: Props) => {
                     className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/40"
                     onClick={() => {
                       const origin = typeof window !== 'undefined' ? window.location.origin : '';
-                      const link = `${origin}/assinar-contrato/${doc.id}`;
+                      const slug = slugifyNome(patient?.nome || 'paciente');
+                      const link = `${origin}/assinar-contrato-${slug}?id=${doc.id}`;
                       navigator.clipboard.writeText(link);
                       toast.success('Link de assinatura copiado com sucesso!', {
                         description: 'Envie o link para o paciente assinar pelo celular.',
