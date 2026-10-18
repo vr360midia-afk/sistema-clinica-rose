@@ -379,30 +379,52 @@ const Pacientes = () => {
   return (
     <Layout>
       <div className="space-y-4 sm:space-y-6 pb-16 lg:pb-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
           <div className="flex items-center gap-3">
-            <Users className="h-6 w-6 text-blue-600" />
+            <Users className="h-6 w-6 text-blue-600 shrink-0" />
             <h1 className="text-xl sm:text-2xl font-bold text-foreground">Pacientes</h1>
           </div>
-          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full xl:w-auto flex-wrap">
+            {/* Buscador de Paciente em Destaque ao lado do botão Novo Paciente */}
+            <div className="relative flex-1 sm:w-80 md:w-96 min-w-[260px]">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4 pointer-events-none" />
+              <Input
+                placeholder="Buscar por nome, telefone ou CPF..."
+                className="pl-10 pr-9 h-10 w-full bg-background border-2 border-slate-300 dark:border-slate-700 focus:border-blue-600 dark:focus:border-blue-500 text-sm font-medium rounded-lg shadow-xs transition-all placeholder:text-muted-foreground"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground text-xs rounded-full hover:bg-muted transition-colors cursor-pointer"
+                  title="Limpar busca"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            <Button onClick={() => setShowForm(true)} className="bg-blue-600 hover:bg-blue-700 h-10 px-4 font-semibold text-white shadow-xs shrink-0">
+              <Plus className="h-4 w-4 mr-2" />
+              Novo Paciente
+            </Button>
             <Button
               onClick={() => setIsEscolherPacienteAnamneseOpen(true)}
               variant="outline"
-              className="border-indigo-300 text-indigo-700 bg-indigo-50/50 hover:bg-indigo-100 dark:border-indigo-800 dark:text-indigo-300 dark:bg-indigo-950/40 w-full sm:w-auto font-semibold shadow-xs"
+              className="border-indigo-300 text-indigo-700 bg-indigo-50/50 hover:bg-indigo-100 dark:border-indigo-800 dark:text-indigo-300 dark:bg-indigo-950/40 h-10 font-semibold shadow-xs shrink-0"
               title="Gerar e enviar link de anamnese para qualquer paciente preencher ou assinar"
             >
               <ClipboardList className="h-4 w-4 mr-2 text-indigo-600" />
               Enviar Anamnese
             </Button>
-            <Button onClick={() => setShowForm(true)} className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto">
-              <Plus className="h-4 w-4 mr-2" />
-              Novo Paciente
-            </Button>
-            <Button onClick={() => setIsScannerOpen(true)} className="bg-indigo-600 hover:bg-indigo-700 w-full sm:w-auto">
+            <Button onClick={() => setIsScannerOpen(true)} className="bg-indigo-600 hover:bg-indigo-700 h-10 px-4 font-semibold text-white shadow-xs shrink-0">
               <Sparkles className="h-4 w-4 mr-2" />
               Ficha Digital
             </Button>
-            <Button onClick={handleAddProcedimento} variant="outline" className="w-full sm:w-auto">
+            <Button onClick={handleAddProcedimento} variant="outline" className="h-10 px-4 font-medium shrink-0">
               <Stethoscope className="h-4 w-4 mr-2" />
               Novo Procedimento
             </Button>
@@ -471,10 +493,10 @@ const Pacientes = () => {
           }}
         />
 
-        {/* Abas e Busca */}
+        {/* Abas e Filtros */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-            <TabsList className="w-full lg:w-auto">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <TabsList className="w-full sm:w-auto">
               <TabsTrigger value="ativos" className="flex items-center gap-2">
                 <Users className="h-4 w-4" />
                 Ativos ({pacientesAtivos.length})
@@ -485,29 +507,18 @@ const Pacientes = () => {
               </TabsTrigger>
             </TabsList>
 
-            <Card className="w-full lg:w-96">
-              <CardContent className="p-2 sm:p-3">
-                <div className="relative flex items-center">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4 pointer-events-none" />
-                  <Input
-                    placeholder="Buscar por nome, telefone ou CPF..."
-                    className="pl-10 pr-8 border-0 text-[16px] sm:text-sm"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                  {searchTerm && (
-                    <button
-                      type="button"
-                      onClick={() => setSearchTerm('')}
-                      className="absolute right-3 p-1 text-muted-foreground hover:text-foreground text-xs rounded-full hover:bg-muted"
-                      title="Limpar busca"
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+            {searchTerm && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/70 border border-border px-3 py-1.5 rounded-lg">
+                <span>Filtrando busca: <strong className="text-foreground">"{searchTerm}"</strong></span>
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="text-blue-600 hover:text-blue-700 font-semibold hover:underline ml-1 cursor-pointer"
+                >
+                  Limpar
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Filtro por status e data */}
