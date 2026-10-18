@@ -10,14 +10,61 @@ import {
   Plus,
   CheckCircle2,
   PhoneCall,
+  Cake,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTarefasInternas, TIPO_TAREFA_INFO, TarefaInterna } from '@/hooks/useTarefasInternas';
+import { useDentalSystem } from '@/context/DentalSystemContext';
+import { openWhatsApp } from '@/lib/whatsapp';
 
 export const TarefasHojeWidget: React.FC = () => {
   const navigate = useNavigate();
   const { tarefas, alternarConcluida, metricas } = useTarefasInternas();
+  const { pacientes } = useDentalSystem();
   const hojeStr = new Date().toISOString().split('T')[0];
+
+  // Aniversariantes de hoje
+  const aniversariantesHoje = React.useMemo(() => {
+    const hoje = new Date();
+    const diaHoje = hoje.getDate();
+    const mesHoje = hoje.getMonth();
+
+    return (pacientes || [])
+      .filter((p) => p && p.status !== 'Arquivado')
+      .map((p) => {
+        const rawDate = p.dataNascimento || (p as any).data_nascimento;
+        if (!rawDate) return null;
+
+        let dia = 0;
+        let mes = -1;
+
+        if (typeof rawDate === 'string' && rawDate.includes('-')) {
+          const parts = rawDate.split('T')[0].split('-');
+          if (parts.length === 3) {
+            dia = parseInt(parts[2], 10);
+            mes = parseInt(parts[1], 10) - 1;
+          }
+        } else if (typeof rawDate === 'string' && rawDate.includes('/')) {
+          const parts = rawDate.split('/');
+          if (parts.length >= 2) {
+            dia = parseInt(parts[0], 10);
+            mes = parseInt(parts[1], 10) - 1;
+          }
+        } else {
+          const d = new Date(rawDate);
+          if (!isNaN(d.getTime())) {
+            dia = d.getDate();
+            mes = d.getMonth();
+          }
+        }
+
+        if (dia === diaHoje && mes === mesHoje) {
+          return p;
+        }
+        return null;
+      })
+      .filter((p): p is any => Boolean(p));
+  }, [pacientes]);
 
   // Tarefas para hoje ou atrasadas
   const tarefasHoje = tarefas
@@ -73,7 +120,39 @@ export const TarefasHojeWidget: React.FC = () => {
       </CardHeader>
 
       <CardContent className="p-3 sm:p-4 pt-1 space-y-2 flex-1">
-        {tarefasHoje.length === 0 ? (
+        {/* Alerta de Aniversariantes de Hoje */}
+        {aniversariantesHoje.length > 0 && (
+          <div className="p-2.5 rounded-lg border border-pink-500/30 bg-gradient-to-r from-pink-50/80 to-purple-50/80 dark:from-pink-950/20 dark:to-purple-950/20 flex items-center justify-between gap-2 shadow-xs">
+            <div className="flex items-center gap-2 min-w-0">
+              <Cake className="h-4 w-4 text-pink-500 shrink-0 animate-bounce" />
+              <div className="min-w-0">
+                <span className="text-xs font-bold text-foreground block truncate">
+                  🎂 Aniversário de {aniversariantesHoje.map((p) => p.nome).join(', ')} hoje!
+                </span>
+                <span className="text-[10px] text-muted-foreground block">
+                  Envie os parabéns no WhatsApp da clínica
+                </span>
+              </div>
+            </div>
+            {aniversariantesHoje[0]?.telefone && (
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  const p = aniversariantesHoje[0];
+                  const msg = `Olá, *${p.nome}*! 🎂🎉 Toda a equipe da clínica Dra. Rosangela Santos deseja a você um feliz aniversário! Muita saúde, alegria e muitos sorrisos! ✨`;
+                  openWhatsApp(p.telefone, msg);
+                }}
+                className="h-6 text-[10px] px-2 font-bold gap-1 bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 shadow-xs"
+              >
+                <MessageSquare className="h-3 w-3" />
+                Parabenizar
+              </Button>
+            )}
+          </div>
+        )}
+
+        {tarefasHoje.length === 0 && aniversariantesHoje.length === 0 ? (
           <div className="py-6 text-center space-y-1.5">
             <div className="text-lg">🎉</div>
             <p className="text-xs font-medium text-foreground">Todas as tarefas de hoje estão concluídas!</p>

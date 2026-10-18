@@ -11,7 +11,6 @@ import PatientForm from '@/components/pacientes/PatientForm';
 import PatientDetails from '@/components/pacientes/PatientDetails';
 import PatientArchiveModal from '@/components/pacientes/PatientArchiveModal';
 import PatientDeleteModal from '@/components/pacientes/PatientDeleteModal';
-import AniversariantesMes from '@/components/pacientes/AniversariantesMes';
 import ManutencaoLentesCard from '@/components/pacientes/ManutencaoLentesCard';
 import ConsultaModal from '@/components/agenda/ConsultaModal';
 import ProntuarioModal from '@/components/prontuarios/ProntuarioModal';
@@ -484,8 +483,7 @@ const Pacientes = () => {
           </Card>
         </div>
 
-        {/* Aniversariantes e manutenção */}
-        <AniversariantesMes pacientes={pacientes} onSelectPatient={setSelectedPatient} />
+        {/* Manutenção de Lentes */}
         <ManutencaoLentesCard
           onSchedule={(pacienteId) => {
             const p = pacientes.find((x) => x.id === pacienteId);

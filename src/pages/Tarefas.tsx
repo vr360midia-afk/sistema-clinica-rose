@@ -27,8 +27,12 @@ import {
   RefreshCw,
   Sparkles,
   Filter,
+  Cake,
+  MessageCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useDentalSystem } from '@/context/DentalSystemContext';
+import { openWhatsApp } from '@/lib/whatsapp';
 
 export default function Tarefas() {
   const {
@@ -42,7 +46,52 @@ export default function Tarefas() {
     recarregar,
   } = useTarefasInternas();
 
+  const { pacientes } = useDentalSystem();
+
   const hojeStr = new Date().toISOString().split('T')[0];
+
+  // Aniversariantes do dia de hoje (alerta exibido apenas no dia do aniversário)
+  const aniversariantesHoje = useMemo(() => {
+    const hoje = new Date();
+    const diaHoje = hoje.getDate();
+    const mesHoje = hoje.getMonth();
+
+    return (pacientes || [])
+      .filter((p) => p && p.status !== 'Arquivado')
+      .map((p) => {
+        const rawDate = p.dataNascimento || (p as any).data_nascimento;
+        if (!rawDate) return null;
+
+        let dia = 0;
+        let mes = -1;
+
+        if (typeof rawDate === 'string' && rawDate.includes('-')) {
+          const parts = rawDate.split('T')[0].split('-');
+          if (parts.length === 3) {
+            dia = parseInt(parts[2], 10);
+            mes = parseInt(parts[1], 10) - 1;
+          }
+        } else if (typeof rawDate === 'string' && rawDate.includes('/')) {
+          const parts = rawDate.split('/');
+          if (parts.length >= 2) {
+            dia = parseInt(parts[0], 10);
+            mes = parseInt(parts[1], 10) - 1;
+          }
+        } else {
+          const d = new Date(rawDate);
+          if (!isNaN(d.getTime())) {
+            dia = d.getDate();
+            mes = d.getMonth();
+          }
+        }
+
+        if (dia === diaHoje && mes === mesHoje) {
+          return p;
+        }
+        return null;
+      })
+      .filter((p): p is any => Boolean(p));
+  }, [pacientes]);
 
   // Visualização ativa: 'calendario' | 'lista' | 'kanban'
   const [visao, setVisao] = useState<'calendario' | 'lista' | 'kanban'>('calendario');
@@ -221,6 +270,65 @@ export default function Tarefas() {
             </div>
           </div>
         </div>
+
+        {/* Alerta de Aniversariantes de Hoje - Exibido apenas no dia exato do aniversário */}
+        {aniversariantesHoje.length > 0 && (
+          <div className="p-4 rounded-xl border-2 border-pink-500/30 bg-gradient-to-r from-pink-500/10 via-rose-500/10 to-purple-500/10 dark:from-pink-950/20 dark:via-rose-950/20 dark:to-purple-950/20 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-pink-500/15 text-pink-600 dark:text-pink-400 flex items-center justify-center shrink-0 border border-pink-500/20 shadow-xs">
+                  <Cake className="h-5 w-5 animate-pulse" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-foreground">
+                      🎂 Aniversariante{aniversariantesHoje.length > 1 ? 's' : ''} de Hoje!
+                    </h3>
+                    <Badge className="bg-pink-600 text-white text-[10px] py-0 h-4 font-bold">
+                      {aniversariantesHoje.length} {aniversariantesHoje.length === 1 ? 'paciente faz' : 'pacientes fazem'} aniversário hoje
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Lembrete da equipe: aproveite para parabenizar e estreitar o relacionamento da clínica pelo WhatsApp!
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                {aniversariantesHoje.map((p) => (
+                  <div
+                    key={p.id}
+                    className="flex items-center justify-between gap-2.5 bg-background p-2 px-3 rounded-lg border border-pink-500/20 shadow-xs text-xs"
+                  >
+                    <div className="min-w-0">
+                      <span className="font-bold text-foreground block truncate max-w-[140px] sm:max-w-[200px]">
+                        {p.nome}
+                      </span>
+                      {p.telefone && (
+                        <span className="text-[10px] text-muted-foreground block">
+                          {p.telefone}
+                        </span>
+                      )}
+                    </div>
+                    {p.telefone && (
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          const msg = `Olá, *${p.nome}*! 🎂🎉\n\nToda a equipe da clínica Dra. Rosangela Santos deseja a você um feliz aniversário! Muita saúde, alegria e muitos sorrisos em seu caminho! ✨`;
+                          openWhatsApp(p.telefone, msg);
+                        }}
+                        className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1 px-2.5 font-bold shrink-0 shadow-xs"
+                      >
+                        <MessageCircle className="h-3.5 w-3.5" />
+                        Parabenizar no WhatsApp
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Barra de Filtros e Alternância de Visualização */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-card p-3 rounded-xl border shadow-xs">
