@@ -3,6 +3,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
+import {
   Plus,
   Calendar,
   ClipboardList,
@@ -16,6 +23,11 @@ import {
   ExternalLink,
   FileCheck,
   Loader2,
+  Eye,
+  AlertTriangle,
+  Pill,
+  HeartPulse,
+  ShieldCheck,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDentalSystem } from '@/context/DentalSystemContext';
@@ -33,6 +45,8 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
   const [isEnviarModalOpen, setIsEnviarModalOpen] = useState(false);
   const [copiandoId, setCopiandoId] = useState<string | null>(null);
   const [gerandoLink, setGerandoLink] = useState(false);
+  const [selectedAnamnese, setSelectedAnamnese] = useState<any | null>(null);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
 
   const patientAnamnesis = (anamneses || []).filter((a) => a.pacienteId === patient.id);
 
@@ -297,6 +311,20 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
                     <Button
                       variant="outline"
                       size="sm"
+                      onClick={() => {
+                        setSelectedAnamnese(anamnese);
+                        setIsViewModalOpen(true);
+                      }}
+                      className="h-8 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:border-blue-800 dark:text-blue-300 gap-1.5"
+                      title="Visualizar respostas completas e assinaturas"
+                    >
+                      <Eye className="h-3.5 w-3.5 text-blue-600" />
+                      <span>Visualizar</span>
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => setIsEnviarModalOpen(true)}
                       className="h-8 text-xs font-semibold border-indigo-300 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:border-indigo-800 dark:text-indigo-300 gap-1.5"
                       title="Opções de envio por link (Preencher e Assinar ou Apenas Assinar)"
@@ -426,6 +454,212 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
         onSave={handleSaveAnamnesis}
         preSelectedPatient={patient.id}
       />
+
+      {/* Modal de Visualização Detalhada da Anamnese (Mobile-First) */}
+      <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
+        <DialogContent className="max-w-3xl w-[95vw] sm:w-full max-h-[92vh] overflow-y-auto overscroll-contain touch-pan-y p-3.5 sm:p-6">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ClipboardList className="h-5 w-5 text-primary" />
+              Ficha de Anamnese Odontológica
+            </DialogTitle>
+            <DialogDescription>
+              Registro clínico detalhado e comprovante de assinatura digital
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedAnamnese && (() => {
+            const assinada = Boolean(
+              selectedAnamnese.assinaturaPaciente ||
+              selectedAnamnese.statusAssinatura === 'completo' ||
+              selectedAnamnese.statusAssinatura === 'paciente_assinado'
+            );
+            const assinatura = selectedAnamnese.assinaturaPaciente;
+            const queixa = selectedAnamnese.queixaPrincipal || selectedAnamnese.queixa_principal;
+            const historiaAtual = selectedAnamnese.historiaAtual || selectedAnamnese.historia_atual;
+            const historiaMedica = selectedAnamnese.historiaMedica || selectedAnamnese.historia_medica;
+            const historiaFamiliar = selectedAnamnese.historiaFamiliar || selectedAnamnese.historia_familiar;
+            const habitos = [
+              selectedAnamnese.habitosViciosPositivos || selectedAnamnese.habitos_vicios_positivos,
+              selectedAnamnese.habitosViciosNegativos || selectedAnamnese.habitos_vicios_negativos,
+            ].filter(Boolean).join(' • ');
+            const observacoes = selectedAnamnese.observacoes;
+
+            return (
+              <div className="space-y-4 pt-2 text-xs sm:text-sm">
+                {/* Resumo do Paciente e Status */}
+                <div className="p-3.5 rounded-lg bg-muted/60 border border-border/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                  <div>
+                    <p className="text-[11px] text-muted-foreground uppercase font-semibold">Paciente</p>
+                    <p className="font-bold text-base text-foreground">{patient?.nome || 'Paciente'}</p>
+                    {patient?.cpf && <p className="text-xs text-muted-foreground">CPF: {patient.cpf}</p>}
+                  </div>
+
+                  <div className="sm:text-right">
+                    <p className="text-[11px] text-muted-foreground uppercase font-semibold">Data</p>
+                    <p className="font-semibold text-foreground">
+                      {new Date(selectedAnamnese.data).toLocaleDateString('pt-BR')}
+                    </p>
+                    <div className="mt-1">
+                      {assinada ? (
+                        <Badge className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 text-[11px]">
+                          Assinada Digitalmente
+                        </Badge>
+                      ) : (
+                        <Badge className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20 text-[11px]">
+                          Aguardando Assinatura
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Respostas da Anamnese */}
+                <div className="space-y-3 divide-y divide-border/50">
+                  <div className="pt-2">
+                    <p className="font-bold text-foreground">1. Queixa Principal:</p>
+                    <p className="text-muted-foreground mt-0.5">
+                      {queixa || 'Avaliação clínica odontológica'}
+                    </p>
+                  </div>
+
+                  {historiaAtual && (
+                    <div className="pt-2">
+                      <p className="font-bold text-foreground">2. História Atual:</p>
+                      <p className="text-muted-foreground mt-0.5">{historiaAtual}</p>
+                    </div>
+                  )}
+
+                  <div className="pt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <p className="font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                        <AlertTriangle className="h-3.5 w-3.5 text-amber-600" /> Alergias:
+                      </p>
+                      <p className="text-foreground font-medium mt-0.5 bg-amber-500/10 p-2 rounded border border-amber-500/20">
+                        {selectedAnamnese.alergias || 'Nenhuma alergia informada'}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="font-bold text-blue-700 dark:text-blue-400 flex items-center gap-1">
+                        <Pill className="h-3.5 w-3.5 text-blue-600" /> Medicamentos em Uso:
+                      </p>
+                      <p className="text-foreground font-medium mt-0.5 bg-blue-500/10 p-2 rounded border border-blue-500/20">
+                        {selectedAnamnese.medicamentos || 'Nenhum medicamento informado'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {historiaMedica && (
+                    <div className="pt-2">
+                      <p className="font-bold text-foreground flex items-center gap-1">
+                        <HeartPulse className="h-3.5 w-3.5 text-red-500" />
+                        3. História Médica Pregressa:
+                      </p>
+                      <p className="text-muted-foreground mt-0.5">{historiaMedica}</p>
+                    </div>
+                  )}
+
+                  {historiaFamiliar && (
+                    <div className="pt-2">
+                      <p className="font-bold text-foreground">4. História Familiar:</p>
+                      <p className="text-muted-foreground mt-0.5">{historiaFamiliar}</p>
+                    </div>
+                  )}
+
+                  {habitos && (
+                    <div className="pt-2">
+                      <p className="font-bold text-foreground">5. Hábitos e Vícios:</p>
+                      <p className="text-muted-foreground mt-0.5">{habitos}</p>
+                    </div>
+                  )}
+
+                  {observacoes && (
+                    <div className="pt-2">
+                      <p className="font-bold text-foreground">6. Observações Gerais:</p>
+                      <p className="text-muted-foreground mt-0.5">{observacoes}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Bloco de Assinatura Digital */}
+                <div className="rounded-lg border-2 border-border/80 p-3.5 bg-card space-y-2 mt-4">
+                  <div className="flex items-center justify-between border-b pb-2">
+                    <span className="font-bold flex items-center gap-1.5 text-foreground text-xs uppercase tracking-wide">
+                      <ShieldCheck className="h-4 w-4 text-emerald-500" />
+                      Autenticação e Assinatura Digital
+                    </span>
+                    {assinada ? (
+                      <Badge className="bg-emerald-600 text-white text-[10px]">Documento Assinado</Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-amber-600 border-amber-500/40 text-[10px]">
+                        Pendente de Assinatura
+                      </Badge>
+                    )}
+                  </div>
+
+                  {assinada && assinatura ? (
+                    <div className="space-y-3 pt-1">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <span className="text-muted-foreground block text-[11px]">Assinado por:</span>
+                          <span className="font-semibold text-foreground">
+                            {assinatura.signerName || patient?.nome || 'Paciente'}
+                          </span>
+                        </div>
+
+                        <div>
+                          <span className="text-muted-foreground block text-[11px]">Data e Hora:</span>
+                          <span className="font-semibold text-foreground">
+                            {assinatura.timestamp ? new Date(assinatura.timestamp).toLocaleString('pt-BR') : 'Registrada'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {assinatura.signature && (
+                        <div className="pt-2">
+                          <span className="text-[11px] text-muted-foreground block mb-1">Traço Digital:</span>
+                          <div className="p-2 border rounded-md bg-white max-w-sm">
+                            <img
+                              src={assinatura.signature}
+                              alt="Assinatura Digital"
+                              className="h-20 w-auto object-contain mx-auto"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="py-2 text-xs text-muted-foreground">
+                      Esta ficha ainda não foi assinada digitalmente.
+                    </div>
+                  )}
+                </div>
+
+                {/* Rodapé do Modal */}
+                <div className="flex justify-end gap-2 pt-3 border-t">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => window.print()}
+                    className="text-xs h-9 gap-1.5"
+                  >
+                    <ClipboardList className="h-4 w-4" />
+                    Imprimir
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => setIsViewModalOpen(false)}
+                    className="text-xs h-9"
+                  >
+                    Fechar
+                  </Button>
+                </div>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

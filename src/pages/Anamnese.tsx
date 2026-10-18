@@ -375,13 +375,18 @@ const Anamnese = () => {
                 >
                   <CardHeader className="p-4 pb-2.5 border-b border-border/40">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <div className="flex items-center gap-2.5">
-                        <div className="h-9 w-9 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs uppercase shrink-0">
+                      {/* Avatar e Dados do Paciente (Toque abre visualizador) */}
+                      <div
+                        className="flex items-center gap-2.5 cursor-pointer group"
+                        onClick={() => handleVisualizar(anamnese)}
+                        title="Toque para visualizar respostas completas"
+                      >
+                        <div className="h-9 w-9 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs uppercase shrink-0 group-hover:scale-105 transition-transform">
                           {pacienteNome.slice(0, 2)}
                         </div>
                         <div>
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-bold text-foreground text-sm sm:text-base">
+                            <span className="font-bold text-foreground text-sm sm:text-base group-hover:text-primary transition-colors">
                               {pacienteNome}
                             </span>
                             {assinada ? (
@@ -413,6 +418,18 @@ const Anamnese = () => {
 
                       {/* Botões de Ação Principais */}
                       <div className="flex items-center gap-1.5 flex-wrap pt-2 sm:pt-0">
+                        {/* Botão Visualizar Detalhes (Prioritário no Mobile) */}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleVisualizar(anamnese)}
+                          className="h-8 text-xs gap-1.5 font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:border-blue-800 dark:text-blue-300"
+                          title="Ver respostas completas e assinaturas"
+                        >
+                          <Eye className="h-3.5 w-3.5 text-blue-600" />
+                          <span>Visualizar</span>
+                        </Button>
+
                         {/* Botão Enviar Link Inteligente (Preencher ou Apenas Assinar) */}
                         <Button
                           size="sm"
@@ -481,18 +498,6 @@ const Anamnese = () => {
                           <span className="hidden md:inline">Abrir Link</span>
                         </Button>
 
-                        {/* Botão Visualizar Detalhes */}
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleVisualizar(anamnese)}
-                          className="h-8 text-xs gap-1.5"
-                          title="Ver respostas completas e assinaturas"
-                        >
-                          <Eye className="h-3.5 w-3.5 text-blue-600" />
-                          <span>Visualizar</span>
-                        </Button>
-
                         {/* Botão Excluir */}
                         <Button
                           size="sm"
@@ -555,7 +560,7 @@ const Anamnese = () => {
 
         {/* Modal de Visualização Detalhada da Anamnese */}
         <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
-          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-3xl w-[95vw] sm:w-full max-h-[92vh] overflow-y-auto overscroll-contain touch-pan-y p-3.5 sm:p-6">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <ClipboardList className="h-5 w-5 text-primary" />
@@ -571,6 +576,15 @@ const Anamnese = () => {
               const pacienteNome = paciente?.nome || (selectedAnamnese as any).pacienteNome || 'Paciente';
               const assinada = isAnamneseAssinada(selectedAnamnese);
               const assinatura = selectedAnamnese.assinaturaPaciente;
+              const queixa = selectedAnamnese.queixaPrincipal || (selectedAnamnese as any).queixa_principal;
+              const historiaAtual = selectedAnamnese.historiaAtual || (selectedAnamnese as any).historia_atual;
+              const historiaMedica = selectedAnamnese.historiaMedica || (selectedAnamnese as any).historia_medica;
+              const historiaFamiliar = selectedAnamnese.historiaFamiliar || (selectedAnamnese as any).historia_familiar;
+              const habitos = [
+                selectedAnamnese.habitosViciosPositivos || (selectedAnamnese as any).habitos_vicios_positivos,
+                selectedAnamnese.habitosViciosNegativos || (selectedAnamnese as any).habitos_vicios_negativos,
+              ].filter(Boolean).join(' • ');
+              const observacoes = selectedAnamnese.observacoes || (selectedAnamnese as any).observacoes;
 
               return (
                 <div className="space-y-4 pt-2 text-xs sm:text-sm">
@@ -608,14 +622,14 @@ const Anamnese = () => {
                     <div className="pt-2">
                       <p className="font-bold text-foreground">1. Queixa Principal:</p>
                       <p className="text-muted-foreground mt-0.5">
-                        {selectedAnamnese.queixaPrincipal || 'Não informada'}
+                        {queixa || 'Avaliação clínica odontológica'}
                       </p>
                     </div>
 
-                    {selectedAnamnese.historiaAtual && (
+                    {historiaAtual && (
                       <div className="pt-2">
                         <p className="font-bold text-foreground">2. História Atual:</p>
-                        <p className="text-muted-foreground mt-0.5">{selectedAnamnese.historiaAtual}</p>
+                        <p className="text-muted-foreground mt-0.5">{historiaAtual}</p>
                       </div>
                     )}
 
@@ -783,8 +797,17 @@ const Anamnese = () => {
                     )}
                   </div>
 
-                  <div className="flex justify-end gap-2 pt-3 border-t">
-                    <Button variant="outline" onClick={() => setIsViewModalOpen(false)}>
+                  <div className="flex justify-between items-center gap-2 pt-3 border-t">
+                    <Button
+                      variant="outline"
+                      type="button"
+                      onClick={() => window.print()}
+                      className="text-xs h-9 gap-1.5"
+                    >
+                      <ClipboardList className="h-4 w-4" />
+                      Imprimir Ficha
+                    </Button>
+                    <Button variant="default" onClick={() => setIsViewModalOpen(false)} className="text-xs h-9">
                       Fechar
                     </Button>
                   </div>

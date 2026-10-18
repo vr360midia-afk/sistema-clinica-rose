@@ -592,10 +592,10 @@ class SupabaseService {
   }
 
   async saveAnamnese(anamnese: Omit<Anamnese, 'id' | 'criadoEm' | 'atualizadoEm'>): Promise<Anamnese> {
-    const userId = await this.getCurrentUserId();
-    const anamneseData = this.transformLocalToSupabase({ ...anamnese, user_id: userId }, 'anamneses');
-
     try {
+      const userId = await this.getCurrentUserId();
+      const anamneseData = this.transformLocalToSupabase({ ...anamnese, user_id: userId }, 'anamneses');
+
       const { data, error } = await supabase
         .from('anamneses')
         .insert([anamneseData])
@@ -613,13 +613,13 @@ class SupabaseService {
   }
 
   async updateAnamnese(id: string, updates: Partial<Anamnese>): Promise<Anamnese | null> {
-    const userId = await this.getCurrentUserId();
-    const updateData = this.transformLocalToSupabase(updates, 'anamneses');
-
     localStorageService.updateAnamnese(id, updates);
 
-    if (Object.keys(updateData).length > 0) {
-      try {
+    try {
+      const userId = await this.getCurrentUserId();
+      const updateData = this.transformLocalToSupabase(updates, 'anamneses');
+
+      if (Object.keys(updateData).length > 0) {
         const { data, error } = await supabase
           .from('anamneses')
           .update(updateData)
@@ -629,14 +629,13 @@ class SupabaseService {
           .maybeSingle();
 
         if (error) {
-          console.warn('Aviso ao sincronizar atualização de anamnese no Supabase:', error);
+          console.warn('Aviso ao atualizar anamnese no Supabase:', error);
         }
-        if (data) return this.transformSupabaseToLocal(data);
-      } catch (err) {
-        console.warn('Erro ao atualizar anamnese no Supabase:', err);
+        return data ? this.transformSupabaseToLocal(data) : null;
       }
+    } catch (err) {
+      console.warn('Aviso ao sincronizar atualização no Supabase:', err);
     }
-
     const locals = localStorageService.getAnamneses();
     return locals.find(a => a.id === id) || null;
   }

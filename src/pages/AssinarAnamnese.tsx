@@ -218,22 +218,52 @@ const AssinarAnamnese = () => {
   );
 
   useEffect(() => {
-    // 1. Verifica se esta ficha já foi respondida e deve ficar bloqueada contra novos acessos
-    if (isAnamneseBloqueada(targetId, token)) {
-      setStatus('blocked');
-      return;
-    }
+    // Função auxiliar para popular os campos da anamnese no estado
+    const popularDados = (anamneseData: any, pacienteData?: any) => {
+      setAnamnese(anamneseData);
+      if (pacienteData) {
+        setPaciente({
+          nome: pacienteData.nome || 'Paciente',
+          telefone: pacienteData.telefone,
+          cpf: pacienteData.cpf,
+          email: pacienteData.email,
+        });
+      }
+      setQueixaPrincipal(anamneseData.queixaPrincipal || anamneseData.queixa_principal || '');
+      setAlergias(anamneseData.alergias || '');
+      setMedicamentos(anamneseData.medicamentos || '');
+      setHistoriaMedica(anamneseData.historiaMedica || anamneseData.historia_medica || '');
+      setHistoriaAtual(anamneseData.historiaAtual || anamneseData.historia_atual || '');
+      const hab = [
+        anamneseData.habitos,
+        anamneseData.habitosViciosPositivos || anamneseData.habitos_vicios_positivos,
+        anamneseData.habitosViciosNegativos || anamneseData.habitos_vicios_negativos,
+      ].filter(Boolean).join(', ');
+      setHabitos(hab);
+      setObservacoes(anamneseData.observacoes || '');
+    };
 
-    // 2. Decodifica o payload seguro da URL (independente de login e de banco)
+    // 1. Tenta decodificar o payload seguro da URL
     if (encodedData) {
       const payload = decodificarAnamnesePayload(encodedData);
       if (payload) {
-        if (
+        popularDados(payload, {
+          nome: payload.pacienteNome,
+          telefone: payload.telefone,
+          cpf: payload.cpf,
+          email: payload.email,
+        });
+
+        if (payload.modo) {
+          setModoVisualizacao(payload.modo);
+        }
+
+        const bloqueada =
           isAnamneseBloqueada(payload.id, payload.token) ||
           payload.status === 'completo' ||
-          payload.status === 'paciente_assinado'
-        ) {
-          setPaciente({ nome: payload.pacienteNome, telefone: payload.telefone });
+          payload.status === 'paciente_assinado';
+
+        if (bloqueada) {
           setStatus('blocked');
           return;
         }
@@ -241,26 +271,6 @@ const AssinarAnamnese = () => {
         if (payload.expiracao && new Date(payload.expiracao).getTime() < Date.now()) {
           setStatus('expired');
           return;
-        }
-
-        setAnamnese(payload);
-        setPaciente({
-          nome: payload.pacienteNome,
-          telefone: payload.telefone,
-          cpf: payload.cpf,
-          email: payload.email,
-        });
-
-        setQueixaPrincipal(payload.queixaPrincipal || '');
-        setAlergias(payload.alergias || '');
-        setMedicamentos(payload.medicamentos || '');
-        setHistoriaMedica(payload.historiaMedica || '');
-        setHistoriaAtual(payload.historiaAtual || '');
-        setHabitos(payload.habitos || '');
-        setObservacoes(payload.observacoes || '');
-
-        if (payload.modo) {
-          setModoVisualizacao(payload.modo);
         }
 
         setStatus('valid');
@@ -273,39 +283,62 @@ const AssinarAnamnese = () => {
       return;
     }
 
+    // 2. Busca anamnese via API / Supabase / LocalStorage
     (async () => {
       try {
         const data = await call('get');
         if (!data || data.error) {
+          // Tenta ler do cache local antes de declarar expirado/inválido
+          try {
+            const localAnams = JSON.parse(localStorage.getItem('dental-system-anamneses') || '[]');
+            const localMatch = localAnams.find((a: any) => a.id === targetId);
+            const cachedPayload = localStorage.getItem(`anamnese_payload_${targetId}`)
+              ? JSON.parse(localStorage.getItem(`anamnese_payload_${targetId}`)!)
+              : null;
+            const match = localMatch || cachedPayload;
+            if (match) {
+              popularDados(match, { nome: match.pacienteNome || match.nome || (match as any).paciente?.nome });
+              if (match.assinaturaPaciente || isAnamneseBloqueada(targetId, token)) {
+                setStatus('blocked');
+              } else {
+                setStatus('valid');
+              }
+              return;
+            }
+          } catch (_) {}
+
           setStatus(data?.error === 'expired' ? 'expired' : 'invalid');
           return;
         }
 
-        if (data.anamnese?.jaAssinado) {
+        popularDados(data.anamnese, data.paciente);
+
+        if (data.anamnese?.jaAssinado || isAnamneseBloqueada(targetId, token)) {
           setStatus('blocked');
           return;
         }
 
-        setAnamnese(data.anamnese);
-        setPaciente(data.paciente);
-
-        // Preenche os campos do formulário
-        setQueixaPrincipal(data.anamnese.queixaPrincipal || '');
-        setAlergias(data.anamnese.alergias || '');
-        setMedicamentos(data.anamnese.medicamentos || '');
-        setHistoriaMedica(data.anamnese.historiaMedica || '');
-        setHistoriaAtual(data.anamnese.historiaAtual || '');
-        setHabitos(
-          [data.anamnese.habitosViciosPositivos, data.anamnese.habitosViciosNegativos].filter(Boolean).join(', ')
-        );
-        setObservacoes(data.anamnese.observacoes || '');
-
         setStatus('valid');
       } catch (err: any) {
-        const msg = String(err?.message || '');
-        // Se a chamada remota falhar por falta de sessão/RLS no celular do paciente,
-        // mas o link tem um slug ou id válido, inicializamos a anamnese diretamente
-        // com o nome humanizado do paciente para que ele responda sem exigir login!
+        // Tenta ler fallback de cache
+        try {
+          const localAnams = JSON.parse(localStorage.getItem('dental-system-anamneses') || '[]');
+          const localMatch = localAnams.find((a: any) => a.id === targetId);
+          const cachedPayload = localStorage.getItem(`anamnese_payload_${targetId}`)
+            ? JSON.parse(localStorage.getItem(`anamnese_payload_${targetId}`)!)
+            : null;
+          const match = localMatch || cachedPayload;
+          if (match) {
+            popularDados(match, { nome: match.pacienteNome || match.nome || (match as any).paciente?.nome });
+            if (match.assinaturaPaciente || isAnamneseBloqueada(targetId, token)) {
+              setStatus('blocked');
+            } else {
+              setStatus('valid');
+            }
+            return;
+          }
+        } catch (_) {}
+
         if (slug || targetId) {
           const nomePaciente = slug ? unslugifyNome(slug) : 'Paciente';
           setPaciente({ nome: nomePaciente });
@@ -317,17 +350,51 @@ const AssinarAnamnese = () => {
           setStatus('valid');
           return;
         }
-        setStatus(msg.includes('410') ? 'expired' : 'invalid');
+        setStatus(String(err?.message || '').includes('410') ? 'expired' : 'invalid');
       }
     })();
-  }, [targetId, token, encodedData, call]);
+  }, [targetId, token, encodedData, call, slug]);
 
   const handleSignature = async (signatureData: SignatureData) => {
     try {
       setSalvando(true);
       const dataHoraIso = new Date().toISOString();
 
-      // Bloqueia permanentemente o link no dispositivo contra novas visualizações ou re-envio
+      const assinaturaCompleta: any = {
+        signature: signatureData.signature,
+        signerName: signatureData.signerName || paciente?.nome || 'Paciente',
+        signerRole: 'paciente',
+        timestamp: dataHoraIso,
+      };
+
+      // Atualiza o estado da anamnese em memória
+      setAnamnese((prev: any) => ({
+        ...prev,
+        assinaturaPaciente: assinaturaCompleta,
+        statusAssinatura: 'paciente_assinado',
+      }));
+
+      // Salva snapshot local completo para visualização offline ou pós-bloqueio
+      try {
+        localStorage.setItem(`anamnese_payload_${targetId}`, JSON.stringify({
+          id: targetId,
+          pacienteNome: paciente?.nome,
+          cpf: paciente?.cpf,
+          telefone: paciente?.telefone,
+          queixaPrincipal: queixaPrincipal.trim(),
+          alergias: alergias.trim(),
+          medicamentos: medicamentos.trim(),
+          historiaMedica: historiaMedica.trim(),
+          historiaAtual: historiaAtual.trim(),
+          habitos: habitos.trim(),
+          observacoes: observacoes.trim(),
+          assinaturaPaciente: assinaturaCompleta,
+          status: 'paciente_assinado',
+          data: dataHoraIso,
+        }));
+      } catch (_) {}
+
+      // Bloqueia permanentemente o link no dispositivo contra novas edições
       marcarAnamneseBloqueada(targetId, token, {
         dataHora: dataHoraIso,
         pacienteNome: paciente?.nome,
@@ -351,9 +418,9 @@ const AssinarAnamnese = () => {
         console.warn('Tentativa de gravação remota finalizada:', err);
       }
 
-      setStatus('completed');
+      setStatus('blocked');
       setShowSignature(false);
-      toast.success('Ficha de anamnese respondida e assinada com sucesso! O link foi bloqueado.');
+      toast.success('Ficha de anamnese respondida e assinada com sucesso!');
     } catch (err: any) {
       console.error('Erro ao registrar assinatura:', err);
       toast.error('Erro ao registrar assinatura. Tente novamente.');
@@ -374,37 +441,204 @@ const AssinarAnamnese = () => {
     );
   }
 
+  // TELA VISUALIZADOR DA FICHA PREENCHIDA / BLOQUEADA (Mobile-Friendly)
   if (status === 'blocked') {
+    const dataFormatada = anamnese?.data
+      ? new Date(anamnese.data).toLocaleDateString('pt-BR')
+      : new Date().toLocaleDateString('pt-BR');
+    const assinaturaData = anamnese?.assinaturaPaciente;
+
     return (
       <Shell>
-        <Card className="w-full max-w-lg mx-auto border-border shadow-xl overflow-hidden">
-          <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-6 text-white text-center">
-            <div className="h-16 w-16 rounded-full bg-white/10 backdrop-blur-xs flex items-center justify-center mx-auto mb-3 shadow-inner">
-              <Lock className="h-8 w-8 text-amber-400" />
-            </div>
-            <h2 className="text-xl font-bold">Ficha Finalizada e Link Bloqueado</h2>
-            <p className="text-xs text-slate-300 mt-1">
-              Dra. Rosangela Santos • Odontologia Especializada
-            </p>
-          </div>
-          <CardContent className="p-6 space-y-4 text-center">
-            <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900 border border-border text-left text-xs space-y-2.5">
-              <div className="flex items-center gap-2 text-foreground font-semibold">
-                <ShieldCheck className="h-4 w-4 text-emerald-600" />
-                <span>Documento já respondido e assinado digitalmente</span>
+        <div className="w-full max-w-2xl mx-auto space-y-4">
+          <Card className="border-border shadow-lg overflow-hidden">
+            {/* Header da Clínica */}
+            <div className="bg-gradient-to-r from-emerald-700 via-teal-700 to-emerald-800 p-5 sm:p-6 text-white text-center">
+              <div className="h-14 w-14 rounded-full bg-white/15 backdrop-blur-xs flex items-center justify-center mx-auto mb-2 shadow-inner">
+                <ShieldCheck className="h-8 w-8 text-white" />
               </div>
-              <p className="text-muted-foreground leading-relaxed">
-                Esta ficha de anamnese {paciente?.nome ? `do paciente ${paciente.nome}` : ''} já foi preenchida e assinada.
-              </p>
-              <p className="text-muted-foreground leading-relaxed">
-                Por motivos de <strong>segurança clínica, sigilo médico e conformidade com a LGPD</strong>, o acesso a este link foi encerrado permanentemente para novas edições ou visualizações de terceiros.
+              <Badge className="bg-emerald-500/30 text-white border-white/20 text-xs mb-2">
+                Documento Clínico Preenchido e Assinado
+              </Badge>
+              <h1 className="text-xl sm:text-2xl font-bold">Ficha de Anamnese Odontológica</h1>
+              <p className="text-xs text-emerald-100 mt-1">
+                Dra. Rosangela Santos • Odontologia Especializada
               </p>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Caso precise atualizar ou incluir novas informações de saúde para sua consulta, entre em contato diretamente com o consultório.
-            </p>
-          </CardContent>
-        </Card>
+
+            <CardContent className="p-4 sm:p-6 space-y-4">
+              {/* Informações do Paciente */}
+              <div className="p-3.5 rounded-xl bg-muted/60 border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+                <div>
+                  <span className="text-muted-foreground uppercase font-semibold text-[10px]">Paciente</span>
+                  <p className="text-base font-bold text-foreground">{paciente?.nome || 'Paciente'}</p>
+                  {paciente?.cpf && <p className="text-muted-foreground">CPF: {paciente.cpf}</p>}
+                </div>
+                <div className="sm:text-right">
+                  <span className="text-muted-foreground uppercase font-semibold text-[10px]">Data do Preenchimento</span>
+                  <p className="font-semibold text-foreground">{dataFormatada}</p>
+                  <span className="inline-flex items-center gap-1 text-emerald-600 font-semibold text-[11px] mt-0.5">
+                    <CheckCircle className="h-3.5 w-3.5" /> Assinado Digitalmente
+                  </span>
+                </div>
+              </div>
+
+              {/* Seções com as Respostas Preenchidas */}
+              <div className="space-y-3 pt-1">
+                <div className="p-3.5 rounded-lg border bg-card text-xs space-y-1">
+                  <span className="font-bold text-foreground flex items-center gap-1.5 text-sm">
+                    <ClipboardList className="h-4 w-4 text-primary" />
+                    1. Queixa Principal
+                  </span>
+                  <p className="text-muted-foreground text-xs sm:text-sm pl-5 pt-0.5 font-medium">
+                    {queixaPrincipal || anamnese?.queixaPrincipal || 'Avaliação clínica odontológica'}
+                  </p>
+                </div>
+
+                {(historiaAtual || anamnese?.historiaAtual) && (
+                  <div className="p-3.5 rounded-lg border bg-card text-xs space-y-1">
+                    <span className="font-bold text-foreground flex items-center gap-1.5 text-sm">
+                      <Clock className="h-4 w-4 text-blue-500" />
+                      2. História da Doença / Queixa Atual
+                    </span>
+                    <p className="text-muted-foreground text-xs sm:text-sm pl-5 pt-0.5">
+                      {historiaAtual || anamnese?.historiaAtual}
+                    </p>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="p-3.5 rounded-lg border bg-card text-xs space-y-1">
+                    <span className="font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1.5 text-sm">
+                      <AlertTriangle className="h-4 w-4 text-amber-500" />
+                      Alergias e Restrições
+                    </span>
+                    <p className="text-foreground text-xs sm:text-sm pl-5 pt-0.5 font-medium">
+                      {alergias || anamnese?.alergias || 'Nenhuma alergia informada'}
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-lg border bg-card text-xs space-y-1">
+                    <span className="font-bold text-blue-700 dark:text-blue-400 flex items-center gap-1.5 text-sm">
+                      <Pill className="h-4 w-4 text-blue-500" />
+                      Medicamentos em Uso
+                    </span>
+                    <p className="text-foreground text-xs sm:text-sm pl-5 pt-0.5 font-medium">
+                      {medicamentos || anamnese?.medicamentos || 'Nenhum medicamento informado'}
+                    </p>
+                  </div>
+                </div>
+
+                {(historiaMedica || anamnese?.historiaMedica) && (
+                  <div className="p-3.5 rounded-lg border bg-card text-xs space-y-1">
+                    <span className="font-bold text-foreground flex items-center gap-1.5 text-sm">
+                      <HeartPulse className="h-4 w-4 text-red-500" />
+                      3. Histórico Médico e Doenças Pregressas
+                    </span>
+                    <p className="text-muted-foreground text-xs sm:text-sm pl-5 pt-0.5">
+                      {historiaMedica || anamnese?.historiaMedica}
+                    </p>
+                  </div>
+                )}
+
+                {(habitos || anamnese?.habitosViciosPositivos || anamnese?.habitosViciosNegativos) && (
+                  <div className="p-3.5 rounded-lg border bg-card text-xs space-y-1">
+                    <span className="font-bold text-foreground flex items-center gap-1.5 text-sm">
+                      <User className="h-4 w-4 text-purple-500" />
+                      4. Hábitos e Vícios
+                    </span>
+                    <p className="text-muted-foreground text-xs sm:text-sm pl-5 pt-0.5">
+                      {habitos || [anamnese?.habitosViciosPositivos, anamnese?.habitosViciosNegativos].filter(Boolean).join(', ')}
+                    </p>
+                  </div>
+                )}
+
+                {(observacoes || anamnese?.observacoes) && (
+                  <div className="p-3.5 rounded-lg border bg-card text-xs space-y-1">
+                    <span className="font-bold text-foreground flex items-center gap-1.5 text-sm">
+                      <ClipboardList className="h-4 w-4 text-slate-500" />
+                      5. Observações Gerais
+                    </span>
+                    <p className="text-muted-foreground text-xs sm:text-sm pl-5 pt-0.5">
+                      {observacoes || anamnese?.observacoes}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Bloco de Assinatura Digital e Validação */}
+              <div className="mt-4 p-4 rounded-xl border-2 border-emerald-500/30 bg-emerald-50/30 dark:bg-emerald-950/20 space-y-3">
+                <div className="flex items-center justify-between border-b border-emerald-500/20 pb-2">
+                  <span className="text-xs font-bold text-emerald-900 dark:text-emerald-300 flex items-center gap-1.5 uppercase tracking-wide">
+                    <ShieldCheck className="h-4 w-4 text-emerald-600" />
+                    Assinatura Eletrônica Registrada
+                  </span>
+                  <Badge className="bg-emerald-600 text-white text-[10px]">Autêntico</Badge>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <span className="text-muted-foreground block text-[11px]">Assinado por:</span>
+                    <span className="font-semibold text-foreground">
+                      {assinaturaData?.signerName || paciente?.nome || 'Paciente'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground block text-[11px]">Data e Hora da Assinatura:</span>
+                    <span className="font-semibold text-foreground">
+                      {assinaturaData?.timestamp ? new Date(assinaturaData.timestamp).toLocaleString('pt-BR') : dataFormatada}
+                    </span>
+                  </div>
+                </div>
+
+                {assinaturaData?.signature && (
+                  <div className="pt-2">
+                    <span className="text-[11px] text-muted-foreground block mb-1">Traço Digital Coletado:</span>
+                    <div className="p-2 border rounded-md bg-white max-w-xs shadow-xs">
+                      <img
+                        src={assinaturaData.signature}
+                        alt="Traço da Assinatura"
+                        className="h-16 w-auto object-contain mx-auto"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="p-2.5 rounded bg-background/80 border text-[11px] text-muted-foreground flex items-start gap-2">
+                  <Lock className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
+                  <span>
+                    Ficha finalizada e bloqueada para novas alterações em conformidade com a LGPD e normas de prontuário eletrônico odontológico.
+                  </span>
+                </div>
+              </div>
+
+              {/* Botões de Ação na Tela */}
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-2 pt-3">
+                <Button
+                  type="button"
+                  onClick={() => window.print()}
+                  variant="outline"
+                  className="w-full sm:w-auto text-xs h-9 gap-1.5"
+                >
+                  <ClipboardList className="h-4 w-4" />
+                  Imprimir / Salvar PDF
+                </Button>
+
+                <Button
+                  type="button"
+                  onClick={() => {
+                    const msg = `Olá, Dra. Rosangela! Estou com o comprovante da minha anamnese assinada em mãos. Obrigado!`;
+                    openWhatsApp('', msg);
+                  }}
+                  className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-9 gap-1.5"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  Falar com a Clínica no WhatsApp
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </Shell>
     );
   }
@@ -449,78 +683,7 @@ const AssinarAnamnese = () => {
     );
   }
 
-  if (status === 'completed') {
-    return (
-      <Shell>
-        <Card className="w-full max-w-xl mx-auto border-emerald-300 dark:border-emerald-700 shadow-md">
-          <CardHeader className="text-center pb-3">
-            <div className="h-16 w-16 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto mb-2 shadow-xs">
-              <CheckCircle className="h-9 w-9 stroke-[2.5]" />
-            </div>
-            <CardTitle className="text-2xl font-bold text-foreground">Ficha de Anamnese Assinada!</CardTitle>
-            <CardDescription className="text-sm text-muted-foreground">
-              Suas informações clínicas foram registradas com sucesso e integradas ao seu prontuário odontológico.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4 pt-2">
-            <div className="p-4 rounded-lg bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-950 dark:text-emerald-200 space-y-1.5">
-              <p>
-                <strong>Paciente:</strong> {paciente?.nome}
-              </p>
-              <p>
-                <strong>Queixa Registrada:</strong> {queixaPrincipal || anamnese?.queixaPrincipal || 'Avaliação Inicial'}
-              </p>
-              {alergias && (
-                <p>
-                  <strong>Alergias:</strong> {alergias}
-                </p>
-              )}
-              {medicamentos && (
-                <p>
-                  <strong>Medicamentos em Uso:</strong> {medicamentos}
-                </p>
-              )}
-              <p>
-                <strong>Status do Documento:</strong> Concluído e assinado digitalmente
-              </p>
-            </div>
 
-            <div className="pt-2">
-              <Button
-                type="button"
-                onClick={() => {
-                  let resumoSaude = '';
-                  if (queixaPrincipal.trim()) resumoSaude += `\n🦷 *Queixa Principal:* ${queixaPrincipal.trim()}`;
-                  if (alergias.trim()) resumoSaude += `\n⚠️ *Alergias:* ${alergias.trim()}`;
-                  if (medicamentos.trim()) resumoSaude += `\n💊 *Medicamentos:* ${medicamentos.trim()}`;
-                  if (historiaMedica.trim()) resumoSaude += `\n📋 *Histórico Clínico:* ${historiaMedica.trim()}`;
-
-                  const msg =
-                    `Olá, Dra. Rosangela Santos!\n\n` +
-                    `Acabei de preencher e assinar digitalmente a minha *Ficha de Anamnese Odontológica*.\n\n` +
-                    `👤 *Paciente:* ${paciente?.nome || 'Paciente'}\n` +
-                    `✅ *Status:* Assinada digitalmente pelo celular.` +
-                    `${resumoSaude}\n\n` +
-                    `Aguardo o meu atendimento. Obrigado!`;
-                  openWhatsApp('', msg);
-                }}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-9 gap-2 shadow-xs"
-              >
-                <MessageCircle className="h-4 w-4" />
-                Avisar a Clínica no WhatsApp que Preencheu
-              </Button>
-            </div>
-
-            <div className="text-center pt-2">
-              <p className="text-xs text-muted-foreground">
-                Obrigado por sua colaboração. A equipe da clínica já tem acesso às suas respostas para o seu próximo atendimento!
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </Shell>
-    );
-  }
 
   if (showSignature) {
     return (

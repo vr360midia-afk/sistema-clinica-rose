@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { supabaseService } from '@/services/supabaseService';
+import { localStorageService } from '@/services/localStorage';
 import { toast } from 'sonner';
 import { Paciente, Consulta, Transacao, Prontuario, Anamnese, DocumentoPaciente } from '@/types/shared';
 import { calcularIdade } from '@/utils/idade';
@@ -74,11 +75,38 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
       load('documentos', () => supabaseService.getDocumentos(), []),
     ]);
 
+    // Mescla anamneses remotas e locais para preservar assinaturas e campos detalhados
+    const localAna = localStorageService.getAnamneses() || [];
+    const remoteAna = (ana.data || []).filter(Boolean);
+    const mapAna = new Map<string, any>();
+    remoteAna.forEach((item: any) => mapAna.set(item.id, item));
+    localAna.forEach((localItem: any) => {
+      const existing = mapAna.get(localItem.id);
+      if (existing) {
+        mapAna.set(localItem.id, {
+          ...existing,
+          ...localItem,
+          assinaturaPaciente: existing.assinaturaPaciente || localItem.assinaturaPaciente,
+          assinaturaDoutor: existing.assinaturaDoutor || localItem.assinaturaDoutor,
+          linkAssinatura: existing.linkAssinatura || localItem.linkAssinatura,
+          tokenAssinatura: existing.tokenAssinatura || localItem.tokenAssinatura,
+          statusAssinatura: existing.statusAssinatura || localItem.statusAssinatura,
+          observacoes: existing.observacoes || localItem.observacoes,
+          historiaAtual: existing.historiaAtual || localItem.historiaAtual,
+          historiaFamiliar: existing.historiaFamiliar || localItem.historiaFamiliar,
+          habitosViciosPositivos: existing.habitosViciosPositivos || localItem.habitosViciosPositivos,
+          habitosViciosNegativos: existing.habitosViciosNegativos || localItem.habitosViciosNegativos,
+        });
+      } else {
+        mapAna.set(localItem.id, localItem);
+      }
+    });
+
     setPacientes((pac.data || []).filter(Boolean));
     setConsultas((con.data || []).filter(Boolean));
     setTransacoes((tra.data || []).filter(Boolean));
     setProntuarios((pro.data || []).filter(Boolean));
-    setAnamneses((ana.data || []).filter(Boolean));
+    setAnamneses(Array.from(mapAna.values()));
     setDocumentos((doc.data || []).filter(Boolean));
 
     const falhas = [pac, con, tra, pro, ana, doc].filter(r => !r.ok).map(r => r.nome);
@@ -357,17 +385,28 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   };
 
-  const generateSignatureLink = async (anamneseId: string, modo: 'preencher' | 'assinar' = 'preencher'): Promise<string> => {
+  const generateSignatureLink = async (
+    anamneseId: string,
+    modo: 'preencher' | 'assinar' = 'preencher',
+    overridePaciente?: any,
+    overrideAnamnese?: any
+  ): Promise<string> => {
     if (!anamneseId) return '';
-    const anamnese = anamneses.find(a => a.id === anamneseId);
-    const paciente = pacientes.find(p => p.id === anamnese?.pacienteId) || {
-      id: anamnese?.pacienteId || '',
-      nome: anamnese?.pacienteNome || 'Paciente',
-      telefone: (anamnese as any)?.telefone,
-      cpf: (anamnese as any)?.cpf,
-    };
+    const anamnese =
+      overrideAnamnese ||
+      anamneses.find(a => a.id === anamneseId) ||
+      localStorageService.getAnamneses().find(a => a.id === anamneseId);
+
+    const paciente =
+      overridePaciente ||
+      pacientes.find(p => p.id === anamnese?.pacienteId) || {
+        id: anamnese?.pacienteId || '',
+        nome: anamnese?.pacienteNome || 'Paciente',
+        telefone: (anamnese as any)?.telefone,
+        cpf: (anamnese as any)?.cpf,
+      };
     
-    const token = anamnese?.tokenAssinatura || Math.random().toString(36).substring(2, 15);
+    const token = anamnese?.tokenAssinatura || Math.random().toString(36).substring(2, 12);
     const expiracaoLink = new Date();
     expiracaoLink.setDate(expiracaoLink.getDate() + 7); // 7 dias para expirar
 
@@ -392,13 +431,24 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
       }
     });
     
-    // Atualizar anamnese com token e link amigável
+    // Atualizar anamnese com token e link amigável silenciosamente em background
     try {
-      await updateAnamnese(anamneseId, {
+      localStorageService.updateAnamnese(anamneseId, {
         tokenAssinatura: token,
         dataExpiracaoLink: expiracaoLink,
         linkAssinatura: fullLink
       });
+      setAnamneses(prev => prev.map(a => a.id === anamneseId ? {
+        ...a,
+        tokenAssinatura: token,
+        dataExpiracaoLink: expiracaoLink,
+        linkAssinatura: fullLink
+      } : a));
+      supabaseService.updateAnamnese(anamneseId, {
+        tokenAssinatura: token,
+        dataExpiracaoLink: expiracaoLink,
+        linkAssinatura: fullLink
+      }).catch(err => console.warn('Aviso sincronizacao supabase link anamnese:', err));
     } catch (e) {
       console.warn('Aviso ao sincronizar token de anamnese no banco:', e);
     }

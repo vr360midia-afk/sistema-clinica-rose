@@ -23,6 +23,7 @@ import {
   Send,
 } from 'lucide-react';
 import { openWhatsApp } from '@/lib/whatsapp';
+import { gerarLinkAmigavelAnamnese } from '@/utils/anamneseEngine';
 
 interface AnamneseModalProps {
   isOpen: boolean;
@@ -70,6 +71,7 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
     try {
       setSalvando(true);
       const patient = pacientes.find(p => p.id === selectedPatient);
+      const token = Math.random().toString(36).substring(2, 12);
 
       const anamneseData = {
         pacienteId: selectedPatient,
@@ -86,21 +88,44 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
         exameExtraBucal: exameExtraBucal.trim(),
         exameIntraBucal: exameIntraBucal.trim(),
         observacoes: observacoes.trim(),
+        tokenAssinatura: token,
         statusAssinatura: 'pendente' as const
       };
 
       const savedAnamnese = await addAnamnese(anamneseData);
-      setAnamneseId(savedAnamnese.id);
+      const targetId = savedAnamnese?.id || 'anm_' + Date.now();
+      setAnamneseId(targetId);
 
-      const [urlPreencher, urlAssinar] = await Promise.all([
-        generateSignatureLink(savedAnamnese.id, 'preencher'),
-        generateSignatureLink(savedAnamnese.id, 'assinar'),
-      ]);
+      const urlPreencher = gerarLinkAmigavelAnamnese({
+        anamneseId: targetId,
+        paciente: {
+          id: patient?.id || selectedPatient,
+          nome: patient?.nome || 'Paciente',
+          telefone: patient?.telefone,
+          cpf: patient?.cpf,
+        },
+        modo: 'preencher',
+        token,
+      });
+
+      const urlAssinar = gerarLinkAmigavelAnamnese({
+        anamneseId: targetId,
+        paciente: {
+          id: patient?.id || selectedPatient,
+          nome: patient?.nome || 'Paciente',
+          telefone: patient?.telefone,
+          cpf: patient?.cpf,
+        },
+        modo: 'assinar',
+        token,
+      });
 
       setLinkPreencher(urlPreencher);
       setLinkAssinar(urlAssinar);
       setStep('link');
       toast.success('Link para o paciente preencher gerado com sucesso!');
+
+      generateSignatureLink(targetId, 'preencher', patient, savedAnamnese).catch(() => {});
     } catch (error) {
       console.error('Erro ao gerar link de preenchimento:', error);
       toast.error('Erro ao gerar link para o paciente.');
@@ -123,6 +148,8 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
     try {
       setSalvando(true);
       const patient = pacientes.find(p => p.id === selectedPatient);
+      const token = Math.random().toString(36).substring(2, 12);
+
       const anamneseData = {
         pacienteId: selectedPatient,
         pacienteNome: patient?.nome,
@@ -138,21 +165,69 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
         exameExtraBucal: exameExtraBucal.trim(),
         exameIntraBucal: exameIntraBucal.trim(),
         observacoes: observacoes.trim(),
+        tokenAssinatura: token,
         statusAssinatura: 'pendente' as const
       };
 
-      const savedAnamnese = await addAnamnese(anamneseData);
-      setAnamneseId(savedAnamnese.id);
+      let savedAnamnese: any = null;
+      let targetId = 'anm_' + Date.now();
+      try {
+        savedAnamnese = await addAnamnese(anamneseData);
+        if (savedAnamnese?.id) {
+          targetId = savedAnamnese.id;
+        }
+      } catch (addErr) {
+        console.warn('Fallback ao registrar anamnese no contexto:', addErr);
+        try {
+          const localAnams = JSON.parse(localStorage.getItem('dental-system-anamneses') || '[]');
+          const newLocal = { ...anamneseData, id: targetId, criadoEm: new Date(), atualizadoEm: new Date() };
+          localAnams.push(newLocal);
+          localStorage.setItem('dental-system-anamneses', JSON.stringify(localAnams));
+          savedAnamnese = newLocal;
+        } catch (_) {}
+      }
+      setAnamneseId(targetId);
 
-      const [urlPreencher, urlAssinar] = await Promise.all([
-        generateSignatureLink(savedAnamnese.id, 'preencher'),
-        generateSignatureLink(savedAnamnese.id, 'assinar'),
-      ]);
+      // Gera os links de forma síncrona e instantânea garantindo exibição imediata
+      const urlPreencher = gerarLinkAmigavelAnamnese({
+        anamneseId: targetId,
+        paciente: {
+          id: patient?.id || selectedPatient,
+          nome: patient?.nome || 'Paciente',
+          telefone: patient?.telefone,
+          cpf: patient?.cpf,
+        },
+        modo: 'preencher',
+        token,
+      });
+
+      const urlAssinar = gerarLinkAmigavelAnamnese({
+        anamneseId: targetId,
+        paciente: {
+          id: patient?.id || selectedPatient,
+          nome: patient?.nome || 'Paciente',
+          telefone: patient?.telefone,
+          cpf: patient?.cpf,
+        },
+        modo: 'assinar',
+        token,
+        dadosExistentes: {
+          queixaPrincipal: queixaPrincipal.trim(),
+          historiaAtual: historiaAtual.trim(),
+          historiaMedica: historiaMedica.trim(),
+          alergias: alergias.trim(),
+          medicamentos: medicamentos.trim(),
+          habitos: [habitosViciosPositivos, habitosViciosNegativos].filter(Boolean).join(', '),
+          observacoes: observacoes.trim(),
+        }
+      });
 
       setLinkPreencher(urlPreencher);
       setLinkAssinar(urlAssinar);
       setStep('link');
       toast.success('Anamnese registrada! Os links para envio ou assinatura estão prontos.');
+
+      generateSignatureLink(targetId, 'preencher', patient, savedAnamnese).catch(() => {});
     } catch (error) {
       console.error('Erro ao salvar anamnese:', error);
       toast.error('Erro ao salvar anamnese. Tente novamente.');
@@ -310,7 +385,7 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
     const patient = getCurrentPatient();
     return (
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl w-[95vw] sm:w-full max-h-[92vh] overflow-y-auto overscroll-contain touch-pan-y p-3.5 sm:p-6">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-emerald-500" />
@@ -484,7 +559,7 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl w-[95vw] sm:w-full max-h-[92vh] overflow-y-auto overscroll-contain touch-pan-y p-3.5 sm:p-6">
         <DialogHeader>
           <DialogTitle>Nova Anamnese Odontológica</DialogTitle>
         </DialogHeader>
@@ -492,6 +567,32 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
         <div className="space-y-4">
           {!preSelectedPatient && (
             <PatientSelector value={selectedPatient} onChange={setSelectedPatient} />
+          )}
+
+          {/* Atalho Prático: Enviar Link Direto para o Paciente */}
+          {selectedPatient && (
+            <div className="p-3 rounded-lg bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-900/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <div className="space-y-0.5">
+                <p className="text-xs font-bold text-indigo-950 dark:text-indigo-200 flex items-center gap-1.5">
+                  <Smartphone className="h-4 w-4 text-indigo-600" />
+                  Prefere que o próprio paciente responda tudo no celular?
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  Gere o link imediato para o paciente preencher o questionário pelo WhatsApp.
+                </p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={handleEnviarLinkDiretoParaPaciente}
+                disabled={salvando}
+                className="border-indigo-300 text-indigo-700 bg-white hover:bg-indigo-50 dark:border-indigo-700 dark:text-indigo-300 dark:bg-indigo-900/60 font-semibold text-xs h-8 shrink-0 gap-1.5 shadow-xs"
+              >
+                <Send className="h-3.5 w-3.5 text-indigo-600" />
+                <span>Gerar Link de Preenchimento</span>
+              </Button>
+            </div>
           )}
 
           <div>
