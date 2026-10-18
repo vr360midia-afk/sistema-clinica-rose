@@ -43,7 +43,10 @@ function App() {
             <Routes>
               <Route path="/auth" element={<Auth />} />
               <Route path="/agendar" element={<AgendamentoPublico />} />
+              <Route path="/anamnese/:slug" element={<AssinarAnamnese />} />
+              <Route path="/anamnese-paciente/:slug" element={<AssinarAnamnese />} />
               <Route path="/assinar-anamnese/:id" element={<AssinarAnamnese />} />
+              <Route path="/assinar-anamnese" element={<AssinarAnamnese />} />
               <Route path="/assinar-extrato/:id" element={<AssinarExtrato />} />
               <Route path="/assinar-contrato/:id" element={<AssinarContrato />} />
               <Route path="/assinar-contrato" element={<AssinarContrato />} />

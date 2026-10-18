@@ -10,6 +10,7 @@ import DigitalSignature, { SignatureData } from '@/components/signature/DigitalS
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   FileSignature,
+  FileText,
   Share2,
   Copy,
   Check,
@@ -17,6 +18,9 @@ import {
   MessageCircle,
   Clock,
   Sparkles,
+  Link2,
+  Smartphone,
+  Send,
 } from 'lucide-react';
 import { openWhatsApp } from '@/lib/whatsapp';
 
@@ -32,8 +36,10 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
   const [selectedPatient, setSelectedPatient] = useState(preSelectedPatient || '');
   const [step, setStep] = useState<'form' | 'signature-patient' | 'signature-dentist' | 'link'>('form');
   const [anamneseId, setAnamneseId] = useState<string>('');
-  const [signatureLink, setSignatureLink] = useState<string>('');
-  const [isCopied, setIsCopied] = useState(false);
+  const [linkPreencher, setLinkPreencher] = useState<string>('');
+  const [linkAssinar, setLinkAssinar] = useState<string>('');
+  const [copiadoPreencher, setCopiadoPreencher] = useState(false);
+  const [copiadoAssinar, setCopiadoAssinar] = useState(false);
   const [salvando, setSalvando] = useState(false);
   
   const [queixaPrincipal, setQueixaPrincipal] = useState('');
@@ -54,6 +60,55 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
     }
   }, [preSelectedPatient]);
 
+  // Enviar link direto para o paciente preencher no celular (sem precisar digitar a ficha antes)
+  const handleEnviarLinkDiretoParaPaciente = async () => {
+    if (!selectedPatient) {
+      toast.error('Selecione primeiro o paciente acima');
+      return;
+    }
+
+    try {
+      setSalvando(true);
+      const patient = pacientes.find(p => p.id === selectedPatient);
+
+      const anamneseData = {
+        pacienteId: selectedPatient,
+        pacienteNome: patient?.nome,
+        data: new Date(),
+        queixaPrincipal: queixaPrincipal.trim() || 'Avaliação Odontológica Inicial',
+        historiaAtual: historiaAtual.trim() || 'Ficha enviada ao paciente para preenchimento pelo smartphone',
+        historiaFamiliar: historiaFamiliar.trim(),
+        historiaMedica: historiaMedica.trim(),
+        alergias: alergias.trim(),
+        medicamentos: medicamentos.trim(),
+        habitosViciosPositivos: habitosViciosPositivos.trim(),
+        habitosViciosNegativos: habitosViciosNegativos.trim(),
+        exameExtraBucal: exameExtraBucal.trim(),
+        exameIntraBucal: exameIntraBucal.trim(),
+        observacoes: observacoes.trim(),
+        statusAssinatura: 'pendente' as const
+      };
+
+      const savedAnamnese = await addAnamnese(anamneseData);
+      setAnamneseId(savedAnamnese.id);
+
+      const [urlPreencher, urlAssinar] = await Promise.all([
+        generateSignatureLink(savedAnamnese.id, 'preencher'),
+        generateSignatureLink(savedAnamnese.id, 'assinar'),
+      ]);
+
+      setLinkPreencher(urlPreencher);
+      setLinkAssinar(urlAssinar);
+      setStep('link');
+      toast.success('Link para o paciente preencher gerado com sucesso!');
+    } catch (error) {
+      console.error('Erro ao gerar link de preenchimento:', error);
+      toast.error('Erro ao gerar link para o paciente.');
+    } finally {
+      setSalvando(false);
+    }
+  };
+
   const handleSaveForm = async () => {
     if (!selectedPatient) {
       toast.error('Selecione um paciente');
@@ -67,8 +122,10 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
 
     try {
       setSalvando(true);
+      const patient = pacientes.find(p => p.id === selectedPatient);
       const anamneseData = {
         pacienteId: selectedPatient,
+        pacienteNome: patient?.nome,
         data: new Date(),
         queixaPrincipal: queixaPrincipal.trim(),
         historiaAtual: historiaAtual.trim(),
@@ -87,16 +144,15 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
       const savedAnamnese = await addAnamnese(anamneseData);
       setAnamneseId(savedAnamnese.id);
 
-      // Gera o link imediatamente para que o profissional possa enviar com 1 clique
-      try {
-        const link = await generateSignatureLink(savedAnamnese.id);
-        setSignatureLink(link);
-      } catch (err) {
-        console.warn('Erro ao gerar link de assinatura inicial:', err);
-      }
+      const [urlPreencher, urlAssinar] = await Promise.all([
+        generateSignatureLink(savedAnamnese.id, 'preencher'),
+        generateSignatureLink(savedAnamnese.id, 'assinar'),
+      ]);
 
+      setLinkPreencher(urlPreencher);
+      setLinkAssinar(urlAssinar);
       setStep('link');
-      toast.success('Anamnese registrada! O link para envio ou assinatura está pronto.');
+      toast.success('Anamnese registrada! Os links para envio ou assinatura estão prontos.');
     } catch (error) {
       console.error('Erro ao salvar anamnese:', error);
       toast.error('Erro ao salvar anamnese. Tente novamente.');
@@ -105,52 +161,53 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
     }
   };
 
-  const handleGenerateLink = async () => {
-    if (!anamneseId) return;
-    try {
-      const link = await generateSignatureLink(anamneseId);
-      setSignatureLink(link);
-      toast.success('Link gerado com sucesso!');
-    } catch (e) {
-      toast.error('Erro ao gerar link');
-    }
-  };
-
-  const handleEnviarWhatsApp = () => {
-    if (!signatureLink) {
+  const handleEnviarWhatsApp = (tipo: 'preencher' | 'assinar') => {
+    const link = tipo === 'preencher' ? linkPreencher : linkAssinar;
+    if (!link) {
       toast.error('Link ainda não gerado.');
       return;
     }
     const patient = pacientes.find(p => p.id === selectedPatient);
-    const mensagem =
-      `Olá, *${patient?.nome || 'Paciente'}*!\n\n` +
-      `Para agilizar o seu atendimento e garantir sua máxima segurança clínica, acesse o link abaixo para conferir e assinar digitalmente a sua *Ficha de Anamnese*:\n\n` +
-      `👉 ${signatureLink}\n\n` +
-      `Você pode responder e assinar diretamente pelo celular. Fica salvo no seu prontuário odontológico. Qualquer dúvida, estamos à disposição!`;
+    const mensagem = tipo === 'preencher'
+      ? `Olá, *${patient?.nome || 'Paciente'}*!\n\n` +
+        `Para agilizar o seu atendimento na clínica Dra. Rosangela Santos e garantir a sua máxima segurança clínica, por favor acesse o link exclusivo abaixo para preencher suas informações de saúde e realizar a sua *Assinatura Digital*:\n\n` +
+        `👉 ${link}\n\n` +
+        `O preenchimento é rápido e pode ser feito diretamente pelo celular. Fica registrado com segurança em seu prontuário odontológico. Qualquer dúvida, estamos à disposição!`
+      : `Olá, *${patient?.nome || 'Paciente'}*!\n\n` +
+        `A sua *Ficha de Anamnese* da clínica Dra. Rosangela Santos já foi elaborada. Por favor, acesse o link exclusivo abaixo para conferir o resumo e realizar a sua *Assinatura Digital*:\n\n` +
+        `👉 ${link}\n\n` +
+        `A assinatura é feita diretamente pelo celular com o dedo na tela, com validade legal. Qualquer dúvida, estamos à disposição!`;
 
     if (!patient?.telefone || !openWhatsApp(patient.telefone, mensagem)) {
-      navigator.clipboard.writeText(signatureLink);
+      navigator.clipboard.writeText(link);
       toast.info('Paciente sem telefone cadastrado. O link foi copiado para a área de transferência!');
     } else {
-      toast.success('Abrindo WhatsApp com o link da anamnese...');
+      toast.success(`Abrindo WhatsApp com link de ${tipo === 'preencher' ? 'preenchimento' : 'assinatura'}...`);
     }
   };
 
-  const copyToClipboard = async () => {
-    if (!signatureLink) return;
+  const copyToClipboard = async (tipo: 'preencher' | 'assinar') => {
+    const link = tipo === 'preencher' ? linkPreencher : linkAssinar;
+    if (!link) return;
     try {
-      await navigator.clipboard.writeText(signatureLink);
-      setIsCopied(true);
-      toast.success('Link copiado para a área de transferência!');
-      setTimeout(() => setIsCopied(false), 2500);
+      await navigator.clipboard.writeText(link);
+      if (tipo === 'preencher') {
+        setCopiadoPreencher(true);
+        setTimeout(() => setCopiadoPreencher(false), 2500);
+      } else {
+        setCopiadoAssinar(true);
+        setTimeout(() => setCopiadoAssinar(false), 2500);
+      }
+      toast.success(`Link para ${tipo === 'preencher' ? 'preencher e assinar' : 'apenas assinar'} copiado!`);
     } catch (error) {
       toast.error('Erro ao copiar link');
     }
   };
 
-  const handleAbrirLink = () => {
-    if (!signatureLink) return;
-    window.open(signatureLink, '_blank', 'noopener,noreferrer');
+  const handleAbrirLink = (tipo: 'preencher' | 'assinar') => {
+    const link = tipo === 'preencher' ? linkPreencher : linkAssinar;
+    if (!link) return;
+    window.open(link, '_blank', 'noopener,noreferrer');
   };
 
   const handleDirectSignature = () => {
@@ -262,87 +319,133 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
           </DialogHeader>
           
           <div className="space-y-4">
-            {/* Opção 1: Enviar Link Remoto (Destaque Principal) */}
-            <Card className="border-2 border-emerald-500/30 bg-emerald-50/40 dark:bg-emerald-950/20 shadow-xs">
+            {/* Opção 1: Link para Preencher e Assinar (Recomendado) */}
+            <Card className="border-2 border-indigo-500/30 bg-indigo-50/40 dark:bg-indigo-950/20 shadow-xs">
               <CardHeader className="pb-2">
                 <CardTitle className="text-base font-bold flex items-center justify-between">
                   <span className="flex items-center gap-2 text-foreground">
-                    <Share2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-                    Enviar Link para o Paciente Assinar Remotamente
+                    <Share2 className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                    Link 1: Preencher e Assinar pelo Smartphone
                   </span>
-                  <span className="text-xs font-normal text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/60 px-2 py-0.5 rounded-full">
-                    Recomendado
+                  <span className="text-xs font-normal text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-900/60 px-2 py-0.5 rounded-full font-semibold">
+                    Mais Prático
                   </span>
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3.5">
+              <CardContent className="space-y-3">
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  O paciente pode revisar as informações de saúde e fazer a assinatura digital com validade jurídica diretamente pela tela do próprio smartphone ou computador.
+                  O paciente responde as perguntas de saúde no próprio celular e assina digitalmente.
                 </p>
 
-                {signatureLink ? (
-                  <div className="space-y-3">
-                    <div className="p-2.5 bg-background rounded-md border text-xs font-mono break-all select-all flex items-center justify-between gap-2">
-                      <span className="truncate text-foreground">{signatureLink}</span>
-                    </div>
+                <div className="p-2 bg-background rounded-md border text-xs font-mono break-all select-all flex items-center justify-between gap-2">
+                  <span className="truncate text-foreground">{linkPreencher}</span>
+                </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      <Button
-                        type="button"
-                        onClick={handleEnviarWhatsApp}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-9 shadow-xs"
-                      >
-                        <MessageCircle className="h-4 w-4 mr-1.5" />
-                        Enviar WhatsApp
-                      </Button>
-
-                      <Button
-                        type="button"
-                        onClick={copyToClipboard}
-                        variant="outline"
-                        className="text-xs h-9"
-                      >
-                        {isCopied ? (
-                          <>
-                            <Check className="h-4 w-4 mr-1.5 text-emerald-600" />
-                            Copiado!
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="h-4 w-4 mr-1.5" />
-                            Copiar Link
-                          </>
-                        )}
-                      </Button>
-
-                      <Button
-                        type="button"
-                        onClick={handleAbrirLink}
-                        variant="outline"
-                        className="text-xs h-9"
-                      >
-                        <ExternalLink className="h-4 w-4 mr-1.5" />
-                        Abrir Link
-                      </Button>
-                    </div>
-
-                    {patient?.telefone && (
-                      <p className="text-[11px] text-muted-foreground flex items-center gap-1">
-                        <span>📱 WhatsApp do paciente:</span>
-                        <strong className="text-foreground">{patient.telefone}</strong>
-                      </p>
-                    )}
-                  </div>
-                ) : (
-                  <Button onClick={handleGenerateLink} className="w-full">
-                    <Share2 className="h-4 w-4 mr-2" />
-                    Gerar Link de Assinatura
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <Button
+                    type="button"
+                    onClick={() => handleEnviarWhatsApp('preencher')}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-9 shadow-xs"
+                  >
+                    <MessageCircle className="h-4 w-4 mr-1.5" />
+                    Enviar WhatsApp
                   </Button>
-                )}
+
+                  <Button
+                    type="button"
+                    onClick={() => copyToClipboard('preencher')}
+                    variant="outline"
+                    className="text-xs h-9"
+                  >
+                    {copiadoPreencher ? (
+                      <>
+                        <Check className="h-4 w-4 mr-1.5 text-emerald-600" />
+                        Copiado!
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-4 w-4 mr-1.5" />
+                        Copiar Link
+                      </>
+                    )}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    onClick={() => handleAbrirLink('preencher')}
+                    variant="outline"
+                    className="text-xs h-9"
+                  >
+                    <ExternalLink className="h-4 w-4 mr-1.5" />
+                    Abrir Link
+                  </Button>
+                </div>
               </CardContent>
             </Card>
 
-            {/* Opção 2: Assinatura Presencial */}
+            {/* Opção 2: Link para Apenas Assinar */}
+            <Card className="border border-border/80 bg-card shadow-xs">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold flex items-center justify-between text-foreground">
+                  <span className="flex items-center gap-2">
+                    <FileSignature className="h-4 w-4 text-primary" />
+                    Link 2: Apenas Assinar (com resumo já preenchido)
+                  </span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-xs text-muted-foreground">
+                  Envia a ficha com as respostas que você digitou na clínica, solicitando apenas a conferência e assinatura do paciente.
+                </p>
+
+                <div className="p-2 bg-background rounded-md border text-xs font-mono break-all select-all flex items-center justify-between gap-2">
+                  <span className="truncate text-foreground">{linkAssinar}</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <Button
+                    type="button"
+                    onClick={() => handleEnviarWhatsApp('assinar')}
+                    variant="outline"
+                    className="text-xs h-9 border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-300"
+                  >
+                    <MessageCircle className="h-4 w-4 mr-1.5 text-emerald-600" />
+                    Enviar WhatsApp
+                  </Button>
+
+                  <Button
+                    type="button"
+                    onClick={() => copyToClipboard('assinar')}
+                    variant="outline"
+                    className="text-xs h-9"
+                  >
+                    {copiadoAssinar ? (
+                      <>
+                        <Check className="h-4 w-4 mr-1.5 text-emerald-600" />
+                        Copiado!
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-4 w-4 mr-1.5" />
+                        Copiar Link
+                      </>
+                    )}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    onClick={() => handleAbrirLink('assinar')}
+                    variant="outline"
+                    className="text-xs h-9"
+                  >
+                    <ExternalLink className="h-4 w-4 mr-1.5" />
+                    Abrir Link
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Opção 3: Assinatura Presencial */}
             <Card className="border border-border/80 bg-card shadow-xs">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-semibold flex items-center gap-2 text-foreground">

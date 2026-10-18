@@ -4,6 +4,7 @@ import { supabaseService } from '@/services/supabaseService';
 import { toast } from 'sonner';
 import { Paciente, Consulta, Transacao, Prontuario, Anamnese, DocumentoPaciente } from '@/types/shared';
 import { calcularIdade } from '@/utils/idade';
+import { gerarLinkAmigavelAnamnese } from '@/utils/anamneseEngine';
 
 import { DentalSystemContext, DentalSystemContextType, useDentalSystem } from './dental-system-context';
 
@@ -359,13 +360,39 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const generateSignatureLink = async (anamneseId: string, modo: 'preencher' | 'assinar' = 'preencher'): Promise<string> => {
     if (!anamneseId) return '';
     const anamnese = anamneses.find(a => a.id === anamneseId);
+    const paciente = pacientes.find(p => p.id === anamnese?.pacienteId) || {
+      id: anamnese?.pacienteId || '',
+      nome: anamnese?.pacienteNome || 'Paciente',
+      telefone: (anamnese as any)?.telefone,
+      cpf: (anamnese as any)?.cpf,
+    };
     
     const token = anamnese?.tokenAssinatura || Math.random().toString(36).substring(2, 15);
     const expiracaoLink = new Date();
     expiracaoLink.setDate(expiracaoLink.getDate() + 7); // 7 dias para expirar
-    const fullLink = `${window.location.origin}/assinar-anamnese/${anamneseId}?token=${token}&modo=${modo}`;
+
+    const fullLink = gerarLinkAmigavelAnamnese({
+      anamneseId,
+      paciente: {
+        id: paciente.id,
+        nome: paciente.nome,
+        telefone: paciente.telefone,
+        cpf: paciente.cpf,
+      },
+      modo,
+      token,
+      dadosExistentes: {
+        queixaPrincipal: anamnese?.queixaPrincipal,
+        historiaAtual: anamnese?.historiaAtual,
+        historiaMedica: anamnese?.historiaMedica,
+        alergias: anamnese?.alergias,
+        medicamentos: anamnese?.medicamentos,
+        habitos: [anamnese?.habitosViciosPositivos, anamnese?.habitosViciosNegativos].filter(Boolean).join(', '),
+        observacoes: anamnese?.observacoes,
+      }
+    });
     
-    // Atualizar anamnese com token
+    // Atualizar anamnese com token e link amigável
     try {
       await updateAnamnese(anamneseId, {
         tokenAssinatura: token,

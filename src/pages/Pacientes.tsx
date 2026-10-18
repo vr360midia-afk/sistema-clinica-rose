@@ -23,10 +23,13 @@ import { openWhatsApp } from '@/lib/whatsapp';
 import { useSecurityGate } from '@/context/SecurityContext';
 import { useProcedimentos } from '@/hooks/useProcedimentos';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Users, Search, Plus, UserCheck, Calendar, Archive, MoreVertical, Edit2, Trash2, RotateCcw, Stethoscope, Sparkles } from 'lucide-react';
+import { Users, Search, Plus, UserCheck, Calendar, Archive, MoreVertical, Edit2, Trash2, RotateCcw, Stethoscope, Sparkles, ClipboardList, Link2 } from 'lucide-react';
 import { Procedimento } from '@/types/procedimentos';
 import { ScannerProntuarioModal } from '@/components/pacientes/ScannerProntuarioModal';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
+import { ModalEnviarAnamnese } from '@/components/anamnese/ModalEnviarAnamnese';
+import { PacienteCombobox } from '@/components/pacientes/PacienteCombobox';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 
 
 const Pacientes = () => {
@@ -50,6 +53,8 @@ const Pacientes = () => {
   const [editingPatient, setEditingPatient] = useState(null);
   const [schedulingPatient, setSchedulingPatient] = useState<any>(null);
   const [procedimentoPatient, setProcedimentoPatient] = useState<any>(null);
+  const [pacienteAnamneseModal, setPacienteAnamneseModal] = useState<any>(null);
+  const [isEscolherPacienteAnamneseOpen, setIsEscolherPacienteAnamneseOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('ativos');
   const [anoArquivo, setAnoArquivo] = useState('todos');
   const [tipoData, setTipoData] = useState<'cadastro' | 'atendimento'>('cadastro');
@@ -380,6 +385,15 @@ const Pacientes = () => {
             <h1 className="text-xl sm:text-2xl font-bold text-foreground">Pacientes</h1>
           </div>
           <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+            <Button
+              onClick={() => setIsEscolherPacienteAnamneseOpen(true)}
+              variant="outline"
+              className="border-indigo-300 text-indigo-700 bg-indigo-50/50 hover:bg-indigo-100 dark:border-indigo-800 dark:text-indigo-300 dark:bg-indigo-950/40 w-full sm:w-auto font-semibold shadow-xs"
+              title="Gerar e enviar link de anamnese para qualquer paciente preencher ou assinar"
+            >
+              <ClipboardList className="h-4 w-4 mr-2 text-indigo-600" />
+              Enviar Anamnese
+            </Button>
             <Button onClick={() => setShowForm(true)} className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto">
               <Plus className="h-4 w-4 mr-2" />
               Novo Paciente
@@ -639,17 +653,37 @@ const Pacientes = () => {
                           </div>
                         </div>
 
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleEditPatient(paciente)}>
-                              <Edit2 className="h-4 w-4 mr-2" />
-                              Editar
-                            </DropdownMenuItem>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPacienteAnamneseModal(paciente);
+                            }}
+                            className="hidden sm:inline-flex h-8 px-2.5 text-xs font-semibold gap-1.5 border-indigo-200 text-indigo-700 bg-indigo-50/60 hover:bg-indigo-100 dark:border-indigo-800 dark:text-indigo-300 dark:bg-indigo-950/40 shadow-xs"
+                            title="Enviar link para o paciente preencher ou assinar a anamnese"
+                          >
+                            <ClipboardList className="h-3.5 w-3.5 text-indigo-600" />
+                            <span>Enviar Anamnese</span>
+                          </Button>
+
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => setPacienteAnamneseModal(paciente)}>
+                                <ClipboardList className="h-4 w-4 mr-2 text-indigo-600" />
+                                Enviar Anamnese por Link
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleEditPatient(paciente)}>
+                                <Edit2 className="h-4 w-4 mr-2" />
+                                Editar
+                              </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleArchivePatient(paciente)}>
                               <Archive className="h-4 w-4 mr-2" />
                               Arquivar
@@ -796,6 +830,42 @@ const Pacientes = () => {
           initialPatientId={schedulingPatient?.id}
           onSaved={() => setSchedulingPatient(null)}
         />
+
+        {pacienteAnamneseModal && (
+          <ModalEnviarAnamnese
+            isOpen={Boolean(pacienteAnamneseModal)}
+            patient={pacienteAnamneseModal}
+            onClose={() => setPacienteAnamneseModal(null)}
+          />
+        )}
+
+        <Dialog open={isEscolherPacienteAnamneseOpen} onOpenChange={setIsEscolherPacienteAnamneseOpen}>
+          <DialogContent className="max-w-md p-6">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <ClipboardList className="h-5 w-5 text-indigo-600" />
+                Enviar Anamnese ao Paciente
+              </DialogTitle>
+              <DialogDescription>
+                Selecione o paciente para gerar o link individual e amigável para preenchimento ou assinatura digital.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-3">
+              <PacienteCombobox
+                pacientes={pacientes}
+                value=""
+                onChange={(pacienteId) => {
+                  const p = pacientes.find(item => item.id === pacienteId);
+                  if (p) {
+                    setIsEscolherPacienteAnamneseOpen(false);
+                    setPacienteAnamneseModal(p);
+                  }
+                }}
+                placeholder="Buscar paciente por nome, CPF ou telefone..."
+              />
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
       <ScannerProntuarioModal
         isOpen={isScannerOpen}

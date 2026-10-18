@@ -36,6 +36,7 @@ import { toast } from 'sonner';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import AnamneseModal from '@/components/anamnese/AnamneseModal';
 import { ModalEnviarAnamnese } from '@/components/anamnese/ModalEnviarAnamnese';
+import { PacienteCombobox } from '@/components/pacientes/PacienteCombobox';
 import { openWhatsApp } from '@/lib/whatsapp';
 import { Anamnese as AnamneseType } from '@/types/shared';
 
@@ -45,6 +46,7 @@ const Anamnese = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'todos' | 'pendente' | 'assinado'>('todos');
   const [isNewModalOpen, setIsNewModalOpen] = useState(false);
+  const [isEscolherPacienteOpen, setIsEscolherPacienteOpen] = useState(false);
   const [copiandoId, setCopiandoId] = useState<string | null>(null);
   const [gerandoLinkId, setGerandoLinkId] = useState<string | null>(null);
   const [selectedAnamnese, setSelectedAnamnese] = useState<AnamneseType | null>(null);
@@ -110,10 +112,10 @@ const Anamnese = () => {
 
   // Obter ou gerar link dinâmico
   const obterLink = async (anamnese: AnamneseType): Promise<string> => {
-    if (anamnese.linkAssinatura && anamnese.tokenAssinatura) {
+    if (anamnese.linkAssinatura && anamnese.tokenAssinatura && anamnese.linkAssinatura.includes('/anamnese/')) {
       return anamnese.linkAssinatura;
     }
-    const link = await generateSignatureLink(anamnese.id);
+    const link = await generateSignatureLink(anamnese.id, 'preencher');
     return link;
   };
 
@@ -230,13 +232,25 @@ const Anamnese = () => {
             </div>
           </div>
 
-          <Button
-            onClick={() => setIsNewModalOpen(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-xs gap-1.5"
-          >
-            <Plus className="h-4 w-4" />
-            Nova Anamnese
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+            <Button
+              onClick={() => setIsEscolherPacienteOpen(true)}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-xs gap-1.5 w-full sm:w-auto"
+              title="Gerar link amigável para o paciente preencher ou assinar pelo celular"
+            >
+              <Link2 className="h-4 w-4" />
+              Enviar Link para Paciente
+            </Button>
+
+            <Button
+              onClick={() => setIsNewModalOpen(true)}
+              variant="outline"
+              className="font-semibold shadow-xs gap-1.5 w-full sm:w-auto"
+            >
+              <Plus className="h-4 w-4" />
+              Nova Anamnese
+            </Button>
+          </div>
         </div>
 
         {/* Estatísticas Rápidas */}
@@ -787,6 +801,34 @@ const Anamnese = () => {
             patient={pacienteEnvio}
           />
         )}
+
+        <Dialog open={isEscolherPacienteOpen} onOpenChange={setIsEscolherPacienteOpen}>
+          <DialogContent className="max-w-md p-6">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Link2 className="h-5 w-5 text-indigo-600" />
+                Enviar Anamnese ao Paciente
+              </DialogTitle>
+              <DialogDescription>
+                Selecione o paciente para gerar o link individual e amigável para preenchimento ou assinatura digital.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-3">
+              <PacienteCombobox
+                pacientes={pacientes}
+                value=""
+                onChange={(pacienteId) => {
+                  const p = obterPaciente(pacienteId);
+                  if (p) {
+                    setIsEscolherPacienteOpen(false);
+                    setPacienteEnvio(p);
+                  }
+                }}
+                placeholder="Buscar paciente por nome, CPF ou telefone..."
+              />
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </Layout>
   );

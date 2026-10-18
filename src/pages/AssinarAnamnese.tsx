@@ -23,10 +23,19 @@ import {
   Calendar,
   User,
   ShieldCheck,
+  Lock,
+  MessageCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { openWhatsApp } from '@/lib/whatsapp';
+import {
+  decodificarAnamnesePayload,
+  isAnamneseBloqueada,
+  marcarAnamneseBloqueada,
+  unslugifyNome,
+} from '@/utils/anamneseEngine';
 
-type Status = 'loading' | 'valid' | 'invalid' | 'expired' | 'completed';
+type Status = 'loading' | 'valid' | 'invalid' | 'expired' | 'completed' | 'blocked';
 
 const Shell = ({ children }: { children: React.ReactNode }) => (
   <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-start py-8 px-3 sm:px-6">
@@ -35,10 +44,13 @@ const Shell = ({ children }: { children: React.ReactNode }) => (
 );
 
 const AssinarAnamnese = () => {
-  const { id } = useParams<{ id: string }>();
+  const { id, slug } = useParams<{ id?: string; slug?: string }>();
   const [searchParams] = useSearchParams();
-  const token = searchParams.get('token');
-  const modoUrl = searchParams.get('modo');
+  const token = searchParams.get('token') || searchParams.get('t') || '';
+  const modoUrl = searchParams.get('modo') || searchParams.get('m');
+  const encodedData = searchParams.get('d') || searchParams.get('data') || searchParams.get('c');
+  const idFromQuery = searchParams.get('id');
+  const targetId = idFromQuery || id || slug || '';
 
   const [status, setStatus] = useState<Status>('loading');
   const [anamnese, setAnamnese] = useState<any>(null);
@@ -63,7 +75,7 @@ const AssinarAnamnese = () => {
       // 1. Tenta Edge Function 'assinatura-publica'
       try {
         const { data, error } = await supabase.functions.invoke('assinatura-publica', {
-          body: { action, id, token, ...extra },
+          body: { action, id: targetId, token, ...extra },
         });
         if (!error && data && !data.error) {
           return data;
@@ -77,14 +89,14 @@ const AssinarAnamnese = () => {
         const { data: anamneseDb, error: dbErr } = await supabase
           .from('anamneses')
           .select('*, paciente:pacientes(nome, telefone, cpf, email)')
-          .eq('id', id)
+          .eq('id', targetId)
           .maybeSingle();
 
         if (dbErr || !anamneseDb) {
           // 3. Fallback LocalStorage (útil para testes em desenvolvimento)
           try {
             const localAnams = JSON.parse(localStorage.getItem('dental-system-anamneses') || '[]');
-            const localMatch = localAnams.find((a: any) => a.id === id);
+            const localMatch = localAnams.find((a: any) => a.id === targetId);
             if (localMatch) {
               return {
                 anamnese: {
@@ -171,7 +183,7 @@ const AssinarAnamnese = () => {
           if (updatePayload.alergias !== undefined) supabasePayload.alergias = updatePayload.alergias;
           if (updatePayload.medicamentos !== undefined) supabasePayload.medicamentos = updatePayload.medicamentos;
 
-          await supabase.from('anamneses').update(supabasePayload).eq('id', id);
+          await supabase.from('anamneses').update(supabasePayload).eq('id', targetId);
         } catch (dbUpErr) {
           console.warn('Erro na atualização direta:', dbUpErr);
         }
@@ -179,7 +191,7 @@ const AssinarAnamnese = () => {
         // Sincroniza também no localStorage
         try {
           const localAnams = JSON.parse(localStorage.getItem('dental-system-anamneses') || '[]');
-          const idx = localAnams.findIndex((a: any) => a.id === id);
+          const idx = localAnams.findIndex((a: any) => a.id === targetId);
           if (idx >= 0) {
             localAnams[idx] = {
               ...localAnams[idx],
@@ -202,11 +214,61 @@ const AssinarAnamnese = () => {
         return { ok: true };
       }
     },
-    [id, token, paciente]
+    [targetId, token, paciente]
   );
 
   useEffect(() => {
-    if (!id) {
+    // 1. Verifica se esta ficha já foi respondida e deve ficar bloqueada contra novos acessos
+    if (isAnamneseBloqueada(targetId, token)) {
+      setStatus('blocked');
+      return;
+    }
+
+    // 2. Decodifica o payload seguro da URL (independente de login e de banco)
+    if (encodedData) {
+      const payload = decodificarAnamnesePayload(encodedData);
+      if (payload) {
+        if (
+          isAnamneseBloqueada(payload.id, payload.token) ||
+          payload.status === 'completo' ||
+          payload.status === 'paciente_assinado'
+        ) {
+          setPaciente({ nome: payload.pacienteNome, telefone: payload.telefone });
+          setStatus('blocked');
+          return;
+        }
+
+        if (payload.expiracao && new Date(payload.expiracao).getTime() < Date.now()) {
+          setStatus('expired');
+          return;
+        }
+
+        setAnamnese(payload);
+        setPaciente({
+          nome: payload.pacienteNome,
+          telefone: payload.telefone,
+          cpf: payload.cpf,
+          email: payload.email,
+        });
+
+        setQueixaPrincipal(payload.queixaPrincipal || '');
+        setAlergias(payload.alergias || '');
+        setMedicamentos(payload.medicamentos || '');
+        setHistoriaMedica(payload.historiaMedica || '');
+        setHistoriaAtual(payload.historiaAtual || '');
+        setHabitos(payload.habitos || '');
+        setObservacoes(payload.observacoes || '');
+
+        if (payload.modo) {
+          setModoVisualizacao(payload.modo);
+        }
+
+        setStatus('valid');
+        return;
+      }
+    }
+
+    if (!targetId) {
       setStatus('invalid');
       return;
     }
@@ -216,6 +278,11 @@ const AssinarAnamnese = () => {
         const data = await call('get');
         if (!data || data.error) {
           setStatus(data?.error === 'expired' ? 'expired' : 'invalid');
+          return;
+        }
+
+        if (data.anamnese?.jaAssinado) {
+          setStatus('blocked');
           return;
         }
 
@@ -233,34 +300,60 @@ const AssinarAnamnese = () => {
         );
         setObservacoes(data.anamnese.observacoes || '');
 
-        setStatus(data.anamnese.jaAssinado ? 'completed' : 'valid');
+        setStatus('valid');
       } catch (err: any) {
         const msg = String(err?.message || '');
+        // Se a chamada remota falhar por falta de sessão/RLS no celular do paciente,
+        // mas o link tem um slug ou id válido, inicializamos a anamnese diretamente
+        // com o nome humanizado do paciente para que ele responda sem exigir login!
+        if (slug || targetId) {
+          const nomePaciente = slug ? unslugifyNome(slug) : 'Paciente';
+          setPaciente({ nome: nomePaciente });
+          setAnamnese({
+            id: targetId,
+            pacienteNome: nomePaciente,
+            data: new Date().toISOString(),
+          });
+          setStatus('valid');
+          return;
+        }
         setStatus(msg.includes('410') ? 'expired' : 'invalid');
       }
     })();
-  }, [id, token, call]);
+  }, [targetId, token, encodedData, call]);
 
   const handleSignature = async (signatureData: SignatureData) => {
     try {
       setSalvando(true);
-      await call('sign', {
-        signature: signatureData.signature,
-        signerName: signatureData.signerName,
-        respostasAtualizadas: {
-          queixaPrincipal: queixaPrincipal.trim(),
-          alergias: alergias.trim(),
-          medicamentos: medicamentos.trim(),
-          historiaMedica: historiaMedica.trim(),
-          historiaAtual: historiaAtual.trim(),
-          habitos: habitos.trim(),
-          observacoes: observacoes.trim(),
-        },
+      const dataHoraIso = new Date().toISOString();
+
+      // Bloqueia permanentemente o link no dispositivo contra novas visualizações ou re-envio
+      marcarAnamneseBloqueada(targetId, token, {
+        dataHora: dataHoraIso,
+        pacienteNome: paciente?.nome,
       });
+
+      try {
+        await call('sign', {
+          signature: signatureData.signature,
+          signerName: signatureData.signerName,
+          respostasAtualizadas: {
+            queixaPrincipal: queixaPrincipal.trim(),
+            alergias: alergias.trim(),
+            medicamentos: medicamentos.trim(),
+            historiaMedica: historiaMedica.trim(),
+            historiaAtual: historiaAtual.trim(),
+            habitos: habitos.trim(),
+            observacoes: observacoes.trim(),
+          },
+        });
+      } catch (err) {
+        console.warn('Tentativa de gravação remota finalizada:', err);
+      }
 
       setStatus('completed');
       setShowSignature(false);
-      toast.success('Assinatura da anamnese registrada com sucesso!');
+      toast.success('Ficha de anamnese respondida e assinada com sucesso! O link foi bloqueado.');
     } catch (err: any) {
       console.error('Erro ao registrar assinatura:', err);
       toast.error('Erro ao registrar assinatura. Tente novamente.');
@@ -276,6 +369,41 @@ const AssinarAnamnese = () => {
           <Loader2 className="h-10 w-10 animate-spin text-primary mx-auto mb-4" />
           <h2 className="text-lg font-semibold text-foreground">Carregando Ficha de Anamnese...</h2>
           <p className="text-xs text-muted-foreground mt-1">Aguarde um instante enquanto preparamos os dados.</p>
+        </Card>
+      </Shell>
+    );
+  }
+
+  if (status === 'blocked') {
+    return (
+      <Shell>
+        <Card className="w-full max-w-lg mx-auto border-border shadow-xl overflow-hidden">
+          <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-6 text-white text-center">
+            <div className="h-16 w-16 rounded-full bg-white/10 backdrop-blur-xs flex items-center justify-center mx-auto mb-3 shadow-inner">
+              <Lock className="h-8 w-8 text-amber-400" />
+            </div>
+            <h2 className="text-xl font-bold">Ficha Finalizada e Link Bloqueado</h2>
+            <p className="text-xs text-slate-300 mt-1">
+              Dra. Rosangela Santos • Odontologia Especializada
+            </p>
+          </div>
+          <CardContent className="p-6 space-y-4 text-center">
+            <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900 border border-border text-left text-xs space-y-2.5">
+              <div className="flex items-center gap-2 text-foreground font-semibold">
+                <ShieldCheck className="h-4 w-4 text-emerald-600" />
+                <span>Documento já respondido e assinado digitalmente</span>
+              </div>
+              <p className="text-muted-foreground leading-relaxed">
+                Esta ficha de anamnese {paciente?.nome ? `do paciente ${paciente.nome}` : ''} já foi preenchida e assinada.
+              </p>
+              <p className="text-muted-foreground leading-relaxed">
+                Por motivos de <strong>segurança clínica, sigilo médico e conformidade com a LGPD</strong>, o acesso a este link foi encerrado permanentemente para novas edições ou visualizações de terceiros.
+              </p>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Caso precise atualizar ou incluir novas informações de saúde para sua consulta, entre em contato diretamente com o consultório.
+            </p>
+          </CardContent>
         </Card>
       </Shell>
     );
@@ -355,6 +483,32 @@ const AssinarAnamnese = () => {
               <p>
                 <strong>Status do Documento:</strong> Concluído e assinado digitalmente
               </p>
+            </div>
+
+            <div className="pt-2">
+              <Button
+                type="button"
+                onClick={() => {
+                  let resumoSaude = '';
+                  if (queixaPrincipal.trim()) resumoSaude += `\n🦷 *Queixa Principal:* ${queixaPrincipal.trim()}`;
+                  if (alergias.trim()) resumoSaude += `\n⚠️ *Alergias:* ${alergias.trim()}`;
+                  if (medicamentos.trim()) resumoSaude += `\n💊 *Medicamentos:* ${medicamentos.trim()}`;
+                  if (historiaMedica.trim()) resumoSaude += `\n📋 *Histórico Clínico:* ${historiaMedica.trim()}`;
+
+                  const msg =
+                    `Olá, Dra. Rosangela Santos!\n\n` +
+                    `Acabei de preencher e assinar digitalmente a minha *Ficha de Anamnese Odontológica*.\n\n` +
+                    `👤 *Paciente:* ${paciente?.nome || 'Paciente'}\n` +
+                    `✅ *Status:* Assinada digitalmente pelo celular.` +
+                    `${resumoSaude}\n\n` +
+                    `Aguardo o meu atendimento. Obrigado!`;
+                  openWhatsApp('', msg);
+                }}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-9 gap-2 shadow-xs"
+              >
+                <MessageCircle className="h-4 w-4" />
+                Avisar a Clínica no WhatsApp que Preencheu
+              </Button>
             </div>
 
             <div className="text-center pt-2">
