@@ -5,7 +5,7 @@ import { useBackupAutomatico } from '@/hooks/useBackupAutomatico';
 import { CommandPalette } from './CommandPalette';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLocation, Link } from 'react-router-dom';
-import { Home, Users, Calendar, Target, Menu } from 'lucide-react';
+import { Home, Users, Calendar, CalendarCheck2, Menu } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface LayoutProps {
@@ -84,16 +84,16 @@ const Layout = ({ children }: LayoutProps) => {
         </Link>
 
         <Link
-          to="/crm"
+          to="/tarefas"
           className={cn(
             "flex flex-col items-center justify-center flex-1 h-full py-1 text-[10px] font-medium transition-colors",
-            location.pathname.startsWith('/crm')
+            location.pathname.startsWith('/tarefas')
               ? "text-primary font-bold"
               : "text-muted-foreground hover:text-foreground"
           )}
         >
-          <Target className="h-4 w-4 mb-0.5 shrink-0" />
-          <span>CRM</span>
+          <CalendarCheck2 className="h-4 w-4 mb-0.5 shrink-0" />
+          <span>Tarefas</span>
         </Link>
 
         <button
