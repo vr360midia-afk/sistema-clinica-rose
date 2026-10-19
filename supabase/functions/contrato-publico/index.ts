@@ -16,7 +16,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { action, id, signature, signerName } = await req.json();
+    const { action, id, signature, signerName, signerRole, snapshot: reqSnapshot } = await req.json();
     if (!action || !id) return json({ error: "Parâmetros 'action' e 'id' são obrigatórios" }, 400);
 
     const supabase = createClient(
@@ -69,16 +69,53 @@ Deno.serve(async (req) => {
       const clientIp = req.headers.get("x-forwarded-for") || req.headers.get("cf-connecting-ip") || "web";
       const userAgent = req.headers.get("user-agent") || "";
 
+      const existingItens = typeof doc.itens === "object" && doc.itens ? doc.itens : {};
+      const payloadSnapshot = typeof reqSnapshot === "object" && reqSnapshot ? reqSnapshot : {};
+
       const updatedSnapshot = {
-        ...(typeof doc.itens === "object" && doc.itens ? doc.itens : {}),
-        status: "assinado",
-        assinaturaPaciente: {
+        ...existingItens,
+        ...payloadSnapshot,
+      };
+
+      if (signerRole === "dentista" || signerRole === "profissional") {
+        updatedSnapshot.assinaturaDentista = {
           assinaturaData: signature,
-          nome: signerName || doc.paciente_nome || "Paciente",
+          nome: signerName || updatedSnapshot?.clinica?.dentistaResponsavel || "Profissional Responsável",
+          cro: updatedSnapshot?.clinica?.cro || "",
           dataHora: dataHoraIso,
           ip: clientIp,
           userAgent,
-        },
+        };
+
+        if (updatedSnapshot.assinaturaPaciente?.assinaturaData) {
+          updatedSnapshot.status = "assinado";
+        }
+
+        const { error: updateErr } = await supabase
+          .from("documentos_clinicos")
+          .update({
+            itens: updatedSnapshot,
+          })
+          .eq("id", doc.id);
+
+        if (updateErr) throw updateErr;
+
+        return json({
+          ok: true,
+          mensagem: "Assinatura do profissional registrada com sucesso!",
+          assinadoEm: dataHoraIso,
+          snapshot: updatedSnapshot,
+        });
+      }
+
+      // Caso padrão: Assinatura do Paciente
+      updatedSnapshot.status = "assinado";
+      updatedSnapshot.assinaturaPaciente = {
+        assinaturaData: signature,
+        nome: signerName || doc.paciente_nome || "Paciente",
+        dataHora: dataHoraIso,
+        ip: clientIp,
+        userAgent,
       };
 
       const { error: updateErr } = await supabase

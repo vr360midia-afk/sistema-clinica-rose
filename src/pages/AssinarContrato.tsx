@@ -31,6 +31,8 @@ import {
   ChevronUp,
   Sparkles,
   Stethoscope,
+  FileSignature,
+  PenTool,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -79,6 +81,7 @@ export default function AssinarContrato() {
   const [loading, setLoading] = useState(true);
   const [snapshot, setSnapshot] = useState<ContratoSnapshot | null>(null);
   const [showSignatureModal, setShowSignatureModal] = useState(false);
+  const [showProfessionalSignatureModal, setShowProfessionalSignatureModal] = useState(false);
   const [concordouTermos, setConcordouTermos] = useState(false);
   const [baixandoPdf, setBaixandoPdf] = useState(false);
   const [copiouPix, setCopiouPix] = useState(false);
@@ -375,6 +378,82 @@ export default function AssinarContrato() {
     }
   };
 
+  // Registra a assinatura digital do(a) Cirurgião(ã)-Dentista / Profissional Responsável
+  const handleProfessionalSignatureComplete = async (sigData: SignatureData) => {
+    if (!snapshot) return;
+
+    try {
+      const dataHoraIso = new Date().toISOString();
+      const updatedSnapshot: ContratoSnapshot = {
+        ...snapshot,
+        status: snapshot.assinaturaPaciente?.assinaturaData ? 'assinado' : snapshot.status,
+        assinaturaDentista: {
+          assinaturaData: sigData.signature,
+          nome: sigData.signerName || snapshot.clinica.dentistaResponsavel,
+          cro: snapshot.clinica.cro,
+          dataHora: dataHoraIso,
+        },
+      };
+
+      setSnapshot(updatedSnapshot);
+      setShowProfessionalSignatureModal(false);
+
+      // Salva no localStorage para persistência em múltiplos navegadores e acessos
+      const finalDocId = targetId || snapshot.contratoId;
+      localStorage.setItem(`contrato_assinado_${snapshot.contratoId}`, JSON.stringify(updatedSnapshot));
+      localStorage.setItem(`contrato_${snapshot.contratoId}`, JSON.stringify(updatedSnapshot));
+      if (finalDocId) {
+        localStorage.setItem(`contrato_assinado_${finalDocId}`, JSON.stringify(updatedSnapshot));
+        localStorage.setItem(`contrato_${finalDocId}`, JSON.stringify(updatedSnapshot));
+      }
+      if (rawSlug) {
+        localStorage.setItem(`contrato_slug_${rawSlug}`, JSON.stringify(updatedSnapshot));
+        localStorage.setItem(`contrato_slug_${rawSlug.replace(/^assinar-contrato-/, '')}`, JSON.stringify(updatedSnapshot));
+      }
+
+      // 1. Tenta persistir remotamente via Edge Function pública
+      let persistiuRemoto = false;
+      if (finalDocId) {
+        try {
+          const { data: signRes, error: signErr } = await supabase.functions.invoke('contrato-publico', {
+            body: {
+              action: 'sign',
+              id: finalDocId,
+              signerRole: 'dentista',
+              signature: sigData.signature,
+              signerName: sigData.signerName || snapshot.clinica.dentistaResponsavel,
+              snapshot: updatedSnapshot,
+            },
+          });
+          if (!signErr && signRes?.ok) {
+            persistiuRemoto = true;
+          }
+        } catch (edgeErr) {
+          console.warn('Erro ao assinar dentista via Edge function:', edgeErr);
+        }
+      }
+
+      // 2. Fallback: Tenta persistir direto no Supabase caso permitido
+      if (finalDocId && !persistiuRemoto) {
+        try {
+          await supabase
+            .from('documentos_clinicos')
+            .update({
+              itens: updatedSnapshot as any,
+            })
+            .eq('id', finalDocId);
+        } catch (dbErr) {
+          console.warn('Persistência remota direta dentista:', dbErr);
+        }
+      }
+
+      toast.success('Assinatura do cirurgião(ã)-dentista registrada com sucesso!');
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Erro ao registrar assinatura do profissional: ' + (err?.message || 'Tente novamente'));
+    }
+  };
+
   // Download do PDF
   const handleBaixarPdf = async () => {
     if (!snapshot) return;
@@ -512,6 +591,8 @@ export default function AssinarContrato() {
   }
 
   const isAssinado = !!snapshot.assinaturaPaciente?.assinaturaData;
+  const isAssinadoDentista = !!snapshot.assinaturaDentista?.assinaturaData;
+  const isTotalmenteAssinado = isAssinado && isAssinadoDentista;
 
   return (
     <Shell>
@@ -542,9 +623,17 @@ export default function AssinarContrato() {
               </p>
             </div>
             <div>
-              {isAssinado ? (
-                <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white border-0 px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5">
-                  <CheckCircle className="h-4 w-4" /> Assinado Digitalmente
+              {isTotalmenteAssinado ? (
+                <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white border-0 px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5 shadow-xs">
+                  <CheckCircle2 className="h-4 w-4" /> 100% Assinado (Ambas as Partes)
+                </Badge>
+              ) : isAssinado ? (
+                <Badge className="bg-blue-600 hover:bg-blue-700 text-white border-0 px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5 shadow-xs">
+                  <Check className="h-4 w-4" /> Assinado Paciente • Pendente Dentista
+                </Badge>
+              ) : isAssinadoDentista ? (
+                <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white border-0 px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5 shadow-xs">
+                  <Check className="h-4 w-4" /> Assinado Dentista • Pendente Paciente
                 </Badge>
               ) : (
                 <Badge className="bg-amber-500 hover:bg-amber-600 text-white border-0 px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5 animate-pulse">
@@ -555,39 +644,103 @@ export default function AssinarContrato() {
           </div>
         </div>
 
-        {/* Card informativo de Assinatura se já concluído */}
-        {isAssinado && (
-          <div className="bg-emerald-50 dark:bg-emerald-950/40 border-b border-emerald-200 dark:border-emerald-800/40 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        {/* Banner Informativo de Status das Assinaturas */}
+        {(isAssinado || isAssinadoDentista) && (
+          <div className={cn(
+            "border-b p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all",
+            isTotalmenteAssinado
+              ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/40"
+              : "bg-blue-50/80 dark:bg-blue-950/40 border-blue-200 dark:border-blue-900/50"
+          )}>
             <div className="flex items-start gap-3">
-              <div className="p-2 bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 rounded-full mt-0.5 shrink-0">
-                <FileCheck className="h-5 w-5" />
+              <div className={cn(
+                "p-2 rounded-full mt-0.5 shrink-0",
+                isTotalmenteAssinado
+                  ? "bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300"
+                  : "bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300"
+              )}>
+                {isTotalmenteAssinado ? <FileCheck className="h-5 w-5" /> : <Clock className="h-5 w-5" />}
               </div>
               <div>
-                <h3 className="font-semibold text-emerald-900 dark:text-emerald-200 text-sm sm:text-base">
-                  Este contrato já foi assinado digitalmente pelo paciente!
+                <h3 className={cn(
+                  "font-semibold text-sm sm:text-base",
+                  isTotalmenteAssinado
+                    ? "text-emerald-900 dark:text-emerald-200"
+                    : "text-blue-900 dark:text-blue-200"
+                )}>
+                  {isTotalmenteAssinado
+                    ? 'Contrato formalizado e assinado digitalmente por ambas as partes!'
+                    : isAssinado
+                    ? 'Assinatura do Paciente concluída • Aguardando Profissional Responsável'
+                    : 'Assinatura do Profissional registrada • Aguardando Paciente'}
                 </h3>
-                <p className="text-xs sm:text-sm text-emerald-700 dark:text-emerald-400 mt-0.5">
-                  Assinado por <strong>{snapshot.assinaturaPaciente?.nome}</strong> em{' '}
-                  {snapshot.assinaturaPaciente?.dataHora
-                    ? new Date(snapshot.assinaturaPaciente.dataHora).toLocaleString('pt-BR')
-                    : 'data registrada'}
-                  .
+                <p className={cn(
+                  "text-xs sm:text-sm mt-0.5",
+                  isTotalmenteAssinado
+                    ? "text-emerald-700 dark:text-emerald-400"
+                    : "text-blue-700 dark:text-blue-400"
+                )}>
+                  {isTotalmenteAssinado ? (
+                    <>
+                      Assinado por <strong>{snapshot.assinaturaPaciente?.nome}</strong> (Paciente) e{' '}
+                      <strong>{snapshot.assinaturaDentista?.nome}</strong> (Cirurgião-Dentista Responsável).
+                    </>
+                  ) : isAssinado ? (
+                    <>
+                      Assinado por <strong>{snapshot.assinaturaPaciente?.nome}</strong> em{' '}
+                      {snapshot.assinaturaPaciente?.dataHora
+                        ? new Date(snapshot.assinaturaPaciente.dataHora).toLocaleString('pt-BR')
+                        : 'data registrada'}
+                      . O profissional pode assinar no quadro de assinaturas abaixo.
+                    </>
+                  ) : (
+                    <>
+                      Assinado pelo(a) cirurgião(ã)-dentista <strong>{snapshot.assinaturaDentista?.nome}</strong> em{' '}
+                      {snapshot.assinaturaDentista?.dataHora
+                        ? new Date(snapshot.assinaturaDentista.dataHora).toLocaleString('pt-BR')
+                        : 'data registrada'}
+                      . Aguardando a assinatura digital do(a) paciente.
+                    </>
+                  )}
                 </p>
               </div>
             </div>
-            <div className="flex flex-wrap gap-2 shrink-0">
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              {!isAssinadoDentista && (
+                <Button
+                  size="sm"
+                  onClick={() => setShowProfessionalSignatureModal(true)}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-xs"
+                >
+                  <Stethoscope className="h-3.5 w-3.5 mr-1.5" />
+                  Assinar Profissional
+                </Button>
+              )}
+              {!isAssinado && (
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setConcordouTermos(true);
+                    setShowSignatureModal(true);
+                  }}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-xs"
+                >
+                  <PenTool className="h-3.5 w-3.5 mr-1.5" />
+                  Assinar Paciente
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleBaixarPdf}
                 disabled={baixandoPdf}
-                className="border-emerald-300 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100"
+                className="border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs"
               >
-                {baixandoPdf ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Download className="h-4 w-4 mr-1.5" />}
+                {baixandoPdf ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Download className="h-3.5 w-3.5 mr-1.5 text-primary" />}
                 Baixar PDF
               </Button>
-              <Button size="sm" onClick={handleNotificarClinica} className="bg-emerald-600 hover:bg-emerald-700 text-white">
-                <MessageCircle className="h-4 w-4 mr-1.5" /> WhatsApp
+              <Button size="sm" onClick={handleNotificarClinica} className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs">
+                <MessageCircle className="h-3.5 w-3.5 mr-1.5" /> WhatsApp
               </Button>
             </div>
           </div>
@@ -1386,120 +1539,306 @@ export default function AssinarContrato() {
             </Card>
           ) : null}
 
-          {/* Área de Assinatura Interativa */}
-          {!isAssinado ? (
-            <div className="p-5 rounded-lg border-2 border-dashed border-primary/30 bg-primary/5 space-y-4">
-              <div className="flex items-start gap-3">
-                <Checkbox
-                  id="concordo"
-                  checked={concordouTermos}
-                  onCheckedChange={(c) => setConcordouTermos(!!c)}
-                  className="mt-0.5"
-                />
-                <label
-                  htmlFor="concordo"
-                  className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 font-medium cursor-pointer select-none leading-relaxed"
-                >
-                  {autorizaImagem
-                    ? `Declaro que li e conferi o contrato completo acima na íntegra, incluindo o Termo de Autorização de Uso de Imagem e Voz (${isContratoLenteResina(snapshot) ? 'Anexo II' : 'Anexo I'}), e estou de pleno acordo com todas as cláusulas, riscos informados, procedimentos, valores e opções de imagem que selecionei.`
-                    : isContratoLenteResina(snapshot)
-                    ? 'Declaro que li e conferi o contrato completo acima na íntegra, incluindo o Termo de Consentimento Livre e Esclarecido (TCLE) de Lentes em Resina (Anexo I), e estou de pleno acordo com todas as cláusulas, riscos informados, procedimentos, valores e cronograma de pagamento estipulados.'
-                    : 'Declaro que li e conferi o contrato completo acima na íntegra, e estou de acordo com todos os termos, procedimentos odontológicos, valores e condições de pagamento estipulados neste Contrato de Prestação de Serviços Odontológicos.'}
-                </label>
+          {/* Quadro Oficial de Assinaturas das Partes Contratantes */}
+          <div className="space-y-4 pt-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border pb-3">
+              <div>
+                <h3 className="font-bold text-base text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                  <FileSignature className="h-5 w-5 text-primary" />
+                  Assinaturas Digitais do Contrato (Art. 784, III CPC)
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Formalização bilateral com validade jurídica plena (MP nº 2.200-2/2001 e Código Civil Brasileiro)
+                </p>
               </div>
 
-              <div className="flex flex-col sm:flex-row gap-3 pt-2">
-                <Button
-                  size="lg"
-                  disabled={!concordouTermos}
-                  onClick={() => setShowSignatureModal(true)}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-6 text-base shadow-md"
-                >
-                  <FileText className="h-5 w-5 mr-2" />
-                  Assinar Contrato Digitalmente Agora
-                </Button>
+              <div>
+                {isTotalmenteAssinado ? (
+                  <Badge className="bg-emerald-600 text-white border-0 px-3 py-1 text-xs font-semibold flex items-center gap-1.5 shadow-xs">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> 100% Formalizado (Ambas as Partes)
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950/40 text-xs font-semibold flex items-center gap-1.5">
+                    <Clock className="h-3.5 w-3.5" />
+                    {isAssinado ? 'Pendente Assinatura Profissional' : isAssinadoDentista ? 'Pendente Assinatura Paciente' : 'Aguardando Assinaturas'}
+                  </Badge>
+                )}
               </div>
             </div>
-          ) : (
-            <div className="p-4 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/40 text-center space-y-3">
-              <CheckCircle className="h-10 w-10 text-emerald-500 mx-auto" />
-              <div>
-                <h4 className="font-bold text-emerald-900 dark:text-emerald-100 text-base">
-                  Assinatura Digital Registrada com Validade Jurídica
-                </h4>
-                <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-1">
-                  Assinante: {snapshot.assinaturaPaciente?.nome} • Registrado em{' '}
-                  {snapshot.assinaturaPaciente?.dataHora
-                    ? new Date(snapshot.assinaturaPaciente.dataHora).toLocaleString('pt-BR')
-                    : 'data registrada'}
-                </p>
-                <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-0.5">
-                  CPF: {snapshot.assinaturaPaciente?.cpf || snapshot.paciente.cpf}
-                  {temValorValido(snapshot.assinaturaPaciente?.rg)
-                    ? ` • RG: ${snapshot.assinaturaPaciente.rg}`
-                    : (temValorValido(snapshot.paciente?.rg) ? ` • RG: ${snapshot.paciente.rg}` : '')}
-                  {snapshot.assinaturaPaciente?.email ? ` • E-mail: ${snapshot.assinaturaPaciente.email}` : ''}
-                </p>
 
-                {/* Badge de status da autorização de imagem */}
-                <div className="mt-2">
-                  {snapshot.termoUsoImagem?.autorizado ? (
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
-                      <Camera className="h-3.5 w-3.5" /> Uso de Imagem e Voz: AUTORIZADO pelo paciente (Termo Anexo Ativo)
-                    </span>
+            {/* Grid de 2 Colunas: Paciente e Profissional */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Card 1: CONTRATANTE (Paciente) */}
+              <div className={cn(
+                "p-4 rounded-xl border flex flex-col justify-between transition-all",
+                isAssinado
+                  ? "bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/60 shadow-xs"
+                  : "bg-blue-50/30 dark:bg-slate-900 border-dashed border-2 border-blue-300 dark:border-blue-800"
+              )}>
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className={cn(
+                        "p-2 rounded-lg",
+                        isAssinado ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300" : "bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-300"
+                      )}>
+                        <User className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block">
+                          1. Contratante (Paciente)
+                        </span>
+                        <h4 className="font-bold text-sm text-slate-800 dark:text-slate-100">
+                          {snapshot.paciente.nome}
+                        </h4>
+                      </div>
+                    </div>
+
+                    {isAssinado ? (
+                      <Badge className="bg-emerald-600 text-white text-[10px] font-semibold flex items-center gap-1">
+                        <Check className="h-3 w-3" /> Assinado
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950/40 text-[10px] font-semibold">
+                        Pendente
+                      </Badge>
+                    )}
+                  </div>
+
+                  {isAssinado ? (
+                    <div className="space-y-2 pt-1">
+                      <div className="p-3 bg-white dark:bg-slate-900 rounded-lg border border-emerald-100 dark:border-emerald-900/40 text-center space-y-1.5">
+                        <div className="flex items-center justify-center gap-1.5 text-emerald-700 dark:text-emerald-300 text-xs font-semibold">
+                          <CheckCircle className="h-4 w-4" /> Assinatura Digital Registrada
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">
+                          Em {new Date(snapshot.assinaturaPaciente!.dataHora).toLocaleString('pt-BR')}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground font-mono">
+                          CPF: {snapshot.assinaturaPaciente?.cpf || snapshot.paciente.cpf}
+                          {temValorValido(snapshot.assinaturaPaciente?.rg) ? ` • RG: ${snapshot.assinaturaPaciente?.rg}` : ''}
+                        </p>
+
+                        <div className="flex items-center justify-center gap-2 pt-1">
+                          {snapshot.assinaturaPaciente?.assinaturaData && (
+                            <img
+                              src={snapshot.assinaturaPaciente.assinaturaData}
+                              alt="Assinatura Paciente"
+                              className="max-h-12 max-w-[160px] object-contain border-b border-slate-300 pb-1"
+                            />
+                          )}
+                          {snapshot.assinaturaPaciente?.selfie && (
+                            <img
+                              src={snapshot.assinaturaPaciente.selfie}
+                              alt="Selfie"
+                              className="w-12 h-12 object-cover rounded-md border border-emerald-300 shadow-2xs"
+                              title="Selfie Biométrica"
+                            />
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Status do termo de imagem */}
+                      <div className="text-[11px] text-center">
+                        {snapshot.termoUsoImagem?.autorizado ? (
+                          <span className="text-emerald-700 dark:text-emerald-400 font-medium flex items-center justify-center gap-1">
+                            <Camera className="h-3 w-3" /> Termo de Imagem: Autorizado
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground flex items-center justify-center gap-1">
+                            <EyeOff className="h-3 w-3" /> Termo de Imagem: Não Autorizado
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   ) : (
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-300 dark:border-slate-700">
-                      <EyeOff className="h-3.5 w-3.5" /> Uso de Imagem: NÃO AUTORIZADO (Privacidade e Sigilo Preservados)
-                    </span>
+                    <div className="space-y-3 pt-1">
+                      <div className="flex items-start gap-2.5 p-2.5 bg-white dark:bg-slate-900/80 rounded-lg border text-xs">
+                        <Checkbox
+                          id="concordo-paciente"
+                          checked={concordouTermos}
+                          onCheckedChange={(c) => setConcordouTermos(!!c)}
+                          className="mt-0.5 shrink-0"
+                        />
+                        <label
+                          htmlFor="concordo-paciente"
+                          className="text-[11px] text-slate-700 dark:text-slate-300 font-medium cursor-pointer select-none leading-snug"
+                        >
+                          Declaro que li o contrato na íntegra, conferi procedimentos, valores e concordo com todos os termos acordados.
+                        </label>
+                      </div>
+
+                      <Button
+                        size="lg"
+                        disabled={!concordouTermos}
+                        onClick={() => setShowSignatureModal(true)}
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-5 text-sm shadow-xs"
+                      >
+                        <PenTool className="h-4 w-4 mr-2" />
+                        Assinar como Paciente
+                      </Button>
+                    </div>
                   )}
                 </div>
-              </div>
 
-              <div className="flex flex-wrap items-center justify-center gap-3 mt-2">
-                {snapshot.assinaturaPaciente?.selfie && (
-                  <div className="inline-block p-1 bg-white rounded-lg border border-emerald-300 shadow-xs">
-                    <img
-                      src={snapshot.assinaturaPaciente.selfie}
-                      alt="Selfie Biométrica"
-                      className="w-20 h-20 object-cover rounded-md mx-auto"
-                    />
-                    <span className="text-[9px] text-emerald-700 font-bold block text-center mt-0.5">Selfie Biométrica</span>
-                  </div>
-                )}
-
-                {snapshot.assinaturaPaciente?.assinaturaData && (
-                  <div className="inline-block p-2 bg-white rounded-lg border border-emerald-200 shadow-xs">
-                    <img
-                      src={snapshot.assinaturaPaciente.assinaturaData}
-                      alt="Assinatura do Paciente"
-                      className="max-h-16 object-contain mx-auto"
-                    />
-                    <span className="text-[9px] text-muted-foreground block text-center mt-0.5">Assinatura Digital</span>
+                {isAssinado && (
+                  <div className="pt-2 border-t border-emerald-100 dark:border-emerald-900/40 mt-3 text-right">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowSignatureModal(true)}
+                      className="text-[11px] h-7 text-muted-foreground hover:text-foreground"
+                    >
+                      Alterar / Refazer Assinatura
+                    </Button>
                   </div>
                 )}
               </div>
 
-              <div className="flex flex-wrap justify-center gap-3 pt-2">
-                <Button onClick={handleBaixarPdf} disabled={baixandoPdf} variant="outline" className="border-emerald-300">
-                  {baixandoPdf ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
+              {/* Card 2: CONTRATADA (Cirurgião-Dentista / Profissional Responsável) */}
+              <div className={cn(
+                "p-4 rounded-xl border flex flex-col justify-between transition-all",
+                isAssinadoDentista
+                  ? "bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/60 shadow-xs"
+                  : "bg-emerald-50/20 dark:bg-slate-900 border-dashed border-2 border-emerald-300 dark:border-emerald-800"
+              )}>
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className={cn(
+                        "p-2 rounded-lg",
+                        isAssinadoDentista ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300" : "bg-emerald-100/70 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                      )}>
+                        <Stethoscope className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block">
+                          2. Contratada (Profissional)
+                        </span>
+                        <h4 className="font-bold text-sm text-slate-800 dark:text-slate-100">
+                          {snapshot.clinica.dentistaResponsavel || 'Cirurgião(ã)-Dentista Responsável'}
+                        </h4>
+                      </div>
+                    </div>
+
+                    {isAssinadoDentista ? (
+                      <Badge className="bg-emerald-600 text-white text-[10px] font-semibold flex items-center gap-1">
+                        <Check className="h-3 w-3" /> Assinado
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950/40 text-[10px] font-semibold">
+                        Pendente
+                      </Badge>
+                    )}
+                  </div>
+
+                  {isAssinadoDentista ? (
+                    <div className="space-y-2 pt-1">
+                      <div className="p-3 bg-white dark:bg-slate-900 rounded-lg border border-emerald-100 dark:border-emerald-900/40 text-center space-y-1.5">
+                        <div className="flex items-center justify-center gap-1.5 text-emerald-700 dark:text-emerald-300 text-xs font-semibold">
+                          <CheckCircle className="h-4 w-4" /> Assinatura do Profissional Registrada
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">
+                          Em {new Date(snapshot.assinaturaDentista!.dataHora).toLocaleString('pt-BR')}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground font-mono">
+                          CRO: {snapshot.assinaturaDentista?.cro || snapshot.clinica.cro} • {snapshot.clinica.nome}
+                        </p>
+
+                        {snapshot.assinaturaDentista?.assinaturaData && (
+                          <div className="flex items-center justify-center pt-1">
+                            <img
+                              src={snapshot.assinaturaDentista.assinaturaData}
+                              alt="Assinatura Dentista"
+                              className="max-h-12 max-w-[180px] object-contain border-b border-slate-300 pb-1"
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      <p className="text-[11px] text-center text-muted-foreground">
+                        Responsável técnico(a) / Contratada formalmente autenticada.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3 pt-1">
+                      <div className="p-2.5 bg-white dark:bg-slate-900/80 rounded-lg border text-xs text-slate-600 dark:text-slate-300 leading-snug">
+                        Campo destinado à assinatura digital do(a) <strong>Cirurgião(ã)-Dentista / Responsável Técnico(a)</strong> pelo plano de tratamento.
+                      </div>
+
+                      <Button
+                        size="lg"
+                        onClick={() => setShowProfessionalSignatureModal(true)}
+                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-5 text-sm shadow-xs"
+                      >
+                        <Stethoscope className="h-4 w-4 mr-2" />
+                        Assinar como Profissional / Dentista
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {isAssinadoDentista && (
+                  <div className="pt-2 border-t border-emerald-100 dark:border-emerald-900/40 mt-3 text-right">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowProfessionalSignatureModal(true)}
+                      className="text-[11px] h-7 text-muted-foreground hover:text-foreground"
+                    >
+                      Alterar / Refazer Assinatura
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Barra de Ações Finais (PDF e WhatsApp) */}
+            <div className="p-4 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="text-xs text-muted-foreground text-center sm:text-left">
+                {isTotalmenteAssinado ? (
+                  <span className="text-emerald-700 dark:text-emerald-400 font-semibold flex items-center justify-center sm:justify-start gap-1.5">
+                    <CheckCircle2 className="h-4 w-4" />
+                    Contrato 100% formalizado e válido juridicamente perante o Art. 784, III CPC.
+                  </span>
+                ) : (
+                  <span>
+                    O contrato final em PDF incluirá as assinaturas à medida que forem confirmadas.
+                  </span>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center justify-center gap-2 shrink-0 w-full sm:w-auto">
+                <Button
+                  onClick={handleBaixarPdf}
+                  disabled={baixandoPdf}
+                  variant="outline"
+                  className="h-9 text-xs border-slate-300 dark:border-slate-700"
+                >
+                  {baixandoPdf ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Download className="h-4 w-4 mr-1.5 text-primary" />}
                   Baixar Contrato em PDF
                 </Button>
-                <Button onClick={handleNotificarClinica} className="bg-emerald-600 hover:bg-emerald-700 text-white">
-                  <MessageCircle className="h-4 w-4 mr-2" />
-                  Confirmar pelo WhatsApp
+                <Button
+                  onClick={handleNotificarClinica}
+                  className="h-9 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                >
+                  <MessageCircle className="h-4 w-4 mr-1.5" />
+                  Notificar via WhatsApp
                 </Button>
               </div>
             </div>
-          )}
+          </div>
         </CardContent>
       </Card>
 
-      {/* Modal de Assinatura Digital do Canvas */}
+      {/* Modal de Assinatura Digital do Paciente */}
       {showSignatureModal && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
           <div className="w-full max-w-xl bg-white dark:bg-slate-900 rounded-xl overflow-hidden shadow-2xl my-auto">
             <DigitalSignature
-              title="Assinatura Digital do Contrato"
+              title="Assinatura Digital do Contrato — Paciente"
               signerName={snapshot.paciente.nome}
               signerRole="paciente"
               documentType="contrato"
@@ -1510,6 +1849,26 @@ export default function AssinarContrato() {
               initialRg={temValorValido(snapshot.paciente.rg) ? snapshot.paciente.rg : ''}
               onSignatureComplete={handleSignatureComplete}
               onCancel={() => setShowSignatureModal(false)}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Assinatura Digital do Profissional / Cirurgião-Dentista */}
+      {showProfessionalSignatureModal && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="w-full max-w-xl bg-white dark:bg-slate-900 rounded-xl overflow-hidden shadow-2xl my-auto">
+            <DigitalSignature
+              title="Assinatura Digital — Cirurgião(ã)-Dentista Responsável"
+              signerName={snapshot.clinica.dentistaResponsavel || 'Cirurgião(ã)-Dentista'}
+              signerRole="dentista"
+              documentType="contrato"
+              requireIdentificationFields={false}
+              requireSelfie={false}
+              initialCpf={snapshot.clinica.cnpj}
+              initialRg={snapshot.clinica.cro}
+              onSignatureComplete={handleProfessionalSignatureComplete}
+              onCancel={() => setShowProfessionalSignatureModal(false)}
             />
           </div>
         </div>
@@ -1560,10 +1919,26 @@ export default function AssinarContrato() {
                     setConcordouTermos(true);
                     setShowSignatureModal(true);
                   }}
-                  title="Concordar e assinar contrato digitalmente"
+                  title="Concordar e assinar contrato digitalmente como Paciente"
                 >
-                  <CheckCircle className="h-3.5 w-3.5" />
-                  <span>Assinar Agora</span>
+                  <PenTool className="h-3.5 w-3.5" />
+                  <span>Assinar Paciente</span>
+                </Button>
+              )}
+
+              {!isAssinadoDentista && (
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-8 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-sm"
+                  onClick={() => {
+                    setIsFullScreen(false);
+                    setShowProfessionalSignatureModal(true);
+                  }}
+                  title="Assinar contrato digitalmente como Profissional / Cirurgião-Dentista"
+                >
+                  <Stethoscope className="h-3.5 w-3.5" />
+                  <span>Assinar Profissional</span>
                 </Button>
               )}
 

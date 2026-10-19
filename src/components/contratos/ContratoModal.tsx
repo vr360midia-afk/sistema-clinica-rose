@@ -740,41 +740,65 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
   };
 
   // Aplicação da Assinatura Digital Interna
-  const handleAssinaturaConcluida = (sigData: SignatureData) => {
+  const handleAssinaturaConcluida = async (sigData: SignatureData) => {
     if (!snapshotAtual) return;
 
+    let novoSnapshot: ContratoSnapshot;
     if (signerRole === 'paciente') {
-      setSnapshotAtual((prev) =>
-        prev
-          ? {
-              ...prev,
-              assinaturaPaciente: {
-                assinaturaData: sigData.signature,
-                nome: sigData.signerName,
-                dataHora: new Date().toISOString(),
-                email: sigData.signerInfo?.email || patient?.email,
-                cpf: sigData.signerInfo?.cpf || patient?.cpf,
-                rg: sigData.signerInfo?.rg || patient?.rg,
-                selfie: sigData.selfie || sigData.signerInfo?.selfie,
-              },
-            }
-          : null
-      );
+      novoSnapshot = {
+        ...snapshotAtual,
+        status: 'assinado',
+        assinaturaPaciente: {
+          assinaturaData: sigData.signature,
+          nome: sigData.signerName,
+          dataHora: new Date().toISOString(),
+          email: sigData.signerInfo?.email || patient?.email,
+          cpf: sigData.signerInfo?.cpf || patient?.cpf,
+          rg: sigData.signerInfo?.rg || patient?.rg,
+          selfie: sigData.selfie || sigData.signerInfo?.selfie,
+        },
+      };
       toast.success('Assinatura do paciente registrada no contrato!');
     } else {
-      setSnapshotAtual((prev) =>
-        prev
-          ? {
-              ...prev,
-              assinaturaDentista: {
-                assinaturaData: sigData.signature,
-                nome: sigData.signerName,
-                dataHora: new Date().toISOString(),
-              },
-            }
-          : null
-      );
+      novoSnapshot = {
+        ...snapshotAtual,
+        assinaturaDentista: {
+          assinaturaData: sigData.signature,
+          nome: sigData.signerName || snapshotAtual.clinica.dentistaResponsavel,
+          cro: snapshotAtual.clinica.cro,
+          dataHora: new Date().toISOString(),
+        },
+      };
       toast.success('Assinatura do cirurgião-dentista registrada no contrato!');
+    }
+
+    setSnapshotAtual(novoSnapshot);
+
+    // Persiste no localStorage
+    if (novoSnapshot.contratoId) {
+      localStorage.setItem(`contrato_assinado_${novoSnapshot.contratoId}`, JSON.stringify(novoSnapshot));
+      localStorage.setItem(`contrato_${novoSnapshot.contratoId}`, JSON.stringify(novoSnapshot));
+    }
+
+    // Se já existe um documento emitido ou selecionado, atualiza-o imediatamente no banco
+    const docId = contratoVisualizacao?.id || documentoIdSendoEditado;
+    if (docId) {
+      try {
+        const htmlFinal = gerarHtmlContrato(novoSnapshot);
+        await salvarDocumento({
+          id: docId,
+          pacienteId: patient?.id,
+          pacienteNome: patient?.nome,
+          tipo: 'contrato',
+          titulo: `Contrato Odontológico - Orçamento #${novoSnapshot.orcamento.numeroIdentificador}`,
+          conteudo: htmlFinal,
+          itens: novoSnapshot as any,
+          dentista: novoSnapshot.clinica.dentistaResponsavel || selectedDentistaNome || null,
+        });
+        localStorage.setItem(`contrato_assinado_${docId}`, JSON.stringify(novoSnapshot));
+      } catch (err) {
+        console.warn('Erro ao atualizar documento com a assinatura:', err);
+      }
     }
   };
 
@@ -813,6 +837,36 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                 </div>
 
                 <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs gap-1.5 border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white"
+                    onClick={() => {
+                      setSignerRole('dentista');
+                      setIsSignatureModalOpen(true);
+                    }}
+                    title="Assinar como Profissional / Cirurgião-Dentista"
+                  >
+                    <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
+                    <span className="hidden sm:inline">{snapshotAtual?.assinaturaDentista ? '✓ Assinado Dentista' : 'Assinar Profissional'}</span>
+                  </Button>
+
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs gap-1.5 border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white"
+                    onClick={() => {
+                      setSignerRole('paciente');
+                      setIsSignatureModalOpen(true);
+                    }}
+                    title="Assinar como Paciente"
+                  >
+                    <PenTool className="h-3.5 w-3.5 text-blue-400" />
+                    <span className="hidden sm:inline">{snapshotAtual?.assinaturaPaciente ? '✓ Assinado Paciente' : 'Assinar Paciente'}</span>
+                  </Button>
+
                   <Button
                     type="button"
                     size="sm"
@@ -2625,14 +2679,14 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
         isOpen={isSignatureModalOpen}
         onClose={() => setIsSignatureModalOpen(false)}
         title={signerRole === 'paciente' ? 'Assinatura do Paciente / Contratante' : 'Assinatura do Cirurgião-Dentista'}
-        signerName={signerRole === 'paciente' ? patient?.nome || 'Paciente' : selectedDentistaNome || 'Cirurgião-Dentista'}
+        signerName={signerRole === 'paciente' ? patient?.nome || 'Paciente' : snapshotAtual?.clinica?.dentistaResponsavel || selectedDentistaNome || 'Cirurgião-Dentista'}
         signerRole={signerRole}
         documentType="contrato"
         requireIdentificationFields={signerRole === 'paciente'}
         requireSelfie={signerRole === 'paciente'}
-        initialEmail={patient?.email}
-        initialCpf={patient?.cpf}
-        initialRg={temValorValido(patient?.rg) ? patient.rg : ''}
+        initialEmail={signerRole === 'paciente' ? patient?.email : snapshotAtual?.clinica?.email}
+        initialCpf={signerRole === 'paciente' ? patient?.cpf : snapshotAtual?.clinica?.cnpj}
+        initialRg={signerRole === 'paciente' ? (temValorValido(patient?.rg) ? patient.rg : '') : snapshotAtual?.clinica?.cro}
         onSignatureComplete={handleAssinaturaConcluida}
       />
     </>

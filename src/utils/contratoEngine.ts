@@ -192,6 +192,7 @@ export interface ContratoSnapshot {
     assinaturaData: string;
     nome: string;
     dataHora: string;
+    cro?: string;
   } | null;
 }
 
