@@ -193,10 +193,59 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
     }
   };
 
-  // Estado Vazio: quando o paciente ainda não possui nenhuma anamnese
-  if (patientAnamnesis.length === 0) {
-    return (
-      <div className="space-y-6">
+  return (
+    <div className="space-y-6">
+      {/* Barra de Ações Superior */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card p-3 rounded-lg border border-border shadow-xs">
+        <div>
+          <h3 className="text-base sm:text-lg font-bold text-foreground flex items-center gap-2">
+            <ClipboardList className="h-5 w-5 text-primary" />
+            Anamneses do Paciente ({patientAnamnesis.length})
+          </h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Histórico médico, questionários de saúde e assinaturas digitais coletadas.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Botão Assinar na Clínica (se houver anamnese cadastrada) */}
+          {patientAnamnesis.length > 0 && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleAssinarNaClinicaTopo}
+              className="text-xs h-8 font-semibold border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:bg-amber-950/40 dark:border-amber-800 dark:text-amber-300 gap-1.5 shadow-xs cursor-pointer"
+              title="Coletar assinatura presencial do paciente agora no consultório"
+            >
+              <FileSignature className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+              <span>Assinar na Clínica</span>
+            </Button>
+          )}
+
+          <Button
+            size="sm"
+            onClick={() => setIsEnviarModalOpen(true)}
+            className="text-xs h-8 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold gap-1.5 shadow-xs cursor-pointer"
+            title="Enviar link individual ao paciente para preencher ou apenas assinar"
+          >
+            <Link2 className="h-3.5 w-3.5" />
+            <span>Enviar Link ao Paciente</span>
+          </Button>
+
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleNewAnamnesis}
+            className="text-xs h-8 font-semibold gap-1 cursor-pointer"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            <span>Nova Anamnese</span>
+          </Button>
+        </div>
+      </div>
+
+      {/* Conteúdo: Estado Vazio ou Listagem de Anamneses */}
+      {patientAnamnesis.length === 0 ? (
         <Card className="border-dashed border-2 border-border/80 bg-muted/20">
           <CardContent className="pt-8 pb-8 text-center space-y-4 max-w-xl mx-auto">
             <div className="h-14 w-14 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center mx-auto shadow-xs">
@@ -230,75 +279,8 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
             </div>
           </CardContent>
         </Card>
-
-        <ModalEnviarAnamnese
-          isOpen={isEnviarModalOpen}
-          onClose={() => setIsEnviarModalOpen(false)}
-          patient={patient}
-          onOpenClinicaModal={handleNewAnamnesis}
-        />
-
-        <AnamneseModal
-          isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
-          onSave={handleSaveAnamnesis}
-          preSelectedPatient={patient.id}
-        />
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      {/* Barra de Ações Superior */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card p-3 rounded-lg border border-border shadow-xs">
-        <div>
-          <h3 className="text-base sm:text-lg font-bold text-foreground flex items-center gap-2">
-            <ClipboardList className="h-5 w-5 text-primary" />
-            Anamneses do Paciente ({patientAnamnesis.length})
-          </h3>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Histórico médico, questionários de saúde e assinaturas digitais coletadas.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Botão Assinar na Clínica */}
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleAssinarNaClinicaTopo}
-            className="text-xs h-8 font-semibold border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:bg-amber-950/40 dark:border-amber-800 dark:text-amber-300 gap-1.5 shadow-xs cursor-pointer"
-            title="Coletar assinatura presencial do paciente agora no consultório"
-          >
-            <FileSignature className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
-            <span>Assinar na Clínica</span>
-          </Button>
-
-          <Button
-            size="sm"
-            onClick={() => setIsEnviarModalOpen(true)}
-            className="text-xs h-8 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold gap-1.5 shadow-xs cursor-pointer"
-            title="Enviar link individual ao paciente para preencher ou apenas assinar"
-          >
-            <Link2 className="h-3.5 w-3.5" />
-            <span>Enviar Link ao Paciente</span>
-          </Button>
-
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleNewAnamnesis}
-            className="text-xs h-8 font-semibold gap-1 cursor-pointer"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            <span>Nova Anamnese</span>
-          </Button>
-        </div>
-      </div>
-
-      {/* Listagem de Anamneses */}
-      <div className="grid gap-4">
+      ) : (
+        <div className="grid gap-4">
         {patientAnamnesis.map((anamnese) => {
           const isAssinada = Boolean(
             anamnese.assinaturaPaciente ||
@@ -490,7 +472,8 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
             </Card>
           );
         })}
-      </div>
+        </div>
+      )}
 
       <ModalEnviarAnamnese
         isOpen={isEnviarModalOpen}

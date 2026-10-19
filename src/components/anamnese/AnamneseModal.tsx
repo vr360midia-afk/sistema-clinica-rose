@@ -21,6 +21,7 @@ import {
   Link2,
   Smartphone,
   Send,
+  Pencil,
 } from 'lucide-react';
 import { openWhatsApp } from '@/lib/whatsapp';
 import { gerarLinkAmigavelAnamnese } from '@/utils/anamneseEngine';
@@ -33,7 +34,7 @@ interface AnamneseModalProps {
 }
 
 const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: AnamneseModalProps) => {
-  const { addAnamnese, pacientes, generateSignatureLink, signAnamnese } = useDentalSystem();
+  const { addAnamnese, updateAnamnese, pacientes, generateSignatureLink, signAnamnese } = useDentalSystem();
   const [selectedPatient, setSelectedPatient] = useState(preSelectedPatient || '');
   const [step, setStep] = useState<'form' | 'signature-patient' | 'signature-dentist' | 'link'>('form');
   const [anamneseId, setAnamneseId] = useState<string>('');
@@ -170,25 +171,32 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
       };
 
       let savedAnamnese: any = null;
-      let targetId = 'anm_' + Date.now();
-      try {
-        savedAnamnese = await addAnamnese(anamneseData);
-        if (savedAnamnese?.id) {
-          targetId = savedAnamnese.id;
-        }
-      } catch (addErr) {
-        console.warn('Fallback ao registrar anamnese no contexto:', addErr);
-        try {
-          const localAnams = JSON.parse(localStorage.getItem('dental-system-anamneses') || '[]');
-          const newLocal = { ...anamneseData, id: targetId, criadoEm: new Date(), atualizadoEm: new Date() };
-          localAnams.push(newLocal);
-          localStorage.setItem('dental-system-anamneses', JSON.stringify(localAnams));
-          savedAnamnese = newLocal;
-        } catch (_) {}
-      }
-      setAnamneseId(targetId);
+      let targetId = anamneseId || ('anm_' + Date.now());
 
-      // Gera os links de forma síncrona e instantânea garantindo exibição imediata
+      if (anamneseId) {
+        // Se a anamnese já existe (ex: voltou para editar e salvou novamente), atualiza
+        await updateAnamnese(anamneseId, anamneseData);
+        targetId = anamneseId;
+      } else {
+        try {
+          savedAnamnese = await addAnamnese(anamneseData);
+          if (savedAnamnese?.id) {
+            targetId = savedAnamnese.id;
+          }
+        } catch (addErr) {
+          console.warn('Fallback ao registrar anamnese no contexto:', addErr);
+          try {
+            const localAnams = JSON.parse(localStorage.getItem('dental-system-anamneses') || '[]');
+            const newLocal = { ...anamneseData, id: targetId, criadoEm: new Date(), atualizadoEm: new Date() };
+            localAnams.push(newLocal);
+            localStorage.setItem('dental-system-anamneses', JSON.stringify(localAnams));
+            savedAnamnese = newLocal;
+          } catch (_) {}
+        }
+        setAnamneseId(targetId);
+      }
+
+      // Gera os links amigáveis garantindo exibição imediata
       const urlPreencher = gerarLinkAmigavelAnamnese({
         anamneseId: targetId,
         paciente: {
@@ -225,7 +233,7 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
       setLinkPreencher(urlPreencher);
       setLinkAssinar(urlAssinar);
       setStep('link');
-      toast.success('Anamnese registrada! Os links para envio ou assinatura estão prontos.');
+      toast.success(anamneseId ? 'Alterações salvas! Os links foram atualizados.' : 'Anamnese registrada! Escolha como coletar a assinatura.');
 
       generateSignatureLink(targetId, 'preencher', patient, savedAnamnese).catch(() => {});
     } catch (error) {
@@ -325,8 +333,10 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
     setObservacoes('');
     setStep('form');
     setAnamneseId('');
-    setSignatureLink('');
-    setIsCopied(false);
+    setLinkPreencher('');
+    setLinkAssinar('');
+    setCopiadoPreencher(false);
+    setCopiadoAssinar(false);
   };
 
   const getCurrentPatient = () => {
@@ -364,17 +374,25 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
   if (step === 'signature-dentist') {
     return (
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl w-[calc(100vw-1.5rem)] max-h-[92vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Assinatura do Dentista / Responsável</DialogTitle>
+            <DialogDescription className="text-xs">
+              Você pode assinar agora como profissional responsável ou concluir para assinar posteriormente.
+            </DialogDescription>
           </DialogHeader>
           <DigitalSignature
             title="Assinatura do Cirurgião-Dentista"
-            signerName="Dr. Dentista"
+            signerName="Cirurgião-Dentista"
             signerRole="dentista"
             documentType="anamnese"
             onSignatureComplete={handleDentistSignature}
-            onCancel={() => setStep('signature-patient')}
+            onCancel={() => {
+              toast.success('Ficha concluída com assinatura do paciente!');
+              onSave?.({ id: anamneseId });
+              resetForm();
+              onClose();
+            }}
           />
         </DialogContent>
       </Dialog>
@@ -386,11 +404,11 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
     return (
       <Dialog open={isOpen} onOpenChange={onClose}>
         <DialogContent className="max-w-[95vw] sm:max-w-[620px] w-full p-4 sm:p-5 gap-3 max-h-[94vh] overflow-y-auto overflow-x-hidden">
-          <DialogHeader className="pb-0.5 space-y-1">
+          <DialogHeader className="pb-1 space-y-1">
             <div className="flex items-center justify-between pr-6">
               <DialogTitle className="flex items-center gap-2 text-base sm:text-lg font-bold text-foreground">
                 <Sparkles className="h-5 w-5 text-emerald-500 shrink-0" />
-                <span>Anamnese Criada com Sucesso!</span>
+                <span>Anamnese Salva com Sucesso!</span>
               </DialogTitle>
             </div>
             {patient?.nome && (
@@ -403,17 +421,20 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
                     📱 {patient.telefone}
                   </span>
                 )}
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 font-medium text-[11px] border border-amber-500/20">
+                  <Clock className="h-3 w-3" /> Aguardando Assinatura
+                </span>
               </div>
             )}
           </DialogHeader>
 
-          <div className="space-y-2.5">
-            {/* Opção 1: Link para Preencher e Assinar (Recomendado) */}
-            <div className="rounded-xl border-2 border-emerald-500/35 bg-gradient-to-r from-emerald-500/[0.08] via-emerald-500/[0.03] to-transparent p-3 sm:p-3.5 space-y-2 shadow-xs">
+          <div className="space-y-3 pt-1">
+            {/* Opção 1 (Principal): Enviar Link de Assinatura ao Paciente (Via WhatsApp ou Copiar) */}
+            <div className="rounded-xl border-2 border-emerald-500/40 bg-gradient-to-r from-emerald-500/[0.08] via-emerald-500/[0.03] to-transparent p-3.5 space-y-2.5 shadow-xs">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 font-bold text-xs sm:text-sm text-foreground">
-                  <Share2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                  <span>Enviar Link para o Paciente no Celular</span>
+                  <FileSignature className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span>Enviar Link de Assinatura ao Paciente</span>
                 </div>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950 px-2 py-0.5 rounded-full border border-emerald-500/30">
                   Recomendado
@@ -421,13 +442,13 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
               </div>
 
               <p className="text-[11px] sm:text-xs text-muted-foreground leading-snug">
-                O paciente responde as perguntas de saúde no próprio celular e assina digitalmente com validade jurídica.
+                Como você já preencheu a ficha, o paciente recebe o link no celular apenas para <strong>conferir e assinar digitalmente</strong> com o dedo na tela.
               </p>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-0.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                 <Button
                   type="button"
-                  onClick={() => handleEnviarWhatsApp('preencher')}
+                  onClick={() => handleEnviarWhatsApp('assinar')}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-9 shadow-xs gap-1.5 cursor-pointer"
                 >
                   <MessageCircle className="h-4 w-4 shrink-0" />
@@ -436,11 +457,11 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
 
                 <Button
                   type="button"
-                  onClick={() => copyToClipboard('preencher')}
+                  onClick={() => copyToClipboard('assinar')}
                   variant="outline"
                   className="text-xs h-9 font-medium gap-1.5 border-border hover:bg-accent cursor-pointer"
                 >
-                  {copiadoPreencher ? (
+                  {copiadoAssinar ? (
                     <>
                       <Check className="h-4 w-4 text-emerald-600 shrink-0" />
                       <span className="text-emerald-600 font-semibold">Link Copiado!</span>
@@ -455,65 +476,17 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
               </div>
             </div>
 
-            {/* Opções 2 e 3 em Grid Lado a Lado (Desktop/Tablet) e Empilhadas no Mobile */}
+            {/* Opção 2 e Opção 3 em Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {/* Opção 2: Link para Apenas Assinar */}
-              <div className="rounded-xl border border-border/80 bg-card p-3 space-y-2 flex flex-col justify-between hover:border-border transition-colors">
+              {/* Opção 2: Assinar na Hora (Presencial no Consultório) */}
+              <div className="rounded-xl border border-amber-300 dark:border-amber-800/80 bg-amber-50/50 dark:bg-amber-950/20 p-3 space-y-2 flex flex-col justify-between">
                 <div className="space-y-1">
-                  <div className="flex items-center gap-1.5 font-semibold text-xs text-foreground">
-                    <FileSignature className="h-3.5 w-3.5 text-primary shrink-0" />
-                    <span>Apenas Assinar (Pré-preenchido)</span>
+                  <div className="flex items-center gap-1.5 font-bold text-xs text-amber-900 dark:text-amber-200">
+                    <Smartphone className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                    <span>Assinar na Hora (Presencial)</span>
                   </div>
                   <p className="text-[11px] text-muted-foreground leading-snug">
-                    Ficha já preenchida na clínica, solicitando apenas conferência e assinatura.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-1.5 pt-1">
-                  <Button
-                    type="button"
-                    onClick={() => handleEnviarWhatsApp('assinar')}
-                    variant="outline"
-                    size="sm"
-                    className="text-xs h-8 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 gap-1 font-medium px-1.5 cursor-pointer"
-                    title="Enviar WhatsApp apenas para assinatura"
-                  >
-                    <MessageCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                    <span className="truncate">WhatsApp</span>
-                  </Button>
-
-                  <Button
-                    type="button"
-                    onClick={() => copyToClipboard('assinar')}
-                    variant="outline"
-                    size="sm"
-                    className="text-xs h-8 gap-1 px-1.5 cursor-pointer"
-                    title="Copiar link apenas para assinatura"
-                  >
-                    {copiadoAssinar ? (
-                      <>
-                        <Check className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                        <span className="text-emerald-600 font-semibold truncate">Copiado!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                        <span className="truncate">Copiar</span>
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </div>
-
-              {/* Opção 3: Assinatura Presencial */}
-              <div className="rounded-xl border border-border/80 bg-card p-3 space-y-2 flex flex-col justify-between hover:border-border transition-colors">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1.5 font-semibold text-xs text-foreground">
-                    <Smartphone className="h-3.5 w-3.5 text-primary shrink-0" />
-                    <span>Assinatura Presencial</span>
-                  </div>
-                  <p className="text-[11px] text-muted-foreground leading-snug">
-                    Se o paciente estiver no consultório, colete a assinatura na tela deste aparelho.
+                    Paciente presente no consultório? Colete a assinatura com o dedo ou caneta agora na tela.
                   </p>
                 </div>
 
@@ -521,22 +494,96 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
                   <Button
                     type="button"
                     onClick={handleDirectSignature}
-                    className="w-full h-8 text-xs font-semibold gap-1.5 cursor-pointer"
-                    variant="outline"
+                    className="w-full h-8.5 text-xs font-semibold gap-1.5 cursor-pointer bg-amber-600 hover:bg-amber-700 text-white shadow-xs"
                   >
-                    <FileSignature className="h-3.5 w-3.5 text-primary shrink-0" />
-                    <span>Iniciar na Tela Agora</span>
+                    <FileSignature className="h-3.5 w-3.5 shrink-0" />
+                    <span>Assinar na Tela Agora</span>
+                  </Button>
+                </div>
+              </div>
+
+              {/* Opção 3: Edição de Respostas */}
+              <div className="rounded-xl border border-border/80 bg-card p-3 space-y-2 flex flex-col justify-between hover:border-border transition-colors">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5 font-semibold text-xs text-foreground">
+                    <Pencil className="h-3.5 w-3.5 text-primary shrink-0" />
+                    <span>Editar Respostas</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-snug">
+                    Precisa corrigir ou acrescentar algo na história, alergias ou medicamentos antes de assinar?
+                  </p>
+                </div>
+
+                <div className="pt-1">
+                  <Button
+                    type="button"
+                    onClick={() => setStep('form')}
+                    variant="outline"
+                    className="w-full h-8.5 text-xs font-semibold gap-1.5 cursor-pointer"
+                  >
+                    <Pencil className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <span>Voltar e Editar Ficha</span>
                   </Button>
                 </div>
               </div>
             </div>
+
+            {/* Opção 4: Link Alternativo para o Paciente Preencher Tudo do Zero */}
+            <div className="rounded-xl border border-border/60 bg-muted/30 p-2.5 space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-semibold text-foreground flex items-center gap-1.5">
+                  <Link2 className="h-3.5 w-3.5 text-muted-foreground" />
+                  Link para o paciente preencher todo o questionário do zero no celular:
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleEnviarWhatsApp('preencher')}
+                  className="text-xs h-7.5 gap-1 text-emerald-700 dark:text-emerald-400 font-medium"
+                >
+                  <MessageCircle className="h-3 w-3" />
+                  WhatsApp
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => copyToClipboard('preencher')}
+                  className="text-xs h-7.5 gap-1 text-muted-foreground"
+                >
+                  {copiadoPreencher ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
+                  {copiadoPreencher ? 'Copiado!' : 'Copiar'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleAbrirLink('assinar')}
+                  className="text-xs h-7.5 gap-1 text-muted-foreground ml-auto"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  Abrir Ficha
+                </Button>
+              </div>
+            </div>
           </div>
 
-          <div className="flex items-center justify-between pt-2 border-t border-border/60">
-            <span className="text-[11px] text-muted-foreground hidden sm:inline">
-              O link fica sempre acessível na lista de anamneses.
-            </span>
+          <div className="flex items-center justify-between pt-2.5 border-t border-border/60 mt-1">
             <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setStep('form')}
+              className="text-xs h-8.5 gap-1.5 cursor-pointer text-muted-foreground hover:text-foreground"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              <span>Editar Respostas</span>
+            </Button>
+            <Button
+              type="button"
               variant="default"
               size="sm"
               onClick={() => {
@@ -544,7 +591,7 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
                 resetForm();
                 onClose();
               }}
-              className="text-xs h-8.5 px-5 font-bold cursor-pointer ml-auto"
+              className="text-xs h-8.5 px-5 font-bold cursor-pointer"
             >
               Concluir
             </Button>
@@ -558,7 +605,14 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl w-[calc(100vw-2rem)] sm:w-full max-h-[92vh] overflow-y-auto overflow-x-hidden overscroll-contain touch-pan-y p-3.5 sm:p-6">
         <DialogHeader>
-          <DialogTitle>Nova Anamnese Odontológica</DialogTitle>
+          <DialogTitle>
+            {anamneseId ? 'Editar Anamnese Odontológica' : 'Nova Anamnese Odontológica'}
+          </DialogTitle>
+          <DialogDescription className="text-xs">
+            {anamneseId
+              ? 'Edite as respostas e salve para atualizar os links de assinatura'
+              : 'Preencha os dados clínicos ou envie o link direto para o paciente preencher'}
+          </DialogDescription>
         </DialogHeader>
         
         <div className="space-y-4">
@@ -709,7 +763,11 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
               Cancelar
             </Button>
             <Button onClick={handleSaveForm} disabled={salvando} className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold">
-              {salvando ? 'Salvando...' : 'Salvar e Gerar Link de Assinatura'}
+              {salvando
+                ? 'Salvando...'
+                : anamneseId
+                ? 'Salvar Alterações e Ver Opções'
+                : 'Salvar e Gerar Opções de Assinatura'}
             </Button>
           </div>
         </div>
