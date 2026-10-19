@@ -94,24 +94,34 @@ export const PacienteCombobox: React.FC<PacienteComboboxProps> = ({
     }).slice(0, 80);
   }, [pacientes, search]);
 
-  // Reset de busca ao abrir e foco suave
+  // Reset de busca ao abrir e foco imediato
   useEffect(() => {
     if (open) {
       setSearch('');
       setHighlightedIndex(0);
-      const timer = setTimeout(() => {
+      requestAnimationFrame(() => {
         inputRef.current?.focus();
-      }, 60);
-      return () => clearTimeout(timer);
+      });
     }
   }, [open]);
 
-  // Teclado para navegar entre resultados
+  // Teclado para navegar entre resultados e capturar digitação direta
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (!open) {
       if (e.key === 'ArrowDown' || e.key === 'Enter') {
         e.preventDefault();
         setOpen(true);
+        return;
+      }
+      // Se o usuário já começou a digitar uma letra ou número no botão de busca, abre imediatamente com ela!
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        setSearch(e.key);
+        setOpen(true);
+        requestAnimationFrame(() => {
+          inputRef.current?.focus();
+        });
+        return;
       }
       return;
     }
@@ -135,6 +145,11 @@ export const PacienteCombobox: React.FC<PacienteComboboxProps> = ({
     } else if (e.key === 'Escape') {
       e.preventDefault();
       setOpen(false);
+    } else if (e.target !== inputRef.current && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      // Se a lista está aberta e o foco estava no gatilho ou item, direciona a digitação ao input
+      e.preventDefault();
+      setSearch((prev) => prev + e.key);
+      inputRef.current?.focus();
     }
   };
 
@@ -149,7 +164,7 @@ export const PacienteCombobox: React.FC<PacienteComboboxProps> = ({
             aria-expanded={open}
             disabled={disabled}
             className={cn(
-              'w-full h-10 px-3 justify-between font-normal text-left bg-background border border-input hover:bg-accent/40 hover:text-accent-foreground transition-all duration-150 select-none',
+              'w-full h-10 px-3 justify-between font-normal text-left bg-background border border-input hover:bg-accent/40 hover:text-accent-foreground transition-all duration-150 select-none cursor-pointer',
               !nomeExibicao && 'text-muted-foreground',
               triggerClassName
             )}
@@ -200,7 +215,7 @@ export const PacienteCombobox: React.FC<PacienteComboboxProps> = ({
 
         <PopoverContent
           className={cn(
-            "p-0 z-[70] shadow-2xl rounded-xl border border-border/80 bg-popover text-popover-foreground flex flex-col overflow-hidden",
+            "p-0 z-[70] shadow-2xl rounded-xl border border-border/80 bg-popover text-popover-foreground flex flex-col overflow-hidden pointer-events-auto",
             // Responsividade blindada: no celular fica com margem lateral perfeita, no desktop acompanha o gatilho
             "w-[calc(100vw-2.5rem)] max-w-[420px] sm:w-[var(--radix-popover-trigger-width)] sm:min-w-[320px]"
           )}
@@ -210,17 +225,12 @@ export const PacienteCombobox: React.FC<PacienteComboboxProps> = ({
           avoidCollisions={true}
           collisionPadding={{ top: 12, right: 14, bottom: 12, left: 14 }}
           onOpenAutoFocus={(e) => {
-            // Evita scroll jump do Dialog mantendo o foco suave no input
+            // Garante foco direto e imediato no input de busca ao abrir
             e.preventDefault();
-            setTimeout(() => {
-              inputRef.current?.focus();
-            }, 50);
+            inputRef.current?.focus();
           }}
           onCloseAutoFocus={(e) => {
             e.preventDefault();
-          }}
-          onPointerDownCapture={(e) => {
-            e.stopPropagation();
           }}
         >
           {/* Cabeçalho de Busca com Input Real - 16px font-size para evitar zoom no iOS */}
@@ -236,8 +246,12 @@ export const PacienteCombobox: React.FC<PacienteComboboxProps> = ({
                   setHighlightedIndex(0);
                 }}
                 onKeyDown={handleKeyDown}
+                onClick={(e) => e.stopPropagation()}
                 placeholder="Digite o nome, telefone ou CPF..."
-                className="w-full h-10 pl-9 pr-9 rounded-lg bg-background border border-input text-[16px] sm:text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 shadow-inner transition-all"
+                className="w-full h-10 pl-9 pr-9 rounded-lg bg-background border border-input text-[16px] sm:text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 shadow-inner transition-all select-text cursor-text pointer-events-auto"
+                autoComplete="off"
+                autoCorrect="off"
+                spellCheck={false}
               />
               {search && (
                 <button
@@ -246,7 +260,7 @@ export const PacienteCombobox: React.FC<PacienteComboboxProps> = ({
                     setSearch('');
                     inputRef.current?.focus();
                   }}
-                  className="absolute right-2.5 p-1 text-muted-foreground hover:text-foreground rounded-full hover:bg-muted transition-colors"
+                  className="absolute right-2.5 p-1 text-muted-foreground hover:text-foreground rounded-full hover:bg-muted transition-colors cursor-pointer"
                   title="Limpar busca"
                 >
                   <X className="h-4 w-4" />
