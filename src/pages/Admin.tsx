@@ -294,7 +294,7 @@ const Admin = () => {
             <p className="text-sm text-muted-foreground">
               O backup completo inclui pacientes, consultas, financeiro, prontuários, anamneses,
               orçamentos, procedimentos, medicamentos, dentistas, parceiros, estoque e configurações.
-              Ele é gerado automaticamente conforme a frequência definida em Configurações
+              Ele é gerado automaticamente conforme a frequência definida em Configurações (exclusivamente em computadores/desktops)
               {ultimoBackup && ` (último: ${ultimoBackup.toLocaleString('pt-BR')})`}.
               Para migrar para outra conta, basta restaurar este arquivo estando logado nela.
             </p>

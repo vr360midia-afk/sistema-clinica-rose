@@ -22,13 +22,60 @@ export const marcarBackupFeito = (userId?: string) => {
   if (userId) localStorage.setItem(`${MARKER_PREFIX}-${userId}`, new Date().toISOString());
 };
 
-/** Executa o backup automático (download do JSON) conforme a frequência configurada */
+/**
+ * Detecta se o dispositivo atual é móvel (smartphone, tablet, etc.).
+ * O download automático de arquivos de backup é desabilitado em celulares e tablets
+ * para evitar downloads indesejados e consumo de dados móveis no celular do usuário.
+ */
+export const isDispositivoMovel = (): boolean => {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') {
+    return false;
+  }
+
+  // 1. Verificação por User Agent (smartphones e tablets Android, iPhone, iPad, etc.)
+  const ua = navigator.userAgent || (navigator as any).vendor || (window as any).opera || '';
+  if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile/i.test(ua)) {
+    return true;
+  }
+
+  // 2. iPads modernos que reportam plataforma MacIntel mas possuem múltiplos pontos de toque
+  if (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) {
+    return true;
+  }
+
+  // 3. Verificação por largura de tela/viewport típica de dispositivos móveis (< 1024px)
+  const largura = Math.min(
+    window.innerWidth || Infinity,
+    window.screen?.width || Infinity
+  );
+  if (largura < 1024) {
+    return true;
+  }
+
+  // 4. Verificação por mídia de ponteiro touch em telas menores
+  if (window.matchMedia && window.matchMedia('(pointer: coarse) and (max-width: 1024px)').matches) {
+    return true;
+  }
+
+  return false;
+};
+
+export const isComputadorDesktop = (): boolean => {
+  return !isDispositivoMovel();
+};
+
+/** Executa o backup automático (download do JSON) conforme a frequência configurada exclusivamente em computadores/desktops */
 export const useBackupAutomatico = () => {
   const { user, clinicaId } = useAuth();
   const { configuracoes, loading } = useConfiguracoes();
   const executado = useRef(false);
 
   useEffect(() => {
+    // 1. Bloqueia a execução automática em qualquer dispositivo móvel (celular ou tablet)
+    if (isDispositivoMovel()) {
+      return;
+    }
+
     if (!user?.id || loading || executado.current) return;
     if (!configuracoes.backupAutomatico) return;
 
@@ -42,7 +89,7 @@ export const useBackupAutomatico = () => {
       try {
         const total = await downloadBackupCompleto();
         marcarBackupFeito(user.id);
-        toast.success(`Backup automático gerado (${total} registros)`);
+        toast.success(`Backup automático gerado no computador (${total} registros)`);
       } catch (e) {
         console.error('Erro no backup automático:', e);
       }
@@ -51,4 +98,3 @@ export const useBackupAutomatico = () => {
     return () => clearTimeout(timer);
   }, [clinicaId, loading, configuracoes.backupAutomatico, configuracoes.frequenciaBackup]);
 };
-

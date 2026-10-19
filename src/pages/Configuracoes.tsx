@@ -738,8 +738,15 @@ const Configuracoes = () => {
               <CardContent className="space-y-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <Label htmlFor="backupAutomatico">Backup Automático</Label>
-                    <p className="text-sm text-muted-foreground">Fazer backup automático dos dados</p>
+                    <Label htmlFor="backupAutomatico" className="flex items-center gap-2">
+                      <span>Backup Automático</span>
+                      <span className="text-[11px] font-normal px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                        Apenas no Computador
+                      </span>
+                    </Label>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                      Gera download automático periódico dos dados no computador. Em celulares/tablets, o download automático é desativado para não baixar arquivos no celular.
+                    </p>
                   </div>
                   <Switch
                     id="backupAutomatico"
