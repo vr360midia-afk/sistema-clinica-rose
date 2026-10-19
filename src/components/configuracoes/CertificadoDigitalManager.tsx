@@ -34,7 +34,9 @@ const CertificadoDigitalManager = () => {
     setForm(certificado);
   }, [certificado]);
 
-  const conectado = Boolean(certificado.clientId && certificado.clientSecret);
+  const temCredenciaisApi = Boolean(certificado.clientId && certificado.clientSecret);
+  const configurado = Boolean(certificado.titularNome && certificado.titularCpf && certificado.ativo);
+  const temDadosSalvos = Boolean(certificado.titularNome || certificado.clientId);
 
   const set = (patch: Partial<CertificadoDigital>) => setForm((p) => ({ ...p, ...patch }));
 
@@ -56,12 +58,22 @@ const CertificadoDigitalManager = () => {
               Certificado Digital ICP-Brasil
             </CardTitle>
             <CardDescription>
-              Conecte o seu certificado A3 em nuvem para assinar documentos com validade legal (CFO).
+              Conecte o seu certificado A3 em nuvem (SafeID / Safeweb) para assinar documentos com validade legal (CFO).
             </CardDescription>
           </div>
-          <Badge variant={conectado ? 'default' : 'secondary'}>
-            {conectado ? 'Conectado' : 'Não conectado'}
-          </Badge>
+          {temCredenciaisApi ? (
+            <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1">
+              <ShieldCheck className="h-3 w-3" /> Conectado via API (SafeID)
+            </Badge>
+          ) : configurado ? (
+            <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1">
+              <ShieldCheck className="h-3 w-3" /> Titular Ativo ({form.provedor.toUpperCase()})
+            </Badge>
+          ) : (
+            <Badge variant="secondary">
+              Não configurado
+            </Badge>
+          )}
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -179,10 +191,10 @@ const CertificadoDigitalManager = () => {
             {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             Salvar certificado
           </Button>
-          {conectado && (
+          {temDadosSalvos && (
             <Button variant="outline" onClick={remover} disabled={saving}>
               <Trash2 className="h-4 w-4 mr-2" />
-              Desconectar
+              Remover Dados
             </Button>
           )}
         </div>
