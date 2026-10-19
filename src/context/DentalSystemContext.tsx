@@ -361,15 +361,14 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const updateAnamnese = async (id: string, updates: Partial<Anamnese>) => {
     try {
+      localStorageService.updateAnamnese(id, updates);
+      setAnamneses(prev => prev.map(a => (a.id === id ? { ...a, ...updates } : a)));
       const anamneseAtualizada = await supabaseService.updateAnamnese(id, updates);
       if (anamneseAtualizada) {
-        setAnamneses(prev => prev.map(a => a.id === id ? anamneseAtualizada : a));
-        toast.success('Anamnese atualizada com sucesso!');
+        setAnamneses(prev => prev.map(a => (a.id === id ? anamneseAtualizada : a)));
       }
     } catch (error) {
-      console.error('Erro ao atualizar anamnese:', error);
-      toast.error('Erro ao atualizar anamnese');
-      throw error;
+      console.warn('Aviso ao sincronizar atualização de anamnese no Supabase:', error);
     }
   };
 
@@ -463,6 +462,7 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
       
       if (signerType === 'paciente') {
         updates.assinaturaPaciente = signatureData;
+        updates.dataAssinatura = new Date();
       } else {
         updates.assinaturaDoutor = signatureData;
       }

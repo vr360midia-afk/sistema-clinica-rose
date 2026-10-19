@@ -28,11 +28,13 @@ import {
   Pill,
   HeartPulse,
   ShieldCheck,
+  FileSignature,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import AnamneseModal from '@/components/anamnese/AnamneseModal';
 import { ModalEnviarAnamnese } from '@/components/anamnese/ModalEnviarAnamnese';
+import DigitalSignature, { SignatureData } from '@/components/signature/DigitalSignature';
 import { openWhatsApp } from '@/lib/whatsapp';
 
 interface PatientAnamnesisProps {
@@ -40,13 +42,14 @@ interface PatientAnamnesisProps {
 }
 
 const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
-  const { anamneses, addAnamnese, generateSignatureLink, deleteAnamnese } = useDentalSystem();
+  const { anamneses, addAnamnese, generateSignatureLink, deleteAnamnese, signAnamnese } = useDentalSystem();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEnviarModalOpen, setIsEnviarModalOpen] = useState(false);
   const [copiandoId, setCopiandoId] = useState<string | null>(null);
   const [gerandoLink, setGerandoLink] = useState(false);
   const [selectedAnamnese, setSelectedAnamnese] = useState<any | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [anamneseParaAssinar, setAnamneseParaAssinar] = useState<any | null>(null);
 
   const patientAnamnesis = (anamneses || []).filter((a) => a.pacienteId === patient.id);
 
@@ -56,6 +59,30 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
 
   const handleSaveAnamnesis = () => {
     setIsModalOpen(false);
+  };
+
+  const handleSalvarAssinaturaClinica = async (signatureData: SignatureData) => {
+    if (!anamneseParaAssinar?.id) return;
+    try {
+      await signAnamnese(anamneseParaAssinar.id, signatureData, 'paciente');
+      toast.success('Assinatura presencial do paciente coletada com sucesso!');
+      setAnamneseParaAssinar(null);
+    } catch (err) {
+      console.error('Erro ao salvar assinatura presencial:', err);
+      toast.error('Erro ao registrar assinatura. Tente novamente.');
+    }
+  };
+
+  const handleAssinarNaClinicaTopo = () => {
+    const pendente = patientAnamnesis.find(
+      (a) => !a.assinaturaPaciente && a.statusAssinatura !== 'completo' && a.statusAssinatura !== 'paciente_assinado'
+    ) || patientAnamnesis[0];
+
+    if (pendente) {
+      setAnamneseParaAssinar(pendente);
+    } else {
+      handleNewAnamnesis();
+    }
   };
 
   // Obtém o link existente ou gera um novo token seguro vinculado à anamnese
@@ -236,10 +263,22 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Botão Assinar na Clínica */}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleAssinarNaClinicaTopo}
+            className="text-xs h-8 font-semibold border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:bg-amber-950/40 dark:border-amber-800 dark:text-amber-300 gap-1.5 shadow-xs cursor-pointer"
+            title="Coletar assinatura presencial do paciente agora no consultório"
+          >
+            <FileSignature className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+            <span>Assinar na Clínica</span>
+          </Button>
+
           <Button
             size="sm"
             onClick={() => setIsEnviarModalOpen(true)}
-            className="text-xs h-8 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold gap-1.5 shadow-xs"
+            className="text-xs h-8 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold gap-1.5 shadow-xs cursor-pointer"
             title="Enviar link individual ao paciente para preencher ou apenas assinar"
           >
             <Link2 className="h-3.5 w-3.5" />
@@ -250,7 +289,7 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
             size="sm"
             variant="outline"
             onClick={handleNewAnamnesis}
-            className="text-xs h-8 font-semibold gap-1"
+            className="text-xs h-8 font-semibold gap-1 cursor-pointer"
           >
             <Plus className="h-3.5 w-3.5" />
             <span>Nova Anamnese</span>
@@ -306,6 +345,20 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
 
                   {/* Ações da Ficha */}
                   <div className="flex items-center gap-1.5 flex-wrap">
+                    {/* Botão Assinar na Clínica (Exibido para fichas pendentes de assinatura) */}
+                    {!isAssinada && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setAnamneseParaAssinar(anamnese)}
+                        className="h-8 text-xs font-semibold border-amber-400/80 bg-amber-50 text-amber-900 hover:bg-amber-100 dark:bg-amber-950/50 dark:border-amber-700 dark:text-amber-200 gap-1.5 shadow-xs cursor-pointer"
+                        title="Coletar assinatura presencial do paciente agora na tela da clínica"
+                      >
+                        <FileSignature className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                        <span>Assinar na Clínica</span>
+                      </Button>
+                    )}
+
                     <Button
                       variant="outline"
                       size="sm"
@@ -313,7 +366,7 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
                         setSelectedAnamnese(anamnese);
                         setIsViewModalOpen(true);
                       }}
-                      className="h-8 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:border-blue-800 dark:text-blue-300 gap-1.5"
+                      className="h-8 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:border-blue-800 dark:text-blue-300 gap-1.5 cursor-pointer"
                       title="Visualizar respostas completas e assinaturas"
                     >
                       <Eye className="h-3.5 w-3.5 text-blue-600" />
@@ -628,8 +681,21 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
                       )}
                     </div>
                   ) : (
-                    <div className="py-2 text-xs text-muted-foreground">
-                      Esta ficha ainda não foi assinada digitalmente.
+                    <div className="py-2 text-xs text-muted-foreground flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-amber-50/60 dark:bg-amber-950/20 p-2.5 rounded-lg border border-amber-200/70 dark:border-amber-900/40">
+                      <span>Esta ficha ainda não foi assinada digitalmente pelo paciente.</span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => {
+                          const alvo = selectedAnamnese;
+                          setIsViewModalOpen(false);
+                          setAnamneseParaAssinar(alvo);
+                        }}
+                        className="text-xs h-8 bg-amber-600 hover:bg-amber-700 text-white font-semibold gap-1.5 shadow-xs cursor-pointer shrink-0"
+                      >
+                        <FileSignature className="h-3.5 w-3.5" />
+                        <span>Assinar na Clínica Agora</span>
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -656,6 +722,55 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
               </div>
             );
           })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Assinatura Presencial na Clínica */}
+      <Dialog
+        open={Boolean(anamneseParaAssinar)}
+        onOpenChange={(open) => !open && setAnamneseParaAssinar(null)}
+      >
+        <DialogContent className="max-w-2xl w-[calc(100vw-1.5rem)] max-h-[94vh] overflow-y-auto p-4 sm:p-6">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <FileSignature className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+              <span>Assinatura Presencial na Clínica</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Paciente: <strong className="text-foreground">{patient?.nome}</strong> • Coleta direta de assinatura digital na tela
+            </DialogDescription>
+          </DialogHeader>
+
+          {anamneseParaAssinar && (
+            <div className="space-y-4">
+              <div className="p-3 rounded-lg bg-muted/50 border border-border text-xs space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-foreground">
+                    {anamneseParaAssinar.queixaPrincipal || 'Anamnese Odontológica'}
+                  </span>
+                  <span className="text-muted-foreground">
+                    {new Date(anamneseParaAssinar.data).toLocaleDateString('pt-BR')}
+                  </span>
+                </div>
+                {anamneseParaAssinar.historiaAtual && (
+                  <p className="text-muted-foreground line-clamp-2">
+                    {anamneseParaAssinar.historiaAtual}
+                  </p>
+                )}
+              </div>
+
+              <DigitalSignature
+                title="Assinatura da Ficha de Anamnese"
+                signerName={patient?.nome || 'Paciente'}
+                signerRole="paciente"
+                documentType="anamnese"
+                initialEmail={patient?.email || ''}
+                initialCpf={patient?.cpf || ''}
+                onSignatureComplete={handleSalvarAssinaturaClinica}
+                onCancel={() => setAnamneseParaAssinar(null)}
+              />
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
