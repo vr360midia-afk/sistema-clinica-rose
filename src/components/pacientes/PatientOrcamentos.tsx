@@ -111,6 +111,20 @@ const PatientOrcamentos = ({ patient }: Props) => {
   const [pixDatasParcelas, setPixDatasParcelas] = useState<string[]>(() => gerarDatasPadrao(3, 10));
   const [pixSituacoesParcelas, setPixSituacoesParcelas] = useState<Array<'A vencer' | 'Quitada'>>(() => ['A vencer', 'A vencer', 'A vencer']);
 
+  // Assistente de Entrada + Saldo (Permite colocar um valor de entrada apenas e depois preencher o restante)
+  const [entradaAssistenteAtivo, setEntradaAssistenteAtivo] = useState(false);
+  const [valorEntrada, setValorEntrada] = useState<number>(0);
+  const [metodoEntrada, setMetodoEntrada] = useState<'pix' | 'dinheiro' | 'cartao_debito' | 'cartao_credito' | 'transferencia'>('pix');
+  const [dataEntrada, setDataEntrada] = useState<string>(() => formatIsoDate(new Date()));
+  const [situacaoEntrada, setSituacaoEntrada] = useState<'Quitada' | 'A vencer'>('Quitada');
+  const [modalidadeSaldo, setModalidadeSaldo] = useState<'combinar' | 'cartao' | 'pix_parcelado' | 'boleto' | 'conclusao'>('combinar');
+  const [saldoCartaoOperadoraId, setSaldoCartaoOperadoraId] = useState<string>('infinitepay');
+  const [saldoCartaoParcelas, setSaldoCartaoParcelas] = useState<number>(3);
+  const [saldoPixParcelas, setSaldoPixParcelas] = useState<number>(3);
+  const [saldoPixDiaVencimento, setSaldoPixDiaVencimento] = useState<number>(10);
+  const [saldoBoletoParcelas, setSaldoBoletoParcelas] = useState<number>(3);
+  const [saldoBoletoDiaVencimento, setSaldoBoletoDiaVencimento] = useState<number>(10);
+
   // Múltiplas Formas de Pagamento (Entrada + Cartão / Split)
   const [multiplasFormasAtivo, setMultiplasFormasAtivo] = useState(false);
   const [formasMultiplas, setFormasMultiplas] = useState<
@@ -297,8 +311,13 @@ const PatientOrcamentos = ({ patient }: Props) => {
           `${f.rotulo}: ${formatMoney(f.valor)} em ${f.parcelas}x de ${formatMoney(valParc)} no ${nomeMetodo}${infoDatas}${sitStr}`
         );
       } else {
-        const dataStr = f.dataPagamento ? ` (em ${formatBrDate(f.dataPagamento)})` : '';
-        partes.push(`${f.rotulo}: ${formatMoney(f.valor)} via ${nomeMetodo}${dataStr}${sitStr}`);
+        const isSaldoCombinar = f.rotulo.toLowerCase().includes('combinar');
+        if (isSaldoCombinar) {
+          partes.push(`${f.rotulo}: ${formatMoney(f.valor)} a combinar`);
+        } else {
+          const dataStr = f.dataPagamento ? ` (em ${formatBrDate(f.dataPagamento)})` : '';
+          partes.push(`${f.rotulo}: ${formatMoney(f.valor)} via ${nomeMetodo}${dataStr}${sitStr}`);
+        }
       }
     }
     return partes.join(' + ');
@@ -561,6 +580,104 @@ const PatientOrcamentos = ({ patient }: Props) => {
     }
   };
 
+  const obterNomeMetodoEntrada = (met: string) => {
+    switch (met) {
+      case 'pix': return 'PIX';
+      case 'dinheiro': return 'Dinheiro';
+      case 'cartao_debito': return 'Cartão de Débito';
+      case 'cartao_credito': return 'Cartão de Crédito';
+      case 'transferencia': return 'Transferência';
+      default: return 'PIX';
+    }
+  };
+
+  const handleToggleEntradaAssistente = () => {
+    const novo = !entradaAssistenteAtivo;
+    setEntradaAssistenteAtivo(novo);
+    if (novo) {
+      setCartaoAssistenteAtivo(false);
+      setPixParceladoAtivo(false);
+      setMultiplasFormasAtivo(false);
+      if (valorEntrada <= 0 && total > 0) {
+        const entSugerida = Math.round(total * 0.2); // 20%
+        setValorEntrada(entSugerida);
+      }
+    }
+  };
+
+  const aplicarEntradaApenas = (valEntradaCustom?: number) => {
+    const vEnt = valEntradaCustom !== undefined ? valEntradaCustom : valorEntrada;
+    if (vEnt <= 0) {
+      toast.error('Informe um valor de entrada válido maior que zero.');
+      return;
+    }
+    const saldo = Math.max(0, total - vEnt);
+    const metNome = obterNomeMetodoEntrada(metodoEntrada);
+    const dataStr = dataEntrada ? ` (em ${formatBrDate(dataEntrada)})` : '';
+    const sitStr = ` [${situacaoEntrada}]`;
+
+    let textoFinal = '';
+    if (saldo <= 0) {
+      textoFinal = `Entrada Integral: ${formatMoney(vEnt)} via ${metNome}${dataStr}${sitStr}`;
+    } else {
+      textoFinal = `Entrada: ${formatMoney(vEnt)} via ${metNome}${dataStr}${sitStr} + Saldo Restante: ${formatMoney(saldo)} a combinar`;
+    }
+
+    setFormasPagamento(textoFinal);
+    toast.success(
+      saldo > 0
+        ? `Entrada de ${formatMoney(vEnt)} definida! Saldo de ${formatMoney(saldo)} registrado a combinar.`
+        : `Entrada integral de ${formatMoney(vEnt)} definida!`
+    );
+  };
+
+  const aplicarEntradaComSaldo = () => {
+    if (valorEntrada <= 0) {
+      toast.error('Informe um valor de entrada válido maior que zero.');
+      return;
+    }
+    const saldo = Math.max(0, total - valorEntrada);
+    const metNome = obterNomeMetodoEntrada(metodoEntrada);
+    const dataStr = dataEntrada ? ` (em ${formatBrDate(dataEntrada)})` : '';
+    const sitStr = ` [${situacaoEntrada}]`;
+
+    const textoEntrada = `Entrada: ${formatMoney(valorEntrada)} via ${metNome}${dataStr}${sitStr}`;
+
+    if (saldo <= 0) {
+      setFormasPagamento(`Entrada Integral: ${formatMoney(valorEntrada)} via ${metNome}${dataStr}${sitStr}`);
+      toast.success('Entrada cobre o valor total do orçamento!');
+      return;
+    }
+
+    let textoSaldo = '';
+    if (modalidadeSaldo === 'combinar') {
+      textoSaldo = `Saldo Restante: ${formatMoney(saldo)} a combinar`;
+    } else if (modalidadeSaldo === 'cartao') {
+      const op = operadoras.find((o) => o.id === saldoCartaoOperadoraId) || operadoraPadrao;
+      const opNome = op?.nome || 'Cartão';
+      const calc = calcularTaxaCartao(op, saldoCartaoParcelas, saldo, false);
+      const valParc = saldo / saldoCartaoParcelas;
+      const taxaDesc = calc.taxaValor > 0 ? ` (Taxa ${opNome}: ${calc.taxaPercentual}% / ${formatMoney(calc.taxaValor)})` : '';
+      if (saldoCartaoParcelas === 1) {
+        textoSaldo = `Saldo: ${formatMoney(saldo)} via Cartão de Crédito à vista (${opNome})${taxaDesc} [Autorizado]`;
+      } else {
+        textoSaldo = `Saldo: ${formatMoney(saldo)} em ${saldoCartaoParcelas}x de ${formatMoney(valParc)} no Cartão de Crédito (${opNome})${taxaDesc} [Autorizado]`;
+      }
+    } else if (modalidadeSaldo === 'pix_parcelado') {
+      const valParc = saldo / saldoPixParcelas;
+      textoSaldo = `Saldo: ${formatMoney(saldo)} em ${saldoPixParcelas}x de ${formatMoney(valParc)} no PIX Parcelado (Vencimento todo dia ${saldoPixDiaVencimento}) [A vencer]`;
+    } else if (modalidadeSaldo === 'boleto') {
+      const valParc = saldo / saldoBoletoParcelas;
+      textoSaldo = `Saldo: ${formatMoney(saldo)} em ${saldoBoletoParcelas}x de ${formatMoney(valParc)} no Boleto Bancário (Vencimento todo dia ${saldoBoletoDiaVencimento}) [A vencer]`;
+    } else if (modalidadeSaldo === 'conclusao') {
+      textoSaldo = `Saldo: ${formatMoney(saldo)} via PIX/Dinheiro na Conclusão do Tratamento [A vencer]`;
+    }
+
+    const textoCompleto = `${textoEntrada} + ${textoSaldo}`;
+    setFormasPagamento(textoCompleto);
+    toast.success('Entrada e opções de pagamento do saldo aplicadas com sucesso!');
+  };
+
   const handleConfirmarAprovacao = async (o: Orcamento, lancarFinanceiro: boolean) => {
     try {
       setLancandoFinanceiro(true);
@@ -615,14 +732,18 @@ const PatientOrcamentos = ({ patient }: Props) => {
           const isEntrada = (p?.descricao || '').toLowerCase().includes('entrada');
           const descLower = (p.metodo || p.descricao || '').toLowerCase();
           const isCartao = descLower.includes('cartao') || descLower.includes('cartão') || descLower.includes('crédito') || descLower.includes('debito');
+          const isACombinar = descLower.includes('combinar') || descLower.includes('definir');
+          const isExplicitamenteQuitada = (p?.status || '').toLowerCase().includes('quitad') || (p?.status || '').toLowerCase().includes('pago');
 
           // Se darBaixaImediataAprovacao estiver marcado, ou for cartão de crédito/débito autorizado, ou marcado como quitado: marca como pago!
+          // Saldo a combinar NÃO recebe baixa imediata a menos que esteja explicitamente marcado como quitado
           const isQuitada =
-            darBaixaImediataAprovacao ||
-            isCartao ||
-            (p?.status || '').toLowerCase().includes('quitad') ||
-            (p?.status || '').toLowerCase().includes('pago') ||
-            (p?.status || '').toLowerCase().includes('autoriz');
+            !isACombinar && (
+              darBaixaImediataAprovacao ||
+              isCartao ||
+              isExplicitamenteQuitada ||
+              (p?.status || '').toLowerCase().includes('autoriz')
+            );
           
           // Se já existe transação paga para este orçamento correspondente à entrada ou parcela, preserva
           const jaExistePaga = jaPagas.some((jp: any) => 
@@ -650,7 +771,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
             dataVenc = somarMesesSeguro(new Date(), mesOffset);
           }
           if (isNaN(dataVenc.getTime())) {
-            dataVenc = new Date();
+            dataVenc = isACombinar ? somarMesesSeguro(new Date(), 1) : new Date();
           }
 
           // Identifica o método específico desta parcela dinamicamente
@@ -667,6 +788,8 @@ const PatientOrcamentos = ({ patient }: Props) => {
             metodoFinal = 'boleto';
           } else if (descLower.includes('transferencia') || descLower.includes('transferência')) {
             metodoFinal = 'transferencia';
+          } else if (isACombinar) {
+            metodoFinal = 'outros';
           }
 
           // Cálculo da taxa da máquina de cartão se a parcela for cartão
@@ -888,6 +1011,18 @@ const PatientOrcamentos = ({ patient }: Props) => {
     setFormasPagamento('');
     setPixParceladoAtivo(false);
     setCartaoAssistenteAtivo(false);
+    setEntradaAssistenteAtivo(false);
+    setValorEntrada(0);
+    setMetodoEntrada('pix');
+    setDataEntrada(formatIsoDate(new Date()));
+    setSituacaoEntrada('Quitada');
+    setModalidadeSaldo('combinar');
+    setSaldoCartaoOperadoraId(configMaquinas.operadoraPadraoId || 'infinitepay');
+    setSaldoCartaoParcelas(3);
+    setSaldoPixParcelas(3);
+    setSaldoPixDiaVencimento(10);
+    setSaldoBoletoParcelas(3);
+    setSaldoBoletoDiaVencimento(10);
     setCartaoOperadoraId(configMaquinas.operadoraPadraoId || 'infinitepay');
     setCartaoTipo('credito');
     setCartaoParcelas(3);
@@ -929,8 +1064,82 @@ const PatientOrcamentos = ({ patient }: Props) => {
     setModoCalculoValor('desconto');
     setInputValorFinal(o.total ? String(o.total) : '');
 
+    // Detecta configurações do Assistente de Entrada + Saldo
+    let ehApenasEntradaOuSaldoACombinar = false;
+    if (o.formasPagamento && /entrada/i.test(o.formasPagamento)) {
+      const matchEntrada = o.formasPagamento.match(/entrada[^\d\n\r]*?(?:de|:)?\s*(?:r\$)?\s*([\d.,]+)/i);
+      if (matchEntrada) {
+        const parsedEnt = parseBrMoney(matchEntrada[1]);
+        if (parsedEnt > 0) {
+          setValorEntrada(parsedEnt);
+        }
+      }
+
+      const parteEntrada = o.formasPagamento.split(/\+/)[0] || '';
+      if (/cart[aã]o.*d[eé]bito|d[eé]bito/i.test(parteEntrada)) setMetodoEntrada('cartao_debito');
+      else if (/cart[aã]o/i.test(parteEntrada)) setMetodoEntrada('cartao_credito');
+      else if (/dinheiro/i.test(parteEntrada)) setMetodoEntrada('dinheiro');
+      else if (/transfer[eê]ncia/i.test(parteEntrada)) setMetodoEntrada('transferencia');
+      else setMetodoEntrada('pix');
+
+      const matchData = parteEntrada.match(/\(em\s*(\d{1,2}\/\d{1,2}\/\d{4})\)/i);
+      if (matchData) {
+        const [d, m, y] = matchData[1].split('/');
+        setDataEntrada(`${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`);
+      } else {
+        setDataEntrada(formatIsoDate(new Date()));
+      }
+
+      const matchSit = parteEntrada.match(/\[(?:situa[çc][aã]o:\s*)?([^\]]+)\]/i);
+      if (matchSit && /quitad|pago/i.test(matchSit[1])) {
+        setSituacaoEntrada('Quitada');
+      } else {
+        setSituacaoEntrada('A vencer');
+      }
+
+      const parteSaldo = o.formasPagamento.includes('+') ? o.formasPagamento.split('+').slice(1).join('+') : '';
+      if (parteSaldo) {
+        if (/combinar|definir|pendente/i.test(parteSaldo)) {
+          setModalidadeSaldo('combinar');
+        } else if (/cart[aã]o/i.test(parteSaldo)) {
+          setModalidadeSaldo('cartao');
+          const parcMatch = parteSaldo.match(/(\d+)\s*x/i);
+          if (parcMatch) setSaldoCartaoParcelas(Number(parcMatch[1]) || 3);
+          const det = extrairDetalhesCartaoDeTexto(parteSaldo, operadoras, configMaquinas.operadoraPadraoId);
+          if (det.operadora) setSaldoCartaoOperadoraId(det.operadora.id);
+        } else if (/pix\s*parcelado/i.test(parteSaldo)) {
+          setModalidadeSaldo('pix_parcelado');
+          const parcMatch = parteSaldo.match(/(\d+)\s*x/i);
+          if (parcMatch) setSaldoPixParcelas(Number(parcMatch[1]) || 3);
+          const diaMatch = parteSaldo.match(/(?:dia|vencimento todo dia)\s*(\d{1,2})/i);
+          if (diaMatch) setSaldoPixDiaVencimento(Number(diaMatch[1]) || 10);
+        } else if (/boleto/i.test(parteSaldo)) {
+          setModalidadeSaldo('boleto');
+          const parcMatch = parteSaldo.match(/(\d+)\s*x/i);
+          if (parcMatch) setSaldoBoletoParcelas(Number(parcMatch[1]) || 3);
+          const diaMatch = parteSaldo.match(/(?:dia|vencimento todo dia)\s*(\d{1,2})/i);
+          if (diaMatch) setSaldoBoletoDiaVencimento(Number(diaMatch[1]) || 10);
+        } else if (/conclus[aã]o|t[eé]rmino/i.test(parteSaldo)) {
+          setModalidadeSaldo('conclusao');
+        }
+      }
+
+      if (/saldo.*combinar|saldo restante|apenas entrada/i.test(o.formasPagamento) || !o.formasPagamento.includes('+')) {
+        ehApenasEntradaOuSaldoACombinar = true;
+        setEntradaAssistenteAtivo(true);
+      }
+    } else {
+      setEntradaAssistenteAtivo(false);
+      setValorEntrada(0);
+      setMetodoEntrada('pix');
+      setDataEntrada(formatIsoDate(new Date()));
+      setSituacaoEntrada('Quitada');
+      setModalidadeSaldo('combinar');
+    }
+
     // Verifica se possui múltiplas formas de pagamento (ex: Entrada PIX + Restante Cartão)
     if (
+      !ehApenasEntradaOuSaldoACombinar &&
       o.formasPagamento &&
       (o.formasPagamento.includes('+') ||
         /entrada.*cart[aã]o/i.test(o.formasPagamento) ||
@@ -1189,6 +1398,12 @@ const PatientOrcamentos = ({ patient }: Props) => {
     setValorRepasse(0);
     setNovoParceiro(false);
     setNovoNome('');
+    setEntradaAssistenteAtivo(false);
+    setValorEntrada(0);
+    setMetodoEntrada('pix');
+    setDataEntrada(formatIsoDate(new Date()));
+    setSituacaoEntrada('Quitada');
+    setModalidadeSaldo('combinar');
   };
 
   const baixarPdf = async (o: (typeof orcamentos)[number]) => {
@@ -1946,7 +2161,21 @@ const PatientOrcamentos = ({ patient }: Props) => {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label>Formas de pagamento</Label>
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={entradaAssistenteAtivo ? 'default' : 'outline'}
+                    className={`h-7 text-xs gap-1.5 ${
+                      entradaAssistenteAtivo
+                        ? 'bg-purple-600 text-white font-semibold shadow-xs'
+                        : 'border-purple-500/40 text-purple-600 dark:text-purple-400'
+                    }`}
+                    onClick={handleToggleEntradaAssistente}
+                  >
+                    <Wallet className="h-3.5 w-3.5" />
+                    Entrada + Saldo
+                  </Button>
                   <Button
                     type="button"
                     size="sm"
@@ -1962,6 +2191,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
                       if (novo) {
                         setPixParceladoAtivo(false);
                         setMultiplasFormasAtivo(false);
+                        setEntradaAssistenteAtivo(false);
                       }
                     }}
                   >
@@ -1980,15 +2210,16 @@ const PatientOrcamentos = ({ patient }: Props) => {
                     onClick={handleToggleMultiplasFormas}
                   >
                     <Layers className="h-3.5 w-3.5" />
-                    Múltiplas Formas (Entrada + Cartão/Boleto)
+                    Múltiplas Formas
                   </Button>
                 </div>
               </div>
 
               <div className="flex flex-wrap gap-1.5">
-                {['À vista (PIX)', 'PIX Parcelado', 'Dinheiro', 'Cartão de crédito', 'Cartão de débito', '2x sem juros', '3x sem juros', '6x', '12x', 'Boleto'].map((f) => {
+                {['À vista (PIX)', 'Entrada + Saldo', 'PIX Parcelado', 'Dinheiro', 'Cartão de crédito', 'Cartão de débito', '2x sem juros', '3x sem juros', '6x', '12x', 'Boleto'].map((f) => {
                   const isPixParcelado = f === 'PIX Parcelado';
-                  const isActive = isPixParcelado && pixParceladoAtivo;
+                  const isEntradaSaldo = f === 'Entrada + Saldo';
+                  const isActive = (isPixParcelado && pixParceladoAtivo) || (isEntradaSaldo && entradaAssistenteAtivo);
                   return (
                     <Button
                       key={f}
@@ -1997,19 +2228,23 @@ const PatientOrcamentos = ({ patient }: Props) => {
                       variant={isActive ? 'default' : 'outline'}
                       className={`h-7 text-xs ${isActive ? 'bg-primary text-primary-foreground font-semibold shadow-xs' : ''}`}
                       onClick={() => {
-                        if (isPixParcelado) {
+                        if (isEntradaSaldo) {
+                          handleToggleEntradaAssistente();
+                        } else if (isPixParcelado) {
                           handleTogglePixParcelado();
                         } else if (f === 'Cartão de crédito') {
                           setCartaoTipo('credito');
                           setCartaoAssistenteAtivo(true);
                           setPixParceladoAtivo(false);
                           setMultiplasFormasAtivo(false);
+                          setEntradaAssistenteAtivo(false);
                         } else if (f === 'Cartão de débito') {
                           setCartaoTipo('debito');
                           setCartaoParcelas(1);
                           setCartaoAssistenteAtivo(true);
                           setPixParceladoAtivo(false);
                           setMultiplasFormasAtivo(false);
+                          setEntradaAssistenteAtivo(false);
                         } else {
                           setFormasPagamento((prev) => (prev ? (prev.includes(f) ? prev : `${prev}, ${f}`) : f));
                         }
@@ -2020,6 +2255,415 @@ const PatientOrcamentos = ({ patient }: Props) => {
                   );
                 })}
               </div>
+
+              {/* Assistente de Entrada + Saldo */}
+              {entradaAssistenteAtivo && (
+                <div className="rounded-lg border border-purple-500/40 bg-purple-950/20 p-3.5 space-y-3.5 animate-in fade-in duration-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-purple-400">
+                      <Wallet className="h-4 w-4" />
+                      Definir Entrada e Pagamento do Saldo
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 px-1.5 text-xs text-muted-foreground hover:text-foreground"
+                      onClick={() => setEntradaAssistenteAtivo(false)}
+                    >
+                      <X className="h-3.5 w-3.5 mr-1" /> Fechar
+                    </Button>
+                  </div>
+
+                  {/* Passo 1: Configurar a Entrada */}
+                  <div className="space-y-2.5 p-3 rounded-lg bg-background/90 border border-purple-500/30">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                      <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                        <span className="px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400 font-bold text-[10px]">
+                          1º Passo
+                        </span>
+                        Valor e Condições da Entrada
+                      </Label>
+                      <div className="flex items-center gap-1">
+                        <span className="text-[10px] text-muted-foreground mr-1">Atalhos:</span>
+                        {[
+                          { label: '10%', val: Math.round(total * 0.1) },
+                          { label: '20%', val: Math.round(total * 0.2) },
+                          { label: '30%', val: Math.round(total * 0.3) },
+                          { label: '50%', val: Math.round(total * 0.5) },
+                        ].map((perc) => (
+                          <Button
+                            key={perc.label}
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-5 px-1.5 text-[10px] border-purple-500/40 hover:bg-purple-500/10 font-medium"
+                            onClick={() => setValorEntrada(perc.val)}
+                          >
+                            {perc.label}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
+                      <div className="space-y-1">
+                        <Label className="text-[11px] text-muted-foreground">Valor Entrada (R$)</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={total}
+                          step="0.01"
+                          placeholder="0,00"
+                          value={valorEntrada || ''}
+                          onChange={(e) => setValorEntrada(Math.min(total, Math.max(0, Number(e.target.value) || 0)))}
+                          className="h-8 text-xs font-bold text-foreground"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-[11px] text-muted-foreground">Método da Entrada</Label>
+                        <Select
+                          value={metodoEntrada}
+                          onValueChange={(v: any) => setMetodoEntrada(v)}
+                        >
+                          <SelectTrigger className="h-8 text-xs font-medium">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pix">PIX</SelectItem>
+                            <SelectItem value="dinheiro">Dinheiro</SelectItem>
+                            <SelectItem value="cartao_debito">Cartão de Débito</SelectItem>
+                            <SelectItem value="cartao_credito">Cartão de Crédito</SelectItem>
+                            <SelectItem value="transferencia">Transferência Bancária</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-[11px] text-muted-foreground flex items-center gap-1">
+                          <CalendarDays className="h-3 w-3 text-purple-400" /> Data Entrada
+                        </Label>
+                        <Input
+                          type="date"
+                          value={dataEntrada}
+                          onChange={(e) => setDataEntrada(e.target.value)}
+                          className="h-8 text-xs font-semibold bg-background"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-[11px] text-muted-foreground">Situação</Label>
+                        <Select
+                          value={situacaoEntrada}
+                          onValueChange={(v: any) => setSituacaoEntrada(v)}
+                        >
+                          <SelectTrigger className="h-8 text-xs font-semibold">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Quitada">
+                              <span className="text-emerald-500 font-medium">● Quitada (Já paga)</span>
+                            </SelectItem>
+                            <SelectItem value="A vencer">
+                              <span className="text-amber-500 font-medium">● A vencer (A pagar)</span>
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    {/* Resumo Visual em Cards: Total, Entrada, Saldo */}
+                    {(() => {
+                      const saldo = Math.max(0, total - valorEntrada);
+                      return (
+                        <div className="grid grid-cols-3 gap-2 pt-1 text-xs">
+                          <div className="p-2 rounded bg-muted/40 border border-border/50">
+                            <span className="text-[10px] text-muted-foreground block">Total Orçamento:</span>
+                            <span className="font-semibold text-foreground text-xs">{formatMoney(total)}</span>
+                          </div>
+                          <div className="p-2 rounded bg-purple-500/10 border border-purple-500/30">
+                            <span className="text-[10px] text-purple-400 block font-medium">(-) Entrada Definida:</span>
+                            <span className="font-bold text-purple-400 text-xs">{formatMoney(valorEntrada)}</span>
+                          </div>
+                          <div className={`p-2 rounded ${saldo > 0 ? 'bg-amber-500/10 border border-amber-500/30' : 'bg-emerald-500/10 border border-emerald-500/30'}`}>
+                            <span className={`text-[10px] block font-medium ${saldo > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                              (=) Saldo Restante:
+                            </span>
+                            <span className={`font-bold text-xs ${saldo > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                              {formatMoney(saldo)}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Opção Rápida: Salvar Apenas Entrada */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1.5 border-t border-border/50">
+                      <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                        <Sparkles className="h-3 w-3 text-purple-400 shrink-0" />
+                        Quer registrar só a entrada agora e combinar o restante depois?
+                      </span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => aplicarEntradaApenas()}
+                        disabled={valorEntrada <= 0}
+                        className="h-7 text-xs border-purple-500/50 text-purple-400 hover:bg-purple-950/40 shrink-0 font-semibold"
+                      >
+                        <Check className="h-3 w-3 mr-1" /> Registrar apenas a Entrada (Saldo a combinar)
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Passo 2: Preencher Opções de Pagamento do Saldo */}
+                  {total - valorEntrada > 0 && (
+                    <div className="space-y-3 p-3 rounded-lg bg-background/90 border border-border">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                        <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                          <span className="px-1.5 py-0.5 rounded bg-blue-600/20 text-blue-400 font-bold text-[10px]">
+                            2º Passo
+                          </span>
+                          Preencher Forma de Pagamento do Saldo ({formatMoney(total - valorEntrada)})
+                        </Label>
+                        <span className="text-[10px] text-muted-foreground">
+                          Selecione como o saldo restante será pago
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
+                        {[
+                          { id: 'combinar', label: 'A combinar' },
+                          { id: 'cartao', label: 'Cartão de Crédito' },
+                          { id: 'pix_parcelado', label: 'PIX Parcelado' },
+                          { id: 'boleto', label: 'Boleto' },
+                          { id: 'conclusao', label: 'Na Conclusão' },
+                        ].map((opc) => (
+                          <Button
+                            key={opc.id}
+                            type="button"
+                            variant={modalidadeSaldo === opc.id ? 'default' : 'outline'}
+                            size="sm"
+                            className={`h-7 text-xs font-medium ${
+                              modalidadeSaldo === opc.id
+                                ? 'bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-xs'
+                                : 'border-border text-muted-foreground hover:text-foreground'
+                            }`}
+                            onClick={() => setModalidadeSaldo(opc.id as any)}
+                          >
+                            {opc.label}
+                          </Button>
+                        ))}
+                      </div>
+
+                      {/* Conteúdo de acordo com modalidade do saldo */}
+                      {modalidadeSaldo === 'combinar' && (
+                        <div className="p-2.5 rounded bg-muted/30 border border-border/50 text-xs text-muted-foreground space-y-1">
+                          <p className="font-semibold text-foreground">
+                            Saldo Restante de {formatMoney(total - valorEntrada)} a combinar
+                          </p>
+                          <p className="text-[11px]">
+                            O saldo restante ficará em aberto como conta a receber pendente, podendo ser quitado ou parcelado posteriormente de acordo com as consultas do paciente.
+                          </p>
+                        </div>
+                      )}
+
+                      {modalidadeSaldo === 'cartao' && (() => {
+                        const saldo = Math.max(0, total - valorEntrada);
+                        const op = operadoras.find((o) => o.id === saldoCartaoOperadoraId) || operadoraPadrao;
+                        const calc = calcularTaxaCartao(op, saldoCartaoParcelas, saldo, false);
+                        return (
+                          <div className="space-y-2.5 p-2.5 rounded bg-blue-950/20 border border-blue-500/30">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              <div className="space-y-1">
+                                <Label className="text-[11px] text-muted-foreground">Operadora da Máquina</Label>
+                                <Select
+                                  value={saldoCartaoOperadoraId}
+                                  onValueChange={setSaldoCartaoOperadoraId}
+                                >
+                                  <SelectTrigger className="h-8 text-xs font-bold bg-background">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {operadoras.filter((o) => o.ativa !== false).map((operadora) => (
+                                      <SelectItem key={operadora.id} value={operadora.id}>
+                                        <div className="flex items-center gap-1.5">
+                                          <span
+                                            className="w-2 h-2 rounded-full"
+                                            style={{ backgroundColor: operadora.cor || '#3b82f6' }}
+                                          />
+                                          <span className="font-semibold">{operadora.nome}</span>
+                                        </div>
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+
+                              <div className="space-y-1">
+                                <Label className="text-[11px] text-muted-foreground">Parcelas do Saldo no Cartão</Label>
+                                <Select
+                                  value={String(saldoCartaoParcelas)}
+                                  onValueChange={(v) => setSaldoCartaoParcelas(Number(v) || 1)}
+                                >
+                                  <SelectTrigger className="h-8 text-xs font-semibold bg-background">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18].map((n) => (
+                                      <SelectItem key={n} value={String(n)}>
+                                        {n === 1 ? '1x à vista no crédito' : `${n}x de ${formatMoney(saldo / n)}`}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-wrap items-center justify-between gap-2 p-2 rounded bg-background/90 border border-blue-500/20 text-xs">
+                              <span className="text-foreground font-medium">
+                                Plano do Saldo: <strong>{saldoCartaoParcelas}x de {formatMoney(saldo / saldoCartaoParcelas)}</strong> ({op?.nome || 'Cartão'})
+                              </span>
+                              <div className="flex items-center gap-3">
+                                <span className="text-destructive font-semibold text-[11px]">
+                                  Taxa ({calc.taxaPercentual}%): -{formatMoney(calc.taxaValor)}
+                                </span>
+                                <span className="text-emerald-500 font-bold text-xs">
+                                  Líquido Saldo: {formatMoney(calc.valorLiquido)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      {modalidadeSaldo === 'pix_parcelado' && (() => {
+                        const saldo = Math.max(0, total - valorEntrada);
+                        return (
+                          <div className="space-y-2 p-2.5 rounded bg-emerald-950/20 border border-emerald-500/30">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              <div className="space-y-1">
+                                <Label className="text-[11px] text-muted-foreground">Parcelas no PIX</Label>
+                                <Select
+                                  value={String(saldoPixParcelas)}
+                                  onValueChange={(v) => setSaldoPixParcelas(Number(v) || 1)}
+                                >
+                                  <SelectTrigger className="h-8 text-xs font-semibold bg-background">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18, 24].map((n) => (
+                                      <SelectItem key={n} value={String(n)}>
+                                        {n === 1 ? '1x à vista' : `${n}x mensais de ${formatMoney(saldo / n)}`}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+
+                              <div className="space-y-1">
+                                <Label className="text-[11px] text-muted-foreground">Dia do Vencimento Padrão</Label>
+                                <Select
+                                  value={String(saldoPixDiaVencimento)}
+                                  onValueChange={(v) => setSaldoPixDiaVencimento(Number(v) || 10)}
+                                >
+                                  <SelectTrigger className="h-8 text-xs font-semibold bg-background">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {[1, 5, 10, 15, 20, 25, 28, 30].map((d) => (
+                                      <SelectItem key={d} value={String(d)}>
+                                        Todo dia {d}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+                            <p className="text-[11px] text-muted-foreground">
+                              Saldo será dividido em <strong>{saldoPixParcelas}x de {formatMoney(saldo / saldoPixParcelas)}</strong> no PIX com vencimento todo dia {saldoPixDiaVencimento}.
+                            </p>
+                          </div>
+                        );
+                      })()}
+
+                      {modalidadeSaldo === 'boleto' && (() => {
+                        const saldo = Math.max(0, total - valorEntrada);
+                        return (
+                          <div className="space-y-2 p-2.5 rounded bg-amber-950/20 border border-amber-500/30">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              <div className="space-y-1">
+                                <Label className="text-[11px] text-muted-foreground">Parcelas no Boleto</Label>
+                                <Select
+                                  value={String(saldoBoletoParcelas)}
+                                  onValueChange={(v) => setSaldoBoletoParcelas(Number(v) || 1)}
+                                >
+                                  <SelectTrigger className="h-8 text-xs font-semibold bg-background">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18, 24].map((n) => (
+                                      <SelectItem key={n} value={String(n)}>
+                                        {n === 1 ? '1x à vista' : `${n}x mensais de ${formatMoney(saldo / n)}`}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+
+                              <div className="space-y-1">
+                                <Label className="text-[11px] text-muted-foreground">Dia do Vencimento Padrão</Label>
+                                <Select
+                                  value={String(saldoBoletoDiaVencimento)}
+                                  onValueChange={(v) => setSaldoBoletoDiaVencimento(Number(v) || 10)}
+                                >
+                                  <SelectTrigger className="h-8 text-xs font-semibold bg-background">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {[1, 5, 10, 15, 20, 25, 28, 30].map((d) => (
+                                      <SelectItem key={d} value={String(d)}>
+                                        Todo dia {d}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+                            <p className="text-[11px] text-muted-foreground">
+                              Saldo será emitido em <strong>{saldoBoletoParcelas}x de {formatMoney(saldo / saldoBoletoParcelas)}</strong> no boleto bancário.
+                            </p>
+                          </div>
+                        );
+                      })()}
+
+                      {modalidadeSaldo === 'conclusao' && (
+                        <div className="p-2.5 rounded bg-muted/30 border border-border/50 text-xs text-muted-foreground space-y-1">
+                          <p className="font-semibold text-foreground">
+                            Saldo de {formatMoney(total - valorEntrada)} a ser pago na conclusão do tratamento
+                          </p>
+                          <p className="text-[11px]">
+                            O paciente pagará o restante na última consulta ou entrega final do procedimento.
+                          </p>
+                        </div>
+                      )}
+
+                      <div className="flex justify-end pt-2 border-t border-border/50">
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={aplicarEntradaComSaldo}
+                          disabled={valorEntrada <= 0}
+                          className="h-8 text-xs bg-purple-600 hover:bg-purple-700 text-white font-semibold gap-1.5"
+                        >
+                          <Check className="h-3.5 w-3.5" /> Aplicar Entrada + Saldo ao Orçamento
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Assistente de Cartão (PagBank / InfinitePay) */}
               {cartaoAssistenteAtivo && (
@@ -2573,9 +3217,36 @@ const PatientOrcamentos = ({ patient }: Props) => {
                                 <CheckCircle2 className="h-3 w-3" /> 100% Coberto
                               </Badge>
                             ) : dif > 0 ? (
-                              <span className="text-amber-500 font-semibold text-[11px]">
-                                Faltam distribuir {formatMoney(dif)}
-                              </span>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-amber-500 font-semibold text-[11px]">
+                                  Faltam distribuir {formatMoney(dif)}
+                                </span>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-5 px-1.5 text-[10px] border-amber-500/40 text-amber-500 hover:bg-amber-500/10"
+                                  onClick={() => {
+                                    const novoItem = {
+                                      id: String(Date.now()),
+                                      rotulo: 'Saldo Restante',
+                                      metodo: 'pix' as const,
+                                      valor: dif,
+                                      parcelas: 1,
+                                      diaVencimento: 10,
+                                      dataPagamento: formatIsoDate(new Date()),
+                                      datasParcelas: [formatIsoDate(new Date())],
+                                      situacao: 'A vencer' as const,
+                                      situacoesParcelas: ['A vencer' as const],
+                                    };
+                                    const novas = [...formasMultiplas, novoItem];
+                                    setFormasMultiplas(novas);
+                                    setFormasPagamento(montarTextoMultiplasFormas(novas));
+                                  }}
+                                >
+                                  Preencher saldo a combinar
+                                </Button>
+                              </div>
                             ) : (
                               <span className="text-red-500 font-semibold text-[11px]">
                                 Excede em {formatMoney(Math.abs(dif))}

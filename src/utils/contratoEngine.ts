@@ -778,9 +778,11 @@ export const mapearDadosContrato = ({
         const conteudo = rotuloMatch ? parte.slice(rotuloMatch[0].length).trim() : parte.trim();
 
         const isEntrada = /entrada/i.test(rotulo) || (/entrada/i.test(parte) && !parte.includes('+'));
+        const isACombinar = /a combinar|a definir|pendente/i.test(conteudo) || /a combinar|a definir|pendente/i.test(parte);
 
         let metodo = 'PIX';
-        if (/cart[aã]o/i.test(conteudo) || /cart[aã]o/i.test(parte)) metodo = 'Cartão de Crédito';
+        if (isACombinar) metodo = 'A combinar';
+        else if (/cart[aã]o/i.test(conteudo) || /cart[aã]o/i.test(parte)) metodo = 'Cartão de Crédito';
         else if (/boleto/i.test(conteudo) || /boleto/i.test(parte)) metodo = 'Boleto Bancário';
         else if (/pix\s*parcelado/i.test(conteudo) || /pix\s*parcelado/i.test(parte)) metodo = 'PIX Parcelado';
         else if (/pix/i.test(conteudo) || /pix/i.test(parte)) metodo = 'PIX';
@@ -887,11 +889,12 @@ export const mapearDadosContrato = ({
             });
           }
         } else {
-          const sitFinal = situacaoDetectada || (isCartao ? 'Autorizado' : 'A vencer');
+          const sitFinal = isACombinar ? 'A vencer' : (situacaoDetectada || (isCartao ? 'Autorizado' : 'A vencer'));
+          const vencFinal = isACombinar ? 'A combinar' : (isCartao && !isEntrada ? 'Fatura do Cartão' : dataUnica);
           listaMultiplas.push({
             numero: listaMultiplas.length + 1,
             descricao: isEntrada ? `${rotulo} (${metodo})` : `${rotulo} (${metodo})`,
-            vencimento: isCartao && !isEntrada ? 'Fatura do Cartão' : dataUnica,
+            vencimento: vencFinal,
             valor: valorTotalParte,
             metodo,
             status: sitFinal,
@@ -1013,14 +1016,21 @@ export const mapearDadosContrato = ({
 
         const statusFinal = sitsRestanteIndividuais[idx] || sitRestantePadrao;
 
+        const isSaldoACombinar = entrada > 0 && qtdParcelas === 1 && (/combinar|definir/i.test(metodoRestante) || /combinar|definir/i.test(formas) || metodoRestante === 'A definir');
+        const descFinal = qtdParcelas === 1 && entrada === 0
+          ? `Pagamento Único (${metodoRestante})`
+          : isSaldoACombinar
+          ? `Saldo Restante (A combinar)`
+          : `Parcela ${idx + 1} de ${qtdParcelas} (${metodoRestante})`;
+
+        const vencFinal = isSaldoACombinar ? 'A combinar' : vencimentoFormatado;
+
         listaParcelas.push({
           numero: listaParcelas.length + 1,
-          descricao: qtdParcelas === 1 && entrada === 0
-            ? `Pagamento Único (${metodoRestante})`
-            : `Parcela ${idx + 1} de ${qtdParcelas} (${metodoRestante})`,
-          vencimento: vencimentoFormatado,
+          descricao: descFinal,
+          vencimento: vencFinal,
           valor: valorParcela,
-          metodo: metodoRestante,
+          metodo: isSaldoACombinar ? 'A combinar' : metodoRestante,
           status: statusFinal,
         });
       }
