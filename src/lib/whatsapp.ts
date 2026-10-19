@@ -83,7 +83,23 @@ export const openWhatsApp = (phone: string | null | undefined, message: string):
   const number = normalizePhone(phone);
   if (!number) return false;
   const url = `https://wa.me/${number}?text=${encodeURIComponent(message)}`;
-  window.open(url, '_blank', 'noopener,noreferrer');
+  if (typeof window !== 'undefined') {
+    const isMobile =
+      typeof navigator !== 'undefined' &&
+      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    if (isMobile) {
+      window.location.href = url;
+    } else {
+      try {
+        const win = window.open(url, '_blank', 'noopener,noreferrer');
+        if (!win || win.closed || typeof win.closed === 'undefined') {
+          window.location.href = url;
+        }
+      } catch (_) {
+        window.location.href = url;
+      }
+    }
+  }
   return true;
 };
 

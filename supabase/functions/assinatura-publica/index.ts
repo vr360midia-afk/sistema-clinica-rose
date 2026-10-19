@@ -41,6 +41,12 @@ Deno.serve(async (req) => {
       .eq("id", anamnese.paciente_id)
       .maybeSingle();
 
+    const { data: cfg } = await supabase
+      .from("configuracoes")
+      .select("nome_clinica, telefone, whatsapp_numero")
+      .limit(1)
+      .maybeSingle();
+
     if (action === "get") {
       return json({
         anamnese: {
@@ -50,6 +56,10 @@ Deno.serve(async (req) => {
           jaAssinado: !!anamnese.assinatura_paciente,
         },
         paciente: { nome: paciente?.nome ?? "Paciente" },
+        clinica: {
+          nome: cfg?.nome_clinica || "Dra. Rosangela Santos",
+          telefone: cfg?.whatsapp_numero || cfg?.telefone || "5582974002213",
+        },
       });
     }
 

@@ -45,6 +45,9 @@ import {
 
 type Status = 'loading' | 'valid' | 'invalid' | 'expired' | 'completed' | 'blocked';
 
+const DEFAULT_CLINICA_WHATSAPP = '5582974002213';
+const DEFAULT_CLINICA_NOME = 'Dra. Rosangela Santos';
+
 const Shell = ({ children }: { children: React.ReactNode }) => (
   <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-start py-6 sm:py-8 px-3 sm:px-6 overflow-x-hidden w-full max-w-full print:min-h-0 print:h-auto print:bg-white print:p-0 print:m-0 print:overflow-visible">
     <div className="w-full max-w-3xl space-y-6 overflow-x-hidden print:max-w-none print:w-full print:space-y-0 print:overflow-visible">{children}</div>
@@ -175,9 +178,37 @@ const AssinarAnamnese = () => {
   const [status, setStatus] = useState<Status>('loading');
   const [anamnese, setAnamnese] = useState<any>(null);
   const [paciente, setPaciente] = useState<any>(null);
+  const [telefoneClinica, setTelefoneClinica] = useState<string>(DEFAULT_CLINICA_WHATSAPP);
+  const [nomeClinica, setNomeClinica] = useState<string>(DEFAULT_CLINICA_NOME);
   const [showSignature, setShowSignature] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [modoVisualizacao, setModoVisualizacao] = useState<'preencher' | 'assinar'>(modoDetectado);
+
+  // Carrega configurações da clínica para contato via WhatsApp
+  useEffect(() => {
+    const carregarConfigClinica = async () => {
+      try {
+        const { data: cfg } = await supabase
+          .from('configuracoes')
+          .select('whatsapp_numero, telefone, nome_clinica')
+          .limit(1)
+          .maybeSingle();
+
+        if (cfg) {
+          const num = cfg.whatsapp_numero || cfg.telefone;
+          if (num) {
+            setTelefoneClinica(num);
+          }
+          if (cfg.nome_clinica) {
+            setNomeClinica(cfg.nome_clinica);
+          }
+        }
+      } catch (err) {
+        console.warn('Erro ao carregar configurações da clínica em AssinarAnamnese:', err);
+      }
+    };
+    carregarConfigClinica();
+  }, []);
 
   // Campos preenchíveis/editáveis pelo paciente
   const [queixaPrincipal, setQueixaPrincipal] = useState('');
@@ -465,6 +496,12 @@ const AssinarAnamnese = () => {
         }
 
         popularDados(data.anamnese, data.paciente);
+        if (data.clinica?.telefone) {
+          setTelefoneClinica(data.clinica.telefone);
+        }
+        if (data.clinica?.nome) {
+          setNomeClinica(data.clinica.nome);
+        }
 
         if (data.anamnese?.jaAssinado || isAnamneseBloqueada(targetId, token)) {
           setStatus('blocked');
@@ -860,10 +897,11 @@ const AssinarAnamnese = () => {
                 <Button
                   type="button"
                   onClick={() => {
-                    const msg = `Olá, Dra. Rosangela! Estou com o comprovante da minha anamnese assinada em mãos. Obrigado!`;
-                    openWhatsApp('', msg);
+                    const nomePaciente = paciente?.nome || 'Paciente';
+                    const msg = `Olá, ${nomeClinica || 'Dra. Rosangela'}! Sou ${nomePaciente} e acabei de assinar digitalmente a minha Ficha de Anamnese. Estou com o comprovante em mãos. Obrigado!`;
+                    openWhatsApp(telefoneClinica || DEFAULT_CLINICA_WHATSAPP, msg);
                   }}
-                  className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-9 gap-1.5 cursor-pointer"
+                  className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-9 gap-1.5 cursor-pointer shadow-sm active:scale-95 transition-all"
                 >
                   <MessageCircle className="h-4 w-4" />
                   Falar com a Clínica no WhatsApp
@@ -890,6 +928,19 @@ const AssinarAnamnese = () => {
                 Este link de anamnese não foi encontrado ou expirou. Por favor, entre em contato com a clínica para solicitar um novo link atualizado.
               </p>
             </div>
+            <div className="pt-2">
+              <Button
+                type="button"
+                onClick={() => {
+                  const msg = `Olá, ${nomeClinica || 'Dra. Rosangela'}! Meu link de acesso à Ficha de Anamnese deu como inválido ou não foi encontrado. Poderia me enviar um novo link, por favor?`;
+                  openWhatsApp(telefoneClinica || DEFAULT_CLINICA_WHATSAPP, msg);
+                }}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-9 gap-1.5 cursor-pointer shadow-sm active:scale-95 transition-all"
+              >
+                <MessageCircle className="h-4 w-4" />
+                Falar com a Clínica no WhatsApp
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </Shell>
@@ -909,6 +960,19 @@ const AssinarAnamnese = () => {
               <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
                 Por motivos de segurança, este link de preenchimento expirou após o prazo limite. Solicite um novo link à equipe do consultório.
               </p>
+            </div>
+            <div className="pt-2">
+              <Button
+                type="button"
+                onClick={() => {
+                  const msg = `Olá, ${nomeClinica || 'Dra. Rosangela'}! Meu link de acesso à Ficha de Anamnese expirou. Poderia me enviar um novo link atualizado, por favor?`;
+                  openWhatsApp(telefoneClinica || DEFAULT_CLINICA_WHATSAPP, msg);
+                }}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-9 gap-1.5 cursor-pointer shadow-sm active:scale-95 transition-all"
+              >
+                <MessageCircle className="h-4 w-4" />
+                Falar com a Clínica no WhatsApp
+              </Button>
             </div>
           </CardContent>
         </Card>
