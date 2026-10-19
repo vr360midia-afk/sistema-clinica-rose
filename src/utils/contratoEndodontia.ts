@@ -780,6 +780,9 @@ export const gerarHtmlContratoEndodontia = (snapshot: ContratoSnapshot): string 
           <div class="assinatura-nome">${dentistaNomeContratada}</div>
           <div class="assinatura-papel">Contratada — Cirurgiã-Dentista</div>
           <div class="assinatura-detalhes">${dentistaCroContratada} • CPF: ${dentistaCpfContratada}</div>
+          ${snapshot.assinaturaDentista?.dataHora ? `
+            <div class="assinatura-detalhes" style="color: #059669; font-weight: 500;">✓ Assinado digitalmente em ${new Date(snapshot.assinaturaDentista.dataHora).toLocaleString('pt-BR')}</div>
+          ` : ''}
         </div>
 
         <!-- PROFISSIONAL PARCEIRO EXECUTOR (QUANDO APLICÁVEL) -->

@@ -305,6 +305,9 @@ export const gerarHtmlTcleLentesResina = (snapshot?: ContratoSnapshot | null): s
           <div class="assinatura-nome">${clinica.dentistaResponsavel || clinica.nome}</div>
           <div class="assinatura-papel">Cirurgiã(o)-Dentista Responsável</div>
           <div class="assinatura-detalhes">CRO: ${clinica.cro}</div>
+          ${snapshot.assinaturaDentista?.dataHora ? `
+            <div class="assinatura-detalhes" style="color: #059669; font-weight: 500;">✓ Assinado digitalmente em ${new Date(snapshot.assinaturaDentista.dataHora).toLocaleString('pt-BR')}</div>
+          ` : ''}
         </div>
       </div>
     </div>

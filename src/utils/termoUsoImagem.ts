@@ -437,6 +437,9 @@ export const gerarHtmlTermoUsoImagem = (snapshot?: ContratoSnapshot | null): str
           <div class="assinatura-nome">${dentistaNome}</div>
           <div class="assinatura-papel">Cirurgiã-Dentista — ${dentistaCro}</div>
           <div class="assinatura-detalhes">${labelDocClinica}: ${dentistaCpfCnpj}</div>
+          ${snapshot.assinaturaDentista?.dataHora ? `
+            <div class="assinatura-detalhes" style="color: #059669; font-weight: 500;">✓ Assinado digitalmente em ${new Date(snapshot.assinaturaDentista.dataHora).toLocaleString('pt-BR')}</div>
+          ` : ''}
         </div>
       </div>
 
@@ -660,6 +663,9 @@ export const gerarFragmentoHtmlTermoUsoImagem = (snapshot: ContratoSnapshot, num
         <div class="assinatura-nome">${dentistaNome}</div>
         <div class="assinatura-papel">Cirurgiã-Dentista — ${dentistaCro}</div>
         <div class="assinatura-detalhes">${labelDocClinica}: ${dentistaCpfCnpj}</div>
+        ${snapshot.assinaturaDentista?.dataHora ? `
+          <div class="assinatura-detalhes" style="color: #059669; font-weight: 500;">✓ Assinado digitalmente em ${new Date(snapshot.assinaturaDentista.dataHora).toLocaleString('pt-BR')}</div>
+        ` : ''}
       </div>
     </div>
 

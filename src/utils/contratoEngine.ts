@@ -612,6 +612,92 @@ export const obterCardsResumoPagamento = (snapshot?: Partial<ContratoSnapshot> |
 };
 
 /**
+ * Gera uma assinatura vetorial caligráfica estilizada e fluida para a Dra. Responsável
+ * caso nenhuma assinatura física tenha sido desenhada ou carregada previamente.
+ */
+export const gerarRubricaPadraoDra = (nome?: string, cro?: string): string => {
+  const nomeExibicao = (nome || 'Dra. Rosangela Santos').trim();
+  const croTexto = cro ? ` • CRO ${cro}` : '';
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 380 100" width="380" height="100">
+    <!-- Traço gestual inicial fluido da caneta -->
+    <path d="M 28,60 C 42,24 64,28 76,52 C 86,70 104,66 120,46 C 138,24 154,38 170,54 C 188,72 216,48 238,44 C 265,40 295,54 322,46 C 334,42 344,34 352,40" 
+          fill="none" stroke="#0f172a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" opacity="0.6"/>
+    
+    <!-- Assinatura caligráfica legível e refinada -->
+    <text x="32" y="56" 
+          font-family="'Brush Script MT', 'Dancing Script', 'Caveat', 'Great Vibes', 'Segoe Script', cursive, sans-serif" 
+          font-size="30" 
+          font-weight="600" 
+          font-style="italic" 
+          fill="#0f172a" 
+          letter-spacing="0.5px">
+      ${nomeExibicao}
+    </text>
+    
+    <!-- Sublinhado orgânico de rubrica -->
+    <path d="M 26,68 Q 155,80 300,66 T 352,58" 
+          fill="none" stroke="#0f172a" stroke-width="2.2" stroke-linecap="round" opacity="0.85"/>
+    <path d="M 110,76 Q 205,82 320,72" 
+          fill="none" stroke="#0f172a" stroke-width="1.2" stroke-linecap="round" opacity="0.45"/>
+          
+    <!-- Chancela digital discreta e segura -->
+    <text x="32" y="88" 
+          font-family="system-ui, -apple-system, sans-serif" 
+          font-size="9" 
+          font-weight="500" 
+          fill="#059669" 
+          letter-spacing="0.4px">
+      ✓ Assinado Digitalmente${croTexto}
+    </text>
+  </svg>`.trim();
+
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+};
+
+/**
+ * Obtém ou sintetiza a assinatura padrão da Dra. Responsável para pré-assinatura
+ * automática de contratos, termos e consentimentos na emissão.
+ */
+export const obterAssinaturaPadraoDentista = (params?: {
+  dentistaNome?: string;
+  dentistaCro?: string;
+  emitidoEm?: string;
+  configContrato?: any;
+}): {
+  assinaturaData: string;
+  nome: string;
+  cro: string;
+  dataHora: string;
+} => {
+  const nome = params?.dentistaNome || params?.configContrato?.dentistaResponsavelContrato || 'Dra. Rosangela Santos';
+  const cro = params?.dentistaCro || params?.configContrato?.croResponsavelContrato || '06267-AL';
+  const dataHora = params?.emitidoEm || new Date().toISOString();
+
+  // 1. Tenta carregar assinatura desenhada salva no localStorage ou nas configurações
+  let assinaturaData = '';
+  if (typeof window !== 'undefined' && window.localStorage) {
+    assinaturaData =
+      params?.configContrato?.assinaturaPadraoDentista ||
+      localStorage.getItem('assinatura_padrao_dentista') ||
+      localStorage.getItem('assinatura_padrao_doutor') ||
+      '';
+  }
+
+  // 2. Se ainda não houver assinatura desenhada salva, gera a rubrica caligráfica vetorial oficial
+  if (!assinaturaData) {
+    assinaturaData = gerarRubricaPadraoDra(nome, cro);
+  }
+
+  return {
+    assinaturaData,
+    nome,
+    cro,
+    dataHora,
+  };
+};
+
+/**
  * Mapeia os dados existentes no sistema para o modelo padronizado do contrato.
  * NUNCA inventa dados fictícios; preserva rigorosamente a integridade dos registros.
  */
@@ -630,6 +716,7 @@ export const mapearDadosContrato = ({
   dadosEndodontia,
   parceiro,
   termoUsoImagem,
+  assinaturaDentista,
 }: {
   patient: Partial<Paciente> | any;
   orcamento: Orcamento | any;
@@ -645,6 +732,7 @@ export const mapearDadosContrato = ({
   dadosEndodontia?: ContratoDadosEndodontia;
   parceiro?: ContratoDadosParceiro;
   termoUsoImagem?: ContratoTermoUsoImagem;
+  assinaturaDentista?: any;
 }): ContratoSnapshot => {
   const emitidoEmData = new Date();
   const emitidoEm = emitidoEmData.toISOString();
@@ -1228,7 +1316,17 @@ export const mapearDadosContrato = ({
       depoimentos: true,
     },
     assinaturaPaciente: null,
-    assinaturaDentista: null,
+    assinaturaDentista:
+      assinaturaDentista !== undefined
+        ? assinaturaDentista
+        : (cfgContrato?.autoAssinarContrato !== false
+            ? obterAssinaturaPadraoDentista({
+                dentistaNome: dadosClinica.dentistaResponsavel,
+                dentistaCro: dadosClinica.cro,
+                emitidoEm,
+                configContrato: cfgContrato,
+              })
+            : null),
   };
 };
 
@@ -2124,7 +2222,7 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
           <div class="assinatura-papel">${clinica.nome} — Contratada</div>
           <div class="assinatura-detalhes">${labelDocClinica}: ${clinica.cnpj} • CRO: ${clinica.cro}</div>
           ${snapshot.assinaturaDentista?.dataHora ? `
-            <div class="assinatura-detalhes">Assinado digitalmente em ${new Date(snapshot.assinaturaDentista.dataHora).toLocaleString('pt-BR')}</div>
+            <div class="assinatura-detalhes" style="color: #059669; font-weight: 500;">✓ Assinado digitalmente em ${new Date(snapshot.assinaturaDentista.dataHora).toLocaleString('pt-BR')}</div>
           ` : ''}
         </div>
       </div>

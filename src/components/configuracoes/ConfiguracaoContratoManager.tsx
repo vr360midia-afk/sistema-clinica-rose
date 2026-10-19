@@ -24,10 +24,13 @@ import {
   Mail,
   MapPin,
   Sparkles,
+  PenTool,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useConfiguracoesContrato, ConfiguracoesContrato, carregarConfiguracoesContratoSync } from '@/hooks/useConfiguracoesContrato';
 import { identificarTipoDocumento } from '@/utils/documentoFormat';
+import DigitalSignature from '@/components/signature/DigitalSignature';
+import { gerarRubricaPadraoDra } from '@/utils/contratoEngine';
 
 export const ConfiguracaoContratoManager: React.FC = () => {
   const { configContrato, salvarConfiguracoesContrato, restaurarPadrao, loading, salvando } =
@@ -35,6 +38,7 @@ export const ConfiguracaoContratoManager: React.FC = () => {
 
   const [form, setForm] = useState<ConfiguracoesContrato>(() => configContrato || carregarConfiguracoesContratoSync());
   const [copiouChave, setCopiouChave] = useState(false);
+  const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
 
   useEffect(() => {
     if (configContrato) {
@@ -385,6 +389,73 @@ export const ConfiguracaoContratoManager: React.FC = () => {
                   className="text-xs mt-1"
                 />
               </div>
+
+              {/* Assinatura Oficial da Dra. Responsável para Pré-assinatura Automática */}
+              <div className="pt-3 border-t border-border/70 space-y-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <Label className="text-xs font-semibold flex items-center gap-1.5 text-foreground">
+                      <PenTool className="h-3.5 w-3.5 text-emerald-600" />
+                      Assinatura Oficial da Dra. Responsável (Pré-emitida nos Contratos)
+                    </Label>
+                    <p className="text-[11px] text-muted-foreground">
+                      Todos os novos contratos já são emitidos e disponibilizados com esta assinatura aplicada pela Contratada.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs gap-1 border-emerald-500/40 text-emerald-600 hover:bg-emerald-500/10 cursor-pointer"
+                      onClick={() => setIsSignatureModalOpen(true)}
+                    >
+                      <PenTool className="h-3 w-3" />
+                      {form.assinaturaPadraoDentista ? 'Redesenhar Assinatura' : 'Desenhar / Upload'}
+                    </Button>
+                    {form.assinaturaPadraoDentista && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+                        onClick={() => {
+                          handleChange('assinaturaPadraoDentista', '');
+                          if (typeof window !== 'undefined' && window.localStorage) {
+                            localStorage.removeItem('assinatura_padrao_dentista');
+                          }
+                          toast.success('Assinatura restaurada para a rubrica caligráfica vetorial padrão');
+                        }}
+                      >
+                        Restaurar Padrão
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="p-3 bg-muted/40 rounded-lg border border-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="h-14 w-48 sm:w-56 bg-background rounded-md border border-border/80 flex items-center justify-center p-1 overflow-hidden shrink-0 shadow-xs">
+                      <img
+                        src={form.assinaturaPadraoDentista || gerarRubricaPadraoDra(form.dentistaResponsavelContrato, form.croResponsavelContrato)}
+                        alt="Assinatura Dra. Responsável"
+                        className="max-h-full max-w-full object-contain"
+                      />
+                    </div>
+                    <div className="text-xs space-y-0.5 min-w-0">
+                      <div className="font-semibold text-foreground flex flex-wrap items-center gap-1.5 truncate">
+                        <span>{form.dentistaResponsavelContrato || 'Dra. Rosangela Santos'}</span>
+                        <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-500/30">
+                          {form.assinaturaPadraoDentista ? 'Rubrica Desenhada' : 'Rubrica Caligráfica Oficial'}
+                        </Badge>
+                      </div>
+                      <div className="text-[11px] text-muted-foreground font-mono">
+                        CRO: {form.croResponsavelContrato || '06267-AL'} • Pré-assinatura ativa na emissão
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -537,6 +608,29 @@ export const ConfiguracaoContratoManager: React.FC = () => {
           </Card>
         </div>
       </div>
+
+      {isSignatureModalOpen && (
+        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="w-full max-w-lg bg-background rounded-xl p-4 shadow-2xl border border-border animate-in fade-in zoom-in-95 duration-150">
+            <DigitalSignature
+              title="Assinatura Oficial da Dra. Responsável"
+              signerName={form.dentistaResponsavelContrato || 'Dra. Rosangela Santos'}
+              signerRole="dentista"
+              documentType="contrato"
+              required={true}
+              onSignatureComplete={(sig) => {
+                handleChange('assinaturaPadraoDentista', sig.signature);
+                if (typeof window !== 'undefined' && window.localStorage) {
+                  localStorage.setItem('assinatura_padrao_dentista', sig.signature);
+                }
+                setIsSignatureModalOpen(false);
+                toast.success('Assinatura da Dra. Responsável definida como padrão!');
+              }}
+              onCancel={() => setIsSignatureModalOpen(false)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

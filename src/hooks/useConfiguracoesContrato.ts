@@ -26,6 +26,10 @@ export interface ConfiguracoesContrato {
   multaAtrasoPercentual: number;
   jurosMoraPercentual: number;
   clausulaEspecialPadrao: string;
+
+  // Assinatura Oficial da Dra. Responsável (pré-assinatura automática dos contratos)
+  assinaturaPadraoDentista?: string;
+  autoAssinarContrato?: boolean;
 }
 
 const STORAGE_KEY_PREFIX = 'sistema_clinica_contrato_config_';
@@ -47,7 +51,7 @@ export const getDefaultConfigContrato = (configGerais?: any): ConfiguracoesContr
     nomeClinicaContrato: configGerais?.nomeClinica || 'DRA. ROSANGELA SANTOS',
     cnpjClinicaContrato: configGerais?.cnpj || '032.663.962-43',
     croResponsavelContrato: configGerais?.croResponsavel || '06267-AL',
-    dentistaResponsavelContrato: configGerais?.croResponsavel || 'Dra. Rosangela Santos',
+    dentistaResponsavelContrato: configGerais?.dentistaResponsavel || 'Dra. Rosangela Santos',
     enderecoContrato:
       configGerais?.endereco ||
       'JTR - Edificio Espanha - R. Comerc. José Pontes de Magalhães, 70 - Sl 405 - Jatiúca, Maceió - AL, 57036-250',
@@ -58,6 +62,9 @@ export const getDefaultConfigContrato = (configGerais?: any): ConfiguracoesContr
     multaAtrasoPercentual: 2,
     jurosMoraPercentual: 1,
     clausulaEspecialPadrao: '',
+
+    assinaturaPadraoDentista: '',
+    autoAssinarContrato: true,
   };
 };
 
@@ -75,6 +82,8 @@ export const carregarConfiguracoesContratoSync = (clinicaId?: string | null, con
           chavePix: parsed.chavePix || padrao.chavePix,
           tipoChavePix: parsed.tipoChavePix || padrao.tipoChavePix,
           favorecidoPix: parsed.favorecidoPix || padrao.favorecidoPix,
+          assinaturaPadraoDentista: parsed.assinaturaPadraoDentista || localStorage.getItem('assinatura_padrao_dentista') || '',
+          autoAssinarContrato: parsed.autoAssinarContrato !== undefined ? Boolean(parsed.autoAssinarContrato) : true,
         };
       }
     }

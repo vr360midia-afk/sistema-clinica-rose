@@ -769,7 +769,11 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
           dataHora: new Date().toISOString(),
         },
       };
-      toast.success('Assinatura do cirurgião-dentista registrada no contrato!');
+      // Salva como assinatura padrão da Dra. para os próximos contratos emitidos
+      if (typeof window !== 'undefined' && window.localStorage && sigData.signature) {
+        localStorage.setItem('assinatura_padrao_dentista', sigData.signature);
+      }
+      toast.success('Assinatura da cirurgiã-dentista registrada e definida como padrão para novos contratos!');
     }
 
     setSnapshotAtual(novoSnapshot);
