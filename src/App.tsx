@@ -1,5 +1,5 @@
 
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useParams, useLocation } from 'react-router-dom';
 import { Toaster } from '@/components/ui/sonner';
 import { DentalSystemProvider } from '@/context/DentalSystemContext';
 import { AuthProvider } from '@/context/AuthContext';
@@ -33,6 +33,35 @@ import AssinarContrato from '@/pages/AssinarContrato';
 import VerificarRecibo from '@/pages/VerificarRecibo';
 import NotFound from '@/pages/NotFound';
 
+/**
+ * Dispatcher inteligente para links públicos compartilhados com o paciente na raiz
+ * (ex: /preencher-anamnese-maria-silva, /assinar-contrato-joao-silva, /assinar-extrato-pedro)
+ */
+const PublicLinkDispatcher = () => {
+  const { publicSlug } = useParams<{ publicSlug: string }>();
+  const location = useLocation();
+  const slug = (publicSlug || location.pathname.replace(/^\//, '')).toLowerCase();
+
+  if (
+    slug.startsWith('preencher-anamnese') ||
+    slug.startsWith('assinar-anamnese') ||
+    slug.startsWith('anamnese-') ||
+    slug.startsWith('anamnese')
+  ) {
+    return <AssinarAnamnese />;
+  }
+
+  if (slug.startsWith('assinar-contrato') || slug.startsWith('contrato-')) {
+    return <AssinarContrato />;
+  }
+
+  if (slug.startsWith('assinar-extrato') || slug.startsWith('extrato-')) {
+    return <AssinarExtrato />;
+  }
+
+  return <NotFound />;
+};
+
 function App() {
   return (
     <AuthProvider>
@@ -41,15 +70,28 @@ function App() {
         <Router>
           <div className="App">
             <Routes>
+              {/* Rotas Públicas */}
               <Route path="/auth" element={<Auth />} />
               <Route path="/agendar" element={<AgendamentoPublico />} />
+
+              {/* Anamnese Pública (Preenchimento e Assinatura) */}
               <Route path="/anamnese/:slug" element={<AssinarAnamnese />} />
               <Route path="/anamnese-paciente/:slug" element={<AssinarAnamnese />} />
+              <Route path="/preencher-anamnese/:slug" element={<AssinarAnamnese />} />
+              <Route path="/preencher-anamnese" element={<AssinarAnamnese />} />
+              <Route path="/assinar-anamnese/:slug" element={<AssinarAnamnese />} />
               <Route path="/assinar-anamnese/:id" element={<AssinarAnamnese />} />
               <Route path="/assinar-anamnese" element={<AssinarAnamnese />} />
+
+              {/* Extrato e Contrato Públicos */}
               <Route path="/assinar-extrato/:id" element={<AssinarExtrato />} />
+              <Route path="/assinar-extrato/:slug" element={<AssinarExtrato />} />
+              <Route path="/assinar-extrato" element={<AssinarExtrato />} />
               <Route path="/assinar-contrato/:id" element={<AssinarContrato />} />
+              <Route path="/assinar-contrato/:slug" element={<AssinarContrato />} />
               <Route path="/assinar-contrato" element={<AssinarContrato />} />
+
+              {/* Verificação Pública de Recibos */}
               <Route path="/verificar/:hash" element={<VerificarRecibo />} />
               <Route path="/verificar" element={<VerificarRecibo />} />
               <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
@@ -70,6 +112,8 @@ function App() {
               <Route path="/anamnese" element={<ProtectedRoute><PermissionRoute modulo="prontuarios"><Anamnese /></PermissionRoute></ProtectedRoute>} />
               <Route path="/admin" element={<ProtectedRoute><RoleRoute allow={['admin']}><Admin /></RoleRoute></ProtectedRoute>} />
               <Route path="/lixeira" element={<ProtectedRoute><RoleRoute allow={['admin']}><Lixeira /></RoleRoute></ProtectedRoute>} />
+              {/* Rota coringa para links públicos compartilhados com o paciente */}
+              <Route path="/:publicSlug" element={<PublicLinkDispatcher />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
             <Toaster />

@@ -156,22 +156,28 @@ const ITENS_TRIAGEM = [
 ];
 
 const AssinarAnamnese = () => {
-  const { id, slug } = useParams<{ id?: string; slug?: string }>();
+  const { id, slug, publicSlug } = useParams<{ id?: string; slug?: string; publicSlug?: string }>();
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token') || searchParams.get('t') || '';
   const modoUrl = searchParams.get('modo') || searchParams.get('m');
   const encodedData = searchParams.get('d') || searchParams.get('data') || searchParams.get('c');
   const idFromQuery = searchParams.get('id');
-  const targetId = idFromQuery || id || slug || '';
+  const currentPath = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '';
+  const effectiveSlug = slug || publicSlug || (currentPath ? currentPath.replace(/^\//, '') : '');
+  const targetId = idFromQuery || id || effectiveSlug || '';
+
+  const modoDetectado = modoUrl
+    ? (modoUrl === 'assinar' ? 'assinar' : 'preencher')
+    : currentPath.includes('assinar')
+    ? 'assinar'
+    : 'preencher';
 
   const [status, setStatus] = useState<Status>('loading');
   const [anamnese, setAnamnese] = useState<any>(null);
   const [paciente, setPaciente] = useState<any>(null);
   const [showSignature, setShowSignature] = useState(false);
   const [salvando, setSalvando] = useState(false);
-  const [modoVisualizacao, setModoVisualizacao] = useState<'preencher' | 'assinar'>(
-    modoUrl === 'assinar' ? 'assinar' : 'preencher'
-  );
+  const [modoVisualizacao, setModoVisualizacao] = useState<'preencher' | 'assinar'>(modoDetectado);
 
   // Campos preenchíveis/editáveis pelo paciente
   const [queixaPrincipal, setQueixaPrincipal] = useState('');
@@ -486,8 +492,8 @@ const AssinarAnamnese = () => {
           }
         } catch (_) {}
 
-        if (slug || targetId) {
-          const nomePaciente = slug ? unslugifyNome(slug) : 'Paciente';
+        if (effectiveSlug || targetId) {
+          const nomePaciente = effectiveSlug ? unslugifyNome(effectiveSlug) : 'Paciente';
           setPaciente({ nome: nomePaciente });
           setAnamnese({
             id: targetId,
@@ -500,7 +506,7 @@ const AssinarAnamnese = () => {
         setStatus(String(err?.message || '').includes('410') ? 'expired' : 'invalid');
       }
     })();
-  }, [targetId, token, encodedData, call, slug]);
+  }, [targetId, token, encodedData, call, effectiveSlug]);
 
   const handleSignature = async (signatureData: SignatureData) => {
     try {

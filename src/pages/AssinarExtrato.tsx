@@ -18,9 +18,11 @@ const Shell = ({ children }: { children: React.ReactNode }) => (
 );
 
 const AssinarExtrato = () => {
-  const { id } = useParams<{ id: string }>();
+  const { id, slug, publicSlug } = useParams<{ id?: string; slug?: string; publicSlug?: string }>();
   const [searchParams] = useSearchParams();
-  const token = searchParams.get('token');
+  const token = searchParams.get('token') || searchParams.get('t');
+  const idFromQuery = searchParams.get('id') || searchParams.get('extratoId');
+  const targetId = idFromQuery || id || '';
 
   const [status, setStatus] = useState<Status>('loading');
   const [extrato, setExtrato] = useState<any>(null);
@@ -29,16 +31,16 @@ const AssinarExtrato = () => {
   const call = useCallback(
     async (action: 'get' | 'sign', extra: Record<string, unknown> = {}) => {
       const { data, error } = await supabase.functions.invoke('extrato-publico', {
-        body: { action, id, token, ...extra },
+        body: { action, id: targetId, token, ...extra },
       });
       if (error) throw error;
       return data as any;
     },
-    [id, token]
+    [targetId, token]
   );
 
   useEffect(() => {
-    if (!id || !token) {
+    if (!targetId || !token) {
       setStatus('invalid');
       return;
     }
@@ -56,7 +58,7 @@ const AssinarExtrato = () => {
         setStatus(msg.includes('410') ? 'expired' : 'invalid');
       }
     })();
-  }, [id, token, call]);
+  }, [targetId, token, call]);
 
   const handleSignature = async (signatureData: SignatureData) => {
     try {

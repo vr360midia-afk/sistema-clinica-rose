@@ -66,10 +66,14 @@ const Shell = ({ children }: { children: React.ReactNode }) => (
 );
 
 export default function AssinarContrato() {
-  const { id } = useParams<{ id: string }>();
+  const { id, slug, publicSlug } = useParams<{ id?: string; slug?: string; publicSlug?: string }>();
   const [searchParams] = useSearchParams();
-  const token = searchParams.get('token');
+  const token = searchParams.get('token') || searchParams.get('t');
   const encodedData = searchParams.get('c') || searchParams.get('data');
+  const idFromQuery = searchParams.get('id') || searchParams.get('contratoId');
+  const currentPath = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '';
+  const rawSlug = slug || publicSlug || (currentPath ? currentPath.replace(/^\//, '') : '');
+  const targetId = idFromQuery || id || '';
 
   const [loading, setLoading] = useState(true);
   const [snapshot, setSnapshot] = useState<ContratoSnapshot | null>(null);
@@ -204,9 +208,11 @@ export default function AssinarContrato() {
         }
       }
 
-      // 2. Tenta recuperar do localStorage por ID imediato
-      if (id) {
-        const localCache = localStorage.getItem(`contrato_assinado_${id}`) || localStorage.getItem(`contrato_${id}`);
+      // 2. Tenta recuperar do localStorage por ID ou slug
+      if (targetId || rawSlug) {
+        const localCache =
+          (targetId ? localStorage.getItem(`contrato_assinado_${targetId}`) || localStorage.getItem(`contrato_${targetId}`) : null) ||
+          (rawSlug ? localStorage.getItem(`contrato_slug_${rawSlug}`) || localStorage.getItem(`contrato_slug_${rawSlug.replace(/^assinar-contrato-/, '')}`) : null);
         if (localCache) {
           try {
             const cachedSnap = JSON.parse(localCache);
@@ -219,10 +225,10 @@ export default function AssinarContrato() {
       }
 
       // 3. Tenta buscar via Edge Function pública 'contrato-publico' (funciona sem login no celular de qualquer paciente)
-      if (id) {
+      if (targetId) {
         try {
           const { data: funcData, error: funcErr } = await supabase.functions.invoke('contrato-publico', {
-            body: { action: 'get', id },
+            body: { action: 'get', id: targetId },
           });
 
           if (!funcErr && funcData?.ok && funcData?.snapshot) {
@@ -246,12 +252,12 @@ export default function AssinarContrato() {
       }
 
       // 4. Fallback: Tenta buscar diretamente no banco de dados Supabase
-      if (id) {
+      if (targetId) {
         try {
           const { data, error } = await supabase
             .from('documentos_clinicos')
             .select('*')
-            .eq('id', id)
+            .eq('id', targetId)
             .maybeSingle();
 
           if (!error && data && data.itens) {
@@ -272,7 +278,7 @@ export default function AssinarContrato() {
     }
 
     carregarContrato();
-  }, [id, encodedData]);
+  }, [targetId, rawSlug, encodedData]);
 
   // Registra a assinatura digital do paciente
   const handleSignatureComplete = async (sigData: SignatureData) => {
@@ -307,19 +313,20 @@ export default function AssinarContrato() {
       setShowSignatureModal(false);
 
       // Salva no localStorage para persistência garantida no navegador do paciente
+      const finalDocId = targetId || snapshot.contratoId;
       localStorage.setItem(`contrato_assinado_${snapshot.contratoId}`, JSON.stringify(updatedSnapshot));
-      if (id) {
-        localStorage.setItem(`contrato_assinado_${id}`, JSON.stringify(updatedSnapshot));
+      if (finalDocId) {
+        localStorage.setItem(`contrato_assinado_${finalDocId}`, JSON.stringify(updatedSnapshot));
       }
 
       // 1. Tenta persistir remotamente via Edge Function pública (sem exigir login)
       let persistiuRemoto = false;
-      if (id) {
+      if (finalDocId) {
         try {
           const { data: signRes, error: signErr } = await supabase.functions.invoke('contrato-publico', {
             body: {
               action: 'sign',
-              id,
+              id: finalDocId,
               signature: sigData.signature,
               signerName: sigData.signerName || snapshot.paciente.nome,
               selfie: sigData.selfie,
@@ -336,7 +343,7 @@ export default function AssinarContrato() {
       }
 
       // 2. Fallback: Tenta persistir direto no Supabase caso a tabela permita
-      if (id && !persistiuRemoto) {
+      if (finalDocId && !persistiuRemoto) {
         try {
           await supabase
             .from('documentos_clinicos')
@@ -346,7 +353,7 @@ export default function AssinarContrato() {
               assinado_em: dataHoraIso,
               itens: updatedSnapshot as any,
             })
-            .eq('id', id);
+            .eq('id', finalDocId);
         } catch (dbErr) {
           console.warn('Persistência remota direta silenciosa:', dbErr);
         }
