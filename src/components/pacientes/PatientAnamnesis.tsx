@@ -160,10 +160,8 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
     if (confirm('Tem certeza de que deseja excluir esta ficha de anamnese?')) {
       try {
         await deleteAnamnese(anamneseId);
-        toast.success('Anamnese excluída com sucesso.');
       } catch (err) {
         console.error('Erro ao excluir anamnese:', err);
-        toast.error('Erro ao excluir anamnese.');
       }
     }
   };

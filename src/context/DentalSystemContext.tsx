@@ -375,8 +375,9 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const deleteAnamnese = async (id: string) => {
     try {
-      await supabaseService.deleteAnamnese(id);
+      localStorageService.deleteAnamnese(id);
       setAnamneses(prev => prev.filter(a => a.id !== id));
+      await supabaseService.deleteAnamnese(id);
       toast.success('Anamnese removida com sucesso!');
     } catch (error) {
       console.error('Erro ao remover anamnese:', error);

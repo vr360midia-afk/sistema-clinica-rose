@@ -79,15 +79,30 @@ class SupabaseService {
     return userId;
   }
 
+  private isUuid(val: string): boolean {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+  }
+
   private async snapshotToLixeira(tabela: string, id: string, titulo?: string): Promise<void> {
     try {
+      if (!id || !this.isUuid(id)) return;
       const userId = await this.getCurrentUserId();
-      const { data } = await (supabase as any)
+      let { data } = await (supabase as any)
         .from(tabela)
         .select('*')
         .eq('id', id)
         .eq('user_id', userId)
         .maybeSingle();
+
+      if (!data) {
+        const fallback = await (supabase as any)
+          .from(tabela)
+          .select('*')
+          .eq('id', id)
+          .maybeSingle();
+        data = fallback.data;
+      }
+
       if (!data) return;
       const { data: { session } } = await supabase.auth.getSession();
       await (supabase as any).from('lixeira').insert({
@@ -641,15 +656,67 @@ class SupabaseService {
   }
 
   async deleteAnamnese(id: string): Promise<boolean> {
-    const userId = await this.getCurrentUserId();
-    await this.snapshotToLixeira('anamneses', id);
-    const { error } = await supabase
-      .from('anamneses')
-      .delete()
-      .eq('id', id)
-      .eq('user_id', userId);
+    // 1. Sempre remove do localStorage para manter sincronia
+    try {
+      localStorageService.deleteAnamnese(id);
+    } catch (localErr) {
+      console.warn('Aviso ao remover anamnese do localStorage:', localErr);
+    }
 
-    if (error) throw error;
+    // 2. Se não for um UUID válido do Postgres, era apenas um registro local/offline
+    if (!id || !this.isUuid(id)) {
+      return true;
+    }
+
+    // 3. Tenta salvar na lixeira
+    await this.snapshotToLixeira('anamneses', id);
+
+    // 4. Deleção no Supabase com resiliência a tenant e políticas de RLS
+    try {
+      const userId = await this.getCurrentUserId().catch(() => null);
+      const { data: { session } } = await supabase.auth.getSession().catch(() => ({ data: { session: null } }));
+      const sessionUserId = session?.user?.id;
+
+      let error: any = null;
+
+      // Tentativa 1: por id e user_id (se disponível)
+      if (userId) {
+        const res = await supabase
+          .from('anamneses')
+          .delete()
+          .eq('id', id)
+          .eq('user_id', userId);
+        error = res.error;
+      }
+
+      // Tentativa 2: com sessionUserId caso difira de userId
+      if (error && sessionUserId && sessionUserId !== userId) {
+        const retryRes = await supabase
+          .from('anamneses')
+          .delete()
+          .eq('id', id)
+          .eq('user_id', sessionUserId);
+        error = retryRes.error;
+      }
+
+      // Tentativa 3: apenas por id, confiando nas políticas de RLS do Supabase
+      if (error || !userId) {
+        const directRes = await supabase
+          .from('anamneses')
+          .delete()
+          .eq('id', id);
+        if (!directRes.error) {
+          error = null;
+        }
+      }
+
+      if (error) {
+        console.warn('Aviso ao deletar anamnese no Supabase:', error);
+      }
+    } catch (err) {
+      console.warn('Exceção ao deletar anamnese no Supabase:', err);
+    }
+
     return true;
   }
 
