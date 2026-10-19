@@ -404,15 +404,46 @@ export default function AssinarContrato() {
 
   const [copiouPayloadPix, setCopiouPayloadPix] = useState(false);
 
-  const valorPixContrato = useMemo(() => {
-    if (!snapshot?.financeiro) return 0;
-    return (snapshot.financeiro.entrada && snapshot.financeiro.entrada > 0)
-      ? snapshot.financeiro.entrada
-      : snapshot.financeiro.total;
+  // Identifica se a entrada do contrato já está quitada / paga
+  const isEntradaPaga = useMemo(() => {
+    if (!snapshot?.financeiro) return false;
+    const entradaCard = cardsPagamento.find((c) => c.tipo === 'entrada');
+    if (entradaCard) {
+      return Boolean(entradaCard.pago || /paga|pago|quitad/i.test(entradaCard.statusBadge || ''));
+    }
+    const parcEntrada = snapshot.financeiro.parcelas?.find((p) =>
+      /entrada|sinal/i.test(p.descricao || '')
+    ) || (snapshot.financeiro.entrada && snapshot.financeiro.parcelas?.[0]);
+    if (parcEntrada?.status) {
+      return /paga|pago|quitad/i.test(parcEntrada.status);
+    }
+    return false;
+  }, [snapshot, cardsPagamento]);
+
+  // Identifica se todas as parcelas do cronograma já estão quitadas / pagas
+  const isContratoQuitado = useMemo(() => {
+    if (!snapshot?.financeiro) return false;
+    if (snapshot.financeiro.parcelas && snapshot.financeiro.parcelas.length > 0) {
+      return snapshot.financeiro.parcelas.every((p) => p.status && /paga|pago|quitad/i.test(p.status));
+    }
+    return false;
   }, [snapshot]);
 
+  // Se a entrada já está paga/quitada, NÃO deve cobrar a entrada novamente no link de assinatura
+  const valorPixContrato = useMemo(() => {
+    if (!snapshot?.financeiro) return 0;
+    if (snapshot.financeiro.entrada && snapshot.financeiro.entrada > 0) {
+      if (isEntradaPaga) {
+        return 0; // Entrada já quitada! Não gera cobrança PIX da entrada
+      }
+      return snapshot.financeiro.entrada;
+    }
+    if (isContratoQuitado) return 0;
+    return snapshot.financeiro.total || 0;
+  }, [snapshot, isEntradaPaga, isContratoQuitado]);
+
   const payloadPixContrato = useMemo(() => {
-    if (!snapshot?.clinica?.chavePix) return '';
+    if (!snapshot?.clinica?.chavePix || valorPixContrato <= 0) return '';
     return gerarPayloadPix({
       chave: snapshot?.clinica?.chavePix || '',
       tipoChave: snapshot?.clinica?.tipoChavePix,
@@ -731,7 +762,17 @@ export default function AssinarContrato() {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2 self-start sm:self-center">
-                  {payloadPixContrato && (
+                  {isContratoQuitado ? (
+                    <Badge variant="outline" className="bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300 text-xs py-1.5 px-3 font-bold gap-1 shadow-xs">
+                      <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400 stroke-[3]" />
+                      Contrato Quitado
+                    </Badge>
+                  ) : isEntradaPaga ? (
+                    <Badge variant="outline" className="bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300 text-xs py-1.5 px-3 font-bold gap-1 shadow-xs">
+                      <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400 stroke-[3]" />
+                      Entrada Quitada
+                    </Badge>
+                  ) : payloadPixContrato ? (
                     <>
                       <Button
                         size="sm"
@@ -764,7 +805,7 @@ export default function AssinarContrato() {
                         Ver QR Code
                       </Button>
                     </>
-                  )}
+                  ) : null}
                   <Button
                     size="sm"
                     variant="outline"
@@ -797,9 +838,11 @@ export default function AssinarContrato() {
                     const isCartao = isMetodoCartao(parc.metodo, parc.descricao);
                     const isPix = !isCartao && (isMetodoPix(parc.metodo, parc.descricao) || (snapshot?.financeiro?.formaPagamento || '').toLowerCase().includes('pix'));
 
-                    // Payload dinâmico individual para a parcela
-                    let parcPayload = parc.payloadPix || '';
-                    if (isPix && !parcPayload && snapshot?.clinica?.chavePix && parc.valor > 0) {
+                    const isPaga = Boolean(parc.status && /paga|pago|quitad/i.test(parc.status));
+
+                    // Payload dinâmico individual para a parcela (APENAS se NÃO estiver quitada/paga)
+                    let parcPayload = isPaga ? '' : (parc.payloadPix || '');
+                    if (!isPaga && isPix && !parcPayload && snapshot?.clinica?.chavePix && parc.valor > 0) {
                       parcPayload = gerarPayloadPix({
                         chave: snapshot?.clinica?.chavePix || '',
                         tipoChave: snapshot?.clinica?.tipoChavePix,
@@ -809,8 +852,7 @@ export default function AssinarContrato() {
                         descricao: `Parc ${parc.numero} CTR-${snapshot?.numero || snapshot?.contratoId || ''}`.slice(0, 25),
                       });
                     }
-                    const parcQrCode = parc.qrCodePixUrl || (parcPayload ? gerarQrCodePixUrl(parcPayload, 360) : '');
-                    const isPaga = parc.status && /paga|quitad/i.test(parc.status);
+                    const parcQrCode = isPaga ? '' : (parc.qrCodePixUrl || (parcPayload ? gerarQrCodePixUrl(parcPayload, 360) : ''));
 
                     return (
                       <div key={parc.numero} className="p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/60 dark:hover:bg-slate-900/60 transition-colors">
@@ -848,7 +890,11 @@ export default function AssinarContrato() {
                             {formatMoney(parc.valor)}
                           </span>
 
-                          {isPix && parcPayload ? (
+                          {isPaga ? (
+                            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300 text-xs py-1 px-2.5 font-semibold gap-1 shrink-0">
+                              <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 stroke-[3]" /> Quitado
+                            </Badge>
+                          ) : isPix && parcPayload ? (
                             <div className="flex items-center gap-1.5 shrink-0">
                               <Button
                                 size="sm"

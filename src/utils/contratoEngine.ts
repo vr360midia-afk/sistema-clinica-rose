@@ -1055,6 +1055,15 @@ export const mapearDadosContrato = ({
       };
     }
 
+    const isPaga = Boolean(parc.status && /paga|pago|quitad/i.test(parc.status));
+    if (isPaga) {
+      return {
+        ...parc,
+        payloadPix: undefined,
+        qrCodePixUrl: undefined,
+      };
+    }
+
     const isPix = isMetodoPix(parc.metodo, parc.descricao) || (formaTemPix && !/boleto|dinheiro|transfer/i.test(parc.metodo || ''));
     if (chavePixParaParcela && isPix && parc.valor > 0) {
       const payload = gerarPayloadPix({
@@ -1718,7 +1727,39 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
 
       ${temAlgumPix ? (() => {
         const chavePixContrato = clinica?.chavePix || clinica?.cnpj || clinica?.telefone || '';
-        const valorPixContrato = (financeiro.entrada && financeiro.entrada > 0) ? financeiro.entrada : (financeiro.total > 0 ? financeiro.total : undefined);
+        const parcelaEntrada = financeiro.parcelas?.find((p) =>
+          /entrada|sinal/i.test(p.descricao || '')
+        ) || (financeiro.entrada > 0 && financeiro.parcelas?.length > 0 ? financeiro.parcelas[0] : undefined);
+        const isEntradaPaga = parcelaEntrada?.status ? /quitad|pago|paga/i.test(parcelaEntrada.status) : false;
+
+        const parcelasPixNaoPagas = (financeiro.parcelas || []).filter((p) => {
+          const isCartao = isMetodoCartao(p.metodo, p.descricao) || (p.vencimento && /fatura/i.test(p.vencimento));
+          const isPix = !isCartao && (isMetodoPix(p.metodo, p.descricao) || temAlgumPix);
+          const isPaga = Boolean(p.status && /paga|pago|quitad/i.test(p.status));
+          return isPix && !isPaga;
+        });
+
+        const todasPixPagas = (financeiro.parcelas || []).length > 0 && parcelasPixNaoPagas.length === 0;
+
+        if (todasPixPagas) {
+          return `
+      <!-- Status Oficial de Quitação PIX -->
+      <div style="margin: 14px 0; padding: 12px 16px; border: 1.5px solid #10b981; background-color: #f0fdf4; border-radius: 8px; font-family: Arial, sans-serif; font-size: 12px; color: #065f46;">
+        <div style="font-weight: bold; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 14px; color: #059669;">✔</span>
+          <span>PAGAMENTO VIA PIX DEVIDAMENTE QUITADO</span>
+        </div>
+        <div style="margin-top: 4px; font-size: 11px; color: #047857; line-height: 1.4;">
+          ${financeiro.entrada > 0 ? `A Entrada de <strong>${formatMoney(financeiro.entrada)}</strong> e os pagamentos acordados via PIX constam como <strong>QUITADOS</strong>.` : 'Os pagamentos pactuados via PIX constam como <strong>QUITADOS</strong>.'} Não há cobrança pendente de PIX nesta etapa.
+        </div>
+      </div>
+          `;
+        }
+
+        const valorPixContrato = (!isEntradaPaga && financeiro.entrada && financeiro.entrada > 0)
+          ? financeiro.entrada
+          : (parcelasPixNaoPagas.length === 1 ? parcelasPixNaoPagas[0].valor : undefined);
+
         const numIdContrato = orcamento?.numeroIdentificador || snapshot?.contratoId || '';
         const payloadPixContrato = chavePixContrato ? gerarPayloadPix({
           chave: chavePixContrato,
@@ -1739,9 +1780,14 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
       <!-- Detalhamento Oficial para Pagamento via PIX com QR Code -->
       <div style="margin: 14px 0; padding: 14px 16px; border: 1.5px dashed #0284c7; background-color: #f0f9ff; border-radius: 8px; font-family: Arial, sans-serif; font-size: 12px; color: #0369a1;">
         <div style="font-weight: bold; margin-bottom: 8px; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; display: flex; align-items: center; justify-content: space-between;">
-          <span>✦ Instruções e QR Code Oficial para Pagamento via PIX${valorPixContrato ? ` (Valor Inicial/Total: ${formatMoney(valorPixContrato)})` : ''}</span>
+          <span>✦ Instruções e QR Code Oficial para Pagamento via PIX${isEntradaPaga ? ' (Entrada Quitada ✔)' : valorPixContrato ? ` (Valor Inicial/Total: ${formatMoney(valorPixContrato)})` : ''}</span>
           <span style="font-size: 10px; color: #0369a1; font-weight: normal;">Padrão Oficial Banco Central (Bacen)</span>
         </div>
+        ${isEntradaPaga ? `
+        <div style="margin-bottom: 8px; padding: 6px 10px; background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 6px; font-size: 11px; color: #065f46; font-weight: 500;">
+          ✔ A <strong>Entrada de ${formatMoney(financeiro.entrada)}</strong> já foi devidamente <strong>QUITADA</strong>.
+        </div>
+        ` : ''}
         <div style="display: flex; align-items: flex-start; gap: 16px;">
           <div style="background: #ffffff; padding: 6px; border: 1.5px solid #bae6fd; border-radius: 6px; text-align: center; flex-shrink: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
             <a href="${qrCodeGrandeSrc}" target="_blank" rel="noopener noreferrer" title="Clique para abrir o QR Code em tela cheia" style="text-decoration: none; display: block;">
@@ -1807,11 +1853,12 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
             const isCartao = isMetodoCartao(parc.metodo, parc.descricao) || (parc.vencimento && /fatura/i.test(parc.vencimento));
             const vencTexto = isCartao ? 'Fatura do Cartão' : (parc.vencimento || '-');
             const isPix = !isCartao && (isMetodoPix(parc.metodo, parc.descricao) || temAlgumPix);
+            const isPaga = Boolean(parc.status && /paga|pago|quitad/i.test(parc.status));
 
-            let parcPayload = parc.payloadPix || '';
-            let parcQrCode = parc.qrCodePixUrl || '';
+            let parcPayload = isPaga ? '' : (parc.payloadPix || '');
+            let parcQrCode = isPaga ? '' : (parc.qrCodePixUrl || '');
 
-            if (isPix && !parcPayload && clinica?.chavePix && clinica?.chavePix !== 'Chave da clínica sob consulta' && parc.valor > 0) {
+            if (!isPaga && isPix && !parcPayload && clinica?.chavePix && clinica?.chavePix !== 'Chave da clínica sob consulta' && parc.valor > 0) {
               const numIdContrato = orcamento?.numeroIdentificador || snapshot?.contratoId || '';
               parcPayload = gerarPayloadPix({
                 chave: clinica?.chavePix || '',
@@ -1832,7 +1879,11 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
               <td class="col-money"><strong>${formatMoney(parc.valor)}</strong></td>
               ${temAlgumPix ? `
                 <td style="text-align: center; vertical-align: middle; padding: 6px;">
-                  ${isPix && parcQrCode ? `
+                  ${isPaga ? `
+                    <span style="display: inline-block; padding: 3px 8px; background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; border-radius: 4px; font-size: 10px; font-weight: bold;">
+                      ✔ Quitado
+                    </span>
+                  ` : isPix && parcQrCode ? `
                     <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
                       <a href="${parcQrCode}" target="_blank" rel="noopener noreferrer" title="Clique para abrir o QR Code em tela cheia" style="text-decoration: none; display: inline-block;">
                         <img src="${parcQrCode}" alt="QR Code PIX ${formatMoney(parc.valor)}" style="width: 68px; height: 68px; border: 1px solid #bae6fd; border-radius: 4px; display: block;" />
@@ -1849,7 +1900,7 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
                   `}
                 </td>
               ` : ''}
-              <td style="text-align: center; font-size: 11px;">${parc.status || (isCartao ? 'Autorizado' : 'A vencer')}</td>
+              <td style="text-align: center; font-size: 11px;">${isPaga ? `<strong style="color: #059669;">Quitada</strong>` : (parc.status || (isCartao ? 'Autorizado' : 'A vencer'))}</td>
             </tr>
           `;
           }).join('')}
