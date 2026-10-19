@@ -276,3 +276,76 @@
   @apply sr-only;
 }
 
+/* ==========================================================================
+   Configuração e Otimização Global de Impressão e PDF (@media print)
+   ========================================================================== */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm 12mm 10mm 12mm;
+  }
+
+  *,
+  *::before,
+  *::after {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  html,
+  body,
+  #root,
+  .App {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    min-height: auto !important;
+    height: auto !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* Oculta botões, barras de navegação e controles interativos */
+  .no-print,
+  .print\\:hidden,
+  button:not(.print-show),
+  nav,
+  aside,
+  header.app-header,
+  .toaster,
+  [data-sonner-toaster],
+  [role="dialog"] > button[aria-label="Close"] {
+    display: none !important;
+  }
+
+  /* Evita quebras indesejadas no meio de blocos, linhas e seções */
+  .break-inside-avoid,
+  .print-break-avoid,
+  .print\\:break-inside-avoid,
+  article,
+  figure,
+  blockquote,
+  table,
+  tr,
+  td,
+  th {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* Remove sombras que ficam borradas na impressão */
+  .shadow-xs,
+  .shadow-sm,
+  .shadow-md,
+  .shadow-lg,
+  .shadow-xl,
+  .shadow-2xl {
+    box-shadow: none !important;
+  }
+}
+

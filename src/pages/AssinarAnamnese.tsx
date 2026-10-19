@@ -46,8 +46,8 @@ import {
 type Status = 'loading' | 'valid' | 'invalid' | 'expired' | 'completed' | 'blocked';
 
 const Shell = ({ children }: { children: React.ReactNode }) => (
-  <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-start py-6 sm:py-8 px-3 sm:px-6 overflow-x-hidden w-full max-w-full">
-    <div className="w-full max-w-3xl space-y-6 overflow-x-hidden">{children}</div>
+  <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-start py-6 sm:py-8 px-3 sm:px-6 overflow-x-hidden w-full max-w-full print:min-h-0 print:h-auto print:bg-white print:p-0 print:m-0 print:overflow-visible">
+    <div className="w-full max-w-3xl space-y-6 overflow-x-hidden print:max-w-none print:w-full print:space-y-0 print:overflow-visible">{children}</div>
   </div>
 );
 
@@ -610,33 +610,33 @@ const AssinarAnamnese = () => {
 
     return (
       <Shell>
-        <div className="w-full max-w-2xl mx-auto space-y-4">
-          <Card className="border-border shadow-lg overflow-hidden">
+        <div className="w-full max-w-2xl mx-auto space-y-4 print:max-w-none print:w-full print:m-0 print:space-y-2">
+          <Card className="border-border shadow-lg overflow-hidden print:border-0 print:shadow-none print:rounded-none print:overflow-visible">
             {/* Header da Clínica */}
-            <div className="bg-gradient-to-r from-emerald-700 via-teal-700 to-emerald-800 p-5 sm:p-6 text-white text-center">
-              <div className="h-14 w-14 rounded-full bg-white/15 backdrop-blur-xs flex items-center justify-center mx-auto mb-2 shadow-inner">
-                <ShieldCheck className="h-8 w-8 text-white" />
+            <div className="bg-gradient-to-r from-emerald-700 via-teal-700 to-emerald-800 p-5 sm:p-6 text-white text-center print:bg-emerald-900 print:text-white print:p-3.5 print:rounded-lg print:break-inside-avoid">
+              <div className="h-14 w-14 rounded-full bg-white/15 backdrop-blur-xs flex items-center justify-center mx-auto mb-2 shadow-inner print:h-10 print:w-10 print:mb-1">
+                <ShieldCheck className="h-8 w-8 text-white print:h-6 print:w-6" />
               </div>
-              <Badge className="bg-emerald-500/30 text-white border-white/20 text-xs mb-2">
+              <Badge className="bg-emerald-500/30 text-white border-white/20 text-xs mb-2 print:mb-1 print:text-[10px] print:py-0">
                 Documento Clínico Preenchido e Assinado
               </Badge>
-              <h1 className="text-xl sm:text-2xl font-bold">Ficha de Anamnese Odontológica</h1>
-              <p className="text-xs text-emerald-100 mt-1">
+              <h1 className="text-xl sm:text-2xl font-bold print:text-lg">Ficha de Anamnese Odontológica</h1>
+              <p className="text-xs text-emerald-100 mt-1 print:text-[11px] print:mt-0.5">
                 Dra. Rosangela Santos • Odontologia Especializada
               </p>
             </div>
 
-            <CardContent className="p-4 sm:p-6 space-y-4">
+            <CardContent className="p-4 sm:p-6 space-y-4 print:p-0 print:pt-2.5 print:space-y-2">
               {/* Informações do Paciente */}
-              <div className="p-3.5 rounded-xl bg-muted/60 border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+              <div className="p-3.5 rounded-xl bg-muted/60 border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs print:p-2.5 print:rounded-lg print:border-slate-300 print:bg-slate-50/80 print:break-inside-avoid">
                 <div>
                   <span className="text-muted-foreground uppercase font-semibold text-[10px]">Paciente</span>
-                  <p className="text-base font-bold text-foreground">{paciente?.nome || 'Paciente'}</p>
-                  {paciente?.cpf && <p className="text-muted-foreground">CPF: {paciente.cpf}</p>}
+                  <p className="text-base font-bold text-foreground print:text-sm">{paciente?.nome || 'Paciente'}</p>
+                  {paciente?.cpf && <p className="text-muted-foreground print:text-[11px]">CPF: {paciente.cpf}</p>}
                 </div>
                 <div className="sm:text-right">
                   <span className="text-muted-foreground uppercase font-semibold text-[10px]">Data do Preenchimento</span>
-                  <p className="font-semibold text-foreground">{dataFormatada}</p>
+                  <p className="font-semibold text-foreground print:text-xs">{dataFormatada}</p>
                   <span className="inline-flex items-center gap-1 text-emerald-600 font-semibold text-[11px] mt-0.5">
                     <CheckCircle className="h-3.5 w-3.5" /> Assinado Digitalmente
                   </span>
@@ -644,26 +644,26 @@ const AssinarAnamnese = () => {
               </div>
 
               {/* Seções com as Respostas Preenchidas */}
-              <div className="space-y-3 pt-1">
+              <div className="space-y-3 pt-1 print:space-y-2 print:pt-0">
                 {/* 1. Queixa Principal */}
-                <div className="p-3.5 rounded-lg border bg-card text-xs space-y-1">
-                  <span className="font-bold text-foreground flex items-center gap-1.5 text-sm">
-                    <ClipboardList className="h-4 w-4 text-primary" />
+                <div className="p-3.5 rounded-lg border bg-card text-xs space-y-1 print:p-2.5 print:border-slate-300 print:break-inside-avoid">
+                  <span className="font-bold text-foreground flex items-center gap-1.5 text-sm print:text-xs">
+                    <ClipboardList className="h-4 w-4 text-primary print:h-3.5 print:w-3.5" />
                     1. Queixa Principal
                   </span>
-                  <p className="text-muted-foreground text-xs sm:text-sm pl-5 pt-0.5 font-medium">
+                  <p className="text-muted-foreground text-xs sm:text-sm pl-5 pt-0.5 font-medium print:text-[11px] print:pl-4">
                     {queixaPrincipal || anamnese?.queixaPrincipal || 'Avaliação clínica odontológica'}
                   </p>
                 </div>
 
                 {/* 2. História da Queixa Atual */}
                 {(historiaAtual || anamnese?.historiaAtual) && (
-                  <div className="p-3.5 rounded-lg border bg-card text-xs space-y-1">
-                    <span className="font-bold text-foreground flex items-center gap-1.5 text-sm">
-                      <Clock className="h-4 w-4 text-blue-500" />
+                  <div className="p-3.5 rounded-lg border bg-card text-xs space-y-1 print:p-2.5 print:border-slate-300 print:break-inside-avoid">
+                    <span className="font-bold text-foreground flex items-center gap-1.5 text-sm print:text-xs">
+                      <Clock className="h-4 w-4 text-blue-500 print:h-3.5 print:w-3.5" />
                       2. História da Doença / Queixa Atual
                     </span>
-                    <p className="text-muted-foreground text-xs sm:text-sm pl-5 pt-0.5">
+                    <p className="text-muted-foreground text-xs sm:text-sm pl-5 pt-0.5 print:text-[11px] print:pl-4">
                       {historiaAtual || anamnese?.historiaAtual}
                     </p>
                   </div>
@@ -671,12 +671,12 @@ const AssinarAnamnese = () => {
 
                 {/* 3. Triagem Rápida Odontológica (Sim/Não) */}
                 {Object.keys(respostasTriagem).length > 0 && (
-                  <div className="p-3.5 rounded-lg border bg-card text-xs space-y-2">
-                    <span className="font-bold text-foreground flex items-center gap-1.5 text-sm">
-                      <HeartPulse className="h-4 w-4 text-rose-500" />
+                  <div className="p-3.5 rounded-lg border bg-card text-xs space-y-2 print:p-2.5 print:border-slate-300 print:break-inside-avoid">
+                    <span className="font-bold text-foreground flex items-center gap-1.5 text-sm print:text-xs">
+                      <HeartPulse className="h-4 w-4 text-rose-500 print:h-3.5 print:w-3.5" />
                       3. Triagem Rápida de Saúde
                     </span>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-1 pt-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-1 pt-1 print:gap-1.5 print:pl-0 print:pt-0">
                       {ITENS_TRIAGEM.map((item) => {
                         const resposta = respostasTriagem[item.id];
                         if (!resposta) return null;
@@ -685,17 +685,17 @@ const AssinarAnamnese = () => {
                           <div
                             key={item.id}
                             className={cn(
-                              "p-2 rounded-md border text-[11px] flex items-center justify-between gap-2",
+                              "p-2 rounded-md border text-[11px] flex items-center justify-between gap-2 print:p-1.5 print:border-slate-300 print:break-inside-avoid",
                               isSim && item.alertaSeSim
-                                ? "bg-amber-500/10 border-amber-500/30 text-amber-900 dark:text-amber-200"
-                                : "bg-muted/40 border-border text-foreground"
+                                ? "bg-amber-500/10 border-amber-500/30 text-amber-900 dark:text-amber-200 print:bg-amber-50"
+                                : "bg-muted/40 border-border text-foreground print:bg-slate-50"
                             )}
                           >
-                            <span className="truncate pr-1">{item.titulo.replace('?', '')}</span>
+                            <span className="truncate pr-1 print:text-[10px]">{item.titulo.replace('?', '')}</span>
                             <Badge
                               variant="outline"
                               className={cn(
-                                "text-[10px] shrink-0 font-bold",
+                                "text-[10px] shrink-0 font-bold print:text-[9px] print:py-0",
                                 isSim
                                   ? item.alertaSeSim
                                     ? "bg-amber-500 text-white border-amber-500"
@@ -713,23 +713,23 @@ const AssinarAnamnese = () => {
                 )}
 
                 {/* 4. Alergias e Medicamentos */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="p-3.5 rounded-lg border bg-card text-xs space-y-1">
-                    <span className="font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1.5 text-sm">
-                      <AlertTriangle className="h-4 w-4 text-amber-500" />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 print:gap-2 print:break-inside-avoid">
+                  <div className="p-3.5 rounded-lg border bg-card text-xs space-y-1 print:p-2.5 print:border-slate-300">
+                    <span className="font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1.5 text-sm print:text-xs">
+                      <AlertTriangle className="h-4 w-4 text-amber-500 print:h-3.5 print:w-3.5" />
                       Alergias e Restrições
                     </span>
-                    <p className="text-foreground text-xs sm:text-sm pl-5 pt-0.5 font-medium">
+                    <p className="text-foreground text-xs sm:text-sm pl-5 pt-0.5 font-medium print:text-[11px] print:pl-4">
                       {alergias || anamnese?.alergias || 'Nenhuma alergia informada'}
                     </p>
                   </div>
 
-                  <div className="p-3.5 rounded-lg border bg-card text-xs space-y-1">
-                    <span className="font-bold text-blue-700 dark:text-blue-400 flex items-center gap-1.5 text-sm">
-                      <Pill className="h-4 w-4 text-blue-500" />
+                  <div className="p-3.5 rounded-lg border bg-card text-xs space-y-1 print:p-2.5 print:border-slate-300">
+                    <span className="font-bold text-blue-700 dark:text-blue-400 flex items-center gap-1.5 text-sm print:text-xs">
+                      <Pill className="h-4 w-4 text-blue-500 print:h-3.5 print:w-3.5" />
                       Medicamentos em Uso
                     </span>
-                    <p className="text-foreground text-xs sm:text-sm pl-5 pt-0.5 font-medium">
+                    <p className="text-foreground text-xs sm:text-sm pl-5 pt-0.5 font-medium print:text-[11px] print:pl-4">
                       {medicamentos || anamnese?.medicamentos || 'Nenhum medicamento informado'}
                     </p>
                   </div>
@@ -737,24 +737,24 @@ const AssinarAnamnese = () => {
 
                 {/* 5. Histórico Médico e Familiar */}
                 {(historiaMedica || anamnese?.historiaMedica) && (
-                  <div className="p-3.5 rounded-lg border bg-card text-xs space-y-1">
-                    <span className="font-bold text-foreground flex items-center gap-1.5 text-sm">
-                      <Stethoscope className="h-4 w-4 text-red-500" />
+                  <div className="p-3.5 rounded-lg border bg-card text-xs space-y-1 print:p-2.5 print:border-slate-300 print:break-inside-avoid">
+                    <span className="font-bold text-foreground flex items-center gap-1.5 text-sm print:text-xs">
+                      <Stethoscope className="h-4 w-4 text-red-500 print:h-3.5 print:w-3.5" />
                       Histórico Médico Pregresso
                     </span>
-                    <p className="text-muted-foreground text-xs sm:text-sm pl-5 pt-0.5">
+                    <p className="text-muted-foreground text-xs sm:text-sm pl-5 pt-0.5 print:text-[11px] print:pl-4">
                       {historiaMedica || anamnese?.historiaMedica}
                     </p>
                   </div>
                 )}
 
                 {(historiaFamiliar || anamnese?.historiaFamiliar) && (
-                  <div className="p-3.5 rounded-lg border bg-card text-xs space-y-1">
-                    <span className="font-bold text-foreground flex items-center gap-1.5 text-sm">
-                      <Users className="h-4 w-4 text-indigo-500" />
+                  <div className="p-3.5 rounded-lg border bg-card text-xs space-y-1 print:p-2.5 print:border-slate-300 print:break-inside-avoid">
+                    <span className="font-bold text-foreground flex items-center gap-1.5 text-sm print:text-xs">
+                      <Users className="h-4 w-4 text-indigo-500 print:h-3.5 print:w-3.5" />
                       Histórico Familiar
                     </span>
-                    <p className="text-muted-foreground text-xs sm:text-sm pl-5 pt-0.5">
+                    <p className="text-muted-foreground text-xs sm:text-sm pl-5 pt-0.5 print:text-[11px] print:pl-4">
                       {historiaFamiliar || anamnese?.historiaFamiliar}
                     </p>
                   </div>
@@ -762,24 +762,24 @@ const AssinarAnamnese = () => {
 
                 {/* 6. Hábitos Bucais e Nocivos */}
                 {(habitosViciosPositivos || anamnese?.habitosViciosPositivos) && (
-                  <div className="p-3.5 rounded-lg border bg-card text-xs space-y-1">
-                    <span className="font-bold text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5 text-sm">
-                      <Smile className="h-4 w-4 text-emerald-500" />
+                  <div className="p-3.5 rounded-lg border bg-card text-xs space-y-1 print:p-2.5 print:border-slate-300 print:break-inside-avoid">
+                    <span className="font-bold text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5 text-sm print:text-xs">
+                      <Smile className="h-4 w-4 text-emerald-500 print:h-3.5 print:w-3.5" />
                       Hábitos de Higiene Bucal
                     </span>
-                    <p className="text-muted-foreground text-xs sm:text-sm pl-5 pt-0.5">
+                    <p className="text-muted-foreground text-xs sm:text-sm pl-5 pt-0.5 print:text-[11px] print:pl-4">
                       {habitosViciosPositivos || anamnese?.habitosViciosPositivos}
                     </p>
                   </div>
                 )}
 
                 {(habitosViciosNegativos || anamnese?.habitosViciosNegativos) && (
-                  <div className="p-3.5 rounded-lg border bg-card text-xs space-y-1">
-                    <span className="font-bold text-foreground flex items-center gap-1.5 text-sm">
-                      <Flame className="h-4 w-4 text-purple-500" />
+                  <div className="p-3.5 rounded-lg border bg-card text-xs space-y-1 print:p-2.5 print:border-slate-300 print:break-inside-avoid">
+                    <span className="font-bold text-foreground flex items-center gap-1.5 text-sm print:text-xs">
+                      <Flame className="h-4 w-4 text-purple-500 print:h-3.5 print:w-3.5" />
                       Hábitos Nocivos / Vícios
                     </span>
-                    <p className="text-muted-foreground text-xs sm:text-sm pl-5 pt-0.5">
+                    <p className="text-muted-foreground text-xs sm:text-sm pl-5 pt-0.5 print:text-[11px] print:pl-4">
                       {habitosViciosNegativos || anamnese?.habitosViciosNegativos}
                     </p>
                   </div>
@@ -787,12 +787,12 @@ const AssinarAnamnese = () => {
 
                 {/* 7. Observações Gerais */}
                 {(observacoes || anamnese?.observacoes) && (
-                  <div className="p-3.5 rounded-lg border bg-card text-xs space-y-1">
-                    <span className="font-bold text-foreground flex items-center gap-1.5 text-sm">
-                      <ClipboardList className="h-4 w-4 text-slate-500" />
+                  <div className="p-3.5 rounded-lg border bg-card text-xs space-y-1 print:p-2.5 print:border-slate-300 print:break-inside-avoid">
+                    <span className="font-bold text-foreground flex items-center gap-1.5 text-sm print:text-xs">
+                      <ClipboardList className="h-4 w-4 text-slate-500 print:h-3.5 print:w-3.5" />
                       Observações Adicionais
                     </span>
-                    <p className="text-muted-foreground text-xs sm:text-sm pl-5 pt-0.5">
+                    <p className="text-muted-foreground text-xs sm:text-sm pl-5 pt-0.5 print:text-[11px] print:pl-4">
                       {observacoes || anamnese?.observacoes}
                     </p>
                   </div>
@@ -800,58 +800,58 @@ const AssinarAnamnese = () => {
               </div>
 
               {/* Bloco de Assinatura Digital e Validação */}
-              <div className="mt-4 p-4 rounded-xl border-2 border-emerald-500/30 bg-emerald-50/30 dark:bg-emerald-950/20 space-y-3">
-                <div className="flex items-center justify-between border-b border-emerald-500/20 pb-2">
-                  <span className="text-xs font-bold text-emerald-900 dark:text-emerald-300 flex items-center gap-1.5 uppercase tracking-wide">
-                    <ShieldCheck className="h-4 w-4 text-emerald-600" />
+              <div className="mt-4 p-4 rounded-xl border-2 border-emerald-500/30 bg-emerald-50/30 dark:bg-emerald-950/20 space-y-3 print:mt-2.5 print:p-2.5 print:border print:border-emerald-700/40 print:bg-emerald-50/20 print:rounded-lg print:break-inside-avoid">
+                <div className="flex items-center justify-between border-b border-emerald-500/20 pb-2 print:pb-1">
+                  <span className="text-xs font-bold text-emerald-900 dark:text-emerald-300 flex items-center gap-1.5 uppercase tracking-wide print:text-[11px]">
+                    <ShieldCheck className="h-4 w-4 text-emerald-600 print:h-3.5 print:w-3.5" />
                     Assinatura Eletrônica Registrada
                   </span>
-                  <Badge className="bg-emerald-600 text-white text-[10px]">Autêntico</Badge>
+                  <Badge className="bg-emerald-600 text-white text-[10px] print:text-[9px] print:py-0">Autêntico</Badge>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs print:gap-1.5">
                   <div>
-                    <span className="text-muted-foreground block text-[11px]">Assinado por:</span>
-                    <span className="font-semibold text-foreground">
+                    <span className="text-muted-foreground block text-[11px] print:text-[10px]">Assinado por:</span>
+                    <span className="font-semibold text-foreground print:text-[11px]">
                       {assinaturaData?.signerName || paciente?.nome || 'Paciente'}
                     </span>
                   </div>
                   <div>
-                    <span className="text-muted-foreground block text-[11px]">Data e Hora da Assinatura:</span>
-                    <span className="font-semibold text-foreground">
+                    <span className="text-muted-foreground block text-[11px] print:text-[10px]">Data e Hora da Assinatura:</span>
+                    <span className="font-semibold text-foreground print:text-[11px]">
                       {assinaturaData?.timestamp ? new Date(assinaturaData.timestamp).toLocaleString('pt-BR') : dataFormatada}
                     </span>
                   </div>
                 </div>
 
                 {assinaturaData?.signature && (
-                  <div className="pt-2">
-                    <span className="text-[11px] text-muted-foreground block mb-1">Traço Digital Coletado:</span>
-                    <div className="p-2 border rounded-md bg-white max-w-xs shadow-xs">
+                  <div className="pt-2 print:pt-1">
+                    <span className="text-[11px] text-muted-foreground block mb-1 print:text-[10px]">Traço Digital Coletado:</span>
+                    <div className="p-2 border rounded-md bg-white max-w-xs shadow-xs print:p-1.5 print:max-w-[200px] print:border-slate-300">
                       <img
                         src={assinaturaData.signature}
                         alt="Traço da Assinatura"
-                        className="h-16 w-auto object-contain mx-auto"
+                        className="h-16 w-auto object-contain mx-auto print:h-11"
                       />
                     </div>
                   </div>
                 )}
 
-                <div className="p-2.5 rounded bg-background/80 border text-[11px] text-muted-foreground flex items-start gap-2">
-                  <Lock className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
+                <div className="p-2.5 rounded bg-background/80 border text-[11px] text-muted-foreground flex items-start gap-2 print:p-1.5 print:text-[10px] print:border-slate-200">
+                  <Lock className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5 print:h-3 print:w-3" />
                   <span>
                     Ficha finalizada e bloqueada para novas alterações em conformidade com a LGPD e normas de prontuário eletrônico odontológico.
                   </span>
                 </div>
               </div>
 
-              {/* Botões de Ação na Tela */}
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-2 pt-3">
+              {/* Botões de Ação na Tela (Ocultos na Impressão/PDF) */}
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-2 pt-3 print:hidden">
                 <Button
                   type="button"
                   onClick={() => window.print()}
                   variant="outline"
-                  className="w-full sm:w-auto text-xs h-9 gap-1.5"
+                  className="w-full sm:w-auto text-xs h-9 gap-1.5 cursor-pointer"
                 >
                   <ClipboardList className="h-4 w-4" />
                   Imprimir / Salvar PDF
@@ -863,7 +863,7 @@ const AssinarAnamnese = () => {
                     const msg = `Olá, Dra. Rosangela! Estou com o comprovante da minha anamnese assinada em mãos. Obrigado!`;
                     openWhatsApp('', msg);
                   }}
-                  className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-9 gap-1.5"
+                  className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-9 gap-1.5 cursor-pointer"
                 >
                   <MessageCircle className="h-4 w-4" />
                   Falar com a Clínica no WhatsApp

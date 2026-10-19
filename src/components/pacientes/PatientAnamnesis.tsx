@@ -635,12 +635,12 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
                 </div>
 
                 {/* Rodapé do Modal */}
-                <div className="flex justify-end gap-2 pt-3 border-t">
+                <div className="flex justify-end gap-2 pt-3 border-t print:hidden">
                   <Button
                     type="button"
                     variant="outline"
                     onClick={() => window.print()}
-                    className="text-xs h-9 gap-1.5"
+                    className="text-xs h-9 gap-1.5 cursor-pointer"
                   >
                     <ClipboardList className="h-4 w-4" />
                     Imprimir
@@ -648,7 +648,7 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
                   <Button
                     type="button"
                     onClick={() => setIsViewModalOpen(false)}
-                    className="text-xs h-9"
+                    className="text-xs h-9 cursor-pointer"
                   >
                     Fechar
                   </Button>
