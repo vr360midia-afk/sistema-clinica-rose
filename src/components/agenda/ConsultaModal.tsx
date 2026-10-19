@@ -316,10 +316,10 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <CalendarIcon className="h-5 w-5" />
+        <DialogContent className="max-w-lg sm:max-w-xl md:max-w-2xl w-[94vw] max-h-[92vh] overflow-y-auto overflow-x-hidden p-4 sm:p-5">
+          <DialogHeader className="pb-1">
+            <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <CalendarIcon className="h-5 w-5 text-primary" />
               {editingConsulta ? 'Remarcar Consulta' : 'Nova Consulta'}
             </DialogTitle>
           </DialogHeader>
@@ -340,15 +340,16 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
                   }
                 )(e);
               }}
-              className="space-y-4"
+              className="space-y-3"
             >
+              {/* Paciente */}
               <FormField
                 control={form.control}
                 name="pacienteId"
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="flex items-center gap-2">
-                      <User className="h-4 w-4" />
+                  <FormItem className="space-y-1">
+                    <FormLabel className="flex items-center gap-1.5 text-xs font-semibold">
+                      <User className="h-3.5 w-3.5 text-primary" />
                       Paciente
                     </FormLabel>
                     <div className="flex gap-2 items-center">
@@ -366,7 +367,7 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
                         variant="outline"
                         size="icon"
                         onClick={() => setIsQuickPatientModalOpen(true)}
-                        className="shrink-0 h-10 w-10 hover:bg-emerald-500/10 hover:text-emerald-600 hover:border-emerald-500/40 transition-colors"
+                        className="shrink-0 h-9 w-9 hover:bg-emerald-500/10 hover:text-emerald-600 hover:border-emerald-500/40 transition-colors"
                         title="Cadastrar novo paciente"
                       >
                         <UserPlus className="h-4 w-4" />
@@ -377,20 +378,21 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
                 )}
               />
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Data e Status (2 colunas) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <FormField
                   control={form.control}
                   name="data"
                   render={({ field }) => (
-                    <FormItem className="flex flex-col">
-                      <FormLabel>Data</FormLabel>
+                    <FormItem className="flex flex-col space-y-1">
+                      <FormLabel className="text-xs">Data</FormLabel>
                       <Popover>
                         <PopoverTrigger asChild>
                           <FormControl>
                             <Button
                               variant="outline"
                               className={cn(
-                                'w-full pl-3 text-left font-normal',
+                                'w-full pl-3 text-left font-normal h-9 text-xs',
                                 !field.value && 'text-muted-foreground'
                               )}
                             >
@@ -399,7 +401,7 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
                               ) : (
                                 <span>Selecione uma data</span>
                               )}
-                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                              <CalendarIcon className="ml-auto h-3.5 w-3.5 opacity-50" />
                             </Button>
                           </FormControl>
                         </PopoverTrigger>
@@ -426,11 +428,11 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
                   control={form.control}
                   name="status"
                   render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Status</FormLabel>
+                    <FormItem className="space-y-1">
+                      <FormLabel className="text-xs">Status</FormLabel>
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
-                          <SelectTrigger>
+                          <SelectTrigger className="h-9 text-xs">
                             <SelectValue />
                           </SelectTrigger>
                         </FormControl>
@@ -449,34 +451,97 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
                 />
               </div>
 
-              {/* Seção: Horários de Início, Finalização e Duração Personalizável */}
-              <div className="rounded-lg border border-primary/20 bg-primary/5 p-3.5 space-y-3">
+              {/* Procedimento e Dentista (2 colunas) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <FormField
+                  control={form.control}
+                  name="procedimento"
+                  render={({ field }) => (
+                    <FormItem className="space-y-1">
+                      <FormLabel className="text-xs">Procedimento</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Selecione ou digite..."
+                          list="lista-procedimentos"
+                          className="h-9 text-xs"
+                          {...field}
+                          onChange={(e) => {
+                            field.onChange(e);
+                            const proc = procedimentosAtivos.find(
+                              (p) => p.nome.toLowerCase() === e.target.value.toLowerCase()
+                            );
+                            if (proc) {
+                              handleDuracaoChange(proc.duracaoMinutos || 60);
+                              if (proc.preco > 0) form.setValue('valor', proc.preco);
+                            }
+                          }}
+                        />
+                      </FormControl>
+                      <datalist id="lista-procedimentos">
+                        {procedimentosAtivos.map((p) => (
+                          <option key={p.id} value={p.nome} />
+                        ))}
+                      </datalist>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="dentista"
+                  render={({ field }) => (
+                    <FormItem className="space-y-1">
+                      <FormLabel className="text-xs">Dentista (Opcional)</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value || "none"}>
+                        <FormControl>
+                          <SelectTrigger className="h-9 text-xs">
+                            <SelectValue placeholder="Selecione um dentista" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="none">Sem dentista específico</SelectItem>
+                          {dentistasAtivos.map((d) => (
+                            <SelectItem key={d.id} value={d.nome}>
+                              {d.nome}{d.especialidade ? " - " + d.especialidade : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {/* Seção: Horários e Duração Compacta e Encaixada */}
+              <div className="rounded-lg border border-primary/20 bg-primary/5 p-2.5 sm:p-3 space-y-2">
                 <div className="flex items-center justify-between">
-                  <FormLabel className="text-xs font-semibold flex items-center gap-1.5 text-foreground mb-0">
-                    <Clock className="h-4 w-4 text-primary" />
+                  <span className="text-xs font-semibold flex items-center gap-1.5 text-foreground">
+                    <Clock className="h-3.5 w-3.5 text-primary" />
                     Horários e Duração da Consulta
-                  </FormLabel>
-                  <span className="text-[11px] font-medium text-primary">
+                  </span>
+                  <span className="text-[11px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded">
                     {formatarIntervaloHorario(form.watch('hora'), form.watch('duracao'))}
                   </span>
                 </div>
 
-                {/* Horário de Início e Horário de Finalização */}
-                <div className="grid grid-cols-2 gap-3">
+                {/* Grid de 3 colunas: Início, Finalização e Duração em uma só linha! */}
+                <div className="grid grid-cols-3 gap-2 sm:gap-3">
                   <FormField
                     control={form.control}
                     name="hora"
                     render={({ field }) => (
-                      <FormItem className="space-y-1">
-                        <FormLabel className="text-xs text-muted-foreground font-medium">
-                          Horário de Início
+                      <FormItem className="space-y-0.5">
+                        <FormLabel className="text-[11px] text-muted-foreground font-medium">
+                          Início
                         </FormLabel>
                         <FormControl>
                           <Input
                             type="time"
                             value={field.value}
                             onChange={(e) => handleHoraInicioChange(e.target.value)}
-                            className="h-9 text-sm font-semibold bg-background"
+                            className="h-8 text-xs font-semibold bg-background px-2"
                           />
                         </FormControl>
                         <FormMessage />
@@ -488,86 +553,77 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
                     control={form.control}
                     name="horaFim"
                     render={({ field }) => (
-                      <FormItem className="space-y-1">
-                        <FormLabel className="text-xs text-muted-foreground font-medium">
-                          Horário de Finalização
+                      <FormItem className="space-y-0.5">
+                        <FormLabel className="text-[11px] text-muted-foreground font-medium">
+                          Finalização
                         </FormLabel>
                         <FormControl>
                           <Input
                             type="time"
                             value={field.value || calcularHoraFim(form.watch('hora'), form.watch('duracao'))}
                             onChange={(e) => handleHoraFimChange(e.target.value)}
-                            className="h-9 text-sm font-semibold bg-background"
+                            className="h-8 text-xs font-semibold bg-background px-2"
                           />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                </div>
 
-                {/* Duração em minutos (editável) e botões rápidos */}
-                <div className="space-y-2 pt-1 border-t border-border/50">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground font-medium">
-                      Duração Personalizada:
-                    </span>
-                    <div className="flex items-center gap-1.5">
+                  <FormItem className="space-y-0.5">
+                    <FormLabel className="text-[11px] text-muted-foreground font-medium">
+                      Duração (min)
+                    </FormLabel>
+                    <FormControl>
                       <Input
                         type="number"
                         min={5}
                         step={5}
                         value={form.watch('duracao') || 60}
                         onChange={(e) => handleDuracaoChange(Number(e.target.value) || 60)}
-                        className="h-7 w-20 text-xs font-bold text-center bg-background"
+                        className="h-8 text-xs font-bold text-center bg-background px-2"
                       />
-                      <span className="text-xs text-muted-foreground">minutos</span>
-                    </div>
+                    </FormControl>
+                  </FormItem>
+                </div>
+
+                {/* Linha de Chips Rápidos e Período Completo lado a lado */}
+                <div className="flex flex-wrap items-center justify-between gap-1.5 pt-1.5 border-t border-border/40">
+                  <div className="flex flex-wrap items-center gap-1">
+                    {[
+                      { min: 15, label: '15m' },
+                      { min: 30, label: '30m' },
+                      { min: 45, label: '45m' },
+                      { min: 60, label: '1h (Padrão)' },
+                      { min: 90, label: '1h30' },
+                      { min: 120, label: '2h' },
+                    ].map((item) => {
+                      const ativo = form.watch('duracao') === item.min && !periodoSelecionado;
+                      return (
+                        <button
+                          key={item.min}
+                          type="button"
+                          onClick={() => handleDuracaoChange(item.min)}
+                          className={cn(
+                            'text-[10px] sm:text-[11px] px-2 py-0.5 rounded font-medium border transition-colors cursor-pointer',
+                            ativo
+                              ? 'bg-primary text-primary-foreground border-primary shadow-xs'
+                              : 'bg-background hover:bg-muted text-muted-foreground border-border'
+                          )}
+                        >
+                          {item.label}
+                        </button>
+                      );
+                    })}
                   </div>
 
-                  {/* Chips rápidos de duração padrão */}
-                  <div className="space-y-1">
-                    <span className="text-[10px] text-muted-foreground block">
-                      Opções rápidas de duração padrão:
-                    </span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {[
-                        { min: 15, label: '15m' },
-                        { min: 30, label: '30m' },
-                        { min: 45, label: '45m' },
-                        { min: 60, label: '60m (Padrão)' },
-                        { min: 90, label: '1h 30m' },
-                        { min: 120, label: '2h' },
-                        { min: 180, label: '3h' },
-                      ].map((item) => {
-                        const ativo = form.watch('duracao') === item.min && !periodoSelecionado;
-                        return (
-                          <button
-                            key={item.min}
-                            type="button"
-                            onClick={() => handleDuracaoChange(item.min)}
-                            className={cn(
-                              'text-[11px] px-2.5 py-1 rounded-md font-medium border transition-colors',
-                              ativo
-                                ? 'bg-primary text-primary-foreground border-primary shadow-xs'
-                                : 'bg-background hover:bg-muted text-muted-foreground border-border'
-                            )}
-                          >
-                            {item.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Período completo especial */}
-                  <div className="pt-1">
+                  <div className="min-w-[150px] flex-1 sm:flex-initial">
                     <Select
                       value={periodoSelecionado ?? ''}
                       onValueChange={handlePeriodoChange}
                     >
-                      <SelectTrigger className="h-7 text-xs bg-background/80 text-muted-foreground">
-                        <SelectValue placeholder="Ou selecionar período completo (Manhã, Tarde, Dia)..." />
+                      <SelectTrigger className="h-6 text-[10px] bg-background text-muted-foreground w-full">
+                        <SelectValue placeholder="Período completo..." />
                       </SelectTrigger>
                       <SelectContent>
                         {PERIODOS.map((p) => (
@@ -577,90 +633,28 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
                         ))}
                       </SelectContent>
                     </Select>
-                    {periodoSelecionado && (
-                      <p className="text-[11px] text-amber-500 font-medium mt-1">
-                        ⚠️ A agenda será bloqueada no intervalo inteiro deste período.
-                      </p>
-                    )}
                   </div>
                 </div>
+
+                {periodoSelecionado && (
+                  <p className="text-[10px] text-amber-500 font-medium">
+                    ⚠️ A agenda será bloqueada no intervalo inteiro deste período.
+                  </p>
+                )}
               </div>
 
-              <FormField
-                control={form.control}
-                name="procedimento"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Procedimento</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="Selecione ou digite um procedimento..."
-                        list="lista-procedimentos"
-                        {...field}
-                        onChange={(e) => {
-                          field.onChange(e);
-                          const proc = procedimentosAtivos.find(
-                            (p) => p.nome.toLowerCase() === e.target.value.toLowerCase()
-                          );
-                          if (proc) {
-                            handleDuracaoChange(proc.duracaoMinutos || 60);
-                            if (proc.preco > 0) form.setValue('valor', proc.preco);
-                          }
-                        }}
-                      />
-                    </FormControl>
-                    <datalist id="lista-procedimentos">
-                      {procedimentosAtivos.map((p) => (
-                        <option key={p.id} value={p.nome} />
-                      ))}
-                    </datalist>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-                            <FormField
-                control={form.control}
-                name="dentista"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Dentista (Opcional)</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value || "none"}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione um dentista" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="none">Sem dentista específico</SelectItem>
-                        {dentistasAtivos.map((d) => (
-                          <SelectItem key={d.id} value={d.nome}>
-                            {d.nome}{d.especialidade ? " - " + d.especialidade : ""}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {dentistasAtivos.length === 0 && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Dica: Você pode <Link to="/configuracoes" className="underline" onClick={onClose}>cadastrar dentistas</Link> para associá-los às consultas.
-                      </p>
-                    )}
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
+              {/* Observações */}
               <FormField
                 control={form.control}
                 name="observacoes"
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Observações</FormLabel>
+                  <FormItem className="space-y-1">
+                    <FormLabel className="text-xs">Observações (Opcional)</FormLabel>
                     <FormControl>
                       <Textarea 
                         placeholder="Observações adicionais..."
-                        className="resize-none"
-                        rows={3}
+                        className="resize-none text-xs min-h-[44px] h-[44px] py-1.5"
+                        rows={2}
                         {...field}
                       />
                     </FormControl>
@@ -669,13 +663,14 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
                 )}
               />
 
-              <div className="sticky bottom-0 z-10 flex flex-col-reverse sm:flex-row gap-2 pt-3 pb-1 border-t bg-background/95 backdrop-blur-md">
-                <Button type="button" variant="outline" onClick={onClose} className="w-full sm:w-auto">
+              {/* Botões do Rodapé Encaixados */}
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/60">
+                <Button type="button" variant="outline" size="sm" onClick={onClose} className="h-8 text-xs">
                   Cancelar
                 </Button>
-                <Button type="submit" disabled={isLoading} className="w-full sm:w-auto font-semibold bg-primary text-primary-foreground">
-                  {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {editingConsulta ? 'Salvar Alterações / Remarcação' : 'Agendar Consulta'}
+                <Button type="submit" size="sm" disabled={isLoading} className="h-8 text-xs font-semibold bg-primary text-primary-foreground shadow-xs">
+                  {isLoading && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+                  {editingConsulta ? 'Salvar Alterações' : 'Agendar Consulta'}
                 </Button>
               </div>
             </form>
