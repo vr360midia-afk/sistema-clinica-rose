@@ -33,6 +33,8 @@ import {
   Users,
   Flame,
   Stethoscope,
+  Download,
+  Printer,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { openWhatsApp } from '@/lib/whatsapp';
@@ -42,6 +44,7 @@ import {
   marcarAnamneseBloqueada,
   unslugifyNome,
 } from '@/utils/anamneseEngine';
+import { downloadAnamnesePdf } from '@/utils/anamnesePdf';
 
 type Status = 'loading' | 'valid' | 'invalid' | 'expired' | 'completed' | 'blocked';
 
@@ -182,7 +185,50 @@ const AssinarAnamnese = () => {
   const [nomeClinica, setNomeClinica] = useState<string>(DEFAULT_CLINICA_NOME);
   const [showSignature, setShowSignature] = useState(false);
   const [salvando, setSalvando] = useState(false);
+  const [baixandoPdf, setBaixandoPdf] = useState(false);
   const [modoVisualizacao, setModoVisualizacao] = useState<'preencher' | 'assinar'>(modoDetectado);
+
+  const handleBaixarPdf = async () => {
+    try {
+      setBaixandoPdf(true);
+      await downloadAnamnesePdf({
+        paciente: {
+          nome: paciente?.nome || 'Paciente',
+          cpf: paciente?.cpf,
+          telefone: paciente?.telefone,
+          email: paciente?.email,
+        },
+        clinica: {
+          nome: nomeClinica || 'DRA. ROSANGELA SANTOS',
+          dentista: 'Dra. Rosangela Santos',
+          cro: 'CRO-AL 6267',
+          endereco: 'JTR - Edifício Espanha, Sl 405 - Jatiúca, Maceió - AL, 57036-250',
+          telefone: telefoneClinica || '(82) 97400-2213',
+          cnpj: '032.663.962-43',
+        },
+        dados: {
+          data: anamnese?.data,
+          queixaPrincipal: queixaPrincipal || anamnese?.queixaPrincipal,
+          historiaAtual: historiaAtual || anamnese?.historiaAtual,
+          alergias: alergias || anamnese?.alergias,
+          medicamentos: medicamentos || anamnese?.medicamentos,
+          historiaMedica: historiaMedica || anamnese?.historiaMedica,
+          historiaFamiliar: historiaFamiliar || anamnese?.historiaFamiliar,
+          habitosViciosPositivos: habitosViciosPositivos || anamnese?.habitosViciosPositivos,
+          habitosViciosNegativos: habitosViciosNegativos || anamnese?.habitosViciosNegativos,
+          observacoes: observacoes || anamnese?.observacoes,
+          respostas: anamnese?.respostas || triagem,
+        },
+        assinatura: anamnese?.assinaturaPaciente,
+      });
+      toast.success('Download do PDF oficial concluído!');
+    } catch (err) {
+      console.error('Erro ao baixar PDF:', err);
+      toast.error('Erro ao gerar o PDF. Você também pode clicar em Imprimir.');
+    } finally {
+      setBaixandoPdf(false);
+    }
+  };
 
   // Carrega configurações da clínica para contato via WhatsApp
   useEffect(() => {
@@ -637,278 +683,338 @@ const AssinarAnamnese = () => {
     );
   }
 
-  // TELA VISUALIZADOR DA FICHA PREENCHIDA / BLOQUEADA (Mobile-Friendly & Completa)
+  // TELA VISUALIZADOR DA FICHA PREENCHIDA / BLOQUEADA (Formato Documento Clínico Formal / PDF A4)
   if (status === 'blocked') {
     const dataFormatada = anamnese?.data
       ? new Date(anamnese.data).toLocaleDateString('pt-BR')
       : new Date().toLocaleDateString('pt-BR');
     const assinaturaData = anamnese?.assinaturaPaciente;
-    const respostasTriagem = anamnese?.respostas || triagem;
+    const respostasTriagem = anamnese?.respostas || triagem || {};
 
     return (
       <Shell>
-        <div className="w-full max-w-2xl mx-auto space-y-4 print:max-w-none print:w-full print:m-0 print:space-y-2">
-          <Card className="border-border shadow-lg overflow-hidden print:border-0 print:shadow-none print:rounded-none print:overflow-visible">
-            {/* Header da Clínica */}
-            <div className="bg-gradient-to-r from-emerald-700 via-teal-700 to-emerald-800 p-5 sm:p-6 text-white text-center print:bg-emerald-900 print:text-white print:p-3.5 print:rounded-lg print:break-inside-avoid">
-              <div className="h-14 w-14 rounded-full bg-white/15 backdrop-blur-xs flex items-center justify-center mx-auto mb-2 shadow-inner print:h-10 print:w-10 print:mb-1">
-                <ShieldCheck className="h-8 w-8 text-white print:h-6 print:w-6" />
-              </div>
-              <Badge className="bg-emerald-500/30 text-white border-white/20 text-xs mb-2 print:mb-1 print:text-[10px] print:py-0">
-                Documento Clínico Preenchido e Assinado
+        <div className="w-full max-w-3xl mx-auto space-y-4 print:max-w-none print:w-full print:m-0 print:space-y-0">
+          <style>{`
+            @media print {
+              html, body {
+                background-color: #ffffff !important;
+                background: #ffffff !important;
+                color: #000000 !important;
+              }
+              @page {
+                size: A4;
+                margin: 10mm 14mm;
+              }
+            }
+          `}</style>
+          {/* Barra de Ações Rápidas (Oculta na Impressão/PDF) */}
+          <div className="flex flex-wrap items-center justify-center sm:justify-between gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3 rounded-lg shadow-xs print:hidden">
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 text-xs py-0.5">
+                <CheckCircle className="h-3.5 w-3.5 mr-1" /> Ficha Assinada Digitalmente
               </Badge>
-              <h1 className="text-xl sm:text-2xl font-bold print:text-lg">Ficha de Anamnese Odontológica</h1>
-              <p className="text-xs text-emerald-100 mt-1 print:text-[11px] print:mt-0.5">
-                Dra. Rosangela Santos • Odontologia Especializada
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                onClick={handleBaixarPdf}
+                disabled={baixandoPdf}
+                size="sm"
+                variant="outline"
+                className="text-xs h-8 gap-1.5 cursor-pointer bg-white text-slate-800 border-slate-300 hover:bg-slate-100"
+              >
+                {baixandoPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5 text-primary" />}
+                Baixar em PDF
+              </Button>
+
+              <Button
+                type="button"
+                onClick={() => window.print()}
+                size="sm"
+                variant="outline"
+                className="text-xs h-8 gap-1.5 cursor-pointer bg-white text-slate-800 border-slate-300 hover:bg-slate-100"
+              >
+                <Printer className="h-3.5 w-3.5 text-slate-700" />
+                Imprimir Documento
+              </Button>
+
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  const nomePaciente = paciente?.nome || 'Paciente';
+                  const msg = `Olá, ${nomeClinica || 'Dra. Rosangela'}! Sou ${nomePaciente} e acabei de assinar digitalmente a minha Ficha de Anamnese. Estou com o comprovante em mãos. Obrigado!`;
+                  openWhatsApp(telefoneClinica || DEFAULT_CLINICA_WHATSAPP, msg);
+                }}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-8 gap-1.5 cursor-pointer shadow-xs"
+              >
+                <MessageCircle className="h-3.5 w-3.5" />
+                WhatsApp da Clínica
+              </Button>
+            </div>
+          </div>
+
+          {/* FOLHA DE DOCUMENTO CLÍNICO FORMAL (100% branca, sem dark mode no papel, sem gradientes coloridos) */}
+          <div className="bg-white text-slate-900 border border-slate-300 rounded-sm shadow-sm p-6 sm:p-10 font-sans print:border-none print:shadow-none print:p-0 print:m-0 print:max-w-none print:w-full">
+            {/* Topo Timbrado Oficial */}
+            <div className="border-b-2 border-slate-900 pb-3 mb-4 flex flex-col sm:flex-row justify-between items-start gap-2">
+              <div>
+                <h1 className="text-lg sm:text-xl font-bold uppercase tracking-wide text-slate-900 m-0">
+                  {nomeClinica || 'DRA. ROSANGELA SANTOS'}
+                </h1>
+                <p className="text-xs text-slate-700 font-semibold mt-0.5 mb-0">
+                  Cirurgiã-Dentista • CRO-AL 6267
+                </p>
+                <p className="text-[11px] text-slate-600 mt-0.5 mb-0">
+                  Odontologia Especializada • Reabilitação Oral e Estética
+                </p>
+                <p className="text-[11px] text-slate-600 mb-0">
+                  JTR - Edifício Espanha, Sl 405 - Jatiúca, Maceió - AL • Tel / WhatsApp: {telefoneClinica || '(82) 97400-2213'}
+                </p>
+              </div>
+              <div className="text-left sm:text-right text-xs text-slate-600 shrink-0">
+                <span className="block text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Prontuário Odontológico</span>
+                <span className="font-bold text-slate-900 text-sm">Data: {dataFormatada}</span>
+              </div>
+            </div>
+
+            {/* Título do Documento */}
+            <div className="text-center my-4">
+              <h2 className="text-base sm:text-lg font-bold uppercase tracking-wider text-slate-900 m-0">
+                Ficha de Anamnese Odontológica
+              </h2>
+              <p className="text-xs text-slate-600 mt-0.5">
+                Declaração de Saúde e Histórico Clínico do Paciente
               </p>
             </div>
 
-            <CardContent className="p-4 sm:p-6 space-y-4 print:p-0 print:pt-2.5 print:space-y-2">
-              {/* Informações do Paciente */}
-              <div className="p-3.5 rounded-xl bg-muted/60 border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs print:p-2.5 print:rounded-lg print:border-slate-300 print:bg-slate-50/80 print:break-inside-avoid">
+            {/* Informações do Paciente */}
+            <div className="border border-slate-300 bg-slate-50/70 p-3 sm:p-4 rounded-xs text-xs mb-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
-                  <span className="text-muted-foreground uppercase font-semibold text-[10px]">Paciente</span>
-                  <p className="text-base font-bold text-foreground print:text-sm">{paciente?.nome || 'Paciente'}</p>
-                  {paciente?.cpf && <p className="text-muted-foreground print:text-[11px]">CPF: {paciente.cpf}</p>}
+                  <span className="text-slate-500 uppercase text-[10px] block font-semibold">Nome Completo do Paciente</span>
+                  <span className="text-sm font-bold text-slate-900">{paciente?.nome || 'Paciente'}</span>
                 </div>
-                <div className="sm:text-right">
-                  <span className="text-muted-foreground uppercase font-semibold text-[10px]">Data do Preenchimento</span>
-                  <p className="font-semibold text-foreground print:text-xs">{dataFormatada}</p>
-                  <span className="inline-flex items-center gap-1 text-emerald-600 font-semibold text-[11px] mt-0.5">
-                    <CheckCircle className="h-3.5 w-3.5" /> Assinado Digitalmente
-                  </span>
+                <div>
+                  <span className="text-slate-500 uppercase text-[10px] block font-semibold">CPF</span>
+                  <span className="text-xs sm:text-sm font-medium text-slate-900">{paciente?.cpf || 'Não informado'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 uppercase text-[10px] block font-semibold">Telefone / WhatsApp</span>
+                  <span className="text-xs font-medium text-slate-900">{paciente?.telefone || 'Não informado'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 uppercase text-[10px] block font-semibold">E-mail</span>
+                  <span className="text-xs font-medium text-slate-900">{paciente?.email || 'Não informado'}</span>
                 </div>
               </div>
+            </div>
 
-              {/* Seções com as Respostas Preenchidas */}
-              <div className="space-y-3 pt-1 print:space-y-2 print:pt-0">
-                {/* 1. Queixa Principal */}
-                <div className="p-3.5 rounded-lg border bg-card text-xs space-y-1 print:p-2.5 print:border-slate-300 print:break-inside-avoid">
-                  <span className="font-bold text-foreground flex items-center gap-1.5 text-sm print:text-xs">
-                    <ClipboardList className="h-4 w-4 text-primary print:h-3.5 print:w-3.5" />
-                    1. Queixa Principal
-                  </span>
-                  <p className="text-muted-foreground text-xs sm:text-sm pl-5 pt-0.5 font-medium print:text-[11px] print:pl-4">
-                    {queixaPrincipal || anamnese?.queixaPrincipal || 'Avaliação clínica odontológica'}
+            {/* Seções Clínicas com os Campos Informados */}
+            <div className="space-y-3.5 text-xs">
+              {/* 1. Queixa Principal */}
+              <div>
+                <div className="font-bold uppercase text-slate-900 border-b border-slate-200 pb-1 mb-1">
+                  1. Queixa Principal / Motivo da Consulta
+                </div>
+                <p className="text-slate-800 leading-relaxed pl-1 m-0">
+                  {queixaPrincipal || anamnese?.queixaPrincipal || 'Avaliação clínica odontológica.'}
+                </p>
+              </div>
+
+              {/* 2. História da Doença Atual */}
+              {(historiaAtual || anamnese?.historiaAtual) && (
+                <div>
+                  <div className="font-bold uppercase text-slate-900 border-b border-slate-200 pb-1 mb-1">
+                    2. História da Doença / Queixa Atual
+                  </div>
+                  <p className="text-slate-800 leading-relaxed pl-1 m-0">
+                    {historiaAtual || anamnese?.historiaAtual}
                   </p>
                 </div>
+              )}
 
-                {/* 2. História da Queixa Atual */}
-                {(historiaAtual || anamnese?.historiaAtual) && (
-                  <div className="p-3.5 rounded-lg border bg-card text-xs space-y-1 print:p-2.5 print:border-slate-300 print:break-inside-avoid">
-                    <span className="font-bold text-foreground flex items-center gap-1.5 text-sm print:text-xs">
-                      <Clock className="h-4 w-4 text-blue-500 print:h-3.5 print:w-3.5" />
-                      2. História da Doença / Queixa Atual
-                    </span>
-                    <p className="text-muted-foreground text-xs sm:text-sm pl-5 pt-0.5 print:text-[11px] print:pl-4">
-                      {historiaAtual || anamnese?.historiaAtual}
-                    </p>
-                  </div>
-                )}
-
-                {/* 3. Triagem Rápida Odontológica (Sim/Não) */}
-                {Object.keys(respostasTriagem).length > 0 && (
-                  <div className="p-3.5 rounded-lg border bg-card text-xs space-y-2 print:p-2.5 print:border-slate-300 print:break-inside-avoid">
-                    <span className="font-bold text-foreground flex items-center gap-1.5 text-sm print:text-xs">
-                      <HeartPulse className="h-4 w-4 text-rose-500 print:h-3.5 print:w-3.5" />
-                      3. Triagem Rápida de Saúde
-                    </span>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-1 pt-1 print:gap-1.5 print:pl-0 print:pt-0">
+              {/* 3. Triagem Rápida e Questionário de Saúde */}
+              <div>
+                <div className="font-bold uppercase text-slate-900 border-b border-slate-200 pb-1 mb-1.5">
+                  3. Triagem de Saúde e Histórico Clínico
+                </div>
+                <div className="border border-slate-300 rounded-xs overflow-hidden">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-slate-100 text-slate-800 border-b border-slate-300 font-bold">
+                        <th className="p-2 text-left">Condição / Pergunta Avaliada</th>
+                        <th className="p-2 text-center w-24">Resposta</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
                       {ITENS_TRIAGEM.map((item) => {
-                        const resposta = respostasTriagem[item.id];
-                        if (!resposta) return null;
-                        const isSim = resposta === 'sim';
+                        const resp = respostasTriagem[item.id];
+                        const isSim = resp === 'sim';
                         return (
-                          <div
-                            key={item.id}
-                            className={cn(
-                              "p-2 rounded-md border text-[11px] flex items-center justify-between gap-2 print:p-1.5 print:border-slate-300 print:break-inside-avoid",
-                              isSim && item.alertaSeSim
-                                ? "bg-amber-500/10 border-amber-500/30 text-amber-900 dark:text-amber-200 print:bg-amber-50"
-                                : "bg-muted/40 border-border text-foreground print:bg-slate-50"
-                            )}
-                          >
-                            <span className="truncate pr-1 print:text-[10px]">{item.titulo.replace('?', '')}</span>
-                            <Badge
-                              variant="outline"
-                              className={cn(
-                                "text-[10px] shrink-0 font-bold print:text-[9px] print:py-0",
-                                isSim
-                                  ? item.alertaSeSim
-                                    ? "bg-amber-500 text-white border-amber-500"
-                                    : "bg-primary text-primary-foreground border-primary"
-                                  : "bg-muted text-muted-foreground border-border"
-                              )}
-                            >
-                              {isSim ? 'SIM' : 'NÃO'}
-                            </Badge>
-                          </div>
+                          <tr key={item.id} className={cn(isSim ? "bg-amber-50/40" : "bg-white")}>
+                            <td className="p-2 text-slate-800">{item.titulo}</td>
+                            <td className="p-2 text-center font-bold">
+                              <span className={cn(
+                                "text-[11px]",
+                                isSim ? "text-amber-800 font-bold" : "text-slate-700"
+                              )}>
+                                {isSim ? 'SIM' : 'NÃO'}
+                              </span>
+                            </td>
+                          </tr>
                         );
                       })}
-                    </div>
-                  </div>
-                )}
-
-                {/* 4. Alergias e Medicamentos */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 print:gap-2 print:break-inside-avoid">
-                  <div className="p-3.5 rounded-lg border bg-card text-xs space-y-1 print:p-2.5 print:border-slate-300">
-                    <span className="font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1.5 text-sm print:text-xs">
-                      <AlertTriangle className="h-4 w-4 text-amber-500 print:h-3.5 print:w-3.5" />
-                      Alergias e Restrições
-                    </span>
-                    <p className="text-foreground text-xs sm:text-sm pl-5 pt-0.5 font-medium print:text-[11px] print:pl-4">
-                      {alergias || anamnese?.alergias || 'Nenhuma alergia informada'}
-                    </p>
-                  </div>
-
-                  <div className="p-3.5 rounded-lg border bg-card text-xs space-y-1 print:p-2.5 print:border-slate-300">
-                    <span className="font-bold text-blue-700 dark:text-blue-400 flex items-center gap-1.5 text-sm print:text-xs">
-                      <Pill className="h-4 w-4 text-blue-500 print:h-3.5 print:w-3.5" />
-                      Medicamentos em Uso
-                    </span>
-                    <p className="text-foreground text-xs sm:text-sm pl-5 pt-0.5 font-medium print:text-[11px] print:pl-4">
-                      {medicamentos || anamnese?.medicamentos || 'Nenhum medicamento informado'}
-                    </p>
-                  </div>
-                </div>
-
-                {/* 5. Histórico Médico e Familiar */}
-                {(historiaMedica || anamnese?.historiaMedica) && (
-                  <div className="p-3.5 rounded-lg border bg-card text-xs space-y-1 print:p-2.5 print:border-slate-300 print:break-inside-avoid">
-                    <span className="font-bold text-foreground flex items-center gap-1.5 text-sm print:text-xs">
-                      <Stethoscope className="h-4 w-4 text-red-500 print:h-3.5 print:w-3.5" />
-                      Histórico Médico Pregresso
-                    </span>
-                    <p className="text-muted-foreground text-xs sm:text-sm pl-5 pt-0.5 print:text-[11px] print:pl-4">
-                      {historiaMedica || anamnese?.historiaMedica}
-                    </p>
-                  </div>
-                )}
-
-                {(historiaFamiliar || anamnese?.historiaFamiliar) && (
-                  <div className="p-3.5 rounded-lg border bg-card text-xs space-y-1 print:p-2.5 print:border-slate-300 print:break-inside-avoid">
-                    <span className="font-bold text-foreground flex items-center gap-1.5 text-sm print:text-xs">
-                      <Users className="h-4 w-4 text-indigo-500 print:h-3.5 print:w-3.5" />
-                      Histórico Familiar
-                    </span>
-                    <p className="text-muted-foreground text-xs sm:text-sm pl-5 pt-0.5 print:text-[11px] print:pl-4">
-                      {historiaFamiliar || anamnese?.historiaFamiliar}
-                    </p>
-                  </div>
-                )}
-
-                {/* 6. Hábitos Bucais e Nocivos */}
-                {(habitosViciosPositivos || anamnese?.habitosViciosPositivos) && (
-                  <div className="p-3.5 rounded-lg border bg-card text-xs space-y-1 print:p-2.5 print:border-slate-300 print:break-inside-avoid">
-                    <span className="font-bold text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5 text-sm print:text-xs">
-                      <Smile className="h-4 w-4 text-emerald-500 print:h-3.5 print:w-3.5" />
-                      Hábitos de Higiene Bucal
-                    </span>
-                    <p className="text-muted-foreground text-xs sm:text-sm pl-5 pt-0.5 print:text-[11px] print:pl-4">
-                      {habitosViciosPositivos || anamnese?.habitosViciosPositivos}
-                    </p>
-                  </div>
-                )}
-
-                {(habitosViciosNegativos || anamnese?.habitosViciosNegativos) && (
-                  <div className="p-3.5 rounded-lg border bg-card text-xs space-y-1 print:p-2.5 print:border-slate-300 print:break-inside-avoid">
-                    <span className="font-bold text-foreground flex items-center gap-1.5 text-sm print:text-xs">
-                      <Flame className="h-4 w-4 text-purple-500 print:h-3.5 print:w-3.5" />
-                      Hábitos Nocivos / Vícios
-                    </span>
-                    <p className="text-muted-foreground text-xs sm:text-sm pl-5 pt-0.5 print:text-[11px] print:pl-4">
-                      {habitosViciosNegativos || anamnese?.habitosViciosNegativos}
-                    </p>
-                  </div>
-                )}
-
-                {/* 7. Observações Gerais */}
-                {(observacoes || anamnese?.observacoes) && (
-                  <div className="p-3.5 rounded-lg border bg-card text-xs space-y-1 print:p-2.5 print:border-slate-300 print:break-inside-avoid">
-                    <span className="font-bold text-foreground flex items-center gap-1.5 text-sm print:text-xs">
-                      <ClipboardList className="h-4 w-4 text-slate-500 print:h-3.5 print:w-3.5" />
-                      Observações Adicionais
-                    </span>
-                    <p className="text-muted-foreground text-xs sm:text-sm pl-5 pt-0.5 print:text-[11px] print:pl-4">
-                      {observacoes || anamnese?.observacoes}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* Bloco de Assinatura Digital e Validação */}
-              <div className="mt-4 p-4 rounded-xl border-2 border-emerald-500/30 bg-emerald-50/30 dark:bg-emerald-950/20 space-y-3 print:mt-2.5 print:p-2.5 print:border print:border-emerald-700/40 print:bg-emerald-50/20 print:rounded-lg print:break-inside-avoid">
-                <div className="flex items-center justify-between border-b border-emerald-500/20 pb-2 print:pb-1">
-                  <span className="text-xs font-bold text-emerald-900 dark:text-emerald-300 flex items-center gap-1.5 uppercase tracking-wide print:text-[11px]">
-                    <ShieldCheck className="h-4 w-4 text-emerald-600 print:h-3.5 print:w-3.5" />
-                    Assinatura Eletrônica Registrada
-                  </span>
-                  <Badge className="bg-emerald-600 text-white text-[10px] print:text-[9px] print:py-0">Autêntico</Badge>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs print:gap-1.5">
-                  <div>
-                    <span className="text-muted-foreground block text-[11px] print:text-[10px]">Assinado por:</span>
-                    <span className="font-semibold text-foreground print:text-[11px]">
-                      {assinaturaData?.signerName || paciente?.nome || 'Paciente'}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground block text-[11px] print:text-[10px]">Data e Hora da Assinatura:</span>
-                    <span className="font-semibold text-foreground print:text-[11px]">
-                      {assinaturaData?.timestamp ? new Date(assinaturaData.timestamp).toLocaleString('pt-BR') : dataFormatada}
-                    </span>
-                  </div>
-                </div>
-
-                {assinaturaData?.signature && (
-                  <div className="pt-2 print:pt-1">
-                    <span className="text-[11px] text-muted-foreground block mb-1 print:text-[10px]">Traço Digital Coletado:</span>
-                    <div className="p-2 border rounded-md bg-white max-w-xs shadow-xs print:p-1.5 print:max-w-[200px] print:border-slate-300">
-                      <img
-                        src={assinaturaData.signature}
-                        alt="Traço da Assinatura"
-                        className="h-16 w-auto object-contain mx-auto print:h-11"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                <div className="p-2.5 rounded bg-background/80 border text-[11px] text-muted-foreground flex items-start gap-2 print:p-1.5 print:text-[10px] print:border-slate-200">
-                  <Lock className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5 print:h-3 print:w-3" />
-                  <span>
-                    Ficha finalizada e bloqueada para novas alterações em conformidade com a LGPD e normas de prontuário eletrônico odontológico.
-                  </span>
+                    </tbody>
+                  </table>
                 </div>
               </div>
 
-              {/* Botões de Ação na Tela (Ocultos na Impressão/PDF) */}
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-2 pt-3 print:hidden">
-                <Button
-                  type="button"
-                  onClick={() => window.print()}
-                  variant="outline"
-                  className="w-full sm:w-auto text-xs h-9 gap-1.5 cursor-pointer"
-                >
-                  <ClipboardList className="h-4 w-4" />
-                  Imprimir / Salvar PDF
-                </Button>
-
-                <Button
-                  type="button"
-                  onClick={() => {
-                    const nomePaciente = paciente?.nome || 'Paciente';
-                    const msg = `Olá, ${nomeClinica || 'Dra. Rosangela'}! Sou ${nomePaciente} e acabei de assinar digitalmente a minha Ficha de Anamnese. Estou com o comprovante em mãos. Obrigado!`;
-                    openWhatsApp(telefoneClinica || DEFAULT_CLINICA_WHATSAPP, msg);
-                  }}
-                  className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-9 gap-1.5 cursor-pointer shadow-sm active:scale-95 transition-all"
-                >
-                  <MessageCircle className="h-4 w-4" />
-                  Falar com a Clínica no WhatsApp
-                </Button>
+              {/* 4. Alergias e Intolerâncias */}
+              <div>
+                <div className="font-bold uppercase text-slate-900 border-b border-slate-200 pb-1 mb-1">
+                  4. Alergias e Intolerâncias Medicamentosas
+                </div>
+                <p className="text-slate-800 leading-relaxed pl-1 m-0">
+                  {alergias || anamnese?.alergias || 'Nenhuma alergia relatada pelo paciente.'}
+                </p>
               </div>
-            </CardContent>
-          </Card>
+
+              {/* 5. Medicamentos em Uso Contínuo */}
+              <div>
+                <div className="font-bold uppercase text-slate-900 border-b border-slate-200 pb-1 mb-1">
+                  5. Medicamentos em Uso Contínuo
+                </div>
+                <p className="text-slate-800 leading-relaxed pl-1 m-0">
+                  {medicamentos || anamnese?.medicamentos || 'Nenhum medicamento de uso contínuo relatado.'}
+                </p>
+              </div>
+
+              {/* 6. Histórico Médico Pregresso */}
+              {(historiaMedica || anamnese?.historiaMedica) && (
+                <div>
+                  <div className="font-bold uppercase text-slate-900 border-b border-slate-200 pb-1 mb-1">
+                    6. Histórico Médico Pregresso
+                  </div>
+                  <p className="text-slate-800 leading-relaxed pl-1 m-0">
+                    {historiaMedica || anamnese?.historiaMedica}
+                  </p>
+                </div>
+              )}
+
+              {/* 7. Histórico Familiar */}
+              {(historiaFamiliar || anamnese?.historiaFamiliar) && (
+                <div>
+                  <div className="font-bold uppercase text-slate-900 border-b border-slate-200 pb-1 mb-1">
+                    7. Histórico Médico Familiar
+                  </div>
+                  <p className="text-slate-800 leading-relaxed pl-1 m-0">
+                    {historiaFamiliar || anamnese?.historiaFamiliar}
+                  </p>
+                </div>
+              )}
+
+              {/* 8. Hábitos e Estilo de Vida */}
+              {(habitosViciosPositivos || habitosViciosNegativos || anamnese?.habitosViciosPositivos || anamnese?.habitosViciosNegativos) && (
+                <div>
+                  <div className="font-bold uppercase text-slate-900 border-b border-slate-200 pb-1 mb-1">
+                    8. Hábitos de Higiene e Estilo de Vida
+                  </div>
+                  <div className="text-slate-800 leading-relaxed pl-1 space-y-1">
+                    {(habitosViciosPositivos || anamnese?.habitosViciosPositivos) && (
+                      <p className="m-0"><strong>Higiene Bucal:</strong> {habitosViciosPositivos || anamnese?.habitosViciosPositivos}</p>
+                    )}
+                    {(habitosViciosNegativos || anamnese?.habitosViciosNegativos) && (
+                      <p className="m-0"><strong>Hábitos Nocivos / Vícios:</strong> {habitosViciosNegativos || anamnese?.habitosViciosNegativos}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* 9. Observações Gerais */}
+              {(observacoes || anamnese?.observacoes) && (
+                <div>
+                  <div className="font-bold uppercase text-slate-900 border-b border-slate-200 pb-1 mb-1">
+                    9. Observações Adicionais
+                  </div>
+                  <p className="text-slate-800 leading-relaxed pl-1 m-0">
+                    {observacoes || anamnese?.observacoes}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Declaração de Veracidade Legal */}
+            <div className="border border-slate-300 bg-slate-50/70 p-3 sm:p-3.5 rounded-xs text-[11px] text-slate-700 leading-relaxed my-4 text-justify">
+              <strong>Declaração de Veracidade das Informações:</strong> Declaro, sob as penas da lei, que todas as respostas e dados informados nesta Ficha de Anamnese são estritamente verdadeiros e completos. Não omiti nenhum fato referente ao meu estado de saúde atual ou passado. Comprometo-me a comunicar imediatamente ao profissional qualquer alteração futura no meu estado de saúde ou uso de novos medicamentos.
+            </div>
+
+            {/* Bloco de Assinatura no Final */}
+            <div className="mt-8 pt-2 text-center break-inside-avoid">
+              {assinaturaData?.signature && (
+                <div className="h-16 flex items-center justify-center mb-1">
+                  <img
+                    src={assinaturaData.signature}
+                    alt="Assinatura do Paciente"
+                    className="max-h-16 w-auto object-contain mx-auto"
+                  />
+                </div>
+              )}
+              <div className="w-72 mx-auto border-t-2 border-slate-900 mb-1.5"></div>
+              <p className="text-sm font-bold text-slate-900 m-0">
+                {assinaturaData?.signerName || paciente?.nome || 'Paciente'}
+              </p>
+              <p className="text-xs text-slate-600 mt-0.5 mb-0">
+                Assinatura do(a) Paciente / Responsável Legal • CPF: {paciente?.cpf || 'Não informado'}
+              </p>
+              <p className="text-[10px] text-slate-500 mt-1 mb-0">
+                Assinado eletronicamente em {assinaturaData?.timestamp ? new Date(assinaturaData.timestamp).toLocaleString('pt-BR') : dataFormatada} • Conforme MP nº 2.200-2/2001 e Lei 14.063/2020
+              </p>
+            </div>
+
+            {/* Rodapé Oficial */}
+            <div className="mt-6 pt-3 border-t border-slate-200 text-center text-[10px] text-slate-400">
+              Documento clínico eletrônico arquivado em conformidade com as normas do Conselho Federal de Odontologia (CFO) e LGPD.
+            </div>
+          </div>
+
+          {/* Botões de Ação na Base (Ocultos na Impressão/PDF) */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-2 pt-2 print:hidden">
+            <Button
+              type="button"
+              onClick={handleBaixarPdf}
+              disabled={baixandoPdf}
+              variant="outline"
+              className="w-full sm:w-auto text-xs h-9 gap-1.5 cursor-pointer bg-white text-slate-800 border-slate-300 hover:bg-slate-100"
+            >
+              {baixandoPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4 text-primary" />}
+              Baixar em PDF
+            </Button>
+
+            <Button
+              type="button"
+              onClick={() => window.print()}
+              variant="outline"
+              className="w-full sm:w-auto text-xs h-9 gap-1.5 cursor-pointer bg-white text-slate-800 border-slate-300 hover:bg-slate-100"
+            >
+              <Printer className="h-4 w-4 text-slate-700" />
+              Imprimir Documento
+            </Button>
+
+            <Button
+              type="button"
+              onClick={() => {
+                const nomePaciente = paciente?.nome || 'Paciente';
+                const msg = `Olá, ${nomeClinica || 'Dra. Rosangela'}! Sou ${nomePaciente} e acabei de assinar digitalmente a minha Ficha de Anamnese. Estou com o comprovante em mãos. Obrigado!`;
+                openWhatsApp(telefoneClinica || DEFAULT_CLINICA_WHATSAPP, msg);
+              }}
+              className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-9 gap-1.5 cursor-pointer shadow-sm active:scale-95 transition-all"
+            >
+              <MessageCircle className="h-4 w-4" />
+              Falar com a Clínica no WhatsApp
+            </Button>
+          </div>
         </div>
       </Shell>
     );
