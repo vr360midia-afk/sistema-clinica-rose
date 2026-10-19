@@ -32,9 +32,15 @@ import {
   Phone,
   Link2,
   FileSignature,
+  Download,
+  Printer,
+  Loader2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDentalSystem } from '@/context/DentalSystemContext';
+import { useConfiguracoes } from '@/hooks/useConfiguracoes';
+import { useConfiguracoesContrato } from '@/hooks/useConfiguracoesContrato';
+import { downloadAnamnesePdf, imprimirAnamneseHtml, AnamnesePdfData } from '@/utils/anamnesePdf';
 import AnamneseModal from '@/components/anamnese/AnamneseModal';
 import { ModalEnviarAnamnese } from '@/components/anamnese/ModalEnviarAnamnese';
 import { PacienteCombobox } from '@/components/pacientes/PacienteCombobox';
@@ -44,6 +50,8 @@ import { Anamnese as AnamneseType } from '@/types/shared';
 
 const Anamnese = () => {
   const { anamneses, pacientes, generateSignatureLink, deleteAnamnese, signAnamnese } = useDentalSystem();
+  const { configuracoes } = useConfiguracoes();
+  const { configuracoes: configContrato } = useConfiguracoesContrato();
   
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'todos' | 'pendente' | 'assinado'>('todos');
@@ -51,22 +59,12 @@ const Anamnese = () => {
   const [isEscolherPacienteOpen, setIsEscolherPacienteOpen] = useState(false);
   const [copiandoId, setCopiandoId] = useState<string | null>(null);
   const [gerandoLinkId, setGerandoLinkId] = useState<string | null>(null);
+  const [gerandoPdfId, setGerandoPdfId] = useState<string | null>(null);
+  const [imprimindoId, setImprimindoId] = useState<string | null>(null);
   const [selectedAnamnese, setSelectedAnamnese] = useState<AnamneseType | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [pacienteEnvio, setPacienteEnvio] = useState<any>(null);
   const [anamneseParaAssinar, setAnamneseParaAssinar] = useState<AnamneseType | null>(null);
-
-  const handleSalvarAssinaturaClinica = async (signatureData: SignatureData) => {
-    if (!anamneseParaAssinar?.id) return;
-    try {
-      await signAnamnese(anamneseParaAssinar.id, signatureData, 'paciente');
-      toast.success('Assinatura presencial do paciente coletada com sucesso!');
-      setAnamneseParaAssinar(null);
-    } catch (err) {
-      console.error('Erro ao salvar assinatura presencial:', err);
-      toast.error('Erro ao registrar assinatura. Tente novamente.');
-    }
-  };
 
   // Mapeamento rápido de pacientes por id
   const pacientesMap = useMemo(() => {
@@ -79,6 +77,89 @@ const Anamnese = () => {
 
   const obterPaciente = (pacienteId: string) => {
     return pacientesMap.get(pacienteId);
+  };
+
+  const obterDadosPdfAnamnese = (a: AnamneseType): AnamnesePdfData => {
+    const pac = obterPaciente(a.pacienteId);
+    return {
+      paciente: {
+        nome: pac?.nome || (a as any).pacienteNome || 'Paciente',
+        cpf: pac?.cpf,
+        telefone: pac?.telefone,
+        email: pac?.email,
+        dataNascimento: pac?.dataNascimento || pac?.data_nascimento,
+      },
+      clinica: {
+        nome: configuracoes?.nomeClinica || 'Dra. Rosângela Santos - Clínica Odontológica',
+        cro: configContrato?.croResponsavelContrato || 'CRO-AL 06267',
+        dentista: configContrato?.nomeResponsavelContrato || 'Dra. Rosângela Santos Pereira',
+        endereco: configuracoes?.endereco || 'JTR — Edifício Espanha, Sl 405 - Jatiúca, Maceió/AL',
+        telefone: configuracoes?.telefone || '(82) 97400-2213',
+        cnpj: configuracoes?.cnpj || '032.663.962-43',
+        logoUrl: configuracoes?.logoUrl || '',
+      },
+      dados: {
+        data: a.data,
+        queixaPrincipal: a.queixaPrincipal || (a as any).queixa_principal,
+        historiaAtual: a.historiaAtual || (a as any).historia_atual,
+        alergias: a.alergias,
+        medicamentos: a.medicamentos,
+        historiaMedica: a.historiaMedica || (a as any).historia_medica,
+        historiaFamiliar: a.historiaFamiliar || (a as any).historia_familiar,
+        habitosViciosPositivos: a.habitosViciosPositivos || (a as any).habitos_vicios_positivos,
+        habitosViciosNegativos: a.habitosViciosNegativos || (a as any).habitos_vicios_negativos,
+        observacoes: a.observacoes,
+        respostas: a.respostas || {},
+      },
+      assinatura: a.assinaturaPaciente ? {
+        signature: a.assinaturaPaciente.signature,
+        signerName: a.assinaturaPaciente.signerName || pac?.nome,
+        timestamp: a.assinaturaPaciente.timestamp,
+      } : undefined,
+    };
+  };
+
+  const handleBaixarPdf = async (a: AnamneseType) => {
+    try {
+      setGerandoPdfId(a.id);
+      toast.loading('Gerando PDF oficial da anamnese...', { id: 'pdf-anamnese' });
+      await downloadAnamnesePdf(obterDadosPdfAnamnese(a));
+      toast.dismiss('pdf-anamnese');
+      toast.success('PDF da anamnese baixado com sucesso!');
+    } catch (err) {
+      console.error(err);
+      toast.dismiss('pdf-anamnese');
+      toast.error('Erro ao gerar o PDF da anamnese');
+    } finally {
+      setGerandoPdfId(null);
+    }
+  };
+
+  const handleImprimir = async (a: AnamneseType) => {
+    try {
+      setImprimindoId(a.id);
+      toast.loading('Preparando impressão oficial da anamnese...', { id: 'print-anamnese' });
+      await imprimirAnamneseHtml(obterDadosPdfAnamnese(a));
+      toast.dismiss('print-anamnese');
+    } catch (err) {
+      console.error(err);
+      toast.dismiss('print-anamnese');
+      toast.error('Erro ao preparar impressão da anamnese');
+    } finally {
+      setImprimindoId(null);
+    }
+  };
+
+  const handleSalvarAssinaturaClinica = async (signatureData: SignatureData) => {
+    if (!anamneseParaAssinar?.id) return;
+    try {
+      await signAnamnese(anamneseParaAssinar.id, signatureData, 'paciente');
+      toast.success('Assinatura presencial do paciente coletada com sucesso!');
+      setAnamneseParaAssinar(null);
+    } catch (err) {
+      console.error('Erro ao salvar assinatura presencial:', err);
+      toast.error('Erro ao registrar assinatura. Tente novamente.');
+    }
   };
 
   const isAnamneseAssinada = (a: AnamneseType) => {
@@ -457,6 +538,23 @@ const Anamnese = () => {
                         >
                           <Eye className="h-3.5 w-3.5 text-blue-600" />
                           <span>Visualizar</span>
+                        </Button>
+
+                        {/* Botão Baixar PDF Oficial */}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleBaixarPdf(anamnese)}
+                          disabled={gerandoPdfId === anamnese.id}
+                          className="h-8 text-xs gap-1.5 font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 dark:bg-slate-900/60 dark:border-slate-800 dark:text-slate-300"
+                          title="Baixar PDF institucional e minimalista da anamnese"
+                        >
+                          {gerandoPdfId === anamnese.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Download className="h-3.5 w-3.5 text-slate-600 dark:text-slate-400" />
+                          )}
+                          <span className="hidden sm:inline">PDF</span>
                         </Button>
 
                         {/* Botão Enviar Link Inteligente (Preencher ou Apenas Assinar) */}
@@ -838,16 +936,39 @@ const Anamnese = () => {
                     )}
                   </div>
 
-                  <div className="flex justify-between items-center gap-2 pt-3 border-t print:hidden">
-                    <Button
-                      variant="outline"
-                      type="button"
-                      onClick={() => window.print()}
-                      className="text-xs h-9 gap-1.5 cursor-pointer"
-                    >
-                      <ClipboardList className="h-4 w-4" />
-                      Imprimir Ficha
-                    </Button>
+                  <div className="flex flex-wrap justify-between items-center gap-2 pt-3 border-t print:hidden">
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        type="button"
+                        onClick={() => handleImprimir(selectedAnamnese)}
+                        disabled={imprimindoId === selectedAnamnese.id}
+                        className="text-xs h-9 gap-1.5 cursor-pointer"
+                        title="Imprimir documento oficial da ficha de anamnese"
+                      >
+                        {imprimindoId === selectedAnamnese.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Printer className="h-4 w-4 text-primary" />
+                        )}
+                        Imprimir Documento
+                      </Button>
+                      <Button
+                        variant="outline"
+                        type="button"
+                        onClick={() => handleBaixarPdf(selectedAnamnese)}
+                        disabled={gerandoPdfId === selectedAnamnese.id}
+                        className="text-xs h-9 gap-1.5 cursor-pointer"
+                        title="Baixar PDF no formato institucional A4"
+                      >
+                        {gerandoPdfId === selectedAnamnese.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Download className="h-4 w-4 text-primary" />
+                        )}
+                        Baixar PDF
+                      </Button>
+                    </div>
                     <Button variant="default" onClick={() => setIsViewModalOpen(false)} className="text-xs h-9 cursor-pointer">
                       Fechar
                     </Button>

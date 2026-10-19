@@ -44,7 +44,7 @@ import {
   marcarAnamneseBloqueada,
   unslugifyNome,
 } from '@/utils/anamneseEngine';
-import { downloadAnamnesePdf } from '@/utils/anamnesePdf';
+import { downloadAnamnesePdf, imprimirAnamneseHtml } from '@/utils/anamnesePdf';
 
 type Status = 'loading' | 'valid' | 'invalid' | 'expired' | 'completed' | 'blocked';
 
@@ -186,47 +186,63 @@ const AssinarAnamnese = () => {
   const [showSignature, setShowSignature] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [baixandoPdf, setBaixandoPdf] = useState(false);
+  const [imprimindoDoc, setImprimindoDoc] = useState(false);
   const [modoVisualizacao, setModoVisualizacao] = useState<'preencher' | 'assinar'>(modoDetectado);
+
+  const obterDadosDoc = () => ({
+    paciente: {
+      nome: paciente?.nome || 'Paciente',
+      cpf: paciente?.cpf,
+      telefone: paciente?.telefone,
+      email: paciente?.email,
+      dataNascimento: paciente?.dataNascimento || paciente?.data_nascimento,
+    },
+    clinica: {
+      nome: nomeClinica || 'DRA. ROSANGELA SANTOS',
+      dentista: 'Dra. Rosangela Santos',
+      cro: 'CRO-AL 6267',
+      endereco: 'JTR - Edifício Espanha, Sl 405 - Jatiúca, Maceió - AL, 57036-250',
+      telefone: telefoneClinica || '(82) 97400-2213',
+      cnpj: '032.663.962-43',
+    },
+    dados: {
+      data: anamnese?.data,
+      queixaPrincipal: queixaPrincipal || anamnese?.queixaPrincipal,
+      historiaAtual: historiaAtual || anamnese?.historiaAtual,
+      alergias: alergias || anamnese?.alergias,
+      medicamentos: medicamentos || anamnese?.medicamentos,
+      historiaMedica: historiaMedica || anamnese?.historiaMedica,
+      historiaFamiliar: historiaFamiliar || anamnese?.historiaFamiliar,
+      habitosViciosPositivos: habitosViciosPositivos || anamnese?.habitosViciosPositivos,
+      habitosViciosNegativos: habitosViciosNegativos || anamnese?.habitosViciosNegativos,
+      observacoes: observacoes || anamnese?.observacoes,
+      respostas: anamnese?.respostas || triagem,
+    },
+    assinatura: anamnese?.assinaturaPaciente,
+  });
 
   const handleBaixarPdf = async () => {
     try {
       setBaixandoPdf(true);
-      await downloadAnamnesePdf({
-        paciente: {
-          nome: paciente?.nome || 'Paciente',
-          cpf: paciente?.cpf,
-          telefone: paciente?.telefone,
-          email: paciente?.email,
-        },
-        clinica: {
-          nome: nomeClinica || 'DRA. ROSANGELA SANTOS',
-          dentista: 'Dra. Rosangela Santos',
-          cro: 'CRO-AL 6267',
-          endereco: 'JTR - Edifício Espanha, Sl 405 - Jatiúca, Maceió - AL, 57036-250',
-          telefone: telefoneClinica || '(82) 97400-2213',
-          cnpj: '032.663.962-43',
-        },
-        dados: {
-          data: anamnese?.data,
-          queixaPrincipal: queixaPrincipal || anamnese?.queixaPrincipal,
-          historiaAtual: historiaAtual || anamnese?.historiaAtual,
-          alergias: alergias || anamnese?.alergias,
-          medicamentos: medicamentos || anamnese?.medicamentos,
-          historiaMedica: historiaMedica || anamnese?.historiaMedica,
-          historiaFamiliar: historiaFamiliar || anamnese?.historiaFamiliar,
-          habitosViciosPositivos: habitosViciosPositivos || anamnese?.habitosViciosPositivos,
-          habitosViciosNegativos: habitosViciosNegativos || anamnese?.habitosViciosNegativos,
-          observacoes: observacoes || anamnese?.observacoes,
-          respostas: anamnese?.respostas || triagem,
-        },
-        assinatura: anamnese?.assinaturaPaciente,
-      });
+      await downloadAnamnesePdf(obterDadosDoc());
       toast.success('Download do PDF oficial concluído!');
     } catch (err) {
       console.error('Erro ao baixar PDF:', err);
       toast.error('Erro ao gerar o PDF. Você também pode clicar em Imprimir.');
     } finally {
       setBaixandoPdf(false);
+    }
+  };
+
+  const handleImprimir = async () => {
+    try {
+      setImprimindoDoc(true);
+      await imprimirAnamneseHtml(obterDadosDoc());
+    } catch (err) {
+      console.error('Erro ao imprimir documento:', err);
+      toast.error('Erro ao preparar impressão do documento.');
+    } finally {
+      setImprimindoDoc(false);
     }
   };
 
@@ -730,12 +746,13 @@ const AssinarAnamnese = () => {
 
               <Button
                 type="button"
-                onClick={() => window.print()}
+                onClick={handleImprimir}
+                disabled={imprimindoDoc}
                 size="sm"
                 variant="outline"
                 className="text-xs h-8 gap-1.5 cursor-pointer bg-white text-slate-800 border-slate-300 hover:bg-slate-100"
               >
-                <Printer className="h-3.5 w-3.5 text-slate-700" />
+                {imprimindoDoc ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Printer className="h-3.5 w-3.5 text-slate-700" />}
                 Imprimir Documento
               </Button>
 
@@ -994,11 +1011,12 @@ const AssinarAnamnese = () => {
 
             <Button
               type="button"
-              onClick={() => window.print()}
+              onClick={handleImprimir}
+              disabled={imprimindoDoc}
               variant="outline"
               className="w-full sm:w-auto text-xs h-9 gap-1.5 cursor-pointer bg-white text-slate-800 border-slate-300 hover:bg-slate-100"
             >
-              <Printer className="h-4 w-4 text-slate-700" />
+              {imprimindoDoc ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4 text-slate-700" />}
               Imprimir Documento
             </Button>
 

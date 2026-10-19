@@ -29,9 +29,14 @@ import {
   HeartPulse,
   ShieldCheck,
   FileSignature,
+  Download,
+  Printer,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDentalSystem } from '@/context/DentalSystemContext';
+import { useConfiguracoes } from '@/hooks/useConfiguracoes';
+import { useConfiguracoesContrato } from '@/hooks/useConfiguracoesContrato';
+import { downloadAnamnesePdf, imprimirAnamneseHtml, AnamnesePdfData } from '@/utils/anamnesePdf';
 import AnamneseModal from '@/components/anamnese/AnamneseModal';
 import { ModalEnviarAnamnese } from '@/components/anamnese/ModalEnviarAnamnese';
 import DigitalSignature, { SignatureData } from '@/components/signature/DigitalSignature';
@@ -43,6 +48,8 @@ interface PatientAnamnesisProps {
 
 const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
   const { anamneses, addAnamnese, generateSignatureLink, deleteAnamnese, signAnamnese } = useDentalSystem();
+  const { configuracoes } = useConfiguracoes();
+  const { config: configContrato } = useConfiguracoesContrato();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEnviarModalOpen, setIsEnviarModalOpen] = useState(false);
   const [copiandoId, setCopiandoId] = useState<string | null>(null);
@@ -50,6 +57,76 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
   const [selectedAnamnese, setSelectedAnamnese] = useState<any | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [anamneseParaAssinar, setAnamneseParaAssinar] = useState<any | null>(null);
+  const [gerandoPdf, setGerandoPdf] = useState(false);
+  const [imprimindo, setImprimindo] = useState(false);
+
+  const obterDadosPdfAnamnese = (anamnese: any): AnamnesePdfData => {
+    return {
+      paciente: {
+        nome: patient?.nome || 'Paciente',
+        cpf: patient?.cpf,
+        telefone: patient?.telefone,
+        email: patient?.email,
+        dataNascimento: patient?.dataNascimento || patient?.data_nascimento,
+      },
+      clinica: {
+        nome: configuracoes?.nomeClinica || 'Dra. Rosângela Santos - Clínica Odontológica',
+        cro: configContrato?.croResponsavelContrato || 'CRO-AL 06267',
+        dentista: configContrato?.nomeResponsavelContrato || 'Dra. Rosângela Santos Pereira',
+        endereco: configuracoes?.endereco || 'JTR — Edifício Espanha, Sl 405 - Jatiúca, Maceió/AL',
+        telefone: configuracoes?.telefone || '(82) 97400-2213',
+        cnpj: configuracoes?.cnpj || '032.663.962-43',
+        logoUrl: configuracoes?.logoUrl || '',
+      },
+      dados: {
+        data: anamnese.data,
+        queixaPrincipal: anamnese.queixaPrincipal || anamnese.queixa_principal,
+        historiaAtual: anamnese.historiaAtual || anamnese.historia_atual,
+        alergias: anamnese.alergias,
+        medicamentos: anamnese.medicamentos,
+        historiaMedica: anamnese.historiaMedica || anamnese.historia_medica,
+        historiaFamiliar: anamnese.historiaFamiliar || anamnese.historia_familiar,
+        habitosViciosPositivos: anamnese.habitosViciosPositivos || anamnese.habitos_vicios_positivos,
+        habitosViciosNegativos: anamnese.habitosViciosNegativos || anamnese.habitos_vicios_negativos,
+        observacoes: anamnese.observacoes,
+        respostas: anamnese.respostas || {},
+      },
+      assinatura: anamnese.assinaturaPaciente ? {
+        signature: anamnese.assinaturaPaciente.signature,
+        signerName: anamnese.assinaturaPaciente.signerName || patient?.nome,
+        timestamp: anamnese.assinaturaPaciente.timestamp,
+      } : undefined,
+    };
+  };
+
+  const handleBaixarPdf = async (anamnese: any) => {
+    try {
+      setGerandoPdf(true);
+      toast.loading('Gerando PDF oficial da anamnese...', { id: 'pdf-anamnese' });
+      await downloadAnamnesePdf(obterDadosPdfAnamnese(anamnese));
+      toast.dismiss('pdf-anamnese');
+      toast.success('PDF da anamnese baixado com sucesso!');
+    } catch (err) {
+      toast.dismiss('pdf-anamnese');
+      toast.error('Erro ao gerar o PDF da anamnese');
+    } finally {
+      setGerandoPdf(false);
+    }
+  };
+
+  const handleImprimir = async (anamnese: any) => {
+    try {
+      setImprimindo(true);
+      toast.loading('Preparando impressão oficial da anamnese...', { id: 'print-anamnese' });
+      await imprimirAnamneseHtml(obterDadosPdfAnamnese(anamnese));
+      toast.dismiss('print-anamnese');
+    } catch (err) {
+      toast.dismiss('print-anamnese');
+      toast.error('Erro ao iniciar impressão');
+    } finally {
+      setImprimindo(false);
+    }
+  };
 
   const patientAnamnesis = (anamneses || []).filter((a) => a.pacienteId === patient.id);
 
@@ -353,6 +430,18 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
                     >
                       <Eye className="h-3.5 w-3.5 text-blue-600" />
                       <span>Visualizar</span>
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleBaixarPdf(anamnese)}
+                      disabled={gerandoPdf}
+                      className="h-8 text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 dark:bg-slate-900/40 dark:border-slate-800 dark:text-slate-300 gap-1 cursor-pointer"
+                      title="Baixar PDF Oficial Minimalista da Anamnese"
+                    >
+                      <Download className="h-3.5 w-3.5 text-primary" />
+                      <span>PDF</span>
                     </Button>
 
                     <Button
@@ -684,16 +773,29 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
                 </div>
 
                 {/* Rodapé do Modal */}
-                <div className="flex justify-end gap-2 pt-3 border-t print:hidden">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => window.print()}
-                    className="text-xs h-9 gap-1.5 cursor-pointer"
-                  >
-                    <ClipboardList className="h-4 w-4" />
-                    Imprimir
-                  </Button>
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t print:hidden">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => handleBaixarPdf(selectedAnamnese)}
+                      disabled={gerandoPdf}
+                      className="text-xs h-9 gap-1.5 cursor-pointer font-medium"
+                    >
+                      {gerandoPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4 text-primary" />}
+                      <span>Baixar PDF</span>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => handleImprimir(selectedAnamnese)}
+                      disabled={imprimindo}
+                      className="text-xs h-9 gap-1.5 cursor-pointer font-medium"
+                    >
+                      {imprimindo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4 text-slate-700" />}
+                      <span>Imprimir Documento</span>
+                    </Button>
+                  </div>
                   <Button
                     type="button"
                     onClick={() => setIsViewModalOpen(false)}
