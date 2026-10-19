@@ -385,102 +385,101 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
     const patient = getCurrentPatient();
     return (
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-lg w-[calc(100vw-2rem)] sm:w-full max-h-[92vh] overflow-y-auto overflow-x-hidden p-4 sm:p-6">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
-              <Sparkles className="h-5 w-5 text-emerald-500 shrink-0" />
-              Anamnese Criada com Sucesso!
-            </DialogTitle>
+        <DialogContent className="max-w-[95vw] sm:max-w-[620px] w-full p-4 sm:p-5 gap-3 max-h-[94vh] overflow-y-auto overflow-x-hidden">
+          <DialogHeader className="pb-0.5 space-y-1">
+            <div className="flex items-center justify-between pr-6">
+              <DialogTitle className="flex items-center gap-2 text-base sm:text-lg font-bold text-foreground">
+                <Sparkles className="h-5 w-5 text-emerald-500 shrink-0" />
+                <span>Anamnese Criada com Sucesso!</span>
+              </DialogTitle>
+            </div>
             {patient?.nome && (
-              <DialogDescription className="text-xs text-muted-foreground">
-                Paciente: <strong className="text-foreground">{patient.nome}</strong>
-              </DialogDescription>
+              <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground">
+                <span>
+                  Paciente: <strong className="text-foreground font-semibold">{patient.nome}</strong>
+                </span>
+                {patient.telefone && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-medium text-[11px] border border-emerald-500/20">
+                    📱 {patient.telefone}
+                  </span>
+                )}
+              </div>
             )}
           </DialogHeader>
-          
-          <div className="space-y-3.5 pt-1">
+
+          <div className="space-y-2.5">
             {/* Opção 1: Link para Preencher e Assinar (Recomendado) */}
-            <Card className="border-2 border-emerald-500/30 bg-emerald-50/20 dark:bg-emerald-950/20 shadow-xs">
-              <CardHeader className="pb-2 pt-3.5 px-4">
-                <CardTitle className="text-sm font-bold flex items-center justify-between">
-                  <span className="flex items-center gap-2 text-foreground">
-                    <Share2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                    Enviar Link para o Paciente no Celular
-                  </span>
-                  <span className="text-[11px] text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/60 px-2 py-0.5 rounded-full font-semibold">
-                    Recomendado
-                  </span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3 px-4 pb-4">
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  O paciente responde as perguntas de saúde no próprio celular e assina digitalmente com validade jurídica.
-                </p>
-
-                {patient?.telefone && (
-                  <p className="text-xs text-muted-foreground flex items-center gap-1.5 bg-background/70 p-2 rounded-md border border-border/60">
-                    <span>📱 WhatsApp:</span>
-                    <strong className="text-foreground">{patient.telefone}</strong>
-                  </p>
-                )}
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-0.5">
-                  <Button
-                    type="button"
-                    onClick={() => handleEnviarWhatsApp('preencher')}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-10 shadow-xs gap-1.5"
-                  >
-                    <MessageCircle className="h-4 w-4" />
-                    Enviar WhatsApp
-                  </Button>
-
-                  <Button
-                    type="button"
-                    onClick={() => copyToClipboard('preencher')}
-                    variant="outline"
-                    className="text-xs h-10 font-medium gap-1.5 border-border hover:bg-accent"
-                  >
-                    {copiadoPreencher ? (
-                      <>
-                        <Check className="h-4 w-4 text-emerald-600" />
-                        <span className="text-emerald-600 font-semibold">Copiado!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="h-4 w-4" />
-                        <span>Copiar Link</span>
-                      </>
-                    )}
-                  </Button>
+            <div className="rounded-xl border-2 border-emerald-500/35 bg-gradient-to-r from-emerald-500/[0.08] via-emerald-500/[0.03] to-transparent p-3 sm:p-3.5 space-y-2 shadow-xs">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 font-bold text-xs sm:text-sm text-foreground">
+                  <Share2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span>Enviar Link para o Paciente no Celular</span>
                 </div>
-              </CardContent>
-            </Card>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                  Recomendado
+                </span>
+              </div>
 
-            {/* Opção 2: Link para Apenas Assinar */}
-            <Card className="border border-border/80 bg-card shadow-xs">
-              <CardHeader className="pb-2 pt-3 px-4">
-                <CardTitle className="text-xs font-semibold flex items-center justify-between text-foreground">
-                  <span className="flex items-center gap-2">
+              <p className="text-[11px] sm:text-xs text-muted-foreground leading-snug">
+                O paciente responde as perguntas de saúde no próprio celular e assina digitalmente com validade jurídica.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-0.5">
+                <Button
+                  type="button"
+                  onClick={() => handleEnviarWhatsApp('preencher')}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-9 shadow-xs gap-1.5 cursor-pointer"
+                >
+                  <MessageCircle className="h-4 w-4 shrink-0" />
+                  <span>Enviar WhatsApp</span>
+                </Button>
+
+                <Button
+                  type="button"
+                  onClick={() => copyToClipboard('preencher')}
+                  variant="outline"
+                  className="text-xs h-9 font-medium gap-1.5 border-border hover:bg-accent cursor-pointer"
+                >
+                  {copiadoPreencher ? (
+                    <>
+                      <Check className="h-4 w-4 text-emerald-600 shrink-0" />
+                      <span className="text-emerald-600 font-semibold">Link Copiado!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <span>Copiar Link</span>
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            {/* Opções 2 e 3 em Grid Lado a Lado (Desktop/Tablet) e Empilhadas no Mobile */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {/* Opção 2: Link para Apenas Assinar */}
+              <div className="rounded-xl border border-border/80 bg-card p-3 space-y-2 flex flex-col justify-between hover:border-border transition-colors">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5 font-semibold text-xs text-foreground">
                     <FileSignature className="h-3.5 w-3.5 text-primary shrink-0" />
-                    Ou enviar Apenas para Assinar (com resumo já preenchido)
-                  </span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2.5 px-4 pb-3.5">
-                <p className="text-[11px] text-muted-foreground leading-relaxed">
-                  Envia a ficha já com as respostas preenchidas na clínica, solicitando apenas a conferência e assinatura.
-                </p>
+                    <span>Apenas Assinar (Pré-preenchido)</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-snug">
+                    Ficha já preenchida na clínica, solicitando apenas conferência e assinatura.
+                  </p>
+                </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-1.5 pt-1">
                   <Button
                     type="button"
                     onClick={() => handleEnviarWhatsApp('assinar')}
                     variant="outline"
                     size="sm"
-                    className="text-xs h-8.5 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 gap-1.5 font-medium"
+                    className="text-xs h-8 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 gap-1 font-medium px-1.5 cursor-pointer"
+                    title="Enviar WhatsApp apenas para assinatura"
                   >
-                    <MessageCircle className="h-3.5 w-3.5 text-emerald-600" />
-                    WhatsApp (Só Assinar)
+                    <MessageCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                    <span className="truncate">WhatsApp</span>
                   </Button>
 
                   <Button
@@ -488,45 +487,55 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
                     onClick={() => copyToClipboard('assinar')}
                     variant="outline"
                     size="sm"
-                    className="text-xs h-8.5 gap-1.5"
+                    className="text-xs h-8 gap-1 px-1.5 cursor-pointer"
+                    title="Copiar link apenas para assinatura"
                   >
                     {copiadoAssinar ? (
                       <>
-                        <Check className="h-3.5 w-3.5 text-emerald-600" />
-                        <span className="text-emerald-600 font-semibold">Copiado!</span>
+                        <Check className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                        <span className="text-emerald-600 font-semibold truncate">Copiado!</span>
                       </>
                     ) : (
                       <>
-                        <Copy className="h-3.5 w-3.5" />
-                        <span>Copiar Link</span>
+                        <Copy className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        <span className="truncate">Copiar</span>
                       </>
                     )}
                   </Button>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
 
-            {/* Opção 3: Assinatura Presencial */}
-            <Card className="border border-border/80 bg-card shadow-xs">
-              <CardHeader className="pb-2 pt-3 px-4">
-                <CardTitle className="text-xs font-semibold flex items-center gap-2 text-foreground">
-                  <FileSignature className="h-3.5 w-3.5 text-primary shrink-0" />
-                  Ou coletar Assinatura Presencial agora no consultório
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 px-4 pb-3.5">
-                <p className="text-[11px] text-muted-foreground">
-                  Se o paciente estiver presente no consultório, você pode coletar a assinatura diretamente neste dispositivo.
-                </p>
-                <Button onClick={handleDirectSignature} className="w-full h-8.5 text-xs font-medium" variant="outline">
-                  <FileSignature className="h-3.5 w-3.5 mr-1.5 text-primary" />
-                  Iniciar Assinatura Presencial na Tela
-                </Button>
-              </CardContent>
-            </Card>
+              {/* Opção 3: Assinatura Presencial */}
+              <div className="rounded-xl border border-border/80 bg-card p-3 space-y-2 flex flex-col justify-between hover:border-border transition-colors">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5 font-semibold text-xs text-foreground">
+                    <Smartphone className="h-3.5 w-3.5 text-primary shrink-0" />
+                    <span>Assinatura Presencial</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-snug">
+                    Se o paciente estiver no consultório, colete a assinatura na tela deste aparelho.
+                  </p>
+                </div>
+
+                <div className="pt-1">
+                  <Button
+                    type="button"
+                    onClick={handleDirectSignature}
+                    className="w-full h-8 text-xs font-semibold gap-1.5 cursor-pointer"
+                    variant="outline"
+                  >
+                    <FileSignature className="h-3.5 w-3.5 text-primary shrink-0" />
+                    <span>Iniciar na Tela Agora</span>
+                  </Button>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div className="flex justify-end gap-2 pt-3 border-t">
+          <div className="flex items-center justify-between pt-2 border-t border-border/60">
+            <span className="text-[11px] text-muted-foreground hidden sm:inline">
+              O link fica sempre acessível na lista de anamneses.
+            </span>
             <Button
               variant="default"
               size="sm"
@@ -535,7 +544,7 @@ const AnamneseModal = ({ isOpen, onClose, onSave, preSelectedPatient }: Anamnese
                 resetForm();
                 onClose();
               }}
-              className="text-xs h-9 px-4 font-bold"
+              className="text-xs h-8.5 px-5 font-bold cursor-pointer ml-auto"
             >
               Concluir
             </Button>

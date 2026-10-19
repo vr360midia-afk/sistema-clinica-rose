@@ -226,35 +226,36 @@ export const ModalEnviarAnamnese = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-xl w-[calc(100vw-2rem)] sm:w-full max-h-[92vh] overflow-y-auto overflow-x-hidden overscroll-contain touch-pan-y p-4 sm:p-6">
-        <DialogHeader className="space-y-1">
-          <div className="flex items-center gap-2 text-primary">
-            <ClipboardList className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-            <DialogTitle className="text-lg sm:text-xl font-bold">
-              Enviar Ficha de Anamnese por Link
-            </DialogTitle>
+      <DialogContent className="max-w-[95vw] sm:max-w-[620px] w-full p-4 sm:p-5 gap-3 max-h-[94vh] overflow-y-auto overflow-x-hidden">
+        <DialogHeader className="pb-0.5 space-y-1">
+          <div className="flex items-center justify-between pr-6">
+            <div className="flex items-center gap-2 text-primary">
+              <ClipboardList className="h-5 w-5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+              <DialogTitle className="text-base sm:text-lg font-bold">
+                Enviar Ficha de Anamnese por Link
+              </DialogTitle>
+            </div>
+            {isAssinada ? (
+              <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 gap-1 font-semibold text-[10px]">
+                <CheckCircle2 className="h-3 w-3" />
+                Assinada
+              </Badge>
+            ) : (
+              <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30 gap-1 font-semibold text-[10px]">
+                <Clock className="h-3 w-3" />
+                Pendente
+              </Badge>
+            )}
           </div>
-          <DialogDescription className="text-xs sm:text-sm">
-            Paciente: <strong className="text-foreground">{patient?.nome}</strong>
-            {patient?.telefone && ` • Tel: ${patient.telefone}`}
-          </DialogDescription>
+          <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground">
+            <span>Paciente: <strong className="text-foreground font-semibold">{patient?.nome}</strong></span>
+            {patient?.telefone && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-medium text-[11px] border border-emerald-500/20">
+                📱 {patient.telefone}
+              </span>
+            )}
+          </div>
         </DialogHeader>
-
-        {/* Status da Anamnese */}
-        <div className="flex items-center justify-between p-2.5 rounded-lg bg-muted/40 border border-border text-xs">
-          <span className="text-muted-foreground font-medium">Status Atual do Documento:</span>
-          {isAssinada ? (
-            <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 gap-1 font-semibold text-[11px]">
-              <CheckCircle2 className="h-3 w-3" />
-              Assinada Digitalmente
-            </Badge>
-          ) : (
-            <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30 gap-1 font-semibold text-[11px]">
-              <Clock className="h-3 w-3" />
-              Aguardando Preenchimento / Assinatura
-            </Badge>
-          )}
-        </div>
 
         {loading ? (
           <div className="py-8 text-center space-y-2">
@@ -262,111 +263,110 @@ export const ModalEnviarAnamnese = ({
             <p className="text-xs text-muted-foreground">Gerando links individuais para o paciente...</p>
           </div>
         ) : (
-          <div className="space-y-3.5 py-1">
-            {/* Opção 1: Enviar para Preencher e Assinar */}
-            <div className="p-3.5 rounded-xl border border-indigo-200 dark:border-indigo-900/60 bg-gradient-to-br from-indigo-50/60 to-white dark:from-indigo-950/20 dark:to-card space-y-2.5">
-              <div className="flex items-start justify-between gap-2">
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-2">
-                    <span className="p-1 rounded bg-indigo-600 text-white font-bold text-[10px]">
-                      OPÇÃO 1
+          <div className="space-y-2.5">
+            {/* Opções 1 e 2 em Grid Lado a Lado no Desktop/Tablet */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {/* Opção 1: Enviar para Preencher e Assinar */}
+              <div className="rounded-xl border-2 border-indigo-500/30 bg-gradient-to-br from-indigo-50/40 to-white dark:from-indigo-950/20 dark:to-card p-3 space-y-2 flex flex-col justify-between shadow-xs">
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between gap-1">
+                    <div className="flex items-center gap-1.5 font-bold text-xs text-foreground">
+                      <FileText className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                      <span>Preencher e Assinar</span>
+                    </div>
+                    <span className="text-[10px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-900/60 px-1.5 py-0.2 rounded font-mono">
+                      COMPLETO
                     </span>
-                    <h4 className="font-bold text-foreground text-sm flex items-center gap-1.5">
-                      <FileText className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-                      Enviar para o Paciente Preencher e Assinar
-                    </h4>
                   </div>
-                  <p className="text-xs text-muted-foreground leading-relaxed pt-1">
-                    O paciente recebe o link no próprio celular, responde as perguntas de saúde (alergias, medicamentos, queixa, histórico) e assina com o dedo no final.
+                  <p className="text-[11px] text-muted-foreground leading-snug">
+                    O paciente preenche as respostas de saúde pelo celular e assina digitalmente.
                   </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-1.5 pt-1">
+                  <Button
+                    size="sm"
+                    onClick={handleWhatsAppPreencher}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8.5 gap-1 font-semibold shadow-xs px-1.5 cursor-pointer"
+                  >
+                    <MessageCircle className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">WhatsApp</span>
+                  </Button>
+
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleCopiar('preencher')}
+                    className="text-xs h-8.5 gap-1 px-1.5 cursor-pointer"
+                  >
+                    {copiadoPreencher ? (
+                      <>
+                        <Check className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                        <span className="text-emerald-600 font-semibold truncate">Copiado!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        <span className="truncate">Copiar</span>
+                      </>
+                    )}
+                  </Button>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                <Button
-                  size="sm"
-                  onClick={handleWhatsAppPreencher}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-9 gap-1.5 font-semibold shadow-xs"
-                >
-                  <MessageCircle className="h-3.5 w-3.5" />
-                  <span>Enviar WhatsApp</span>
-                </Button>
-
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleCopiar('preencher')}
-                  className="text-xs h-9 gap-1.5"
-                >
-                  {copiadoPreencher ? (
-                    <>
-                      <Check className="h-3.5 w-3.5 text-emerald-600" />
-                      <span className="text-emerald-600 font-semibold">Copiado!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="h-3.5 w-3.5" />
-                      <span>Copiar Link</span>
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-
-            {/* Opção 2: Enviar Apenas para Assinar */}
-            <div className="p-3.5 rounded-xl border border-sky-200 dark:border-sky-900/60 bg-gradient-to-br from-sky-50/60 to-white dark:from-sky-950/20 dark:to-card space-y-2.5">
-              <div className="flex items-start justify-between gap-2">
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-2">
-                    <span className="p-1 rounded bg-sky-600 text-white font-bold text-[10px]">
-                      OPÇÃO 2
+              {/* Opção 2: Enviar Apenas para Assinar */}
+              <div className="rounded-xl border border-border/80 bg-card p-3 space-y-2 flex flex-col justify-between hover:border-border transition-colors shadow-xs">
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between gap-1">
+                    <div className="flex items-center gap-1.5 font-bold text-xs text-foreground">
+                      <FileSignature className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
+                      <span>Apenas Assinar</span>
+                    </div>
+                    <span className="text-[10px] font-bold text-sky-700 dark:text-sky-300 bg-sky-100 dark:bg-sky-900/60 px-1.5 py-0.2 rounded font-mono">
+                      RESUMO
                     </span>
-                    <h4 className="font-bold text-foreground text-sm flex items-center gap-1.5">
-                      <FileSignature className="h-4 w-4 text-sky-600 dark:text-sky-400" />
-                      Enviar Apenas para o Paciente Assinar
-                    </h4>
                   </div>
-                  <p className="text-xs text-muted-foreground leading-relaxed pt-1">
-                    A clínica já possui os dados e o paciente só precisa visualizar o resumo clínico e assinar digitalmente com o dedo na tela pelo celular.
+                  <p className="text-[11px] text-muted-foreground leading-snug">
+                    Ficha já preenchida na clínica; o paciente apenas confere e assina na tela.
                   </p>
                 </div>
-              </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                <Button
-                  size="sm"
-                  onClick={handleWhatsAppAssinar}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-9 gap-1.5 font-semibold shadow-xs"
-                >
-                  <MessageCircle className="h-3.5 w-3.5" />
-                  <span>Enviar WhatsApp</span>
-                </Button>
+                <div className="grid grid-cols-2 gap-1.5 pt-1">
+                  <Button
+                    size="sm"
+                    onClick={handleWhatsAppAssinar}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8.5 gap-1 font-semibold shadow-xs px-1.5 cursor-pointer"
+                  >
+                    <MessageCircle className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">WhatsApp</span>
+                  </Button>
 
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleCopiar('assinar')}
-                  className="text-xs h-9 gap-1.5"
-                >
-                  {copiadoAssinar ? (
-                    <>
-                      <Check className="h-3.5 w-3.5 text-emerald-600" />
-                      <span className="text-emerald-600 font-semibold">Copiado!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="h-3.5 w-3.5" />
-                      <span>Copiar Link</span>
-                    </>
-                  )}
-                </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleCopiar('assinar')}
+                    className="text-xs h-8.5 gap-1 px-1.5 cursor-pointer"
+                  >
+                    {copiadoAssinar ? (
+                      <>
+                        <Check className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                        <span className="text-emerald-600 font-semibold truncate">Copiado!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        <span className="truncate">Copiar</span>
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
             </div>
 
             {/* Opção 3: Preencher na Clínica Agora */}
             {onOpenClinicaModal && (
-              <div className="pt-2 border-t border-border/60 flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">
+              <div className="p-2.5 rounded-lg border border-border/70 bg-muted/30 flex items-center justify-between gap-2">
+                <span className="text-[11px] text-muted-foreground">
                   Deseja preencher ou editar agora no consultório?
                 </span>
                 <Button
@@ -377,9 +377,9 @@ export const ModalEnviarAnamnese = ({
                     onClose();
                     onOpenClinicaModal();
                   }}
-                  className="text-xs h-8 gap-1.5 font-medium"
+                  className="text-xs h-7.5 gap-1.5 font-medium shrink-0 cursor-pointer"
                 >
-                  <PenTool className="h-3.5 w-3.5 text-primary" />
+                  <PenTool className="h-3 w-3 text-primary" />
                   <span>Preencher na Clínica</span>
                 </Button>
               </div>
@@ -388,7 +388,7 @@ export const ModalEnviarAnamnese = ({
         )}
 
         <DialogFooter className="pt-2 border-t border-border/60">
-          <Button variant="outline" size="sm" onClick={onClose} className="w-full sm:w-auto text-xs">
+          <Button variant="outline" size="sm" onClick={onClose} className="w-full sm:w-auto text-xs h-8 cursor-pointer">
             Fechar
           </Button>
         </DialogFooter>
