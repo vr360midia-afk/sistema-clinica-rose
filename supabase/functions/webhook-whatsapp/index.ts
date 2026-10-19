@@ -114,6 +114,288 @@ function extractMessageBody(msg: any): string {
   }
 }
 
+/**
+ * Envia mensagem de texto via Meta Cloud API
+ */
+async function sendMetaTextMessage(toPhone: string, text: string) {
+  const WA_TOKEN = Deno.env.get('WA_TOKEN');
+  const WA_PHONE_NUMBER_ID = Deno.env.get('WA_PHONE_NUMBER_ID');
+  if (!WA_TOKEN || !WA_PHONE_NUMBER_ID) {
+    console.warn('[Webhook WhatsApp] WA_TOKEN ou WA_PHONE_NUMBER_ID não configurados');
+    return null;
+  }
+
+  const cleanPhone = toPhone.replace(/\D/g, '');
+  const url = `https://graph.facebook.com/v21.0/${WA_PHONE_NUMBER_ID}/messages`;
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${WA_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: cleanPhone,
+        type: 'text',
+        text: { body: text },
+      }),
+    });
+    return await res.json();
+  } catch (err) {
+    console.error('[Webhook WhatsApp] Falha ao enviar resposta Meta:', err);
+    return null;
+  }
+}
+
+function capitalizarNome(nome: string): string {
+  const minusculas = ['de', 'da', 'do', 'das', 'dos', 'e'];
+  return (nome || '')
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((palavra, index) => {
+      if (index > 0 && minusculas.includes(palavra)) return palavra;
+      return palavra.charAt(0).toUpperCase() + palavra.slice(1);
+    })
+    .join(' ');
+}
+
+function normalizarTexto(texto: string): string {
+  return (texto || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+}
+
+/**
+ * Processa comandos como #paciente ou #ficha recebidos no WhatsApp
+ */
+async function processarComandoCriarPaciente({
+  supabase,
+  bodyText,
+  rawFrom,
+  leadId,
+}: {
+  supabase: any;
+  bodyText: string;
+  rawFrom: string;
+  leadId?: string;
+}) {
+  if (!bodyText || typeof bodyText !== 'string') return;
+  const norm = normalizarTexto(bodyText);
+
+  const ehComando =
+    norm.startsWith('#paciente') ||
+    norm.startsWith('#ficha') ||
+    norm.startsWith('!paciente') ||
+    norm.startsWith('/paciente') ||
+    norm.startsWith('#cadastro') ||
+    norm.startsWith('cadastrar paciente') ||
+    norm.startsWith('criar ficha') ||
+    norm.startsWith('novo paciente') ||
+    norm.startsWith('adicionar paciente');
+
+  if (!ehComando) return;
+
+  try {
+    // 1. Extração de dados
+    let nome = '';
+    let telefone = '';
+    let cpf = '';
+    let queixa = '';
+
+    const linhas = bodyText.split('\n').map((l) => l.trim()).filter(Boolean);
+    let achouRotulo = false;
+
+    for (const linha of linhas) {
+      if (/^(?:nome|paciente)[:\s]+/i.test(linha)) {
+        nome = linha.replace(/^(?:nome|paciente)[:\s]+/i, '').trim();
+        achouRotulo = true;
+      } else if (/^(?:tel|telefone|cel|celular|whatsapp)[:\s]+/i.test(linha)) {
+        telefone = linha.replace(/^(?:tel|telefone|cel|celular|whatsapp)[:\s]+/i, '').trim();
+        achouRotulo = true;
+      } else if (/^(?:cpf)[:\s]+/i.test(linha)) {
+        cpf = linha.replace(/^(?:cpf)[:\s]+/i, '').trim();
+        achouRotulo = true;
+      } else if (/^(?:queixa|motivo|obs|observacao)[:\s]+/i.test(linha)) {
+        queixa = linha.replace(/^(?:queixa|motivo|obs|observacao)[:\s]+/i, '').trim();
+        achouRotulo = true;
+      }
+    }
+
+    if (!achouRotulo) {
+      let corpo = bodyText;
+      corpo = corpo.replace(/^(?:#paciente|#ficha|!paciente|\/paciente|#cadastro)\s*/i, '');
+      corpo = corpo.replace(/^(?:cadastrar paciente|criar ficha|novo paciente|adicionar paciente|ficha paciente|criar paciente)[:\s]*/i, '');
+      corpo = corpo.trim();
+
+      const partes = corpo.split(/[,;|]/).map((p) => p.trim()).filter(Boolean);
+      if (partes.length > 0) {
+        nome = partes[0];
+        for (let i = 1; i < partes.length; i++) {
+          const parte = partes[i];
+          const digitos = parte.replace(/\D/g, '');
+          if (digitos.length === 11 && (parte.includes('.') || parte.includes('-') || !cpf)) {
+            if (!telefone && digitos.length === 11 && digitos.charAt(2) === '9' && !parte.includes('.')) {
+              telefone = parte;
+            } else if (!cpf) {
+              cpf = parte;
+            }
+          } else if (digitos.length >= 8 && digitos.length <= 13 && !telefone) {
+            telefone = parte;
+          } else if (!queixa) {
+            queixa = parte;
+          }
+        }
+      }
+    }
+
+    nome = capitalizarNome(nome.replace(/[#*!_]/g, '').trim());
+
+    if (!nome || nome.length < 2) {
+      const msgErro =
+        '⚠️ Não foi possível identificar o nome do paciente.\n\n*Exemplo de uso:*\n#paciente Maria Silva, (82) 99999-8888, 123.456.789-00';
+      await sendMetaTextMessage(rawFrom, msgErro);
+      return;
+    }
+
+    // Busca o user_id da clínica
+    const { data: configs } = await supabase
+      .from('configuracoes')
+      .select('user_id')
+      .limit(1);
+    const userId = configs?.[0]?.user_id || null;
+
+    // 2. Verifica se o paciente já existe
+    const query = supabase.from('pacientes').select('*');
+    if (userId) query.eq('user_id', userId);
+    const { data: listaPacientes } = await query;
+
+    let pacienteExistente: any = null;
+    if (listaPacientes && listaPacientes.length > 0) {
+      if (cpf) {
+        const cpfDigitos = cpf.replace(/\D/g, '');
+        pacienteExistente = listaPacientes.find(
+          (p: any) => (p.cpf || '').replace(/\D/g, '') === cpfDigitos
+        );
+      }
+      if (!pacienteExistente && telefone) {
+        const telDigitos = telefone.replace(/\D/g, '').slice(-8);
+        pacienteExistente = listaPacientes.find(
+          (p: any) => (p.telefone || '').replace(/\D/g, '').slice(-8) === telDigitos
+        );
+      }
+      if (!pacienteExistente) {
+        const nNorm = normalizarTexto(nome);
+        pacienteExistente = listaPacientes.find(
+          (p: any) => normalizarTexto(p.nome) === nNorm
+        );
+      }
+    }
+
+    let pacienteId: string;
+    let jaExistia = false;
+
+    if (pacienteExistente) {
+      pacienteId = pacienteExistente.id;
+      jaExistia = true;
+    } else {
+      const { data: novo, error: errNovo } = await supabase
+        .from('pacientes')
+        .insert([
+          {
+            user_id: userId,
+            nome,
+            telefone: telefone || null,
+            cpf: cpf || null,
+            convenio: 'Particular',
+            status: 'Ativo',
+            origem_lead: 'whatsapp',
+            observacoes: queixa
+              ? `Queixa: ${queixa} (Criado via WhatsApp)`
+              : 'Criado via comando no WhatsApp',
+          },
+        ])
+        .select()
+        .single();
+
+      if (errNovo || !novo) {
+        console.error('[Webhook WhatsApp] Erro ao criar paciente via comando:', errNovo);
+        return;
+      }
+      pacienteId = novo.id;
+    }
+
+    // 3. Cria token e registro de Anamnese
+    const token = crypto.randomUUID().replace(/-/g, '').slice(0, 16);
+    const originApp = 'https://app.lentesemresinamaceio.com.br';
+    const linkAnamnese = `${originApp}/anamnese/assinar/${pacienteId}?token=${token}&modo=preencher`;
+
+    if (!jaExistia) {
+      await supabase.from('anamneses').insert([
+        {
+          user_id: userId,
+          paciente_id: pacienteId,
+          data: new Date().toISOString(),
+          queixa_principal: queixa || 'Avaliação Odontológica',
+          token_assinatura: token,
+          link_assinatura: linkAnamnese,
+          status_assinatura: 'pendente',
+          respostas: {},
+        },
+      ]);
+    }
+
+    // 4. Monta mensagem de resposta no WhatsApp
+    const respostaWhatsApp = jaExistia
+      ? [
+          `⚠️ *Paciente Já Cadastrado na Clínica!*`,
+          ``,
+          `👤 *Nome:* ${nome}`,
+          telefone ? `📱 *Telefone:* ${telefone}` : null,
+          `📋 *Status:* Ficha já existente no sistema`,
+          ``,
+          `🔗 *Link da Anamnese:*\n${linkAnamnese}`,
+        ]
+          .filter(Boolean)
+          .join('\n')
+      : [
+          `✅ *Ficha de Paciente Criada com Sucesso!*`,
+          ``,
+          `👤 *Paciente:* ${nome}`,
+          telefone ? `📱 *Telefone:* ${telefone}` : null,
+          cpf ? `🆔 *CPF:* ${cpf}` : null,
+          `📋 *Prontuário:* Ativo na plataforma`,
+          ``,
+          `🔗 *Link da Anamnese Digital:*\n${linkAnamnese}`,
+          ``,
+          `_Você pode encaminhar o link acima para o paciente preencher no celular._`,
+        ]
+          .filter(Boolean)
+          .join('\n');
+
+    // 5. Envia resposta de volta via WhatsApp Meta Graph API
+    await sendMetaTextMessage(rawFrom, respostaWhatsApp);
+
+    // Salva no CRM como mensagem enviada se houver leadId
+    if (leadId) {
+      await supabase.from('crm_messages').insert([
+        {
+          lead_id: leadId,
+          direction: 'out',
+          body: respostaWhatsApp,
+          created_at: new Date().toISOString(),
+        },
+      ]);
+    }
+  } catch (err: any) {
+    console.error('[Webhook WhatsApp] Erro ao processar comando criar paciente:', err);
+  }
+}
+
 Deno.serve(async (req) => {
   // CORS preflight
   if (req.method === 'OPTIONS') {
@@ -264,6 +546,14 @@ Deno.serve(async (req) => {
                 .select('id')
                 .maybeSingle();
             }
+
+            // 3. Processa comandos de criação de ficha de paciente (#paciente, #ficha, etc.)
+            await processarComandoCriarPaciente({
+              supabase,
+              bodyText,
+              rawFrom,
+              leadId,
+            });
           }
         }
 

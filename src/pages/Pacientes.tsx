@@ -22,10 +22,11 @@ import { openWhatsApp } from '@/lib/whatsapp';
 import { useSecurityGate } from '@/context/SecurityContext';
 import { useProcedimentos } from '@/hooks/useProcedimentos';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Users, Search, Plus, UserCheck, Calendar, Archive, MoreVertical, Edit2, Trash2, RotateCcw, Stethoscope, Sparkles, ClipboardList, Link2, UploadCloud } from 'lucide-react';
+import { Users, Search, Plus, UserCheck, Calendar, Archive, MoreVertical, Edit2, Trash2, RotateCcw, Stethoscope, Sparkles, ClipboardList, Link2, UploadCloud, MessageSquare } from 'lucide-react';
 import { Procedimento } from '@/types/procedimentos';
 import { ScannerProntuarioModal } from '@/components/pacientes/ScannerProntuarioModal';
 import { ModalLeitorPdfFichas } from '@/components/pacientes/ModalLeitorPdfFichas';
+import { ModalComandosWhatsapp } from '@/components/pacientes/ModalComandosWhatsapp';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { ModalEnviarAnamnese } from '@/components/anamnese/ModalEnviarAnamnese';
 import { PacienteCombobox } from '@/components/pacientes/PacienteCombobox';
@@ -64,6 +65,7 @@ const Pacientes = () => {
   
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isLeitorPdfOpen, setIsLeitorPdfOpen] = useState(false);
+  const [isComandosWhatsappOpen, setIsComandosWhatsappOpen] = useState(false);
   const { configuracoes } = useConfiguracoes();
 
   const handleScannerResult = (dadosExtraidos: any) => {
@@ -428,6 +430,15 @@ const Pacientes = () => {
             >
               <UploadCloud className="h-4 w-4" />
               Importar Fichas PDF
+            </Button>
+            <Button
+              onClick={() => setIsComandosWhatsappOpen(true)}
+              variant="outline"
+              className="border-emerald-300 text-emerald-700 bg-emerald-50/60 hover:bg-emerald-100 dark:border-emerald-800 dark:text-emerald-300 dark:bg-emerald-950/40 h-10 px-3.5 font-semibold shadow-xs shrink-0 gap-1.5 cursor-pointer"
+              title="Criar fichas enviando comandos pelo WhatsApp"
+            >
+              <MessageSquare className="h-4 w-4 text-emerald-600" />
+              Comandos WhatsApp
             </Button>
             <Button onClick={() => setIsScannerOpen(true)} variant="outline" className="h-10 px-4 font-semibold shadow-xs shrink-0">
               <Sparkles className="h-4 w-4 mr-2 text-indigo-600" />
@@ -897,6 +908,11 @@ const Pacientes = () => {
       <ModalLeitorPdfFichas
         isOpen={isLeitorPdfOpen}
         onClose={() => setIsLeitorPdfOpen(false)}
+      />
+      <ModalComandosWhatsapp
+        isOpen={isComandosWhatsappOpen}
+        onClose={() => setIsComandosWhatsappOpen(false)}
+        onPacienteCriado={(id) => handleSelectPatient({ id })}
       />
     </Layout>
   );

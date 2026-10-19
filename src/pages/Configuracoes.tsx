@@ -26,6 +26,7 @@ import BackupProgress from '@/components/common/BackupProgress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { testarOpenAiKey } from '@/services/chatgptService';
+import ComandosWhatsappCard from '@/components/configuracoes/ComandosWhatsappCard';
 
 
 const formatCnpjCpf = (value: string) => {
@@ -587,11 +588,14 @@ const Configuracoes = () => {
                 </CardContent>
               </Card>
 
+              {/* Criação de Fichas via Comandos de WhatsApp */}
+              <ComandosWhatsappCard />
+
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <MessageSquare className="h-5 w-5" />
-                    WhatsApp Business API
+                    WhatsApp Business API (Configurações Gerais)
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
