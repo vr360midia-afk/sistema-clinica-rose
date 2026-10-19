@@ -49,17 +49,17 @@ export const gerarHtmlTcleEndodontia = (snapshot?: ContratoSnapshot | null): str
   <style>
     @page {
       size: A4;
-      margin: 12mm 15mm 12mm 15mm;
+      margin: 12mm 14mm 12mm 14mm;
     }
     * { box-sizing: border-box; }
     body {
       font-family: 'Times New Roman', Times, Georgia, serif;
       font-size: 12px;
-      line-height: 1.5;
+      line-height: 1.48;
       color: #111827;
       background: #ffffff;
       margin: 0;
-      padding: 16px 24px;
+      padding: 16px 20px;
     }
     .tcle-container {
       max-width: 100%;
@@ -72,9 +72,9 @@ export const gerarHtmlTcleEndodontia = (snapshot?: ContratoSnapshot | null): str
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: 16px;
-      page-break-inside: avoid;
-      break-inside: avoid;
+      gap: 14px;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
     }
     .cabecalho-logo img {
       max-height: 52px;

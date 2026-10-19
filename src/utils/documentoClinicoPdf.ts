@@ -64,9 +64,9 @@ export const gerarDocumentoClinicoPdf = async (doc: DocumentoClinico, clinica: C
 <html lang="pt-BR"><head><meta charset="utf-8" />
 <title>${doc.titulo} - ${doc.pacienteNome || ''}</title>
 <style>
-  @page { size: A4; margin: 14mm 16mm 14mm 16mm; }
+  @page { size: A4; margin: 12mm 14mm 12mm 14mm; }
   * { box-sizing: border-box; }
-  body { font-family: Georgia, 'Times New Roman', serif; margin: 0; padding: 24px 32px; color: #111; }
+  body { font-family: Georgia, 'Times New Roman', serif; margin: 0; padding: 16px 20px; color: #111; }
   .doc { max-width: 100%; margin: 0 auto; border: 1px solid #111; padding: 24px 28px; }
   .topo { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #111; padding-bottom: 12px; page-break-inside: avoid; break-inside: avoid; }
   .clinica h1 { font-size: 20px; margin: 0 0 4px; letter-spacing: .5px; }

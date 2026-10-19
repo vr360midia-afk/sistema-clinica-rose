@@ -43,17 +43,17 @@ export const gerarHtmlTermoUsoImagem = (snapshot?: ContratoSnapshot | null): str
   <style>
     @page {
       size: A4;
-      margin: 14mm 16mm 14mm 16mm;
+      margin: 12mm 14mm 12mm 14mm;
     }
     * { box-sizing: border-box; }
     body {
       font-family: 'Times New Roman', Times, Georgia, serif;
       font-size: 12.5px;
-      line-height: 1.55;
+      line-height: 1.48;
       color: #111827;
       background: #ffffff;
       margin: 0;
-      padding: 24px 32px;
+      padding: 16px 20px;
     }
     .termo-container {
       max-width: 100%;
@@ -61,14 +61,14 @@ export const gerarHtmlTermoUsoImagem = (snapshot?: ContratoSnapshot | null): str
     }
     .cabecalho {
       border-bottom: 2px solid #111827;
-      padding-bottom: 12px;
-      margin-bottom: 18px;
+      padding-bottom: 10px;
+      margin-bottom: 14px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: 16px;
-      page-break-inside: avoid;
-      break-inside: avoid;
+      gap: 14px;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
     }
     .cabecalho-logo img {
       max-height: 55px;

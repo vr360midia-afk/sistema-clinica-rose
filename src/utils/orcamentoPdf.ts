@@ -45,9 +45,9 @@ export const gerarOrcamentoPdf = async (o: OrcamentoPdf, clinica: ClinicaInfo = 
 <html lang="pt-BR"><head><meta charset="utf-8" />
 <title>${o.titulo} - ${o.pacienteNome || 'Paciente'}</title>
 <style>
-  @page { size: A4; margin: 14mm 16mm 14mm 16mm; }
+  @page { size: A4; margin: 12mm 14mm 12mm 14mm; }
   * { box-sizing: border-box; }
-  body { font-family: Georgia, 'Times New Roman', serif; margin: 0; padding: 24px 32px; color: #1a1a1a; background: #fff; }
+  body { font-family: Georgia, 'Times New Roman', serif; margin: 0; padding: 16px 20px; color: #1a1a1a; background: #fff; }
   .doc { max-width: 100%; margin: 0 auto; }
   .topo { display: flex; justify-content: space-between; align-items: center; gap: 24px; padding-bottom: 16px; border-bottom: 3px double #1a1a1a; page-break-inside: avoid; break-inside: avoid; }
   .brand { display: flex; align-items: center; gap: 16px; }

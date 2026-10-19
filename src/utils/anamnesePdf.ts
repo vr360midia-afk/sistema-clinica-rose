@@ -76,7 +76,7 @@ export const gerarHtmlAnamnese = (info: AnamnesePdfData): string => {
   <style>
     @page {
       size: A4;
-      margin: 12mm 15mm 12mm 15mm;
+      margin: 12mm 14mm 12mm 14mm;
     }
     * {
       box-sizing: border-box;
@@ -86,11 +86,11 @@ export const gerarHtmlAnamnese = (info: AnamnesePdfData): string => {
     body {
       font-family: Arial, Helvetica, sans-serif;
       margin: 0;
-      padding: 20px 28px;
+      padding: 16px 20px;
       color: #0f172a;
       background: #ffffff;
       font-size: 11pt;
-      line-height: 1.5;
+      line-height: 1.48;
     }
     .doc-container {
       max-width: 100%;

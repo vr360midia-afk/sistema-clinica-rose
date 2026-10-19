@@ -1461,17 +1461,17 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
   <style>
     @page {
       size: A4;
-      margin: 14mm 16mm 14mm 16mm;
+      margin: 12mm 14mm 12mm 14mm;
     }
     * { box-sizing: border-box; }
     body {
       font-family: 'Times New Roman', Times, Georgia, serif;
-      font-size: 13px;
-      line-height: 1.55;
+      font-size: 12.5px;
+      line-height: 1.48;
       color: #111827;
       background: #ffffff;
       margin: 0;
-      padding: 24px 32px;
+      padding: 16px 20px;
     }
     .contrato-container {
       max-width: 100%;
@@ -1479,22 +1479,22 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
     }
     .cabecalho {
       border-bottom: 2px solid #111827;
-      padding-bottom: 12px;
-      margin-bottom: 20px;
+      padding-bottom: 10px;
+      margin-bottom: 14px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: 16px;
-      page-break-inside: avoid;
-      break-inside: avoid;
+      gap: 14px;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
     }
     .cabecalho-logo img {
-      max-height: 60px;
-      max-width: 180px;
+      max-height: 55px;
+      max-width: 170px;
       object-fit: contain;
     }
     .cabecalho-clinica h1 {
-      font-size: 18px;
+      font-size: 16px;
       margin: 0 0 2px;
       font-weight: bold;
       text-transform: uppercase;
@@ -1502,86 +1502,88 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
     }
     .cabecalho-clinica p {
       margin: 1px 0;
-      font-size: 11px;
+      font-size: 10.5px;
       color: #4b5563;
       font-family: Arial, sans-serif;
     }
     .cabecalho-doc-id {
       text-align: right;
       font-family: Arial, sans-serif;
-      font-size: 11px;
+      font-size: 10.5px;
       color: #374151;
     }
     .cabecalho-doc-id strong {
-      font-size: 13px;
+      font-size: 12px;
       color: #111827;
     }
     .titulo-principal {
       text-align: center;
-      margin: 18px 0 16px;
-      page-break-inside: avoid;
-      break-inside: avoid;
+      margin: 12px 0 10px;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
     }
     .titulo-principal h2 {
-      font-size: 16px;
-      margin: 0 0 4px;
+      font-size: 15px;
+      margin: 0 0 3px;
       font-weight: bold;
-      letter-spacing: 1px;
+      letter-spacing: 0.8px;
       text-transform: uppercase;
       text-decoration: underline;
     }
     .titulo-principal p {
       margin: 0;
-      font-size: 12px;
+      font-size: 11.5px;
       color: #4b5563;
       font-style: italic;
     }
     .clausula-bloco {
-      margin-bottom: 15px;
+      margin-bottom: 10px;
       text-align: justify;
     }
     .clausula-titulo {
       font-weight: bold;
-      margin-top: 15px;
-      margin-bottom: 6px;
+      margin-top: 10px;
+      margin-bottom: 4px;
       text-transform: uppercase;
-      font-size: 12px;
+      font-size: 11.5px;
       letter-spacing: 0.5px;
-      page-break-after: avoid;
-      break-after: avoid;
-      page-break-inside: avoid;
-      break-inside: avoid;
+      page-break-after: avoid !important;
+      break-after: avoid !important;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
     }
     .paragrafo {
-      margin: 0 0 7px;
-      text-indent: 26px;
-      orphans: 3;
-      widows: 3;
+      margin: 0 0 5px;
+      text-indent: 22px;
+      orphans: 2;
+      widows: 2;
+      page-break-inside: avoid;
+      break-inside: avoid;
     }
     .tabela-dados {
       width: 100%;
       border-collapse: collapse;
-      margin: 12px 0;
-      font-size: 12px;
+      margin: 8px 0;
+      font-size: 11px;
       font-family: Arial, sans-serif;
     }
     .tabela-dados thead {
       display: table-header-group;
     }
     .tabela-dados tr {
-      page-break-inside: avoid;
-      break-inside: avoid;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
     }
     .tabela-dados th, .tabela-dados td {
       border: 1px solid #d1d5db;
-      padding: 6px 8px;
+      padding: 5px 6px;
       text-align: left;
     }
     .tabela-dados th {
       background-color: #f3f4f6;
       font-weight: bold;
       text-transform: uppercase;
-      font-size: 10px;
+      font-size: 9.5px;
       letter-spacing: 0.5px;
     }
     .tabela-dados tr:nth-child(even) {
@@ -1589,55 +1591,63 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
     }
     .tabela-dados .col-num {
       text-align: center;
-      width: 38px;
+      width: 36px;
     }
     .tabela-dados .col-money {
       text-align: right;
-      width: 95px;
+      width: 90px;
     }
     .totais-resumo {
-      margin: 10px 0 16px auto;
-      width: 320px;
+      margin: 8px 0 12px auto;
+      width: 300px;
       border: 1px solid #d1d5db;
       border-radius: 4px;
-      padding: 10px;
+      padding: 8px 10px;
       background-color: #f9fafb;
       font-family: Arial, sans-serif;
-      font-size: 12px;
-      page-break-inside: avoid;
-      break-inside: avoid;
+      font-size: 11.5px;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
     }
     .totais-linha {
       display: flex;
       justify-content: space-between;
-      margin-bottom: 4px;
+      margin-bottom: 3px;
       color: #4b5563;
     }
     .totais-linha.destaque {
       border-top: 1px solid #111827;
-      margin-top: 6px;
-      padding-top: 6px;
-      font-size: 14px;
+      margin-top: 5px;
+      padding-top: 5px;
+      font-size: 13px;
       font-weight: bold;
       color: #111827;
     }
+    .box-pix,
+    .evitar-corte,
+    [class*="box-pix"],
+    [class*="evitar-corte"] {
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+    }
     .bloco-assinaturas {
-      margin-top: 36px;
-      page-break-inside: avoid;
-      break-inside: avoid;
+      margin-top: 22px;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
     }
     .data-local {
       text-align: right;
-      margin-bottom: 30px;
+      margin-bottom: 16px;
       font-style: italic;
+      font-size: 11.5px;
     }
     .grid-assinaturas {
       display: flex;
       justify-content: space-between;
-      gap: 32px;
-      margin-top: 24px;
-      page-break-inside: avoid;
-      break-inside: avoid;
+      gap: 24px;
+      margin-top: 16px;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
     }
     .campo-assinatura {
       flex: 1;
@@ -1645,46 +1655,46 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
       font-family: Arial, sans-serif;
     }
     .campo-assinatura img {
-      max-height: 70px;
-      margin: 0 auto 4px;
+      max-height: 60px;
+      margin: 0 auto 3px;
       display: block;
     }
     .linha-assinatura {
       border-top: 1px solid #111827;
-      margin: 0 auto 6px;
+      margin: 0 auto 5px;
       width: 90%;
     }
     .assinatura-nome {
       font-weight: bold;
-      font-size: 12px;
+      font-size: 11.5px;
     }
     .assinatura-papel {
-      font-size: 11px;
+      font-size: 10.5px;
       color: #4b5563;
     }
     .assinatura-detalhes {
-      font-size: 9px;
+      font-size: 8.5px;
       color: #6b7280;
       margin-top: 2px;
     }
     .rodape-documento {
-      margin-top: 28px;
-      padding-top: 10px;
+      margin-top: 20px;
+      padding-top: 8px;
       border-top: 1px solid #e5e7eb;
       text-align: center;
-      font-size: 10px;
+      font-size: 9.5px;
       color: #9ca3af;
       font-family: Arial, sans-serif;
     }
     @media screen and (max-width: 640px) {
       body {
-        padding: 16px 12px;
-        font-size: 12px;
+        padding: 12px 10px;
+        font-size: 11.5px;
       }
       .cabecalho {
         flex-direction: column;
         align-items: flex-start;
-        gap: 12px;
+        gap: 10px;
       }
       .cabecalho-doc-id {
         text-align: left;
@@ -1697,15 +1707,25 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
       }
       .grid-assinaturas {
         flex-direction: column;
-        gap: 24px;
+        gap: 20px;
       }
     }
     @media print {
       body {
-        padding: 0;
+        padding: 0 !important;
       }
       .contrato-container {
         max-width: 100%;
+      }
+      .box-pix,
+      .evitar-corte,
+      .cabecalho,
+      .bloco-assinaturas,
+      .totais-resumo,
+      .tabela-dados tr,
+      .clausula-titulo {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
       }
     }
   </style>
@@ -1775,11 +1795,11 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
         </thead>
         <tbody>
           ${orcamento.itens.map((item, idx) => `
-            <tr>
+            <tr class="evitar-corte" style="page-break-inside: avoid !important; break-inside: avoid !important;">
               <td class="col-num">${idx + 1}</td>
               <td>
                 <strong>${item.nome}</strong>
-                ${item.denteOuRegiao ? `<br/><span style="font-size: 10px; color: #4b5563;">Região/Elemento: ${item.denteOuRegiao}</span>` : ''}
+                ${item.denteOuRegiao ? `<br/><span style="font-size: 9.5px; color: #4b5563;">Região/Elemento: ${item.denteOuRegiao}</span>` : ''}
               </td>
               <td class="col-num">${item.quantidade}</td>
               <td class="col-money">${formatMoney(item.valorUnitario)}</td>
@@ -1790,9 +1810,9 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
       </table>
 
       ${orcamento.observacoes && orcamento.observacoes.trim() ? `
-      <div style="margin: 12px 0 10px; padding: 10px 14px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #0284c7; border-radius: 4px; font-family: Arial, sans-serif; font-size: 11px; line-height: 1.5; color: #334155;">
-        <strong style="color: #0369a1; text-transform: uppercase; font-size: 10px; letter-spacing: 0.5px;">Observações do Orçamento / Especificações Clínicas:</strong><br/>
-        <span style="display: block; margin-top: 4px; white-space: pre-wrap;">${orcamento.observacoes.trim()}</span>
+      <div class="evitar-corte" style="margin: 8px 0; padding: 8px 12px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #0284c7; border-radius: 4px; font-family: Arial, sans-serif; font-size: 10.5px; line-height: 1.45; color: #334155; page-break-inside: avoid !important; break-inside: avoid !important;">
+        <strong style="color: #0369a1; text-transform: uppercase; font-size: 9.5px; letter-spacing: 0.5px;">Observações do Orçamento / Especificações Clínicas:</strong><br/>
+        <span style="display: block; margin-top: 3px; white-space: pre-wrap;">${orcamento.observacoes.trim()}</span>
       </div>
       ` : ''}
 
@@ -1877,12 +1897,12 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
         if (todasPixPagas) {
           return `
       <!-- Status Oficial de Quitação PIX -->
-      <div style="margin: 14px 0; padding: 12px 16px; border: 1.5px solid #10b981; background-color: #f0fdf4; border-radius: 8px; font-family: Arial, sans-serif; font-size: 12px; color: #065f46;">
-        <div style="font-weight: bold; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px;">
-          <span style="font-size: 14px; color: #059669;">✔</span>
+      <div class="evitar-corte" style="margin: 8px 0; padding: 10px 14px; border: 1.5px solid #10b981; background-color: #f0fdf4; border-radius: 8px; font-family: Arial, sans-serif; font-size: 11px; color: #065f46; page-break-inside: avoid !important; break-inside: avoid !important;">
+        <div style="font-weight: bold; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 13px; color: #059669;">✔</span>
           <span>PAGAMENTO VIA PIX DEVIDAMENTE QUITADO</span>
         </div>
-        <div style="margin-top: 4px; font-size: 11px; color: #047857; line-height: 1.4;">
+        <div style="margin-top: 3px; font-size: 10.5px; color: #047857; line-height: 1.4;">
           ${financeiro.entrada > 0 ? `A Entrada de <strong>${formatMoney(financeiro.entrada)}</strong> e os pagamentos acordados via PIX constam como <strong>QUITADOS</strong>.` : 'Os pagamentos pactuados via PIX constam como <strong>QUITADOS</strong>.'} Não há cobrança pendente de PIX nesta etapa.
         </div>
       </div>
@@ -1911,30 +1931,30 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
 
         return `
       <!-- Detalhamento Oficial para Pagamento via PIX com QR Code -->
-      <div style="margin: 14px 0; padding: 14px 16px; border: 1.5px dashed #0284c7; background-color: #f0f9ff; border-radius: 8px; font-family: Arial, sans-serif; font-size: 12px; color: #0369a1;">
-        <div style="font-weight: bold; margin-bottom: 8px; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; display: flex; align-items: center; justify-content: space-between;">
+      <div class="box-pix evitar-corte" style="margin: 8px 0; padding: 10px 14px; border: 1.5px dashed #0284c7; background-color: #f0f9ff; border-radius: 8px; font-family: Arial, sans-serif; font-size: 11px; color: #0369a1; page-break-inside: avoid !important; break-inside: avoid !important;">
+        <div style="font-weight: bold; margin-bottom: 6px; text-transform: uppercase; font-size: 10.5px; letter-spacing: 0.5px; display: flex; align-items: center; justify-content: space-between;">
           <span>✦ Instruções e QR Code Oficial para Pagamento via PIX${isEntradaPaga ? ' (Entrada Quitada ✔)' : valorPixContrato ? ` (Valor Inicial/Total: ${formatMoney(valorPixContrato)})` : ''}</span>
-          <span style="font-size: 10px; color: #0369a1; font-weight: normal;">Padrão Oficial Banco Central (Bacen)</span>
+          <span style="font-size: 9.5px; color: #0369a1; font-weight: normal;">Padrão Oficial Banco Central (Bacen)</span>
         </div>
         ${isEntradaPaga ? `
-        <div style="margin-bottom: 8px; padding: 6px 10px; background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 6px; font-size: 11px; color: #065f46; font-weight: 500;">
+        <div style="margin-bottom: 6px; padding: 5px 8px; background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 6px; font-size: 10.5px; color: #065f46; font-weight: 500;">
           ✔ A <strong>Entrada de ${formatMoney(financeiro.entrada)}</strong> já foi devidamente <strong>QUITADA</strong>.
         </div>
         ` : ''}
-        <div style="display: flex; align-items: flex-start; gap: 16px;">
-          <div style="background: #ffffff; padding: 6px; border: 1.5px solid #bae6fd; border-radius: 6px; text-align: center; flex-shrink: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <div style="display: flex; align-items: flex-start; gap: 14px;">
+          <div style="background: #ffffff; padding: 5px; border: 1.5px solid #bae6fd; border-radius: 6px; text-align: center; flex-shrink: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
             <a href="${qrCodeGrandeSrc}" target="_blank" rel="noopener noreferrer" title="Clique para abrir o QR Code em tela cheia" style="text-decoration: none; display: block;">
               <img
                 src="${qrCodeSrc}"
                 alt="QR Code PIX Bacen"
-                style="width: 120px; height: 120px; display: block;"
+                style="width: 90px; height: 90px; display: block;"
               />
-              <div style="font-size: 8px; color: #0284c7; font-weight: bold; margin-top: 4px; letter-spacing: 0.5px;">🔍 CLIQUE P/ AMPLIAR</div>
+              <div style="font-size: 7.5px; color: #0284c7; font-weight: bold; margin-top: 3px; letter-spacing: 0.5px;">🔍 CLIQUE P/ AMPLIAR</div>
             </a>
           </div>
           <div style="flex: 1;">
-            <div style="padding: 8px 12px; background-color: #ffffff; border-radius: 6px; border: 1px solid #bae6fd; font-size: 11px; color: #0c4a6e; line-height: 1.5;">
-              <strong>Chave PIX:</strong> <span style="font-family: monospace; font-weight: bold; font-size: 12px;">${clinica?.chavePix || clinica?.cnpj || clinica?.telefone || 'Chave da clínica sob consulta'}</span> <br/>
+            <div style="padding: 6px 10px; background-color: #ffffff; border-radius: 6px; border: 1px solid #bae6fd; font-size: 10.5px; color: #0c4a6e; line-height: 1.45;">
+              <strong>Chave PIX:</strong> <span style="font-family: monospace; font-weight: bold; font-size: 11.5px;">${clinica?.chavePix || clinica?.cnpj || clinica?.telefone || 'Chave da clínica sob consulta'}</span> <br/>
               <strong>Titular / Favorecido:</strong> ${clinica?.favorecidoPix || clinica?.nome} ${
                 clinica?.cnpjCpfFavorecidoPix
                   ? `• ${labelDocFavorecido}: ${clinica.cnpjCpfFavorecidoPix}`
@@ -1944,20 +1964,20 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
               ${valorPixContrato ? `<br/><strong>Valor Configurado no QR Code:</strong> <span style="color: #059669; font-weight: bold;">${formatMoney(valorPixContrato)}</span>` : ''}
 
               ${payloadPixContrato ? `
-                <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed #bae6fd;">
-                  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
-                    <span style="font-size: 10px; font-weight: bold; color: #0369a1;">Código PIX Copia e Cola:</span>
-                    <button type="button" onclick="navigator.clipboard.writeText('${payloadPixContrato}');alert('Código PIX Copia e Cola copiado com sucesso! Abra o app do seu banco e cole na opção Pix Copia e Cola.');" style="background: #0284c7; color: #ffffff; border: none; padding: 4px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; cursor: pointer;">
+                <div style="margin-top: 6px; padding-top: 6px; border-top: 1px dashed #bae6fd;">
+                  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 3px;">
+                    <span style="font-size: 9.5px; font-weight: bold; color: #0369a1;">Código PIX Copia e Cola:</span>
+                    <button type="button" onclick="navigator.clipboard.writeText('${payloadPixContrato}');alert('Código PIX Copia e Cola copiado com sucesso! Abra o app do seu banco e cole na opção Pix Copia e Cola.');" style="background: #0284c7; color: #ffffff; border: none; padding: 3px 6px; border-radius: 4px; font-size: 9px; font-weight: bold; cursor: pointer;">
                       📋 Copiar Código PIX
                     </button>
                   </div>
-                  <div style="font-family: monospace; font-size: 9px; color: #334155; word-break: break-all; max-height: 38px; overflow-y: auto; background: #f8fafc; padding: 4px 6px; border: 1px solid #cbd5e1; border-radius: 4px; user-select: all;" title="Código PIX Copia e Cola Oficial">
+                  <div style="font-family: monospace; font-size: 8.5px; color: #334155; word-break: break-all; max-height: 34px; overflow-y: auto; background: #f8fafc; padding: 3px 5px; border: 1px solid #cbd5e1; border-radius: 4px; user-select: all;" title="Código PIX Copia e Cola Oficial">
                     ${payloadPixContrato}
                   </div>
                 </div>
               ` : ''}
             </div>
-            <div style="margin-top: 6px; font-size: 11px; color: #0284c7;">
+            <div style="margin-top: 5px; font-size: 10px; color: #0284c7; line-height: 1.35;">
               ${clinica.instrucoesPix || 'O(A) CONTRATANTE poderá utilizar a câmera do smartphone ou app bancário para leitura do QR Code acima (o valor e favorecido já serão preenchidos automaticamente), ou utilizar o botão Copiar Código PIX.'}
             </div>
           </div>
@@ -1977,8 +1997,8 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
             <th>Descrição / Forma de Pagamento</th>
             <th style="width: 120px; text-align: center;">Vencimento</th>
             <th class="col-money">Valor da Parcela</th>
-            ${temAlgumPix ? `<th style="width: 175px; text-align: center;">PIX (QR Code / Copia e Cola)</th>` : ''}
-            <th style="width: 85px; text-align: center;">Situação</th>
+            ${temAlgumPix ? `<th style="width: 160px; text-align: center;">PIX (QR Code / Copia e Cola)</th>` : ''}
+            <th style="width: 80px; text-align: center;">Situação</th>
           </tr>
         </thead>
         <tbody>
@@ -2005,35 +2025,35 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
             }
 
             return `
-            <tr>
+            <tr class="evitar-corte" style="page-break-inside: avoid !important; break-inside: avoid !important;">
               <td class="col-num">${parc.numero}</td>
               <td><strong>${limparFormaPagamentoParaContrato(parc.descricao || `Parcela ${parc.numero}`)}</strong> ${parc.metodo ? `— ${limparFormaPagamentoParaContrato(parc.metodo)}` : ''}</td>
               <td style="text-align: center;"><strong>${vencTexto}</strong></td>
               <td class="col-money"><strong>${formatMoney(parc.valor)}</strong></td>
               ${temAlgumPix ? `
-                <td style="text-align: center; vertical-align: middle; padding: 6px;">
+                <td style="text-align: center; vertical-align: middle; padding: 4px 6px;">
                   ${isPaga ? `
-                    <span style="display: inline-block; padding: 3px 8px; background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; border-radius: 4px; font-size: 10px; font-weight: bold;">
+                    <span style="display: inline-block; padding: 2px 6px; background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; border-radius: 4px; font-size: 9.5px; font-weight: bold;">
                       ✔ Quitado
                     </span>
                   ` : isPix && parcQrCode ? `
-                    <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                    <div style="display: flex; flex-direction: column; align-items: center; gap: 3px;">
                       <a href="${parcQrCode}" target="_blank" rel="noopener noreferrer" title="Clique para abrir o QR Code em tela cheia" style="text-decoration: none; display: inline-block;">
-                        <img src="${parcQrCode}" alt="QR Code PIX ${formatMoney(parc.valor)}" style="width: 68px; height: 68px; border: 1px solid #bae6fd; border-radius: 4px; display: block;" />
-                        <span style="font-size: 8px; color: #0284c7; font-weight: bold; display: block; margin-top: 1px;">🔍 Abrir QR Code</span>
+                        <img src="${parcQrCode}" alt="QR Code PIX ${formatMoney(parc.valor)}" style="width: 46px; height: 46px; border: 1px solid #bae6fd; border-radius: 4px; display: block;" />
+                        <span style="font-size: 7.5px; color: #0284c7; font-weight: bold; display: block; margin-top: 1px;">🔍 Abrir QR Code</span>
                       </a>
                       ${parcPayload ? `
-                        <button type="button" onclick="navigator.clipboard.writeText('${parcPayload}');alert('Código PIX Copia e Cola da parcela ${parc.numero} (${formatMoney(parc.valor)}) copiado com sucesso! Abra o app do seu banco e cole na opção Pix Copia e Cola.');" style="background: #0284c7; color: #ffffff; border: none; padding: 3px 6px; border-radius: 3px; font-size: 9px; font-weight: bold; cursor: pointer; display: inline-flex; align-items: center; gap: 2px;">
+                        <button type="button" onclick="navigator.clipboard.writeText('${parcPayload}');alert('Código PIX Copia e Cola da parcela ${parc.numero} (${formatMoney(parc.valor)}) copiado com sucesso! Abra o app do seu banco e cole na opção Pix Copia e Cola.');" style="background: #0284c7; color: #ffffff; border: none; padding: 2px 5px; border-radius: 3px; font-size: 8.5px; font-weight: bold; cursor: pointer; display: inline-flex; align-items: center; gap: 2px;">
                           📋 Copiar PIX
                         </button>
                       ` : ''}
                     </div>
                   ` : `
-                    <span style="font-size: 10px; color: #94a3b8;">${isCartao ? '— (Cartão)' : '—'}</span>
+                    <span style="font-size: 9.5px; color: #94a3b8;">${isCartao ? '— (Cartão)' : '—'}</span>
                   `}
                 </td>
               ` : ''}
-              <td style="text-align: center; font-size: 11px;">${isPaga ? `<strong style="color: #059669;">Quitada</strong>` : (parc.status || (isCartao ? 'Autorizado' : 'A vencer'))}</td>
+              <td style="text-align: center; font-size: 10.5px;">${isPaga ? `<strong style="color: #059669;">Quitada</strong>` : (parc.status || (isCartao ? 'Autorizado' : 'A vencer'))}</td>
             </tr>
           `;
           }).join('')}
@@ -2103,8 +2123,8 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
         <strong>Parágrafo Sexto:</strong> A identificação de condições clínicas ocultas não implica autorização automática para a realização de procedimentos adicionais, tampouco afasta a responsabilidade profissional pela adequada avaliação, execução e acompanhamento dos serviços prestados.
       </p>
       ${snapshot.dadosRestauracoesPreexistentes && snapshot.dadosRestauracoesPreexistentes.possuiPreexistentes ? `
-      <div style="margin: 12px 0 10px; padding: 10px 14px; background-color: #f8fafc; border: 1px solid #cbd5e1; border-left: 4px solid #0284c7; border-radius: 4px; font-family: Arial, sans-serif; font-size: 11px; line-height: 1.5; color: #334155;">
-        <strong style="color: #0369a1; text-transform: uppercase; font-size: 10px; letter-spacing: 0.5px;">Registro Clínico de Restaurações Preexistentes:</strong><br/>
+      <div class="evitar-corte" style="margin: 8px 0; padding: 8px 12px; background-color: #f8fafc; border: 1px solid #cbd5e1; border-left: 4px solid #0284c7; border-radius: 4px; font-family: Arial, sans-serif; font-size: 10.5px; line-height: 1.45; color: #334155; page-break-inside: avoid !important; break-inside: avoid !important;">
+        <strong style="color: #0369a1; text-transform: uppercase; font-size: 9.5px; letter-spacing: 0.5px;">Registro Clínico de Restaurações Preexistentes:</strong><br/>
         • <strong>Tipo de Restauração Preexistente:</strong> ${snapshot.dadosRestauracoesPreexistentes.tipoRestauracao || 'Informado no prontuário'}<br/>
         • <strong>Dentes Envolvidos:</strong> ${snapshot.dadosRestauracoesPreexistentes.dentesEnvolvidos || 'Conforme exame clínico'}<br/>
         • <strong>Remoção Prevista:</strong> ${snapshot.dadosRestauracoesPreexistentes.remocaoPrevista ? 'Sim' : 'Não'}<br/>

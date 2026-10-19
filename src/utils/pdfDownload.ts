@@ -60,20 +60,25 @@ export const downloadHtmlAsPdf = async (html: string, filename: string): Promise
     body.style.background = '#ffffff';
     body.style.width = '794px';
     body.style.margin = '0';
+    body.style.padding = '8px 12px';
     body.style.boxSizing = 'border-box';
 
     // Mapeia posições verticais de blocos que não devem ser cortados ao meio
     const avoidSelectors = [
+      '.box-pix',
+      '.evitar-corte',
+      '[class*="box-pix"]',
+      '[class*="evitar-corte"]',
       '.alerta-box',
       '.grid-assinaturas',
       '.bloco-assinaturas',
       '.assinaturas',
       '.assinatura',
+      '.campo-assinatura',
       '.totais-resumo',
       '.totais',
       '.cabecalho',
       '.topo',
-      'table',
       'tr',
       'thead',
       '.clausula-titulo',
@@ -81,17 +86,28 @@ export const downloadHtmlAsPdf = async (html: string, filename: string): Promise
       'h1',
       'h2',
       'h3',
-      '[style*="border-left"]',
-      '[style*="border: 1px dashed"]',
-      '[style*="border: 1px solid"]',
+      'h4',
     ];
 
-    const avoidElements = Array.from(idoc.querySelectorAll(avoidSelectors.join(',')));
+    const rawAvoidElements = Array.from(idoc.querySelectorAll(avoidSelectors.join(',')));
+    const avoidElements = rawAvoidElements.filter((el) => {
+      // Se algum elemento pai já está na lista de evitar corte,
+      // ignora o elemento filho para manter o bloco pai 100% indivisível.
+      let parent = el.parentElement;
+      while (parent && parent !== body) {
+        if (rawAvoidElements.includes(parent)) {
+          return false;
+        }
+        parent = parent.parentElement;
+      }
+      return true;
+    });
+
     const scrollY = idoc.defaultView?.scrollY || 0;
     const domAvoidRanges = avoidElements.map((el) => {
       const rect = el.getBoundingClientRect();
       const isHeader =
-        /^(h1|h2|h3)$/i.test(el.tagName) ||
+        /^(h1|h2|h3|h4)$/i.test(el.tagName) ||
         el.classList.contains('clausula-titulo') ||
         el.classList.contains('secao-titulo');
       return {
@@ -116,11 +132,11 @@ export const downloadHtmlAsPdf = async (html: string, filename: string): Promise
     const pageW = pdf.internal.pageSize.getWidth();
     const pageH = pdf.internal.pageSize.getHeight();
 
-    // Margens elegantes e seguras na folha A4 (em pt)
-    const marginLeft = 26;
-    const marginRight = 26;
-    const marginTop = 28;
-    const marginBottom = 28;
+    // Margens elegantes e equilibradas na folha A4 (em pt)
+    const marginLeft = 22;
+    const marginRight = 22;
+    const marginTop = 22;
+    const marginBottom = 22;
 
     const printableW = pageW - marginLeft - marginRight;
     const printableH = pageH - marginTop - marginBottom;
@@ -202,14 +218,14 @@ export const downloadHtmlAsPdf = async (html: string, filename: string): Promise
           const rangeHeight = range.bottom - range.top;
           // Se o elemento cabe numa página inteira e o corte cruza seu interior
           if (rangeHeight < maxSliceH * 0.85 && range.top < targetCut && range.bottom > targetCut) {
-            if (range.top > currentOffset + maxSliceH * 0.35) {
+            if (range.top > currentOffset + maxSliceH * 0.25) {
               targetCut = range.top - 6;
               break;
             }
           }
           // Se for título que ficou nos últimos 80px do rodapé da página
           if (range.isHeader && range.bottom <= targetCut && range.bottom > targetCut - 80) {
-            if (range.top > currentOffset + maxSliceH * 0.35) {
+            if (range.top > currentOffset + maxSliceH * 0.25) {
               targetCut = range.top - 6;
               break;
             }
@@ -233,7 +249,7 @@ export const downloadHtmlAsPdf = async (html: string, filename: string): Promise
 
           // Varre de baixo para cima procurando uma linha horizontal livre de texto
           for (let relY = stripH - 1; relY >= 0; relY--) {
-            let rowHasInk = false;
+            let darkPixelsCount = 0;
             const rowStart = relY * canvas.width * 4;
 
             for (let x = marginScanX; x < endScanX; x += 4) {
@@ -243,14 +259,18 @@ export const downloadHtmlAsPdf = async (html: string, filename: string): Promise
               const b = data[idx + 2];
               const a = data[idx + 3];
 
-              // Pixel escuro pertencente a caracteres ou linhas de texto
-              if (a > 30 && (r < 210 || g < 210 || b < 210)) {
-                rowHasInk = true;
-                break;
+              // Pixel escuro pertencente a caracteres ou linhas de texto (ignora fundos claros, marcas e bordas)
+              if (a > 70 && r < 140 && g < 140 && b < 140) {
+                darkPixelsCount++;
+                if (darkPixelsCount > 5) {
+                  break;
+                }
               }
             }
 
-            if (!rowHasInk) {
+            // Se a linha tem 5 ou menos pixels escuros (apenas bordas verticais ou espaço em branco),
+            // encontramos um corte seguro entre linhas de texto ou parágrafos
+            if (darkPixelsCount <= 5) {
               bestCut = searchMin + relY;
               foundBlank = true;
               break;
