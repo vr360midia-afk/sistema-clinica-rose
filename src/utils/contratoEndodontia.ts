@@ -2,6 +2,7 @@ import {
   ContratoSnapshot,
   formatarDataPorExtenso,
   isMetodoCartao,
+  limparFormaPagamentoParaContrato,
 } from './contratoEngine';
 import { identificarTipoDocumento, temValorValido } from './documentoFormat';
 import { formatMoney } from './exportCsv';
@@ -461,7 +462,7 @@ export const gerarHtmlContratoEndodontia = (snapshot: ContratoSnapshot): string 
         4.1. O pagamento será realizado conforme a negociação financeira aprovada pelo paciente:
       </p>
       <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 8px 12px; font-family: Arial, sans-serif; font-size: 11px; line-height: 1.5; border-radius: 4px; margin: 4px 0 6px;">
-        • <strong>Modalidade acordada:</strong> ${financeiro.formaPagamento}<br/>
+        • <strong>Modalidade acordada:</strong> ${limparFormaPagamentoParaContrato(financeiro.formaPagamento)}<br/>
         • <strong>Valor total:</strong> ${formatMoney(financeiro.total)}<br/>
         • <strong>Entrada, quando aplicável:</strong> ${financeiro.entrada > 0 ? formatMoney(financeiro.entrada) : 'Não aplicável (sem entrada)'}<br/>
         • <strong>Quantidade de parcelas:</strong> ${financeiro.quantidadeParcelas}x<br/>
@@ -507,7 +508,7 @@ export const gerarHtmlContratoEndodontia = (snapshot: ContratoSnapshot): string 
           ${financeiro.parcelas && financeiro.parcelas.length > 0 ? financeiro.parcelas.map((p) => `
             <tr>
               <td><strong>${p.numero === 0 ? 'Entrada' : `${p.numero}ª`}</strong></td>
-              <td>${p.descricao || (p.numero === 0 ? 'Entrada' : `Parcela ${p.numero}`)}</td>
+              <td>${limparFormaPagamentoParaContrato(p.descricao || (p.numero === 0 ? 'Entrada' : `Parcela ${p.numero}`))}</td>
               <td>${isMetodoCartao(p.metodo, p.descricao) ? 'Fatura do Cartão' : p.vencimento}</td>
               <td><strong>${formatMoney(p.valor)}</strong></td>
               <td><span style="font-size: 10px; color: ${p.status === 'Quitada' ? '#15803d' : '#334155'};">${p.status || 'A vencer'}</span></td>
@@ -515,7 +516,7 @@ export const gerarHtmlContratoEndodontia = (snapshot: ContratoSnapshot): string 
           `).join('') : `
             <tr>
               <td><strong>Única</strong></td>
-              <td>${financeiro.formaPagamento}</td>
+              <td>${limparFormaPagamentoParaContrato(financeiro.formaPagamento)}</td>
               <td>À vista / Na contratação</td>
               <td><strong>${formatMoney(financeiro.total)}</strong></td>
               <td>A vencer</td>

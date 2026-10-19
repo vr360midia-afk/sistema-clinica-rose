@@ -281,21 +281,18 @@ const PatientOrcamentos = ({ patient }: Props) => {
       }
 
       if (f.metodo === 'cartao') {
-        const calc = calcularTaxaCartao(op, f.parcelas || 1, f.valor, isDeb);
-        const taxaDesc = calc.taxaValor > 0 ? ` (Taxa ${opNome}: ${calc.taxaPercentual}% / ${formatMoney(calc.taxaValor)})` : '';
-        
         if (isDeb) {
           const dataStr = f.dataPagamento ? ` (em ${formatBrDate(f.dataPagamento)})` : '';
-          partes.push(`${f.rotulo}: ${formatMoney(f.valor)} via Débito (${opNome})${dataStr}${taxaDesc}${sitStr}`);
+          partes.push(`${f.rotulo}: ${formatMoney(f.valor)} via Débito${dataStr}${sitStr}`);
         } else {
           const valParc = (f.parcelas || 1) > 1 ? f.valor / f.parcelas : f.valor;
           if ((f.parcelas || 1) > 1) {
             partes.push(
-              `${f.rotulo}: ${formatMoney(f.valor)} em ${f.parcelas}x de ${formatMoney(valParc)} no Cartão de Crédito (${opNome})${taxaDesc}${sitStr}`
+              `${f.rotulo}: ${formatMoney(f.valor)} em ${f.parcelas}x de ${formatMoney(valParc)} no Cartão de Crédito${sitStr}`
             );
           } else {
             const dataStr = f.dataPagamento ? ` (em ${formatBrDate(f.dataPagamento)})` : '';
-            partes.push(`${f.rotulo}: ${formatMoney(f.valor)} via Cartão de Crédito à vista (${opNome})${dataStr}${taxaDesc}${sitStr}`);
+            partes.push(`${f.rotulo}: ${formatMoney(f.valor)} via Cartão de Crédito à vista${dataStr}${sitStr}`);
           }
         }
       } else if ((f.parcelas || 1) > 1 && (f.metodo === 'pix_parcelado' || f.metodo === 'boleto')) {
@@ -653,15 +650,11 @@ const PatientOrcamentos = ({ patient }: Props) => {
     if (modalidadeSaldo === 'combinar') {
       textoSaldo = `Saldo Restante: ${formatMoney(saldo)} a combinar`;
     } else if (modalidadeSaldo === 'cartao') {
-      const op = operadoras.find((o) => o.id === saldoCartaoOperadoraId) || operadoraPadrao;
-      const opNome = op?.nome || 'Cartão';
-      const calc = calcularTaxaCartao(op, saldoCartaoParcelas, saldo, false);
       const valParc = saldo / saldoCartaoParcelas;
-      const taxaDesc = calc.taxaValor > 0 ? ` (Taxa ${opNome}: ${calc.taxaPercentual}% / ${formatMoney(calc.taxaValor)})` : '';
       if (saldoCartaoParcelas === 1) {
-        textoSaldo = `Saldo: ${formatMoney(saldo)} via Cartão de Crédito à vista (${opNome})${taxaDesc} [Autorizado]`;
+        textoSaldo = `Saldo: ${formatMoney(saldo)} via Cartão de Crédito à vista [Autorizado]`;
       } else {
-        textoSaldo = `Saldo: ${formatMoney(saldo)} em ${saldoCartaoParcelas}x de ${formatMoney(valParc)} no Cartão de Crédito (${opNome})${taxaDesc} [Autorizado]`;
+        textoSaldo = `Saldo: ${formatMoney(saldo)} em ${saldoCartaoParcelas}x de ${formatMoney(valParc)} no Cartão de Crédito [Autorizado]`;
       }
     } else if (modalidadeSaldo === 'pix_parcelado') {
       const valParc = saldo / saldoPixParcelas;
@@ -2759,11 +2752,11 @@ const PatientOrcamentos = ({ patient }: Props) => {
                     const aplicarAoOrcamento = () => {
                       let textoFinal = '';
                       if (isDeb) {
-                        textoFinal = `Cartão de Débito (${opNome}) - Taxa ${calc.taxaPercentual}%: ${formatMoney(calc.taxaValor)}`;
+                        textoFinal = 'Cartão de Débito';
                       } else if (cartaoParcelas === 1) {
-                        textoFinal = `Cartão de Crédito à vista 1x (${opNome}) - Taxa ${calc.taxaPercentual}%: ${formatMoney(calc.taxaValor)}`;
+                        textoFinal = 'Cartão de Crédito à vista 1x';
                       } else {
-                        textoFinal = `Cartão de Crédito (${opNome}) em ${cartaoParcelas}x de ${formatMoney(calc.valorParcelaBruto)} (Taxa ${calc.taxaPercentual}%: ${formatMoney(calc.taxaValor)})`;
+                        textoFinal = `Cartão de Crédito em ${cartaoParcelas}x de ${formatMoney(calc.valorParcelaBruto)}`;
                       }
                       setFormasPagamento(textoFinal);
                       toast.success(`Plano de cartão (${opNome}) aplicado ao orçamento!`);

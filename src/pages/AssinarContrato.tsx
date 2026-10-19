@@ -47,6 +47,7 @@ import {
   obterCardsResumoPagamento,
   isMetodoPix,
   isMetodoCartao,
+  limparFormaPagamentoParaContrato,
 } from '@/utils/contratoEngine';
 import {
   Dialog,
@@ -661,7 +662,7 @@ export default function AssinarContrato() {
               <div className="text-left sm:text-right">
                 <span className="text-xs text-muted-foreground block">Forma Acordada:</span>
                 <Badge variant="outline" className="bg-white dark:bg-slate-900 border-blue-300 text-blue-800 dark:text-blue-300 text-xs font-semibold mt-0.5">
-                  {snapshot.financeiro.formaPagamento}
+                  {limparFormaPagamentoParaContrato(snapshot.financeiro.formaPagamento)}
                 </Badge>
               </div>
             </div>
@@ -874,7 +875,7 @@ export default function AssinarContrato() {
                           <div>
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="font-bold text-sm text-slate-800 dark:text-slate-100">
-                                {parc.descricao || `Parcela ${parc.numero}`}
+                                {limparFormaPagamentoParaContrato(parc.descricao || `Parcela ${parc.numero}`)}
                               </span>
                               {parc.status && (
                                 <Badge variant="outline" className={cn(
@@ -888,7 +889,7 @@ export default function AssinarContrato() {
                             <div className="flex items-center gap-2.5 text-xs text-muted-foreground mt-0.5 flex-wrap">
                               <span>Vencimento: <strong className="text-slate-700 dark:text-slate-300">{parc.vencimento}</strong></span>
                               <span>•</span>
-                              <span>Forma: <span className="font-medium text-slate-700 dark:text-slate-300">{parc.metodo || (isPix ? 'PIX' : 'A combinar')}</span></span>
+                              <span>Forma: <span className="font-medium text-slate-700 dark:text-slate-300">{limparFormaPagamentoParaContrato(parc.metodo || (isPix ? 'PIX' : 'A combinar'))}</span></span>
                             </div>
                           </div>
                         </div>

@@ -346,13 +346,38 @@ export const isContratoEndodontia = (snapshot?: ContratoSnapshot | null): boolea
 };
 
 /**
+ * Remove menções a operadoras/maquininhas de cartão (PagBank, InfinitePay, Stone, etc.) e taxas da máquina
+ * de qualquer texto destinado ao contrato do paciente (cláusulas, resumo, parcelas, etc.).
+ */
+export const limparFormaPagamentoParaContrato = (texto?: string): string => {
+  if (!texto) return '';
+  return texto
+    // 1. Remove blocos de taxa como "(Taxa PagBank: 10.7% / R$ 267,50)", "(Taxa 10.7%: R$ 267,50)", "(Taxa: 10.7%)", etc.
+    .replace(/\s*\(\s*Taxa[^)]*\)/gi, '')
+    // 2. Remove padrões como " - Taxa 10.7%: R$ 267,50"
+    .replace(/\s*-\s*Taxa[^\n,;+\[\]]*/gi, '')
+    // 3. Remove menções explícitas de taxas sem parênteses
+    .replace(/\s*Taxa\s+(?:da\s+m[aá]quina|de\s+cart[aã]o|[A-Za-z0-9_-]+)?(?::|\s+)[^,;+\[\]\n\)]*/gi, '')
+    // 4. Remove menções a nomes de operadoras/maquininhas entre parênteses: "(PagBank)", "(InfinitePay)", "(Stone)", etc.
+    .replace(/\s*\(\s*(?:PagBank|PagSeguro|InfinitePay|Infinite\s*Pay|Stone|Cielo|Rede|Getnet|SumUp|SafraPay|Moderninha|Ton|Mercado\s*Pago|Maquininha|M[aá]quina)\s*\)/gi, '')
+    // 5. Remove menções com hífen: "- PagBank", "- InfinitePay", etc.
+    .replace(/\s*-\s*(?:PagBank|PagSeguro|InfinitePay|Infinite\s*Pay|Stone|Cielo|Rede|Getnet|SumUp|SafraPay|Moderninha|Ton|Mercado\s*Pago|Maquininha|M[aá]quina)(?=\s|$|,|\+|\)|\])/gi, '')
+    // 6. Remove parênteses vazios resultantes
+    .replace(/\(\s*\)/g, '')
+    // 7. Normaliza espaços múltiplos e pontuação
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s+([,.:;])/g, '$1')
+    .trim();
+};
+
+/**
  * Extrai os cartões visuais do resumo financeiro e condições de pagamento para exibição na tela de assinatura
  * e na pré-visualização do contrato. Trata de forma inteligente entradas, parcelamentos e opções finais (ex: PIX Final).
  */
 export const obterCardsResumoPagamento = (snapshot?: Partial<ContratoSnapshot> | null): ContratoCardPagamento[] => {
   if (!snapshot || !snapshot.financeiro) return [];
   const financeiro = snapshot.financeiro;
-  const formasTexto = (financeiro.formaPagamento || snapshot.orcamento?.formasPagamento || '').trim();
+  const formasTexto = limparFormaPagamentoParaContrato(financeiro.formaPagamento || snapshot.orcamento?.formasPagamento || '').trim();
   const parcelas = financeiro.parcelas || [];
   const cards: ContratoCardPagamento[] = [];
 
@@ -577,7 +602,12 @@ export const obterCardsResumoPagamento = (snapshot?: Partial<ContratoSnapshot> |
     });
   }
 
-  return cards;
+  return cards.map((c) => ({
+    ...c,
+    rotulo: limparFormaPagamentoParaContrato(c.rotulo),
+    metodo: c.metodo ? limparFormaPagamentoParaContrato(c.metodo) : c.metodo,
+    detalhe: c.detalhe ? limparFormaPagamentoParaContrato(c.detalhe) : undefined,
+  }));
 };
 
 /**
@@ -695,7 +725,7 @@ export const mapearDadosContrato = ({
     desconto,
     total,
     totalExtenso,
-    formasPagamento: orcamento?.formasPagamento || orcamento?.formas_pagamento || 'Conforme acordado entre as partes',
+    formasPagamento: limparFormaPagamentoParaContrato(orcamento?.formasPagamento || orcamento?.formas_pagamento || 'Conforme acordado entre as partes'),
     validade: formatarData(orcamento?.validade),
     dataAprovacao: formatarData(orcamento?.atualizadoEm || orcamento?.criadoEm),
     itens: itensOrcamento,
@@ -1112,12 +1142,16 @@ export const mapearDadosContrato = ({
     desconto,
     total,
     totalExtenso,
-    formaPagamento: orcamento?.formasPagamento || orcamento?.formas_pagamento || 'A combinar',
+    formaPagamento: limparFormaPagamentoParaContrato(orcamento?.formasPagamento || orcamento?.formas_pagamento || 'A combinar'),
     entrada,
-    parcelas,
+    parcelas: parcelas.map((p) => ({
+      ...p,
+      descricao: limparFormaPagamentoParaContrato(p.descricao),
+      metodo: p.metodo ? limparFormaPagamentoParaContrato(p.metodo) : p.metodo,
+    })),
     quantidadeParcelas,
     valorParcela,
-    metodoParcelamento: parcelamentoMetodoDetectado || undefined,
+    metodoParcelamento: parcelamentoMetodoDetectado ? limparFormaPagamentoParaContrato(parcelamentoMetodoDetectado) : undefined,
   };
 
   // Detecção e estruturação do modelo de contrato (Endodontia / Lentes / Geral)
@@ -1704,7 +1738,7 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
     <div class="clausula-bloco">
       <div class="clausula-titulo">${numClausula()} — ${tituloClausulaPagamento}</div>
       <p class="paragrafo">
-        O adimplemento do valor total avençado na Cláusula 2ª dar-se-á estritamente em conformidade com o acordado no <strong>Orçamento nº #${orcamento.numeroIdentificador}</strong> e com as formas de pagamento convencionadas entre as partes, registradas como: <strong>"${financeiro.formaPagamento}"</strong>.
+        O adimplemento do valor total avençado na Cláusula 2ª dar-se-á estritamente em conformidade com o acordado no <strong>Orçamento nº #${orcamento.numeroIdentificador}</strong> e com as formas de pagamento convencionadas entre as partes, registradas como: <strong>"${limparFormaPagamentoParaContrato(financeiro.formaPagamento)}"</strong>.
       </p>
 
       ${financeiro.entrada > 0 ? `
@@ -1874,7 +1908,7 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
             return `
             <tr>
               <td class="col-num">${parc.numero}</td>
-              <td><strong>${parc.descricao || `Parcela ${parc.numero}`}</strong> ${parc.metodo ? `— ${parc.metodo}` : ''}</td>
+              <td><strong>${limparFormaPagamentoParaContrato(parc.descricao || `Parcela ${parc.numero}`)}</strong> ${parc.metodo ? `— ${limparFormaPagamentoParaContrato(parc.metodo)}` : ''}</td>
               <td style="text-align: center;"><strong>${vencTexto}</strong></td>
               <td class="col-money"><strong>${formatMoney(parc.valor)}</strong></td>
               ${temAlgumPix ? `
