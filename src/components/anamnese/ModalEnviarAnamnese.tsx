@@ -25,6 +25,7 @@ import {
 import { toast } from 'sonner';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import { openWhatsApp } from '@/lib/whatsapp';
+import { gerarLinkAmigavelAnamnese } from '@/utils/anamneseEngine';
 
 interface ModalEnviarAnamneseProps {
   patient: any;
@@ -49,7 +50,10 @@ export const ModalEnviarAnamnese = ({
   const [copiadoAssinar, setCopiadoAssinar] = useState(false);
 
   useEffect(() => {
-    if (!isOpen || !patient?.id) return;
+    if (!isOpen || !patient?.id) {
+      setLoading(false);
+      return;
+    }
 
     let cancelado = false;
 
@@ -79,19 +83,60 @@ export const ModalEnviarAnamnese = ({
         if (cancelado) return;
         setAnamneseAtiva(targetAnamnese);
 
-        // Gera ambos os links com parâmetros explícitos
-        const [urlPreencher, urlAssinar] = await Promise.all([
-          generateSignatureLink(targetAnamnese.id, 'preencher'),
-          generateSignatureLink(targetAnamnese.id, 'assinar'),
-        ]);
+        // Gera ambos os links imediatamente de forma síncrona
+        const token = targetAnamnese.tokenAssinatura || Math.random().toString(36).substring(2, 12);
+        const urlPreencher = gerarLinkAmigavelAnamnese({
+          anamneseId: targetAnamnese.id,
+          paciente: {
+            id: patient.id,
+            nome: patient.nome,
+            telefone: patient.telefone,
+            cpf: patient.cpf,
+          },
+          modo: 'preencher',
+          token,
+          dadosExistentes: {
+            queixaPrincipal: targetAnamnese.queixaPrincipal,
+            historiaAtual: targetAnamnese.historiaAtual,
+            historiaMedica: targetAnamnese.historiaMedica,
+            alergias: targetAnamnese.alergias,
+            medicamentos: targetAnamnese.medicamentos,
+            habitos: targetAnamnese.habitos,
+            observacoes: targetAnamnese.observacoes,
+          },
+        });
+
+        const urlAssinar = gerarLinkAmigavelAnamnese({
+          anamneseId: targetAnamnese.id,
+          paciente: {
+            id: patient.id,
+            nome: patient.nome,
+            telefone: patient.telefone,
+            cpf: patient.cpf,
+          },
+          modo: 'assinar',
+          token,
+          dadosExistentes: {
+            queixaPrincipal: targetAnamnese.queixaPrincipal,
+            historiaAtual: targetAnamnese.historiaAtual,
+            historiaMedica: targetAnamnese.historiaMedica,
+            alergias: targetAnamnese.alergias,
+            medicamentos: targetAnamnese.medicamentos,
+            habitos: targetAnamnese.habitos,
+            observacoes: targetAnamnese.observacoes,
+          },
+        });
 
         if (cancelado) return;
         setLinkPreencher(urlPreencher);
         setLinkAssinar(urlAssinar);
+        setLoading(false);
+
+        // Sincroniza em background sem travar a interface
+        generateSignatureLink(targetAnamnese.id, 'preencher').catch(() => {});
       } catch (err: any) {
         console.error('Erro ao preparar links da anamnese:', err);
         toast.error('Erro ao gerar links: ' + (err?.message || 'Tente novamente'));
-      } finally {
         if (!cancelado) setLoading(false);
       }
     };
@@ -101,7 +146,7 @@ export const ModalEnviarAnamnese = ({
     return () => {
       cancelado = true;
     };
-  }, [isOpen, patient?.id, anamneses]);
+  }, [isOpen, patient?.id]);
 
   const isAssinada = Boolean(
     anamneseAtiva?.assinaturaPaciente ||
