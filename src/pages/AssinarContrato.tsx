@@ -94,8 +94,8 @@ export default function AssinarContrato() {
   } | null>(null);
   const [copiouModalPix, setCopiouModalPix] = useState(false);
 
-  // Estados de Autorização de Uso de Imagem e Voz (Facultativo)
-  const [autorizaImagem, setAutorizaImagem] = useState<boolean>(false);
+  // Estados de Autorização de Uso de Imagem e Voz (Facultativo - Autorizo por primeiro)
+  const [autorizaImagem, setAutorizaImagem] = useState<boolean>(true);
   const [usoDidatico, setUsoDidatico] = useState<boolean>(true);
   const [usoPublicitario, setUsoPublicitario] = useState<boolean>(true);
   const [identificacao, setIdentificacao] = useState<'rosto_e_voz' | 'apenas_voz' | 'apenas_bucal' | 'nao_autoriza_identificacao'>('rosto_e_voz');
@@ -125,23 +125,31 @@ export default function AssinarContrato() {
     return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [isFullScreen]);
 
-  // Sincroniza escolhas de imagem a partir do snapshot
+  // Sincroniza escolhas de imagem a partir do snapshot (Autorizo por primeiro)
   useEffect(() => {
-    if (snapshot?.termoUsoImagem) {
-      setAutorizaImagem(Boolean(snapshot.termoUsoImagem.autorizado));
-      if (snapshot.termoUsoImagem.usoDidaticoCientifico !== undefined) {
-        setUsoDidatico(snapshot.termoUsoImagem.usoDidaticoCientifico);
-      }
-      if (snapshot.termoUsoImagem.usoPublicitarioRedesSociais !== undefined) {
-        setUsoPublicitario(snapshot.termoUsoImagem.usoPublicitarioRedesSociais);
-      }
-      if (snapshot.termoUsoImagem.identificacaoFacialVoz) {
-        setIdentificacao(snapshot.termoUsoImagem.identificacaoFacialVoz);
+    if (snapshot) {
+      const isJaAssinado = Boolean(snapshot.assinaturaPaciente?.assinaturaData || snapshot.status === 'assinado');
+      if (isJaAssinado && snapshot.termoUsoImagem) {
+        setAutorizaImagem(Boolean(snapshot.termoUsoImagem.autorizado));
       } else {
-        setIdentificacao('rosto_e_voz');
+        // Para contratos pendentes ou novos, define 'Autorizo' por primeiro
+        setAutorizaImagem(true);
       }
-      if (snapshot.termoUsoImagem.depoimentos !== undefined) {
-        setDepoimentos(snapshot.termoUsoImagem.depoimentos);
+      if (snapshot.termoUsoImagem) {
+        if (snapshot.termoUsoImagem.usoDidaticoCientifico !== undefined) {
+          setUsoDidatico(snapshot.termoUsoImagem.usoDidaticoCientifico);
+        }
+        if (snapshot.termoUsoImagem.usoPublicitarioRedesSociais !== undefined) {
+          setUsoPublicitario(snapshot.termoUsoImagem.usoPublicitarioRedesSociais);
+        }
+        if (snapshot.termoUsoImagem.identificacaoFacialVoz) {
+          setIdentificacao(snapshot.termoUsoImagem.identificacaoFacialVoz);
+        } else {
+          setIdentificacao('rosto_e_voz');
+        }
+        if (snapshot.termoUsoImagem.depoimentos !== undefined) {
+          setDepoimentos(snapshot.termoUsoImagem.depoimentos);
+        }
       }
     }
   }, [snapshot?.contratoId]);
@@ -1091,42 +1099,9 @@ export default function AssinarContrato() {
                   <strong> Caso opte por NÃO autorizar</strong>, o termo <u>não</u> será anexado ao seu contrato e o seu atendimento odontológico seguirá rigorosamente com o mesmo cuidado, dedicação e sigilo profissional.
                 </div>
 
-                {/* Cards de Opção: NÃO AUTORIZO vs DESEJO AUTORIZAR */}
+                {/* Cards de Opção: DESEJO AUTORIZAR (1º) vs NÃO AUTORIZO (2º) */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                  {/* Opção 1: NÃO AUTORIZO */}
-                  <button
-                    type="button"
-                    onClick={() => handleAtualizarTermoImagem(false)}
-                    className={cn(
-                      "p-3.5 rounded-xl border-2 text-left transition-all cursor-pointer flex items-start gap-3 relative",
-                      !autorizaImagem
-                        ? "border-slate-700 bg-slate-900 text-white shadow-md dark:border-slate-400 dark:bg-slate-800"
-                        : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 text-slate-700 dark:text-slate-300"
-                    )}
-                  >
-                    <div className={cn(
-                      "p-2 rounded-lg shrink-0",
-                      !autorizaImagem ? "bg-white/20 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-500"
-                    )}>
-                      <EyeOff className="h-5 w-5" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-xs sm:text-sm">NÃO AUTORIZO</span>
-                        {!autorizaImagem && (
-                          <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-                        )}
-                      </div>
-                      <p className={cn(
-                        "text-[11px] mt-1 leading-snug",
-                        !autorizaImagem ? "text-slate-200" : "text-muted-foreground"
-                      )}>
-                        Prefiro não divulgar imagens/voz. Meu atendimento segue normalmente e o termo <strong>NÃO</strong> será anexado ao contrato.
-                      </p>
-                    </div>
-                  </button>
-
-                  {/* Opção 2: DESEJO AUTORIZAR */}
+                  {/* Opção 1: DESEJO AUTORIZAR (Por Primeiro) */}
                   <button
                     type="button"
                     onClick={() => handleAtualizarTermoImagem(true)}
@@ -1155,6 +1130,39 @@ export default function AssinarContrato() {
                         autorizaImagem ? "text-emerald-100" : "text-muted-foreground"
                       )}>
                         Autorizo o uso para fins odontológicos. Ativa a leitura do termo na íntegra, opções e inclusão em anexo.
+                      </p>
+                    </div>
+                  </button>
+
+                  {/* Opção 2: NÃO AUTORIZO */}
+                  <button
+                    type="button"
+                    onClick={() => handleAtualizarTermoImagem(false)}
+                    className={cn(
+                      "p-3.5 rounded-xl border-2 text-left transition-all cursor-pointer flex items-start gap-3 relative",
+                      !autorizaImagem
+                        ? "border-slate-700 bg-slate-900 text-white shadow-md dark:border-slate-400 dark:bg-slate-800"
+                        : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 text-slate-700 dark:text-slate-300"
+                    )}
+                  >
+                    <div className={cn(
+                      "p-2 rounded-lg shrink-0",
+                      !autorizaImagem ? "bg-white/20 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-500"
+                    )}>
+                      <EyeOff className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-xs sm:text-sm">NÃO AUTORIZO</span>
+                        {!autorizaImagem && (
+                          <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                        )}
+                      </div>
+                      <p className={cn(
+                        "text-[11px] mt-1 leading-snug",
+                        !autorizaImagem ? "text-slate-200" : "text-muted-foreground"
+                      )}>
+                        Prefiro não divulgar imagens/voz. Meu atendimento segue normalmente e o termo <strong>NÃO</strong> será anexado ao contrato.
                       </p>
                     </div>
                   </button>

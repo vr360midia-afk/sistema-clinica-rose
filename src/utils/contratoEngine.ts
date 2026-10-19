@@ -1186,7 +1186,7 @@ export const mapearDadosContrato = ({
     dadosEndodontia: dadosEndodontiaFinal,
     termoUsoImagem: termoUsoImagem !== undefined ? termoUsoImagem : {
       ativo: true,
-      autorizado: false, // Por padrão facultativo: aguarda manifestação de autorização do paciente
+      autorizado: true, // Por padrão: autorizado por primeiro, com faculdade do paciente optar por não autorizar
       usoDidaticoCientifico: true,
       usoPublicitarioRedesSociais: true,
       identificacaoFacialVoz: 'rosto_e_voz',
