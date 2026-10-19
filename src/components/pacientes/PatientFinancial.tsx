@@ -20,6 +20,7 @@ import { calcularSaldosOrcamentos } from '@/utils/orcamentoSaldo';
 import { FinanceiroComprovantes } from '@/components/financeiro/FinanceiroComprovantes';
 import { useMaquinasCartao, calcularTaxaCartao } from '@/hooks/useMaquinasCartao';
 import { slugifyNome } from '@/utils/anamneseEngine';
+import { EditProcedimentoValorModal } from './EditProcedimentoValorModal';
 
 interface PatientFinancialProps {
   patient: any;
