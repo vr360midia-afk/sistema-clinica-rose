@@ -22,9 +22,10 @@ import { openWhatsApp } from '@/lib/whatsapp';
 import { useSecurityGate } from '@/context/SecurityContext';
 import { useProcedimentos } from '@/hooks/useProcedimentos';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Users, Search, Plus, UserCheck, Calendar, Archive, MoreVertical, Edit2, Trash2, RotateCcw, Stethoscope, Sparkles, ClipboardList, Link2 } from 'lucide-react';
+import { Users, Search, Plus, UserCheck, Calendar, Archive, MoreVertical, Edit2, Trash2, RotateCcw, Stethoscope, Sparkles, ClipboardList, Link2, UploadCloud } from 'lucide-react';
 import { Procedimento } from '@/types/procedimentos';
 import { ScannerProntuarioModal } from '@/components/pacientes/ScannerProntuarioModal';
+import { ModalLeitorPdfFichas } from '@/components/pacientes/ModalLeitorPdfFichas';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { ModalEnviarAnamnese } from '@/components/anamnese/ModalEnviarAnamnese';
 import { PacienteCombobox } from '@/components/pacientes/PacienteCombobox';
@@ -62,6 +63,7 @@ const Pacientes = () => {
   const { requireMasterPassword } = useSecurityGate();
   
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [isLeitorPdfOpen, setIsLeitorPdfOpen] = useState(false);
   const { configuracoes } = useConfiguracoes();
 
   const handleScannerResult = (dadosExtraidos: any) => {
@@ -419,9 +421,17 @@ const Pacientes = () => {
               <ClipboardList className="h-4 w-4 mr-2 text-indigo-600" />
               Enviar Anamnese
             </Button>
-            <Button onClick={() => setIsScannerOpen(true)} className="bg-indigo-600 hover:bg-indigo-700 h-10 px-4 font-semibold text-white shadow-xs shrink-0">
-              <Sparkles className="h-4 w-4 mr-2" />
-              Ficha Digital
+            <Button
+              onClick={() => setIsLeitorPdfOpen(true)}
+              className="bg-emerald-600 hover:bg-emerald-700 h-10 px-4 font-semibold text-white shadow-xs shrink-0 gap-1.5 cursor-pointer"
+              title="Importar e ler arquivos PDF de fichas manuais, associando ao paciente ou criando nova ficha automaticamente"
+            >
+              <UploadCloud className="h-4 w-4" />
+              Importar Fichas PDF
+            </Button>
+            <Button onClick={() => setIsScannerOpen(true)} variant="outline" className="h-10 px-4 font-semibold shadow-xs shrink-0">
+              <Sparkles className="h-4 w-4 mr-2 text-indigo-600" />
+              Ficha Digital (IA)
             </Button>
             <Button onClick={handleAddProcedimento} variant="outline" className="h-10 px-4 font-medium shrink-0">
               <Stethoscope className="h-4 w-4 mr-2" />
@@ -883,6 +893,10 @@ const Pacientes = () => {
         geminiApiKey={configuracoes?.geminiApiKey || ''}
         openaiApiKey={configuracoes?.openaiApiKey || ''}
         onExtraido={handleScannerResult}
+      />
+      <ModalLeitorPdfFichas
+        isOpen={isLeitorPdfOpen}
+        onClose={() => setIsLeitorPdfOpen(false)}
       />
     </Layout>
   );

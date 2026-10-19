@@ -35,6 +35,7 @@ import {
   Download,
   Printer,
   Loader2,
+  UploadCloud,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDentalSystem } from '@/context/DentalSystemContext';
@@ -43,6 +44,7 @@ import { useConfiguracoesContrato } from '@/hooks/useConfiguracoesContrato';
 import { downloadAnamnesePdf, imprimirAnamneseHtml, AnamnesePdfData } from '@/utils/anamnesePdf';
 import AnamneseModal from '@/components/anamnese/AnamneseModal';
 import { ModalEnviarAnamnese } from '@/components/anamnese/ModalEnviarAnamnese';
+import { ModalLeitorPdfFichas } from '@/components/pacientes/ModalLeitorPdfFichas';
 import { PacienteCombobox } from '@/components/pacientes/PacienteCombobox';
 import DigitalSignature, { SignatureData } from '@/components/signature/DigitalSignature';
 import { openWhatsApp } from '@/lib/whatsapp';
@@ -57,6 +59,7 @@ const Anamnese = () => {
   const [statusFilter, setStatusFilter] = useState<'todos' | 'pendente' | 'assinado'>('todos');
   const [isNewModalOpen, setIsNewModalOpen] = useState(false);
   const [isEscolherPacienteOpen, setIsEscolherPacienteOpen] = useState(false);
+  const [isLeitorPdfOpen, setIsLeitorPdfOpen] = useState(false);
   const [copiandoId, setCopiandoId] = useState<string | null>(null);
   const [gerandoLinkId, setGerandoLinkId] = useState<string | null>(null);
   const [gerandoPdfId, setGerandoPdfId] = useState<string | null>(null);
@@ -329,6 +332,16 @@ const Anamnese = () => {
           </div>
 
           <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+            <Button
+              onClick={() => setIsLeitorPdfOpen(true)}
+              variant="outline"
+              className="font-semibold shadow-xs gap-1.5 w-full sm:w-auto border-emerald-500/40 text-emerald-700 bg-emerald-50/50 hover:bg-emerald-100 dark:border-emerald-800 dark:text-emerald-300 dark:bg-emerald-950/40 cursor-pointer"
+              title="Digitalizar e importar fichas manuais em PDF vinculando ao paciente ou criando nova ficha"
+            >
+              <UploadCloud className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+              Importar Fichas PDF
+            </Button>
+
             <Button
               onClick={() => setIsEscolherPacienteOpen(true)}
               className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-xs gap-1.5 w-full sm:w-auto"
@@ -1067,6 +1080,11 @@ const Anamnese = () => {
             })()}
           </DialogContent>
         </Dialog>
+
+        <ModalLeitorPdfFichas
+          isOpen={isLeitorPdfOpen}
+          onClose={() => setIsLeitorPdfOpen(false)}
+        />
       </div>
     </Layout>
   );
