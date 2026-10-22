@@ -270,6 +270,8 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
         let taxaValorItem: number | undefined = undefined;
         let liquidoItem: number | undefined = undefined;
 
+        let totalTaxasCartaoQuitadas = 0;
+
         if (isCartao) {
           const infoCartao = extrairDetalhesCartaoDeTexto(
             `${orcamentoAtual.formasPagamento || orcamentoAtual.formas_pagamento || ''} ${p.descricao || ''}`,
@@ -282,7 +284,10 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
           taxaPercItem = calc.taxaPercentual;
           taxaValorItem = calc.taxaValor;
           liquidoItem = calc.valorLiquido;
-          totalTaxasCartao += calc.taxaValor;
+          
+          if (isQuitada && calc.taxaValor > 0) {
+            totalTaxasCartaoQuitadas += calc.taxaValor;
+          }
         }
 
         await addTransacao({
@@ -302,11 +307,11 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
         });
       }
 
-      if (configMaquinas.lancarTaxaComoDespesa !== false && totalTaxasCartao > 0) {
+      if (configMaquinas.lancarTaxaComoDespesa !== false && totalTaxasCartaoQuitadas > 0) {
         const catDespesa = configMaquinas.categoriaDespesaPadrao || 'Taxas de Cartão';
         await addTransacao({
           pacienteId: patient.id,
-          valor: Number(totalTaxasCartao.toFixed(2)),
+          valor: Number(totalTaxasCartaoQuitadas.toFixed(2)),
           tipo: 'despesa',
           status: 'pago',
           metodoPagamento: 'cartao',
@@ -316,9 +321,9 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
           categoria: catDespesa,
           orcamentoId: orcamentoAtual.id,
         });
-        toast.success(`Financeiro sincronizado! Receitas geradas e taxa de ${formatMoney(totalTaxasCartao)} da maquininha (${operadoraTaxasNome}) lançada como DESPESA!`);
+        toast.success(`Financeiro sincronizado! Receitas geradas e taxa de ${formatMoney(totalTaxasCartaoQuitadas)} da maquininha (${operadoraTaxasNome}) lançada como DESPESA no Caixa!`);
       } else {
-        toast.success('Financeiro sincronizado com sucesso com as parcelas do orçamento!');
+        toast.success('Financeiro sincronizado com sucesso com as parcelas do orçamento (Vendas e A Receber atualizados)!');
       }
     } catch (err) {
       console.error('Erro ao sincronizar financeiro:', err);

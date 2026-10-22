@@ -25,11 +25,13 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ transacoes, pa
   }).reverse();
 
   transacoes.forEach(t => {
+    // Apenas transações quitadas/pagas entram no Fluxo de Caixa Real
+    if (t.status !== 'pago') return;
     const d = new Date(t.data);
     const monthData = last6Months.find(m => m.monthIndex === d.getMonth() && m.year === d.getFullYear());
     if (monthData) {
-      if (t.tipo === 'receita') monthData.receita += t.valor;
-      if (t.tipo === 'despesa') monthData.despesa += t.valor;
+      if (t.tipo === 'receita') monthData.receita += Number(t.valor || 0);
+      if (t.tipo === 'despesa') monthData.despesa += Number(t.valor || 0);
     }
   });
 

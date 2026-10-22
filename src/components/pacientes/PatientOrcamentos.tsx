@@ -93,7 +93,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
   // Aprovação com lançamento financeiro
   const [aprovandoOrcamento, setAprovandoOrcamento] = useState<Orcamento | null>(null);
   const [lancandoFinanceiro, setLancandoFinanceiro] = useState(false);
-  const [darBaixaImediataAprovacao, setDarBaixaImediataAprovacao] = useState(true);
+  const [darBaixaImediataAprovacao, setDarBaixaImediataAprovacao] = useState(false);
 
   // Assistente de Máquina de Cartão (PagBank / InfinitePay)
   const [cartaoAssistenteAtivo, setCartaoAssistenteAtivo] = useState(false);
@@ -718,8 +718,11 @@ const PatientOrcamentos = ({ patient }: Props) => {
         });
 
         const parcelas = snap.financeiro?.parcelas || [];
-        let totalTaxasCartao = 0;
+        const isUnicaParcela = parcelas.length === 1;
+        let totalTaxasCartaoQuitadas = 0;
         let operadoraTaxasNome = '';
+        let totalQuitadasAgora = 0;
+        let totalPendentesAgora = 0;
 
         for (const p of parcelas) {
           const isEntrada = (p?.descricao || '').toLowerCase().includes('entrada');
@@ -728,15 +731,24 @@ const PatientOrcamentos = ({ patient }: Props) => {
           const isACombinar = descLower.includes('combinar') || descLower.includes('definir');
           const isExplicitamenteQuitada = (p?.status || '').toLowerCase().includes('quitad') || (p?.status || '').toLowerCase().includes('pago');
 
-          // Se darBaixaImediataAprovacao estiver marcado, ou for cartão de crédito/débito autorizado, ou marcado como quitado: marca como pago!
-          // Saldo a combinar NÃO recebe baixa imediata a menos que esteja explicitamente marcado como quitado
+          // REGRA DE SEPARAÇÃO RIGOROSA: VENDAS (FECHADO) vs CAIXA (QUITADO)
+          // 1. O orçamento aprovado entra integralmente em Vendas (fechado) pelo status 'aprovado'.
+          // 2. No Caixa (dinheiro em caixa) SÓ deve entrar o que já estiver efetivamente quitado.
+          // 3. Caso esteja a receber ou for para passar cartão no balcão, NÃO entra no caixa (status: 'pendente').
+          // 4. Só é considerado quitado imediatamente se:
+          //    - Estiver expressamente marcado como quitado no descritivo ([Quitada], [Pago]), OU
+          //    - O usuário marcou 'Dar Baixa Imediata' E for entrada em PIX/dinheiro (não-cartão).
           const isQuitada =
             !isACombinar && (
-              darBaixaImediataAprovacao ||
-              isCartao ||
               isExplicitamenteQuitada ||
-              (p?.status || '').toLowerCase().includes('autoriz')
+              (!isCartao && darBaixaImediataAprovacao && (isEntrada || isUnicaParcela))
             );
+          
+          if (isQuitada) {
+            totalQuitadasAgora++;
+          } else {
+            totalPendentesAgora++;
+          }
           
           // Se já existe transação paga para este orçamento correspondente à entrada ou parcela, preserva
           const jaExistePaga = jaPagas.some((jp: any) => 
@@ -808,7 +820,11 @@ const PatientOrcamentos = ({ patient }: Props) => {
             taxaPercItem = calc.taxaPercentual;
             taxaValorItem = calc.taxaValor;
             liquidoItem = calc.valorLiquido;
-            totalTaxasCartao += calc.taxaValor;
+            
+            // Só acumula taxa para lançamento de despesa se a parcela do cartão foi EFETIVAMENTE quitada agora!
+            if (isQuitada && calc.taxaValor > 0) {
+              totalTaxasCartaoQuitadas += calc.taxaValor;
+            }
           }
 
           const pacId = patient?.id || o.pacienteId || '';
@@ -841,8 +857,8 @@ const PatientOrcamentos = ({ patient }: Props) => {
           });
         }
 
-        // Lança taxa da máquina de cartão como despesa se configurado e houver taxa calculada
-        if (configMaquinas?.lancarTaxaComoDespesa !== false && totalTaxasCartao > 0) {
+        // Lança taxa da máquina de cartão como despesa APENAS se houver cartão quitado imediatamente
+        if (configMaquinas?.lancarTaxaComoDespesa !== false && totalTaxasCartaoQuitadas > 0) {
           const catDespesa = configMaquinas?.categoriaDespesaPadrao || 'Taxas de Cartão';
           const pacId = patient?.id || o.pacienteId || '';
           const pacNome = patient?.nome || o.pacienteNome || '';
@@ -851,7 +867,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
           await addTransacao({
             pacienteId: pacId,
             pacienteNome: pacNome,
-            valor: Number(totalTaxasCartao.toFixed(2)),
+            valor: Number(totalTaxasCartaoQuitadas.toFixed(2)),
             tipo: 'despesa',
             status: 'pago',
             metodoPagamento: 'cartao',
@@ -863,13 +879,19 @@ const PatientOrcamentos = ({ patient }: Props) => {
             operadoraCartao: opIdDespesa,
           });
           toast.success(
-            `Orçamento aprovado! Receitas geradas e taxa de ${formatMoney(totalTaxasCartao)} da maquininha (${operadoraTaxasNome}) lançada como DESPESA!`
+            `Orçamento aprovado em Vendas! Taxa de ${formatMoney(totalTaxasCartaoQuitadas)} da maquininha lançada como despesa no Caixa.`
+          );
+        } else if (totalQuitadasAgora > 0) {
+          toast.success(
+            `Orçamento contabilizado em Vendas (fechado)! ${totalQuitadasAgora} entrada(s) lançada(s) no Caixa e ${totalPendentesAgora} a receber.`
           );
         } else {
-          toast.success('Orçamento aprovado e parcelas lançadas no Contas a Receber com as formas corretas!');
+          toast.success(
+            `Orçamento contabilizado em Vendas (fechado)! Todas as parcelas (${totalPendentesAgora}) lançadas no Contas a Receber (aguardando passar cartão / recebimento).`
+          );
         }
       } else {
-        toast.success('Orçamento aprovado com sucesso!');
+        toast.success('Orçamento aprovado e contabilizado em Vendas (fechado) com sucesso!');
       }
     } catch (err: any) {
       console.error('Erro ao aprovar orçamento:', err);
@@ -3634,7 +3656,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
                       onChange={(e) => setDarBaixaImediataAprovacao(e.target.checked)}
                       className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                     />
-                    <span>Dar baixa imediata nos pagamentos já recebidos (PIX / Cartão no balcão)</span>
+                    <span>Dar baixa imediata apenas na entrada recebida agora (se for a receber ou passar cartão, deixe desmarcado)</span>
                   </label>
                 </div>
               </AlertDialogDescription>

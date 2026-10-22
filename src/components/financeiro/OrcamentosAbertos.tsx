@@ -37,6 +37,7 @@ const OrcamentosAbertos = ({ onLancarPagamento }: Props) => {
     .map((o) => ({ orcamento: o, saldo: calcularSaldoOrcamento(o, transacoes as any[], orcamentos as any[]) }))
     .sort((a, b) => b.saldo.saldo - a.saldo.saldo);
 
+  const totalVendasAprovadas = aprovados.reduce((s, a) => s + Number(a.orcamento.total || 0), 0);
   const emAberto = aprovados.filter((a) => a.saldo.saldo > 0.009);
   const totalAberto = emAberto.reduce((s, a) => s + a.saldo.saldo, 0);
   const totalRecebido = aprovados.reduce((s, a) => s + a.saldo.pago, 0);
@@ -52,12 +53,15 @@ const OrcamentosAbertos = ({ onLancarPagamento }: Props) => {
               <FileText className="h-5 w-5 text-primary" />
               Orçamentos Aprovados & Integração Financeira
             </span>
-            <div className="flex items-center gap-3 text-xs sm:text-sm font-normal">
+            <div className="flex flex-wrap items-center gap-3 text-xs sm:text-sm font-normal">
+              <span className="text-muted-foreground">
+                Vendas (Fechado): <strong className="text-amber-600 font-bold">{formatMoney(totalVendasAprovadas)}</strong>
+              </span>
               <span className="text-muted-foreground">
                 Recebido no Caixa: <strong className="text-emerald-600 font-bold">{formatMoney(totalRecebido)}</strong>
               </span>
               <span className="text-muted-foreground">
-                Em aberto: <strong className="text-amber-600 font-bold">{formatMoney(totalAberto)}</strong>
+                A Receber / Cartão: <strong className="text-orange-600 font-bold">{formatMoney(totalAberto)}</strong>
               </span>
             </div>
           </CardTitle>
@@ -226,7 +230,7 @@ const OrcamentosAbertos = ({ onLancarPagamento }: Props) => {
                                     {formatMoney(t.valor)}
                                   </span>
                                   <span className="text-[10px] uppercase font-bold text-muted-foreground">
-                                    {isPago ? 'No Caixa' : 'Pendente'}
+                                    {isPago ? 'No Caixa (Pago)' : (t.metodoPagamento === 'cartao' ? 'Passar Cartão' : 'A Receber')}
                                   </span>
                                 </div>
 

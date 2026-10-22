@@ -32,11 +32,11 @@ import { formatMoney } from '@/utils/exportCsv';
 import { Transacao } from '@/types/shared';
 
 const Financeiro = () => {
-  const { transacoes, pacientes, deleteTransacao, updateTransacao } = useDentalSystem();
+  const { transacoes, pacientes, deleteTransacao, updateTransacao, addTransacao } = useDentalSystem();
   const { requireMasterPassword } = useSecurityGate();
   const { configuracoes } = useConfiguracoes();
   const { orcamentos } = useOrcamentos();
-  const { operadoras, operadoraPadrao } = useMaquinasCartao();
+  const { operadoras, operadoraPadrao, config: configMaquinas } = useMaquinasCartao();
   const navigate = useNavigate();
 
   const [showTransactionForm, setShowTransactionForm] = useState(false);
@@ -67,6 +67,31 @@ const Financeiro = () => {
         status: 'pago',
         data: new Date(),
       });
+
+      // Se for cartão, lança a taxa da máquina como despesa se configurado
+      const isCartao = transacao.metodoPagamento === 'cartao' || (transacao.descricao || '').toLowerCase().includes('cart');
+      if (isCartao && configMaquinas?.lancarTaxaComoDespesa !== false) {
+        const det = getDetalhesCartao(transacao);
+        if (det && det.taxaValor > 0) {
+          const catDespesa = configMaquinas?.categoriaDespesaPadrao || 'Taxas de Cartão';
+          const opNome = operadoras.find(o => o.id === transacao.operadoraCartao)?.nome || 'Cartão';
+          await addTransacao({
+            pacienteId: transacao.pacienteId,
+            pacienteNome: transacao.pacienteNome,
+            valor: Number(det.taxaValor.toFixed(2)),
+            tipo: 'despesa',
+            status: 'pago',
+            metodoPagamento: 'cartao',
+            operadoraCartao: transacao.operadoraCartao,
+            data: new Date(),
+            vencimento: new Date(),
+            descricao: `Taxa da Máquina (${opNome}) - ${transacao.descricao}`,
+            categoria: catDespesa,
+            orcamentoId: transacao.orcamentoId,
+          });
+        }
+      }
+
       await registrarAuditoria({
         acao: 'editar',
         entidade: 'transacao',
@@ -187,9 +212,11 @@ const Financeiro = () => {
   };
 
   // Vendas (Orçamentos Fechados no Mês Selecionado)
-  const orcamentosFechadosNoMes = (orcamentos || []).filter(o => 
-    o && o.status?.toLowerCase() === 'aprovado' && isNoMes(new Date(o.atualizadoEm || o.criadoEm))
-  );
+  const orcamentosFechadosNoMes = (orcamentos || []).filter(o => {
+    if (!o || o.status?.toLowerCase() !== 'aprovado') return false;
+    const data = new Date((o as any).dataAssinatura || o.atualizadoEm || o.criadoEm);
+    return isNoMes(data);
+  });
   const totalFechadoMes = orcamentosFechadosNoMes.reduce((sum, o) => sum + Number(o?.total || 0), 0);
 
   // Projeção (Orçamentos Abertos no Mês Selecionado)
@@ -198,12 +225,30 @@ const Financeiro = () => {
   );
   const totalProjecao = orcamentosPendentes.reduce((sum, o) => sum + Number(o?.total || 0), 0);
 
-  // A Receber (Todo o saldo em aberto, independente do mês, mais pendentes do mês)
+  // A Receber / Passar Cartão (Saldo em aberto de orçamentos aprovados + pendentes avulsos sem duplicidade)
   const saldosOrcamentos = calcularSaldosOrcamentos(orcamentos, transacoes);
   const totalOrcamentosAberto = (orcamentos || [])
     .filter((o) => o?.status?.toLowerCase() === 'aprovado')
     .reduce((sum, o) => sum + (saldosOrcamentos.get(o.id)?.saldo || 0), 0);
-  const totalAReceber = totalPending + totalOrcamentosAberto;
+
+  const idsOrcamentosAprovados = new Set(
+    (orcamentos || []).filter(o => o?.status?.toLowerCase() === 'aprovado').map(o => o.id)
+  );
+
+  // Transações a receber avulsas que NÃO fazem parte de nenhum orçamento aprovado (evita duplicidade no total a receber)
+  const totalPendingAvulso = filteredTransacoes
+    .filter(t => t?.status === 'pendente' && t?.tipo === 'receita' && (!t.orcamentoId || !idsOrcamentosAprovados.has(t.orcamentoId)))
+    .reduce((sum, t) => sum + Number(t?.valor || 0), 0);
+
+  const totalAReceber = totalOrcamentosAberto + totalPendingAvulso;
+
+  // Total de receitas pendentes com cartão no mês (aguardando passar cartão)
+  const receitasPendentesCartao = filteredTransacoes.filter(
+    t => t?.status === 'pendente' && t?.tipo === 'receita' && (
+      t?.metodoPagamento === 'cartao' || (t?.descricao || '').toLowerCase().includes('cart')
+    )
+  );
+  const totalPendenteCartao = receitasPendentesCartao.reduce((s, t) => s + Number(t?.valor || 0), 0);
 
   const getPacienteName = (pacienteId: string) => {
     const paciente = pacientes.find(p => p.id === pacienteId);
@@ -340,17 +385,42 @@ const Financeiro = () => {
           </div>
         </div>
 
-        {/* Cards de Resumo Executivo */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          {/* 1. Receita Caixa (Realizado) */}
+        {/* Cards de Resumo Executivo: Separação Clara entre Vendas (Fechado) e Caixa (Quitado) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+          {/* 1. Vendas Fechadas (Comercial / Contratado) */}
+          <Card className="border-amber-500/30 bg-gradient-to-br from-amber-500/5 to-yellow-500/10 dark:from-amber-950/20 dark:to-yellow-950/20">
+            <CardContent className="p-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-amber-700 dark:text-amber-300 uppercase tracking-wider flex items-center gap-1">
+                  <CheckCircle2 className="h-4 w-4 text-amber-600" /> Vendas (Fechado)
+                </span>
+                <span className="p-1.5 rounded-full bg-amber-500/20 text-amber-600">
+                  <TrendingUp className="h-4 w-4" />
+                </span>
+              </div>
+              <div>
+                <p className="text-2xl font-black text-amber-600 dark:text-amber-400">
+                  {formatMoney(totalFechadoMes)}
+                </p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  {orcamentosFechadosNoMes.length} orçamento(s) aprovado(s)
+                </p>
+              </div>
+              <div className="pt-2 border-t border-amber-500/20 text-[10px] text-amber-700 dark:text-amber-300 font-medium truncate">
+                Total comercial contratado no mês
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* 2. Receita Caixa (Realizado / Efetivamente Quitado) */}
           <Card className="border-emerald-500/30 bg-gradient-to-br from-emerald-500/5 to-teal-500/10 dark:from-emerald-950/20 dark:to-teal-950/20">
             <CardContent className="p-4 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider flex items-center gap-1">
-                  <ArrowUpRight className="h-4 w-4 text-emerald-600" /> Total Recebido (Caixa)
+                  <ArrowUpRight className="h-4 w-4 text-emerald-600" /> Recebido (Caixa)
                 </span>
                 <span className="p-1.5 rounded-full bg-emerald-500/20 text-emerald-600">
-                  <TrendingUp className="h-4 w-4" />
+                  <Wallet className="h-4 w-4" />
                 </span>
               </div>
               <div>
@@ -358,65 +428,60 @@ const Financeiro = () => {
                   {formatMoney(totalReceived)}
                 </p>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  {receitasPagas.length} recebimento(s) no mês
+                  {receitasPagas.length} recebimento(s) quitado(s)
                 </p>
               </div>
-              <div className="pt-2 border-t border-emerald-500/20 flex flex-wrap gap-1.5 text-[10px]">
+              <div className="pt-2 border-t border-emerald-500/20 flex flex-wrap gap-1 text-[10px]">
                 {totalPix > 0 && (
-                  <span className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-semibold px-1.5 py-0.5 rounded">
+                  <span className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-semibold px-1 py-0.5 rounded">
                     PIX: {formatMoney(totalPix)}
                   </span>
                 )}
                 {totalCartao > 0 && (
-                  <span className="bg-blue-500/15 text-blue-700 dark:text-blue-300 font-semibold px-1.5 py-0.5 rounded">
+                  <span className="bg-blue-500/15 text-blue-700 dark:text-blue-300 font-semibold px-1 py-0.5 rounded">
                     Cartão: {formatMoney(totalCartao)}
                   </span>
                 )}
                 {totalDinheiro > 0 && (
-                  <span className="bg-green-500/15 text-green-700 dark:text-green-300 font-semibold px-1.5 py-0.5 rounded">
+                  <span className="bg-green-500/15 text-green-700 dark:text-green-300 font-semibold px-1 py-0.5 rounded">
                     Dinheiro: {formatMoney(totalDinheiro)}
-                  </span>
-                )}
-                {totalOutros > 0 && (
-                  <span className="bg-muted text-muted-foreground font-semibold px-1.5 py-0.5 rounded">
-                    Outros: {formatMoney(totalOutros)}
                   </span>
                 )}
               </div>
             </CardContent>
           </Card>
 
-          {/* 2. A Receber / Pendente */}
-          <Card className="border-amber-500/30 bg-gradient-to-br from-amber-500/5 to-orange-500/10 dark:from-amber-950/20 dark:to-orange-950/20">
+          {/* 3. A Receber / Passar Cartão */}
+          <Card className="border-orange-500/30 bg-gradient-to-br from-orange-500/5 to-amber-500/10 dark:from-orange-950/20 dark:to-amber-950/20">
             <CardContent className="p-4 space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-amber-700 dark:text-amber-300 uppercase tracking-wider flex items-center gap-1">
-                  <Clock className="h-4 w-4 text-amber-600" /> A Receber (Previsão)
+                <span className="text-xs font-semibold text-orange-700 dark:text-orange-300 uppercase tracking-wider flex items-center gap-1">
+                  <Clock className="h-4 w-4 text-orange-600" /> A Receber / Cartão
                 </span>
-                <span className="p-1.5 rounded-full bg-amber-500/20 text-amber-600">
+                <span className="p-1.5 rounded-full bg-orange-500/20 text-orange-600">
                   <TrendingDown className="h-4 w-4" />
                 </span>
               </div>
               <div>
-                <p className="text-2xl font-black text-amber-600 dark:text-amber-400">
+                <p className="text-2xl font-black text-orange-600 dark:text-orange-400">
                   {formatMoney(totalAReceber)}
                 </p>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  {totalOrcamentosAberto > 0 ? `Orçamentos abertos: ${formatMoney(totalOrcamentosAberto)}` : 'Sem pendências críticas'}
+                  {totalPendenteCartao > 0 ? `Passar cartão: ${formatMoney(totalPendenteCartao)}` : 'Aguardando quitação'}
                 </p>
               </div>
-              <div className="pt-2 border-t border-amber-500/20 text-[10px] text-amber-700 dark:text-amber-300">
-                Pendentes do mês: {formatMoney(totalPending)}
+              <div className="pt-2 border-t border-orange-500/20 text-[10px] text-orange-700 dark:text-orange-300 truncate">
+                {totalOrcamentosAberto > 0 ? `Orçamentos abertos: ${formatMoney(totalOrcamentosAberto)}` : 'Sem pendências críticas'}
               </div>
             </CardContent>
           </Card>
 
-          {/* 3. Despesas do Mês */}
+          {/* 4. Despesas do Mês */}
           <Card className="border-red-500/30 bg-gradient-to-br from-red-500/5 to-rose-500/10 dark:from-red-950/20 dark:to-rose-950/20">
             <CardContent className="p-4 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-red-700 dark:text-red-300 uppercase tracking-wider flex items-center gap-1">
-                  <ArrowDownRight className="h-4 w-4 text-red-600" /> Despesas & Custos
+                  <ArrowDownRight className="h-4 w-4 text-red-600" /> Despesas Pagas
                 </span>
                 <Button
                   type="button"
@@ -427,9 +492,9 @@ const Financeiro = () => {
                     setTipoInicialTransacao('despesa');
                     setShowTransactionForm(true);
                   }}
-                  className="h-6 text-[11px] text-rose-600 dark:text-rose-400 hover:text-rose-700 hover:bg-rose-500/10 gap-1 px-1.5 font-medium"
+                  className="h-6 text-[10px] text-rose-600 dark:text-rose-400 hover:text-rose-700 hover:bg-rose-500/10 gap-1 px-1.5 font-medium"
                 >
-                  <Plus className="h-3 w-3" /> Lançar Despesa
+                  <Plus className="h-3 w-3" /> Despesa
                 </Button>
               </div>
               <div>
@@ -437,21 +502,21 @@ const Financeiro = () => {
                   {formatMoney(totalDespesas)}
                 </p>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  {despesas.length + (taxasEmbutidasSemDespesa > 0 ? 1 : 0)} saída(s) e custo(s) registrados
+                  {despesas.length + (taxasEmbutidasSemDespesa > 0 ? 1 : 0)} saída(s) e custo(s)
                 </p>
               </div>
               <div className="pt-2 border-t border-red-500/20 flex flex-wrap items-center justify-between gap-1 text-[10px] text-red-700 dark:text-red-300">
-                <span>Repasses a parceiros: {formatMoney(totalRepasses)}</span>
+                <span>Repasses: {formatMoney(totalRepasses)}</span>
                 {totalTaxasCartao > 0 && (
                   <span className="font-semibold text-rose-600 dark:text-rose-400">
-                    Taxas de cartão: {formatMoney(totalTaxasCartao)}
+                    Taxas: {formatMoney(totalTaxasCartao)}
                   </span>
                 )}
               </div>
             </CardContent>
           </Card>
 
-          {/* 4. Saldo Líquido do Caixa */}
+          {/* 5. Saldo Líquido do Caixa */}
           <Card className={`border-border ${saldoLiquido >= 0 ? 'bg-background' : 'bg-red-500/5'}`}>
             <CardContent className="p-4 space-y-2">
               <div className="flex items-center justify-between">
@@ -459,7 +524,7 @@ const Financeiro = () => {
                   <DollarSign className="h-4 w-4 text-primary" /> Saldo Líquido Caixa
                 </span>
                 <span className="text-xs font-medium text-muted-foreground">
-                  (Receitas - Despesas)
+                  (Caixa - Despesas)
                 </span>
               </div>
               <div>
@@ -467,11 +532,11 @@ const Financeiro = () => {
                   {formatMoney(saldoLiquido)}
                 </p>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Vendas aprovadas: <strong className="text-foreground">{formatMoney(totalFechadoMes)}</strong>
+                  Disponível real em caixa
                 </p>
               </div>
-              <div className="pt-2 border-t border-border text-[10px] text-muted-foreground">
-                Previsto total com saldo a receber: {formatMoney(saldoLiquido + totalAReceber)}
+              <div className="pt-2 border-t border-border text-[10px] text-muted-foreground truncate">
+                Projetado com a receber: {formatMoney(saldoLiquido + totalAReceber)}
               </div>
             </CardContent>
           </Card>
@@ -537,12 +602,12 @@ const Financeiro = () => {
                   </span>
                   {[
                     { id: 'todos', label: 'Todos' },
+                    { id: 'pago', label: '✅ No Caixa (Quitado)' },
+                    { id: 'pendente', label: '⏳ A Receber / Cartão' },
                     { id: 'receita', label: 'Receitas (+)' },
                     { id: 'despesa', label: 'Despesas (-)' },
                     { id: 'pix', label: '💎 Só PIX' },
                     { id: 'cartao', label: '💳 Só Cartão' },
-                    { id: 'pago', label: '✅ No Caixa (Pago)' },
-                    { id: 'pendente', label: '⏳ Pendentes' },
                   ].map((f) => (
                     <Button
                       key={f.id}
@@ -679,11 +744,11 @@ const Financeiro = () => {
                                   <span>•</span>
                                   {isPago ? (
                                     <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 text-[10px] font-semibold gap-1 py-0 px-1.5">
-                                      <Check className="h-3 w-3" /> No Caixa
+                                      <Check className="h-3 w-3" /> No Caixa (Pago)
                                     </Badge>
                                   ) : (
                                     <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400 text-[10px] font-semibold gap-1 py-0 px-1.5">
-                                      <Clock className="h-3 w-3" /> Pendente
+                                      <Clock className="h-3 w-3" /> Passar Cartão
                                     </Badge>
                                   )}
                                 </div>
@@ -696,11 +761,11 @@ const Financeiro = () => {
                                 <div>
                                   {isPago ? (
                                     <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 text-[10px] font-semibold gap-1">
-                                      <Check className="h-3 w-3" /> No Caixa
+                                      <Check className="h-3 w-3" /> No Caixa (Pago)
                                     </Badge>
                                   ) : (
                                     <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400 text-[10px] font-semibold gap-1">
-                                      <Clock className="h-3 w-3" /> Pendente
+                                      <Clock className="h-3 w-3" /> A Receber
                                     </Badge>
                                   )}
                                 </div>

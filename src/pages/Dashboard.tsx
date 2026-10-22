@@ -10,7 +10,7 @@ import LembretesWhatsApp from '@/components/dashboard/LembretesWhatsApp';
 import LembretesPix from '@/components/dashboard/LembretesPix';
 import { TarefasHojeWidget } from '@/components/dashboard/TarefasHojeWidget';
 import DashboardCharts from '@/components/dashboard/DashboardCharts';
-import { Users, Calendar, CreditCard } from 'lucide-react';
+import { Users, Calendar, CreditCard, TrendingUp } from 'lucide-react';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import { useAuth } from '@/context/AuthContext';
 import { useOrcamentos } from '@/hooks/useOrcamentos';
@@ -68,14 +68,13 @@ const Dashboard = () => {
 
   const { orcamentos } = useOrcamentos();
   
-  // Orçamentos Fechados (Vendas)
-  const vendasMes = (orcamentos || [])
-    .filter(o => {
-      if (!o || o.status?.toLowerCase() !== 'aprovado') return false;
-      const data = new Date(o.atualizadoEm || o.criadoEm);
-      return data.getMonth() === currentMonth && data.getFullYear() === currentYear;
-    })
-    .reduce((sum, o) => sum + Number(o?.total || 0), 0);
+  // Orçamentos Fechados no mês (Vendas comerciais aprovadas)
+  const orcamentosFechadosMes = (orcamentos || []).filter(o => {
+    if (!o || o.status?.toLowerCase() !== 'aprovado') return false;
+    const data = new Date((o as any).dataAssinatura || o.atualizadoEm || o.criadoEm);
+    return data.getMonth() === currentMonth && data.getFullYear() === currentYear;
+  });
+  const vendasMes = orcamentosFechadosMes.reduce((sum, o) => sum + Number(o?.total || 0), 0);
 
 
   return (
@@ -122,9 +121,9 @@ const Dashboard = () => {
           <StatsCard
             title="Vendas (Fechados)"
             value={`${formatMoney(vendasMes)}`}
-            change="Mês atual"
-            changeType="neutral"
-            icon={CreditCard}
+            change={`${orcamentosFechadosMes.length} orçamento(s) aprovado(s)`}
+            changeType={vendasMes > 0 ? "positive" : "neutral"}
+            icon={TrendingUp}
             iconBg="bg-amber-500/15 text-amber-500"
             isMaskable={true}
             defaultMasked={true}
@@ -149,7 +148,11 @@ const Dashboard = () => {
           <StatsCard
             title="Receita (Caixa)"
             value={`${formatMoney(receitaMensal)}`}
-            change={receitaPix > 0 ? `PIX: ${formatMoney(receitaPix)}` : "Mês atual"}
+            change={
+              transacoesMesPagas.length > 0
+                ? `${transacoesMesPagas.length} quitado(s)${receitaPix > 0 ? ` · PIX: ${formatMoney(receitaPix)}` : ''}`
+                : "Apenas valores quitados"
+            }
             changeType={receitaMensal > 0 ? "positive" : "neutral"}
             icon={CreditCard}
             iconBg="bg-emerald-500/15 text-emerald-500 dark:text-emerald-400"

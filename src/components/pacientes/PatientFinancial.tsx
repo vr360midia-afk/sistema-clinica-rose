@@ -185,9 +185,15 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
     // O cálculo é centralizado em calcularSaldosOrcamentos, que abate também os
     // pagamentos do paciente sem vínculo direto — evitando contar duas vezes.
     const aprovados = (orcamentos || []).filter((o) => o?.status === 'aprovado');
+    const idsAprovados = new Set(aprovados.map((o) => o.id));
     const saldosMap = calcularSaldosOrcamentos(orcamentos || [], trans as any[]);
     const saldoOrcamentos = aprovados.reduce((s, o) => s + (saldosMap.get(o.id)?.saldo || 0), 0);
-    const pendenteTotal = pendente + saldoOrcamentos;
+    
+    // Pendentes avulsos que não pertencem a orçamentos aprovados (evita duplicidade no total em aberto)
+    const pendenteAvulso = receitas
+      .filter((t) => t?.status === 'pendente' && (!t.orcamentoId || !idsAprovados.has(t.orcamentoId)))
+      .reduce((s, t) => s + Number(t.valor || 0), 0);
+    const pendenteTotal = pendenteAvulso + saldoOrcamentos;
     const total = pago + pendenteTotal;
 
 

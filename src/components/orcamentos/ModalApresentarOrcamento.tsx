@@ -102,7 +102,7 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
   // Opções de Aprovação
   const [mostrarOpcoesAprovacao, setMostrarOpcoesAprovacao] = useState(false);
   const [lancarFinanceiro, setLancarFinanceiro] = useState(true);
-  const [darBaixaImediata, setDarBaixaImediata] = useState(true);
+  const [darBaixaImediata, setDarBaixaImediata] = useState(false);
 
   // Estado para copiar PIX e QR ampliado
   const [copiouPix, setCopiouPix] = useState(false);
@@ -1080,8 +1080,8 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
             {lancarFinanceiro && (
               <div className="flex items-center justify-between pt-2 border-t border-border/60">
                 <div>
-                  <span className="font-semibold block text-emerald-600">Dar Baixa Imediata</span>
-                  <span className="text-muted-foreground text-[11px]">Se o paciente já pagou no PIX / Cartão na hora</span>
+                  <span className="font-semibold block text-emerald-600">Dar Baixa Imediata no Caixa</span>
+                  <span className="text-muted-foreground text-[11px]">Apenas se já recebeu a entrada no PIX/dinheiro (se for passar cartão depois ou a receber, deixe desmarcado)</span>
                 </div>
                 <Switch checked={darBaixaImediata} onCheckedChange={setDarBaixaImediata} />
               </div>
