@@ -114,17 +114,44 @@ const PatientDocumentosClinicos = ({ patient }: Props) => {
   };
 
   const handleWhatsApp = async (doc: DocumentoClinico) => {
-    if (!patient?.telefone) {
-      toast.warning('Paciente sem telefone cadastrado.');
-      return;
+    let tel = patient?.telefone?.trim() || '';
+    if (!tel) {
+      const inputTel = window.prompt('Informe o número de WhatsApp do paciente com DDD (ex: 82999998888):', '');
+      if (!inputTel) {
+        toast.info('Envio cancelado: telefone não informado.');
+        return;
+      }
+      tel = inputTel.trim();
     }
 
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    const slug = slugifyNome(patient?.nome || 'paciente');
-    const linkAssinatura =
-      doc.tipo === 'contrato' && doc.itens && !Array.isArray(doc.itens)
-        ? gerarLinkAssinaturaContrato(doc.itens as any, doc.id)
-        : `${origin}/assinar-contrato-${slug}?id=${doc.id}`;
+    let snap: any = doc.itens && !Array.isArray(doc.itens) ? doc.itens : null;
+    if (!snap) {
+      snap = {
+        contratoId: doc.id,
+        pacienteId: doc.paciente_id || patient?.id,
+        pacienteNome: doc.paciente_nome || patient?.nome || 'Paciente',
+        paciente: {
+          nome: doc.paciente_nome || patient?.nome || 'Paciente',
+          cpf: patient?.cpf || '',
+          telefone: patient?.telefone || '',
+        },
+        clinica: {
+          nome: configuracoes?.nomeClinica || 'Clínica Odontológica',
+          dentistaResponsavel: doc.dentista || 'Cirurgião-Dentista',
+        },
+        orcamento: {
+          numeroIdentificador: (doc.id || '').slice(0, 8),
+          titulo: doc.titulo,
+          itens: [],
+        },
+        financeiro: {
+          total: 0,
+          formaPagamento: 'Conforme plano acordado',
+        },
+        conteudoHtmlPersonalizado: doc.conteudo,
+      };
+    }
+    const linkAssinatura = gerarLinkAssinaturaContrato(snap, doc.id);
 
     // Baixa o PDF do documento no computador para facilitar o anexo
     try {
@@ -301,12 +328,34 @@ const PatientDocumentosClinicos = ({ patient }: Props) => {
                     variant="outline"
                     className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/40"
                     onClick={() => {
-                      const origin = typeof window !== 'undefined' ? window.location.origin : '';
-                      const slug = slugifyNome(patient?.nome || 'paciente');
-                      const link =
-                        doc.tipo === 'contrato' && doc.itens && !Array.isArray(doc.itens)
-                          ? gerarLinkAssinaturaContrato(doc.itens as any, doc.id)
-                          : `${origin}/assinar-contrato-${slug}?id=${doc.id}`;
+                      let snap: any = doc.itens && !Array.isArray(doc.itens) ? doc.itens : null;
+                      if (!snap) {
+                        snap = {
+                          contratoId: doc.id,
+                          pacienteId: doc.paciente_id || patient?.id,
+                          pacienteNome: doc.paciente_nome || patient?.nome || 'Paciente',
+                          paciente: {
+                            nome: doc.paciente_nome || patient?.nome || 'Paciente',
+                            cpf: patient?.cpf || '',
+                            telefone: patient?.telefone || '',
+                          },
+                          clinica: {
+                            nome: configuracoes?.nomeClinica || 'Clínica Odontológica',
+                            dentistaResponsavel: doc.dentista || 'Cirurgião-Dentista',
+                          },
+                          orcamento: {
+                            numeroIdentificador: (doc.id || '').slice(0, 8),
+                            titulo: doc.titulo,
+                            itens: [],
+                          },
+                          financeiro: {
+                            total: 0,
+                            formaPagamento: 'Conforme plano acordado',
+                          },
+                          conteudoHtmlPersonalizado: doc.conteudo,
+                        };
+                      }
+                      const link = gerarLinkAssinaturaContrato(snap, doc.id);
                       navigator.clipboard.writeText(link);
                       toast.success('Link de assinatura copiado com sucesso!', {
                         description: 'Envie o link para o paciente assinar pelo celular.',

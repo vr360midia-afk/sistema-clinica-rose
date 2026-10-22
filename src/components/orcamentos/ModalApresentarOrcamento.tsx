@@ -33,6 +33,7 @@ import {
   ChevronUp,
   SlidersHorizontal,
   Tag,
+  Link as LinkIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -41,6 +42,8 @@ import { gerarPayloadPix, gerarQrCodePixUrl } from '@/utils/pixPayload';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { useConfiguracoesContrato } from '@/hooks/useConfiguracoesContrato';
 import { Orcamento, OrcamentoItem } from '@/hooks/useOrcamentos';
+import { mapearDadosContrato, gerarLinkAssinaturaContrato } from '@/utils/contratoEngine';
+import { openWhatsApp } from '@/lib/whatsapp';
 
 interface ModalApresentarOrcamentoProps {
   isOpen: boolean;
@@ -107,6 +110,7 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
   // Estado para copiar PIX e QR ampliado
   const [copiouPix, setCopiouPix] = useState(false);
   const [qrCodeAmpliadoOpen, setQrCodeAmpliadoOpen] = useState(false);
+  const [copiouLinkContrato, setCopiouLinkContrato] = useState(false);
 
   // Sincroniza dados do orçamento selecionado ao abrir
   useEffect(() => {
@@ -314,6 +318,92 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
     setCopiouPix(true);
     toast.success(`Código PIX Copia e Cola (${formatMoney(valorPixAlvo)}) copiado com sucesso!`);
     setTimeout(() => setCopiouPix(false), 2500);
+  };
+
+  // Snapshot do contrato atualizado com as condições negociadas nesta tela
+  const obterSnapshotContratoAtual = () => {
+    if (!orcamento) return null;
+    const orcAtualizado: Orcamento = {
+      ...orcamento,
+      desconto,
+      total,
+      formasPagamento: formasPagamentoTexto,
+    };
+    return mapearDadosContrato({
+      patient,
+      orcamento: orcAtualizado,
+      configuracoes,
+      configContrato,
+      dadosRestauracoesPreexistentes: patient?.restauracoesPreexistentes,
+    });
+  };
+
+  // Copia o link público e auto-contido de assinatura digital
+  const handleCopiarLinkContrato = () => {
+    const snap = obterSnapshotContratoAtual();
+    if (!snap) {
+      toast.error('Não foi possível gerar o link do contrato.');
+      return;
+    }
+    const link = gerarLinkAssinaturaContrato(snap, orcamento?.id);
+    navigator.clipboard.writeText(link);
+    setCopiouLinkContrato(true);
+    toast.success('Link de assinatura do contrato copiado com sucesso!', {
+      description: 'Envie para o paciente assinar pelo celular.',
+    });
+    setTimeout(() => setCopiouLinkContrato(false), 2500);
+  };
+
+  // Envia proposta e link de assinatura digital direto pelo WhatsApp
+  const handleEnviarWhatsAppContrato = () => {
+    if (!orcamento) return;
+    const snap = obterSnapshotContratoAtual();
+    const link = snap ? gerarLinkAssinaturaContrato(snap, orcamento.id) : '';
+
+    let tel = patient?.telefone?.trim() || '';
+    if (!tel) {
+      const inputTel = window.prompt('Informe o número de WhatsApp do paciente com DDD (ex: 82999998888):', '');
+      if (!inputTel) {
+        toast.info('Envio cancelado: telefone não informado.');
+        return;
+      }
+      tel = inputTel.trim();
+    }
+
+    const linhas = [
+      `Olá, *${patient?.nome || 'Paciente'}*! Tudo bem?`,
+      '',
+      `Segue o orçamento oficial de tratamento da *${configuracoes?.nomeClinica || 'Clínica Odontológica'}*:`,
+      `📋 *${orcamento.titulo}*`,
+      '',
+      ...orcamento.itens.map((i) => `• ${i.nome} ${i.quantidade > 1 ? `(${i.quantidade}x) ` : ''}— ${formatMoney(i.valor * i.quantidade)}`),
+      desconto > 0 ? `Desconto especial: -${formatMoney(desconto)}` : null,
+      `*Valor Total: ${formatMoney(total)}*`,
+      formasPagamentoTexto ? `💳 *Condições de Pagamento:* ${formasPagamentoTexto}` : null,
+    ];
+
+    if (temPix && chavePixOficial) {
+      linhas.push('');
+      linhas.push(`✦ *Dados Oficiais para Pagamento via PIX:*`);
+      linhas.push(`• Chave: ${chavePixOficial}`);
+      linhas.push(`• Titular: ${favorecidoPixOficial}`);
+      if (valorPixAlvo > 0) {
+        linhas.push(`• Valor (${labelPixAlvo}): ${formatMoney(valorPixAlvo)}`);
+      }
+    }
+
+    if (link) {
+      linhas.push('');
+      linhas.push(`✍️ *LINK PARA VISUALIZAR E ASSINAR O CONTRATO ONLINE:*`);
+      linhas.push(`Clique no link abaixo pelo seu celular para conferir os termos e assinar digitalmente:`);
+      linhas.push(`👉 ${link}`);
+    }
+
+    linhas.push('');
+    linhas.push('Qualquer dúvida estamos à sua inteira disposição!');
+
+    openWhatsApp(tel, linhas.filter(Boolean).join('\n'));
+    toast.success('Abrindo WhatsApp com proposta e link do contrato!');
   };
 
   // Salvar alterações de desconto e formas de pagamento
@@ -1009,16 +1099,25 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
                   <Download className="h-3.5 w-3.5" /> PDF
                 </Button>
               )}
-              {onEnviarWhatsApp && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onEnviarWhatsApp({ ...orcamento, desconto, total, formasPagamento: formasPagamentoTexto })}
-                  className="text-xs gap-1 border-border/70 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/20"
-                >
-                  <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
-                </Button>
-              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCopiarLinkContrato}
+                className="text-xs gap-1.5 border-blue-200 dark:border-blue-800 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30 font-medium"
+                title="Copiar link oficial para assinatura digital do contrato pelo paciente"
+              >
+                {copiouLinkContrato ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <LinkIcon className="h-3.5 w-3.5" />}
+                <span>{copiouLinkContrato ? 'Link Copiado!' : 'Copiar Link'}</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleEnviarWhatsAppContrato}
+                className="text-xs gap-1.5 border-emerald-300 dark:border-emerald-800 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 font-medium"
+                title="Enviar orçamento com condições e link de assinatura via WhatsApp"
+              >
+                <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
+              </Button>
               {onGerarContrato && (
                 <Button
                   variant="outline"

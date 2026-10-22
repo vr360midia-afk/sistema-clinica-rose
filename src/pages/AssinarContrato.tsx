@@ -52,7 +52,9 @@ import {
   isMetodoPix,
   isMetodoCartao,
   limparFormaPagamentoParaContrato,
+  mapearDadosContrato,
 } from '@/utils/contratoEngine';
+import { slugifyNome } from '@/utils/anamneseEngine';
 import {
   Dialog,
   DialogContent,
@@ -307,6 +309,52 @@ export default function AssinarContrato() {
             }
           } catch (_) {}
         }
+
+        // Tenta também recuperar a partir dos orçamentos locais (dental-system-orcamentos)
+        if (!foundSnapshot) {
+          try {
+            const orcsRaw = localStorage.getItem('dental-system-orcamentos');
+            if (orcsRaw) {
+              const orcs = JSON.parse(orcsRaw);
+              if (Array.isArray(orcs)) {
+                const orcMatch = orcs.find((o: any) => {
+                  if (targetId && (o.id === targetId || o.numeroIdentificador === targetId)) return true;
+                  if (cleanSlug) {
+                    const pName = (o.pacienteNome || o.paciente_nome || '').toLowerCase();
+                    return slugifyNome(pName) === cleanSlug || pName.includes(cleanSlug);
+                  }
+                  return false;
+                });
+
+                if (orcMatch) {
+                  const pacsRaw = localStorage.getItem('dental-system-pacientes');
+                  const pacs = pacsRaw ? JSON.parse(pacsRaw) : [];
+                  const pacMatch = Array.isArray(pacs)
+                    ? pacs.find((p: any) => p.id === orcMatch.pacienteId || p.nome === orcMatch.pacienteNome)
+                    : null;
+
+                  const cfgRaw = localStorage.getItem('dental-system-configuracoes');
+                  const configuracoes = cfgRaw ? JSON.parse(cfgRaw) : null;
+                  const cfgContratoRaw = localStorage.getItem('dental-system-configuracoes-contrato');
+                  const configContrato = cfgContratoRaw ? JSON.parse(cfgContratoRaw) : null;
+                  const dtsRaw = localStorage.getItem('dental-system-dentistas');
+                  const dentistas = dtsRaw ? JSON.parse(dtsRaw) : [];
+
+                  foundSnapshot = mapearDadosContrato({
+                    patient: pacMatch || { nome: orcMatch.pacienteNome || 'Paciente' },
+                    orcamento: orcMatch,
+                    configuracoes,
+                    configContrato,
+                    dentistas,
+                    dadosRestauracoesPreexistentes: pacMatch?.restauracoesPreexistentes,
+                  });
+                }
+              }
+            }
+          } catch (err) {
+            console.warn('Erro ao restaurar snapshot de dental-system-orcamentos:', err);
+          }
+        }
       }
 
       // 3. Tenta buscar via Edge Function pública 'contrato-publico' (se disponível)
@@ -390,6 +438,33 @@ export default function AssinarContrato() {
                 }
               }
             }
+          }
+
+          // Fallback na tabela orcamentos do Supabase se o targetId for o UUID de um orçamento
+          if (!foundSnapshot && targetId && isUuid) {
+            try {
+              const { data: orcData, error: orcErr } = await supabase
+                .from('orcamentos')
+                .select('*')
+                .eq('id', targetId)
+                .maybeSingle();
+
+              if (!orcErr && orcData) {
+                let pacData: any = null;
+                if (orcData.paciente_id) {
+                  const { data: p } = await supabase
+                    .from('pacientes')
+                    .select('*')
+                    .eq('id', orcData.paciente_id)
+                    .maybeSingle();
+                  pacData = p;
+                }
+                foundSnapshot = mapearDadosContrato({
+                  patient: pacData || { nome: orcData.paciente_nome || 'Paciente' },
+                  orcamento: orcData as any,
+                });
+              }
+            } catch (_) {}
           }
         } catch (_) {}
       }

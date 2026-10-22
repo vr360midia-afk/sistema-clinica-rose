@@ -674,9 +674,14 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
 
   // Envio de notificação no WhatsApp
   const handleEnviarWhatsApp = async () => {
-    if (!patient?.telefone) {
-      toast.warning('Paciente não possui telefone cadastrado');
-      return;
+    let tel = patient?.telefone?.trim() || '';
+    if (!tel) {
+      const inputTel = window.prompt('Informe o número de WhatsApp do paciente com DDD (ex: 82999998888):', '');
+      if (!inputTel) {
+        toast.info('Envio cancelado: telefone não informado.');
+        return;
+      }
+      tel = inputTel.trim();
     }
     if (!snapshotAtual) return;
 
@@ -744,7 +749,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
 
     mensagem += `\nQualquer dúvida, nossa equipe está à sua inteira disposição!`;
 
-    openWhatsApp(patient.telefone, mensagem);
+    openWhatsApp(tel, mensagem);
     toast.info('Abrindo WhatsApp Web com o link de assinatura!', {
       description: 'O PDF do contrato também foi baixado caso deseje anexá-lo na conversa.',
     });
@@ -2666,7 +2671,8 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                 size="sm"
                 className="h-8 sm:h-9 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-xs border-transparent"
                 onClick={handleEnviarWhatsApp}
-                disabled={!patient?.telefone || !snapshotAtual}
+                disabled={!snapshotAtual}
+                title="Enviar contrato e link de assinatura via WhatsApp"
               >
                 <MessageCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 <span>WhatsApp</span>

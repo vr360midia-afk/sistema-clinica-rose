@@ -1470,10 +1470,16 @@ const PatientOrcamentos = ({ patient }: Props) => {
   };
 
   const enviarWhatsApp = (o: (typeof orcamentos)[number]) => {
-    if (!patient?.telefone) {
-      toast.error('Paciente sem telefone cadastrado');
-      return;
+    let tel = patient?.telefone?.trim() || '';
+    if (!tel) {
+      const inputTel = window.prompt('Informe o número de WhatsApp do paciente com DDD (ex: 82999998888):', '');
+      if (!inputTel) {
+        toast.info('Envio cancelado: telefone não informado.');
+        return;
+      }
+      tel = inputTel.trim();
     }
+
     const linhas = [
       `*${o.titulo}*`,
       ...o.itens.map((i) => `• ${i.nome} ${i.quantidade > 1 ? `(${i.quantidade}x) ` : ''}— ${formatMoney(i.valor * i.quantidade)}`),
@@ -1483,36 +1489,28 @@ const PatientOrcamentos = ({ patient }: Props) => {
       o.observacoes || null,
     ];
 
-    if (o?.status === 'aprovado') {
-      const snap = mapearDadosContrato({
-        patient,
-        orcamento: o,
-        configuracoes,
-        dentistas,
-        dadosRestauracoesPreexistentes: patient?.restauracoesPreexistentes,
-      });
-      const link = gerarLinkAssinaturaContrato(snap);
-      linhas.push('');
-      linhas.push(`✍️ *LINK PARA VISUALIZAR E ASSINAR O CONTRATO ONLINE:*`);
-      linhas.push(`Clique no link abaixo pelo seu celular para ler o contrato e assinar digitalmente:`);
-      linhas.push(`👉 ${link}`);
+    const snap = mapearDadosContrato({
+      patient,
+      orcamento: o,
+      configuracoes,
+      dentistas,
+      dadosRestauracoesPreexistentes: patient?.restauracoesPreexistentes,
+    });
+    const link = gerarLinkAssinaturaContrato(snap, o.id);
+    linhas.push('');
+    linhas.push(`✍️ *LINK PARA VISUALIZAR E ASSINAR O CONTRATO ONLINE:*`);
+    linhas.push(`Clique no link abaixo pelo seu celular para ler o contrato e assinar digitalmente:`);
+    linhas.push(`👉 ${link}`);
 
-      // Baixa o PDF do orçamento automaticamente para facilitar o anexo se desejar
-      try {
-        baixarPdf(o);
-      } catch (_) {}
-    } else {
-      linhas.push('');
-      linhas.push('Podemos seguir com este plano de tratamento?');
-    }
+    // Baixa o PDF do orçamento automaticamente para facilitar o anexo se desejar
+    try {
+      baixarPdf(o);
+    } catch (_) {}
 
-    openWhatsApp(patient.telefone, linhas.filter(Boolean).join('\n'));
+    openWhatsApp(tel, linhas.filter(Boolean).join('\n'));
     updateStatus(o.id, 'enviado');
     toast.info('Abrindo WhatsApp Web!', {
-      description:
-        o?.status === 'aprovado'
-          ? 'Link de assinatura incluso na mensagem e PDF baixado para facilitar envio!'
-          : 'Mensagem do orçamento pronta no WhatsApp.',
+      description: 'Link de assinatura incluso na mensagem e PDF baixado para facilitar envio!',
     });
   };
 
@@ -1615,8 +1613,24 @@ const PatientOrcamentos = ({ patient }: Props) => {
                 <Button size="sm" variant="outline" onClick={() => baixarPdf(o)}>
                   <FileText className="h-4 w-4 mr-1" /> PDF
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => enviarWhatsApp(o)}>
-                  <MessageCircle className="h-4 w-4 mr-1" /> Enviar
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => enviarWhatsApp(o)}
+                  className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                  title="Enviar orçamento com condições e link de assinatura digital via WhatsApp"
+                >
+                  <MessageCircle className="h-4 w-4 mr-1" /> WhatsApp
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30"
+                  onClick={() => copiarLinkContrato(o)}
+                  title="Copiar link oficial para o paciente assinar digitalmente pelo celular"
+                >
+                  <LinkIcon className="h-4 w-4 mr-1" /> Copiar Link
                 </Button>
 
                 <Button
@@ -1633,26 +1647,15 @@ const PatientOrcamentos = ({ patient }: Props) => {
                 </Button>
 
                 {o?.status === 'aprovado' && (
-                  <>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                      onClick={() => copiarLinkContrato(o)}
-                      title="Copiar link oficial para o paciente assinar digitalmente"
-                    >
-                      <LinkIcon className="h-4 w-4 mr-1" /> Copiar Link
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
-                      onClick={() => setAprovandoOrcamento(o)}
-                      title="Sincronizar ou relançar parcelas no Contas a Receber"
-                    >
-                      <RefreshCw className="h-4 w-4 mr-1" /> Financeiro
-                    </Button>
-                  </>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                    onClick={() => setAprovandoOrcamento(o)}
+                    title="Sincronizar ou relançar parcelas no Contas a Receber"
+                  >
+                    <RefreshCw className="h-4 w-4 mr-1" /> Financeiro
+                  </Button>
                 )}
 
                 {o?.status !== 'aprovado' && o?.status !== 'recusado' && (
