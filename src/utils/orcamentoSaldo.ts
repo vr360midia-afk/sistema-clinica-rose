@@ -11,11 +11,17 @@ export interface SaldoOrcamento {
 const chavePaciente = (o: { pacienteId?: string | null; pacienteNome?: string | null }) =>
   (o.pacienteId || o.pacienteNome || '').toString().trim().toLowerCase();
 
-const ehReceitaPaga = (t: any) =>
-  t?.tipo === 'receita' && t?.status === 'pago';
+const ehReceitaPaga = (t: any) => {
+  if (t?.tipo !== 'receita') return false;
+  const s = String(t?.status || '').toLowerCase().trim();
+  return s === 'pago' || s === 'quitado' || s === 'paga' || s === 'quitada' || s === 'concluido';
+};
 
-const ehReceitaPendente = (t: any) =>
-  t?.tipo === 'receita' && (t?.status === 'pendente' || t?.status === 'vencido');
+const ehReceitaPendente = (t: any) => {
+  if (t?.tipo !== 'receita') return false;
+  const s = String(t?.status || '').toLowerCase().trim();
+  return s === 'pendente' || s === 'vencido' || s === 'aguardando' || s === '';
+};
 
 /**
  * Calcula o saldo de TODOS os orçamentos de uma vez, garantindo consistência:

@@ -12,6 +12,7 @@ import { downloadCSV, formatMoney } from '@/utils/exportCsv';
 import { toast } from 'sonner';
 import { supabaseService } from '@/services/supabaseService';
 import { useOrcamentos } from '@/hooks/useOrcamentos';
+import { isDataNoMesAno, ehTransacaoPaga } from '@/utils/financeiroCalculos';
 
 const Relatorios = () => {
   const { pacientes, consultas, transacoes, prontuarios } = useDentalSystem();
@@ -30,20 +31,16 @@ const Relatorios = () => {
       const receitaMes = (transacoes || [])
         .filter(t => {
           if (!t?.data) return false;
-          const tData = new Date(t.data);
-          return tData.getMonth() === mes.getMonth() && 
-                 tData.getFullYear() === mes.getFullYear() &&
-                 t?.tipo === 'receita' && t?.status === 'pago';
+          return isDataNoMesAno(t.data, mes.getFullYear(), mes.getMonth()) &&
+                 t?.tipo === 'receita' && ehTransacaoPaga(t);
         })
         .reduce((sum, t) => sum + Number(t?.valor || 0), 0);
 
       const despesasMes = (transacoes || [])
         .filter(t => {
           if (!t?.data) return false;
-          const tData = new Date(t.data);
-          return tData.getMonth() === mes.getMonth() && 
-                 tData.getFullYear() === mes.getFullYear() &&
-                 t?.tipo === 'despesa' && t?.status === 'pago';
+          return isDataNoMesAno(t.data, mes.getFullYear(), mes.getMonth()) &&
+                 t?.tipo === 'despesa' && ehTransacaoPaga(t);
         })
         .reduce((sum, t) => sum + Number(t?.valor || 0), 0);
 
@@ -101,8 +98,8 @@ const Relatorios = () => {
   // Calcular estatísticas gerais
   const estatisticas = useMemo(() => {
     const receitaTotal = transacoes
-      .filter(t => t.tipo === 'receita' && t.status === 'pago')
-      .reduce((sum, t) => sum + t.valor, 0);
+      .filter(t => t.tipo === 'receita' && ehTransacaoPaga(t))
+      .reduce((sum, t) => sum + Number(t.valor || 0), 0);
 
     const pacientesAtivos = pacientes.filter(p => p.status === 'Ativo').length;
     const consultasRealizadas = consultas.filter(c => c.status === 'realizado').length;
@@ -142,7 +139,7 @@ const Relatorios = () => {
 
   // Faturamento detalhado: por dentista, procedimento e forma de pagamento (bruto x líquido)
   const faturamento = useMemo(() => {
-    const receitas = transacoes.filter((t) => t.tipo === 'receita' && t.status === 'pago');
+    const receitas = transacoes.filter((t) => t.tipo === 'receita' && ehTransacaoPaga(t));
     const liquidoDe = (t: any) => (t.valorLiquido ?? t.valor) || 0;
 
     const porMetodo = Object.values(

@@ -39,6 +39,7 @@ import {
   Users,
 } from 'lucide-react';
 import { formatMoney } from '@/utils/exportCsv';
+import { isDataNoMesAno, ehTransacaoPaga } from '@/utils/financeiroCalculos';
 
 interface FinanceiroDREProps {
   selectedMonth?: string;
@@ -119,19 +120,18 @@ export const FinanceiroDRE: React.FC<FinanceiroDREProps> = ({ selectedMonth }) =
     ? selectedMonth.split('-')
     : [new Date().getFullYear().toString(), String(new Date().getMonth() + 1).padStart(2, '0')];
 
-  // 1. Filtragem das transações REAIS do mês
+  // 1. Filtragem das transações REAIS do mês (imune a UTC)
   const transacoesMes = useMemo(() => {
     return (transacoes || []).filter((t) => {
       if (!t?.data) return false;
-      const data = new Date(t.data);
-      return data.getMonth() === Number(mes) - 1 && data.getFullYear() === Number(ano);
+      return isDataNoMesAno(t.data, Number(ano), Number(mes) - 1);
     });
   }, [transacoes, mes, ano]);
 
   // 2. Cálculos Contábeis do DRE Real
   const calculosDRE = useMemo(() => {
-    const receitasPagas = transacoesMes.filter((t) => t?.tipo === 'receita' && t?.status === 'pago');
-    const despesasPagas = transacoesMes.filter((t) => t?.tipo === 'despesa' && t?.status === 'pago');
+    const receitasPagas = transacoesMes.filter((t) => t?.tipo === 'receita' && ehTransacaoPaga(t));
+    const despesasPagas = transacoesMes.filter((t) => t?.tipo === 'despesa' && ehTransacaoPaga(t));
 
     // A. FATURAMENTO BRUTO (RECEITA OPERACIONAL BRUTA)
     const faturamentoBruto = receitasPagas.reduce((acc, t) => acc + Number(t?.valor || 0), 0);

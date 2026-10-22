@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import Layout from '@/components/layout/Layout';
 import StatsCard from '@/components/dashboard/StatsCard';
 import ConfirmacoesPendentes from '@/components/dashboard/ConfirmacoesPendentes';
@@ -15,11 +15,13 @@ import { useDentalSystem } from '@/context/DentalSystemContext';
 import { useAuth } from '@/context/AuthContext';
 import { useOrcamentos } from '@/hooks/useOrcamentos';
 import { formatMoney } from '@/utils/exportCsv';
+import { calcularResumoFinanceiroMes } from '@/utils/financeiroCalculos';
 import { motion } from 'framer-motion';
 
 const Dashboard = () => {
   const { user } = useAuth();
   const { pacientes, consultas, transacoes } = useDentalSystem();
+  const { orcamentos } = useOrcamentos();
 
   // Só mostrar dados se o usuário estiver autenticado
   if (!user) {
@@ -51,56 +53,26 @@ const Dashboard = () => {
   const consultasFaltou = consultasHojeList.filter(c => c?.status === 'faltou').length;
   const consultasRemarcadas = consultasHojeList.filter(c => c?.status === 'remarcado').length;
 
-  // Receita mensal atual (Transações pagas no Caixa)
+  // Cálculos financeiros unificados e padronizados (imunes a problemas de fuso e inconsistências)
   const currentMonth = today.getMonth();
   const currentYear = today.getFullYear();
-  const transacoesMesPagas = (transacoes || []).filter(t => {
-    if (!t?.data) return false;
-    const transacaoDate = new Date(t.data);
-    return transacaoDate.getMonth() === currentMonth && 
-           transacaoDate.getFullYear() === currentYear &&
-           t?.tipo === 'receita' && t?.status === 'pago';
-  });
-  const receitaMensal = transacoesMesPagas.reduce((sum, t) => sum + Number(t?.valor || 0), 0);
-  const receitaPix = transacoesMesPagas
-    .filter(t => t?.metodoPagamento === 'pix' || t?.metodoPagamento === 'pix_parcelado')
-    .reduce((sum, t) => sum + Number(t?.valor || 0), 0);
 
-  // Despesas pagas ou lançadas no mês
-  const despesasMesPagas = (transacoes || []).filter(t => {
-    if (!t?.data) return false;
-    const transacaoDate = new Date(t.data);
-    return transacaoDate.getMonth() === currentMonth && 
-           transacaoDate.getFullYear() === currentYear &&
-           t?.tipo === 'despesa' && (t?.status === 'pago' || !t?.status);
-  });
-  const totalDespesasMes = despesasMesPagas.reduce((sum, t) => sum + Number(t?.valor || 0), 0);
+  const resumoMes = useMemo(() => {
+    return calcularResumoFinanceiroMes({
+      transacoes,
+      orcamentos,
+      ano: currentYear,
+      mes0Indexed: currentMonth,
+    });
+  }, [transacoes, orcamentos, currentYear, currentMonth]);
 
-  // Taxas de cartão embutidas não lançadas como despesas avulsas
-  const taxasEmbutidasSemDespesa = transacoesMesPagas
-    .filter(r => (r.metodoPagamento === 'cartao' || (r.descricao || '').toLowerCase().includes('cart')) &&
-                 !despesasMesPagas.some(d => (r.orcamentoId && d.orcamentoId === r.orcamentoId) || (d.descricao && r.descricao && d.descricao.includes(r.descricao))))
-    .reduce((sum, r) => {
-      const taxaVal = Number(r.taxaCartaoValor || 0);
-      if (taxaVal > 0) return sum + taxaVal;
-      if (r.valorLiquido && Number(r.valorLiquido) < Number(r.valor)) {
-        return sum + (Number(r.valor) - Number(r.valorLiquido));
-      }
-      return sum;
-    }, 0);
-
-  const totalCustosMes = totalDespesasMes + taxasEmbutidasSemDespesa;
-  const financeiroLiquido = receitaMensal - totalCustosMes;
-
-  const { orcamentos } = useOrcamentos();
-  
-  // Orçamentos Fechados no mês (Vendas comerciais aprovadas)
-  const orcamentosFechadosMes = (orcamentos || []).filter(o => {
-    if (!o || o.status?.toLowerCase() !== 'aprovado') return false;
-    const data = new Date((o as any).dataAssinatura || o.atualizadoEm || o.criadoEm);
-    return data.getMonth() === currentMonth && data.getFullYear() === currentYear;
-  });
-  const vendasMes = orcamentosFechadosMes.reduce((sum, o) => sum + Number(o?.total || 0), 0);
+  const receitaMensal = resumoMes.receitaCaixa;
+  const receitaPix = resumoMes.receitaPix;
+  const totalCustosMes = resumoMes.despesasPagas;
+  const financeiroLiquido = resumoMes.financeiroLiquido;
+  const vendasMes = resumoMes.vendasFechadas;
+  const orcamentosFechadosMes = resumoMes.orcamentosAprovadosQtd;
+  const transacoesMesPagas = resumoMes.receitasPagasQtd;
 
 
   return (
@@ -163,7 +135,7 @@ const Dashboard = () => {
           <StatsCard
             title="Vendas (Fechados)"
             value={`${formatMoney(vendasMes)}`}
-            change={`${orcamentosFechadosMes.length} orçamento(s) aprovado(s)`}
+            change={`${orcamentosFechadosMes} orçamento(s) aprovado(s)`}
             changeType={vendasMes > 0 ? "positive" : "neutral"}
             icon={TrendingUp}
             iconBg="bg-amber-500/15 text-amber-500"
@@ -175,8 +147,8 @@ const Dashboard = () => {
             title="Receita (Caixa)"
             value={`${formatMoney(receitaMensal)}`}
             change={
-              transacoesMesPagas.length > 0
-                ? `${transacoesMesPagas.length} quitado(s)${receitaPix > 0 ? ` · PIX: ${formatMoney(receitaPix)}` : ''}`
+              transacoesMesPagas > 0
+                ? `${transacoesMesPagas} quitado(s)${receitaPix > 0 ? ` · PIX: ${formatMoney(receitaPix)}` : ''}`
                 : "Apenas valores quitados"
             }
             changeType={receitaMensal > 0 ? "positive" : "neutral"}

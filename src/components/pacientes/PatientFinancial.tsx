@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 import { formatMoney } from '@/utils/exportCsv';
 import { useOrcamentos } from '@/hooks/useOrcamentos';
 import { calcularSaldosOrcamentos } from '@/utils/orcamentoSaldo';
+import { ehTransacaoPaga, ehTransacaoPendente } from '@/utils/financeiroCalculos';
 import { FinanceiroComprovantes } from '@/components/financeiro/FinanceiroComprovantes';
 import { useMaquinasCartao, calcularTaxaCartao } from '@/hooks/useMaquinasCartao';
 import { slugifyNome } from '@/utils/anamneseEngine';
@@ -176,10 +177,10 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
       .sort((a, b) => a.data.getTime() - b.data.getTime());
 
     const receitas = trans.filter((t) => t?.tipo === 'receita');
-    const pago = receitas.filter((t) => t?.status === 'pago').reduce((s, t) => s + Number(t.valor || 0), 0);
-    const pendente = receitas.filter((t) => t?.status === 'pendente').reduce((s, t) => s + Number(t.valor || 0), 0);
+    const pago = receitas.filter((t) => ehTransacaoPaga(t)).reduce((s, t) => s + Number(t.valor || 0), 0);
+    const pendente = receitas.filter((t) => ehTransacaoPendente(t)).reduce((s, t) => s + Number(t.valor || 0), 0);
     const vencido = receitas
-      .filter((t) => t?.status === 'vencido' || (t?.status === 'pendente' && t.vencimento && new Date(t.vencimento) < new Date()))
+      .filter((t) => t?.status === 'vencido' || (ehTransacaoPendente(t) && t.vencimento && new Date(t.vencimento) < new Date()))
       .reduce((s, t) => s + Number(t.valor || 0), 0);
     // Orçamentos aprovados: saldo ainda não pago entra como "em aberto".
     // O cálculo é centralizado em calcularSaldosOrcamentos, que abate também os
@@ -550,7 +551,7 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <Badge
-                    variant={t?.status === 'pago' ? 'default' : t?.status === 'vencido' ? 'destructive' : 'secondary'}
+                    variant={ehTransacaoPaga(t) ? 'default' : t?.status === 'vencido' ? 'destructive' : 'secondary'}
                     className="text-[10px] capitalize font-medium"
                   >
                     {t?.status || 'pendente'}

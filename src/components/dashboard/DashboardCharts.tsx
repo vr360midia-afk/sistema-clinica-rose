@@ -3,6 +3,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Transacao, Paciente } from '@/types/shared';
 import { formatMoney } from '@/utils/exportCsv';
+import { extrairAnoMes, ehTransacaoPaga } from '@/utils/financeiroCalculos';
 import { motion } from 'framer-motion';
 
 interface DashboardChartsProps {
@@ -26,9 +27,10 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ transacoes, pa
 
   transacoes.forEach(t => {
     // Apenas transações quitadas/pagas entram no Fluxo de Caixa Real
-    if (t.status !== 'pago') return;
-    const d = new Date(t.data);
-    const monthData = last6Months.find(m => m.monthIndex === d.getMonth() && m.year === d.getFullYear());
+    if (!ehTransacaoPaga(t)) return;
+    const am = extrairAnoMes(t.data);
+    if (!am) return;
+    const monthData = last6Months.find(m => m.monthIndex === am.mes && m.year === am.ano);
     if (monthData) {
       if (t.tipo === 'receita') monthData.receita += Number(t.valor || 0);
       if (t.tipo === 'despesa') monthData.despesa += Number(t.valor || 0);
