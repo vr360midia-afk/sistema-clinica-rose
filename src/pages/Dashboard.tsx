@@ -10,7 +10,7 @@ import LembretesWhatsApp from '@/components/dashboard/LembretesWhatsApp';
 import LembretesPix from '@/components/dashboard/LembretesPix';
 import { TarefasHojeWidget } from '@/components/dashboard/TarefasHojeWidget';
 import DashboardCharts from '@/components/dashboard/DashboardCharts';
-import { Users, Calendar, CreditCard, TrendingUp } from 'lucide-react';
+import { Users, Calendar, CreditCard, TrendingUp, Wallet } from 'lucide-react';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import { useAuth } from '@/context/AuthContext';
 import { useOrcamentos } from '@/hooks/useOrcamentos';
@@ -66,6 +66,32 @@ const Dashboard = () => {
     .filter(t => t?.metodoPagamento === 'pix' || t?.metodoPagamento === 'pix_parcelado')
     .reduce((sum, t) => sum + Number(t?.valor || 0), 0);
 
+  // Despesas pagas ou lançadas no mês
+  const despesasMesPagas = (transacoes || []).filter(t => {
+    if (!t?.data) return false;
+    const transacaoDate = new Date(t.data);
+    return transacaoDate.getMonth() === currentMonth && 
+           transacaoDate.getFullYear() === currentYear &&
+           t?.tipo === 'despesa' && (t?.status === 'pago' || !t?.status);
+  });
+  const totalDespesasMes = despesasMesPagas.reduce((sum, t) => sum + Number(t?.valor || 0), 0);
+
+  // Taxas de cartão embutidas não lançadas como despesas avulsas
+  const taxasEmbutidasSemDespesa = transacoesMesPagas
+    .filter(r => (r.metodoPagamento === 'cartao' || (r.descricao || '').toLowerCase().includes('cart')) &&
+                 !despesasMesPagas.some(d => (r.orcamentoId && d.orcamentoId === r.orcamentoId) || (d.descricao && r.descricao && d.descricao.includes(r.descricao))))
+    .reduce((sum, r) => {
+      const taxaVal = Number(r.taxaCartaoValor || 0);
+      if (taxaVal > 0) return sum + taxaVal;
+      if (r.valorLiquido && Number(r.valorLiquido) < Number(r.valor)) {
+        return sum + (Number(r.valor) - Number(r.valorLiquido));
+      }
+      return sum;
+    }, 0);
+
+  const totalCustosMes = totalDespesasMes + taxasEmbutidasSemDespesa;
+  const financeiroLiquido = receitaMensal - totalCustosMes;
+
   const { orcamentos } = useOrcamentos();
   
   // Orçamentos Fechados no mês (Vendas comerciais aprovadas)
@@ -108,7 +134,7 @@ const Dashboard = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, staggerChildren: 0.1 }}
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 w-full min-w-0"
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 w-full min-w-0"
         >
           <StatsCard
             title="Pacientes Ativos"
@@ -117,17 +143,6 @@ const Dashboard = () => {
             changeType="neutral"
             icon={Users}
             iconBg="bg-blue-500/15 text-blue-400"
-          />
-          <StatsCard
-            title="Vendas (Fechados)"
-            value={`${formatMoney(vendasMes)}`}
-            change={`${orcamentosFechadosMes.length} orçamento(s) aprovado(s)`}
-            changeType={vendasMes > 0 ? "positive" : "neutral"}
-            icon={TrendingUp}
-            iconBg="bg-amber-500/15 text-amber-500"
-            isMaskable={true}
-            defaultMasked={true}
-            storageKey="dashboard_privacy_vendas"
           />
           <StatsCard
             title="Consultas Hoje"
@@ -146,6 +161,17 @@ const Dashboard = () => {
             iconBg="bg-green-500/15 text-green-400"
           />
           <StatsCard
+            title="Vendas (Fechados)"
+            value={`${formatMoney(vendasMes)}`}
+            change={`${orcamentosFechadosMes.length} orçamento(s) aprovado(s)`}
+            changeType={vendasMes > 0 ? "positive" : "neutral"}
+            icon={TrendingUp}
+            iconBg="bg-amber-500/15 text-amber-500"
+            isMaskable={true}
+            defaultMasked={true}
+            storageKey="dashboard_privacy_vendas"
+          />
+          <StatsCard
             title="Receita (Caixa)"
             value={`${formatMoney(receitaMensal)}`}
             change={
@@ -159,6 +185,21 @@ const Dashboard = () => {
             isMaskable={true}
             defaultMasked={true}
             storageKey="dashboard_privacy_receita"
+          />
+          <StatsCard
+            title="Financeiro Líquido"
+            value={`${formatMoney(financeiroLiquido)}`}
+            change={
+              totalCustosMes > 0
+                ? `Despesas: -${formatMoney(totalCustosMes)}`
+                : "Caixa real sem despesas"
+            }
+            changeType={financeiroLiquido >= 0 ? "positive" : "negative"}
+            icon={Wallet}
+            iconBg="bg-teal-500/15 text-teal-500 dark:text-teal-400"
+            isMaskable={true}
+            defaultMasked={true}
+            storageKey="dashboard_privacy_liquido"
           />
         </motion.div>
 

@@ -40,6 +40,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ transacoes, pa
     name: d.month.charAt(0).toUpperCase() + d.month.slice(1),
     Receita: d.receita,
     Despesa: d.despesa,
+    Líquido: d.receita - d.despesa,
   }));
 
   // Generate data for Patients: Ativos vs Inativos
@@ -62,7 +63,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ transacoes, pa
           <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
           <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-3">
             <CardTitle className="text-base sm:text-lg font-medium">Fluxo de Caixa (Últimos 6 meses)</CardTitle>
-            <CardDescription className="text-xs sm:text-sm">Receitas e despesas consolidadas mês a mês.</CardDescription>
+            <CardDescription className="text-xs sm:text-sm">Receitas, despesas e saldo líquido consolidado mês a mês.</CardDescription>
           </CardHeader>
           <CardContent className="p-2 sm:p-6 pt-0">
             <div className="h-[250px] sm:h-[300px] w-full min-w-0 overflow-hidden">
@@ -76,6 +77,10 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ transacoes, pa
                     <linearGradient id="colorDespesa" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3}/>
                       <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="colorLiquido" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.25}/>
+                      <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0}/>
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.5} />
@@ -93,7 +98,8 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ transacoes, pa
                     formatter={(value: number) => [formatMoney(value), '']}
                   />
                   <Area type="monotone" dataKey="Receita" stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#colorReceita)" />
-                  <Area type="monotone" dataKey="Despesa" stroke="#ef4444" strokeWidth={2.5} fillOpacity={1} fill="url(#colorDespesa)" />
+                  <Area type="monotone" dataKey="Despesa" stroke="#ef4444" strokeWidth={2} fillOpacity={1} fill="url(#colorDespesa)" />
+                  <Area type="monotone" dataKey="Líquido" stroke="#0ea5e9" strokeWidth={2} strokeDasharray="4 4" fillOpacity={1} fill="url(#colorLiquido)" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
