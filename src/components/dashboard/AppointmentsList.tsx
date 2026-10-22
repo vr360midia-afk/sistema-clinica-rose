@@ -3,16 +3,32 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Clock, User, Phone } from 'lucide-react';
+import { Calendar, Clock, User, Phone, Check, CalendarClock, X, Play } from 'lucide-react';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 
 const AppointmentsList = () => {
   const navigate = useNavigate();
   const { consultas, pacientes, updateConsulta } = useDentalSystem();
 
   const handleConfirmar = async (id: string) => {
-    await updateConsulta(id, { status: 'confirmado' });
+    try {
+      await updateConsulta(id, { status: 'confirmado', confirmacaoStatus: 'confirmado', confirmadoEm: new Date() });
+      toast.success('Consulta confirmada com sucesso!');
+    } catch {
+      toast.error('Erro ao confirmar consulta');
+    }
+  };
+
+  const handleCancelar = async (id: string) => {
+    if (!window.confirm('Tem certeza que deseja cancelar esta consulta?')) return;
+    try {
+      await updateConsulta(id, { status: 'cancelado' });
+      toast.success('Consulta cancelada');
+    } catch {
+      toast.error('Erro ao cancelar consulta');
+    }
   };
 
   // Filtrar consultas de hoje
@@ -25,15 +41,15 @@ const AppointmentsList = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'confirmado':
-        return 'bg-green-100 text-green-800';
+        return 'bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-400';
       case 'agendado':
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-400';
       case 'realizado':
         return 'bg-muted text-foreground';
       case 'cancelado':
-        return 'bg-red-100 text-red-800';
+        return 'bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-400';
       case 'faltou':
-        return 'bg-yellow-100 text-yellow-800';
+        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-950/40 dark:text-yellow-400';
       default:
         return 'bg-muted text-foreground';
     }
@@ -112,27 +128,91 @@ const AppointmentsList = () => {
                     <p className="text-xs sm:text-sm text-muted-foreground mt-1 truncate">{consulta.procedimento}</p>
                   </div>
                 </div>
-                <div className="flex gap-2 shrink-0 self-end sm:self-center">
+                <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
                   {consulta.status === 'agendado' && (
                     <>
-                      <Button variant="outline" size="sm" onClick={() => handleConfirmar(consulta.id)}>
-                        Confirmar
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 border-emerald-500/30"
+                        onClick={() => handleConfirmar(consulta.id)}
+                        title="Confirmar Consulta"
+                        aria-label="Confirmar Consulta"
+                      >
+                        <Check className="h-4 w-4" />
                       </Button>
-                      <Button variant="outline" size="sm" onClick={() => navigate('/agenda')}>
-                        Reagendar
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/40 border-blue-500/30"
+                        onClick={() => navigate('/agenda')}
+                        title="Reagendar Consulta"
+                        aria-label="Reagendar Consulta"
+                      >
+                        <CalendarClock className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 border-rose-500/30"
+                        onClick={() => handleCancelar(consulta.id)}
+                        title="Cancelar Consulta"
+                        aria-label="Cancelar Consulta"
+                      >
+                        <X className="h-4 w-4" />
                       </Button>
                     </>
                   )}
                   {consulta.status === 'confirmado' && (
-                    <Button variant="outline" size="sm" onClick={() => {
-                        const id = consulta.pacienteId || (consulta as any).paciente_id;
-                        if (!id) {
-                          alert('Erro: ID do paciente ausente.');
-                          return;
-                        }
-                        navigate("/pacientes?id=" + id);
-                    }}>
-                      Iniciar
+                    <>
+                      <Button
+                        size="icon"
+                        className="h-8 w-8 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                        onClick={() => {
+                          const id = consulta.pacienteId || (consulta as any).paciente_id;
+                          if (!id) {
+                            alert('Erro: ID do paciente ausente.');
+                            return;
+                          }
+                          navigate("/pacientes?id=" + id);
+                        }}
+                        title="Iniciar Atendimento"
+                        aria-label="Iniciar Atendimento"
+                      >
+                        <Play className="h-3.5 w-3.5 fill-current ml-0.5" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/40 border-blue-500/30"
+                        onClick={() => navigate('/agenda')}
+                        title="Reagendar Consulta"
+                        aria-label="Reagendar Consulta"
+                      >
+                        <CalendarClock className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 border-rose-500/30"
+                        onClick={() => handleCancelar(consulta.id)}
+                        title="Cancelar Consulta"
+                        aria-label="Cancelar Consulta"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </>
+                  )}
+                  {consulta.status === 'cancelado' && (
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/40 border-blue-500/30"
+                      onClick={() => navigate('/agenda')}
+                      title="Reagendar Consulta"
+                      aria-label="Reagendar Consulta"
+                    >
+                      <CalendarClock className="h-4 w-4" />
                     </Button>
                   )}
                 </div>
