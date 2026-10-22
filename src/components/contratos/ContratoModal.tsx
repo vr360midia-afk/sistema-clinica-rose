@@ -530,6 +530,12 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
       });
 
       if (docCriado) {
+        try {
+          const snapJson = JSON.stringify(snapshotAtual);
+          localStorage.setItem(`contrato_${docCriado.id}`, snapJson);
+          localStorage.setItem(`contrato_${snapshotAtual.contratoId}`, snapJson);
+        } catch (_) {}
+
         toast.success(
           documentoIdSendoEditado
             ? 'Contrato atualizado com sucesso!'

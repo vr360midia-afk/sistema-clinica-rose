@@ -2362,7 +2362,12 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
  */
 export function codificarContratoUrl(snapshot: ContratoSnapshot): string {
   try {
-    const json = JSON.stringify(snapshot);
+    // Clona e limpa campos nulos/vazios para deixar o payload mais leve na URL
+    const copia: any = JSON.parse(JSON.stringify(snapshot));
+    if (!copia.assinaturaPaciente?.assinaturaData) {
+      delete copia.assinaturaPaciente;
+    }
+    const json = JSON.stringify(copia);
     const utf8Bytes = new TextEncoder().encode(json);
     let binary = '';
     for (let i = 0; i < utf8Bytes.length; i++) {
@@ -2383,17 +2388,23 @@ export function codificarContratoUrl(snapshot: ContratoSnapshot): string {
  */
 export function decodificarContratoUrl(encoded: string): ContratoSnapshot | null {
   try {
-    let base64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
-    while (base64.length % 4) {
-      base64 += '=';
+    if (!encoded) return null;
+    let clean = decodeURIComponent(encoded).trim();
+    clean = clean.replace(/-/g, '+').replace(/_/g, '/');
+    while (clean.length % 4) {
+      clean += '=';
     }
-    const binary = atob(base64);
+    const binary = atob(clean);
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) {
       bytes[i] = binary.charCodeAt(i);
     }
     const json = new TextDecoder().decode(bytes);
-    return JSON.parse(json) as ContratoSnapshot;
+    const parsed = JSON.parse(json);
+    if (parsed && typeof parsed === 'object' && (parsed.contratoId || parsed.paciente || parsed.orcamento)) {
+      return parsed as ContratoSnapshot;
+    }
+    return null;
   } catch (e) {
     console.error('Erro ao decodificar contrato:', e);
     return null;
@@ -2402,26 +2413,37 @@ export function decodificarContratoUrl(encoded: string): ContratoSnapshot | null
 
 /**
  * Gera o link público oficial para visualização e assinatura digital do contrato pelo paciente.
- * Gera uma URL limpa e curta que não excede os limites de caracteres do WhatsApp Web nem navegadores.
+ * Gera uma URL resiliente contendo o ID e o payload comprimido 'c', garantindo que o contrato
+ * abra perfeitamente em qualquer smartphone de paciente via WhatsApp mesmo sem autenticação.
  */
 export function gerarLinkAssinaturaContrato(snapshot: ContratoSnapshot, docId?: string): string {
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const id = docId || snapshot.contratoId;
-  const slug = slugifyNome(snapshot.pacienteNome || 'paciente');
+  const slug = slugifyNome(snapshot.pacienteNome || snapshot.paciente?.nome || 'paciente');
   const slugCompleto = `assinar-contrato-${slug}`;
+  const encodedPayload = codificarContratoUrl(snapshot);
 
   // Garante que o snapshot esteja salvo no localStorage para carregamento imediato
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
-      window.localStorage.setItem(`contrato_${id}`, JSON.stringify(snapshot));
-      window.localStorage.setItem(`contrato_${snapshot.contratoId}`, JSON.stringify(snapshot));
-      window.localStorage.setItem(`contrato_slug_${slug}`, JSON.stringify(snapshot));
-      window.localStorage.setItem(`contrato_slug_${slugCompleto}`, JSON.stringify(snapshot));
+      const snapJson = JSON.stringify(snapshot);
+      if (id) {
+        window.localStorage.setItem(`contrato_${id}`, snapJson);
+      }
+      if (snapshot.contratoId) {
+        window.localStorage.setItem(`contrato_${snapshot.contratoId}`, snapJson);
+      }
+      if (docId) {
+        window.localStorage.setItem(`contrato_${docId}`, snapJson);
+      }
+      window.localStorage.setItem(`contrato_slug_${slug}`, snapJson);
+      window.localStorage.setItem(`contrato_slug_${slugCompleto}`, snapJson);
     } catch (_) {}
   }
 
-  // URL otimizada: https://meudominio/assinar-contrato-nome-do-paciente?id={id}
-  return `${origin}/${slugCompleto}?id=${id}`;
+  // URL otimizada e 100% autônoma: https://meudominio/assinar-contrato-nome-do-paciente?id={id}&c={encoded}
+  const paramEncoded = encodedPayload ? `&c=${encodedPayload}` : '';
+  return `${origin}/${slugCompleto}?id=${encodeURIComponent(id)}${paramEncoded}`;
 }
 
 

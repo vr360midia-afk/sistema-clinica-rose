@@ -19,6 +19,7 @@ import { openWhatsApp } from '@/lib/whatsapp';
 import { toast } from 'sonner';
 import ContratoModal from '@/components/contratos/ContratoModal';
 import { slugifyNome } from '@/utils/anamneseEngine';
+import { gerarLinkAssinaturaContrato } from '@/utils/contratoEngine';
 
 interface Props {
   patient: any;
@@ -120,7 +121,10 @@ const PatientDocumentosClinicos = ({ patient }: Props) => {
 
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     const slug = slugifyNome(patient?.nome || 'paciente');
-    const linkAssinatura = `${origin}/assinar-contrato-${slug}?id=${doc.id}`;
+    const linkAssinatura =
+      doc.tipo === 'contrato' && doc.itens && !Array.isArray(doc.itens)
+        ? gerarLinkAssinaturaContrato(doc.itens as any, doc.id)
+        : `${origin}/assinar-contrato-${slug}?id=${doc.id}`;
 
     // Baixa o PDF do documento no computador para facilitar o anexo
     try {
@@ -299,7 +303,10 @@ const PatientDocumentosClinicos = ({ patient }: Props) => {
                     onClick={() => {
                       const origin = typeof window !== 'undefined' ? window.location.origin : '';
                       const slug = slugifyNome(patient?.nome || 'paciente');
-                      const link = `${origin}/assinar-contrato-${slug}?id=${doc.id}`;
+                      const link =
+                        doc.tipo === 'contrato' && doc.itens && !Array.isArray(doc.itens)
+                          ? gerarLinkAssinaturaContrato(doc.itens as any, doc.id)
+                          : `${origin}/assinar-contrato-${slug}?id=${doc.id}`;
                       navigator.clipboard.writeText(link);
                       toast.success('Link de assinatura copiado com sucesso!', {
                         description: 'Envie o link para o paciente assinar pelo celular.',

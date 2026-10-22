@@ -51,7 +51,7 @@ const PublicLinkDispatcher = () => {
     return <AssinarAnamnese />;
   }
 
-  if (slug.startsWith('assinar-contrato') || slug.startsWith('contrato-')) {
+  if (slug.startsWith('assinar-contrato') || slug.startsWith('contrato-') || slug.startsWith('contrato')) {
     return <AssinarContrato />;
   }
 
@@ -87,9 +87,12 @@ function App() {
               <Route path="/assinar-extrato/:id" element={<AssinarExtrato />} />
               <Route path="/assinar-extrato/:slug" element={<AssinarExtrato />} />
               <Route path="/assinar-extrato" element={<AssinarExtrato />} />
+              <Route path="/assinar-contrato/:id/:token" element={<AssinarContrato />} />
               <Route path="/assinar-contrato/:id" element={<AssinarContrato />} />
               <Route path="/assinar-contrato/:slug" element={<AssinarContrato />} />
               <Route path="/assinar-contrato" element={<AssinarContrato />} />
+              <Route path="/contrato/:id" element={<AssinarContrato />} />
+              <Route path="/contrato" element={<AssinarContrato />} />
 
               {/* Verificação Pública de Recibos */}
               <Route path="/verificar/:hash" element={<VerificarRecibo />} />
