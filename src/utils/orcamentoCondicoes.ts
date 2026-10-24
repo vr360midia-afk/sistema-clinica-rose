@@ -456,7 +456,7 @@ export function parseCondicoesPagamento(
           diaVencimento: c.diaVencimento,
           formasCompostas: Array.isArray(c.formasCompostas) ? c.formasCompostas : undefined,
           descricao: c.descricao || calcularDescricaoCondicao(c, totalBase),
-          selecionada: c.selecionada ?? (parsed.selecionadaId ? c.id === parsed.selecionadaId : index === 0),
+          selecionada: parsed.selecionadaId ? c.id === parsed.selecionadaId : Boolean(c.selecionada),
           destaque: c.destaque,
         }));
       }
@@ -494,7 +494,7 @@ export function parseCondicoesPagamento(
           : 'personalizado',
         valorTotal: totalBase,
         descricao: textoFinal,
-        selecionada: i === 0,
+        selecionada: false,
       });
     }
 
@@ -532,14 +532,16 @@ export function serializarCondicoesPagamento(
     return condicoes[0].descricao;
   }
 
-  const idAtivo = selecionadaId || condicoes.find((c) => c.selecionada)?.id || condicoes[0]?.id;
+  const idAtivo = selecionadaId !== undefined && selecionadaId !== ''
+    ? selecionadaId
+    : condicoes.find((c) => c.selecionada)?.id;
 
   const payload: EstruturaCondicoesPagamento = {
     versao: 2,
     selecionadaId: idAtivo,
     condicoes: condicoes.map((c) => ({
       ...c,
-      selecionada: c.id === idAtivo,
+      selecionada: Boolean(idAtivo && c.id === idAtivo),
     })),
   };
 
@@ -682,8 +684,8 @@ export function gerarTrioPropostasSugeridas(totalOrcamento: number): CondicaoPag
     saldoValorParcela: saldoSugerido,
     valorTotal: total,
     descricao: `Entrada de ${formatMoney(entSugerida)} (50%) via PIX + Saldo de ${formatMoney(saldoSugerido)} (50%) para 30 dias no Cartão`,
-    destaque: true,
-    selecionada: true,
+    destaque: false,
+    selecionada: false,
   };
 
   // 3. Parcelamento em 10x ou 12x no Cartão sem juros

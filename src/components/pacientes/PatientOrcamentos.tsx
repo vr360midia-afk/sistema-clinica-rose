@@ -104,7 +104,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
   const [formasPagamento, setFormasPagamento] = useState('');
   const [modoFormaPagamento, setModoFormaPagamento] = useState<'propostas' | 'livre'>('propostas');
   const [condicoesNegociacao, setCondicoesNegociacao] = useState<CondicaoPagamento[]>([]);
-  const [condicaoAtivaId, setCondicaoAtivaId] = useState<string>('1');
+  const [condicaoAtivaId, setCondicaoAtivaId] = useState<string>('');
   const [modalEdicaoCondicaoOpen, setModalEdicaoCondicaoOpen] = useState(false);
   const [condicaoEmEdicao, setCondicaoEmEdicao] = useState<Partial<CondicaoPagamento> | null>(null);
   const [selectKey, setSelectKey] = useState(0);
@@ -701,7 +701,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
   const handleGerarTrioSugeridoOrcamento = () => {
     const trio = gerarTrioPropostasSugeridas(total);
     setCondicoesNegociacao(trio);
-    setCondicaoAtivaId('2');
+    setCondicaoAtivaId('');
     toast.success('3 propostas de negociação geradas automaticamente com base no total!');
   };
 
@@ -738,7 +738,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
     const novas = condicoesNegociacao.filter((c) => c.id !== id);
     setCondicoesNegociacao(novas);
     if (condicaoAtivaId === id) {
-      setCondicaoAtivaId(novas[0].id);
+      setCondicaoAtivaId('');
     }
     toast.info('Condição removida');
   };
@@ -793,12 +793,14 @@ const PatientOrcamentos = ({ patient }: Props) => {
     toast.success('Condição de pagamento salva!');
   };
 
-  const handleIniciarAprovacao = (o: Orcamento) => {
+  const handleIniciarAprovacao = (o: Orcamento, condicaoPreSelecionadaId?: string) => {
     setAprovandoOrcamento(o);
     const parsed = parseCondicoesPagamento(o.formasPagamento, o.total);
     if (parsed.length > 0) {
       setCondicoesAprovacao(parsed);
-      const sel = parsed.find((c) => c.selecionada) || parsed[0];
+      const sel = condicaoPreSelecionadaId
+        ? parsed.find((c) => c.id === condicaoPreSelecionadaId) || parsed[0]
+        : parsed.find((c) => c.selecionada) || parsed[0];
       setCondicaoEscolhidaAprovacaoId(sel.id);
     } else {
       const single: CondicaoPagamento = {
@@ -1383,7 +1385,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
     setFormasPagamento('');
     const trio = gerarTrioPropostasSugeridas(0);
     setCondicoesNegociacao(trio);
-    setCondicaoAtivaId('2');
+    setCondicaoAtivaId('');
     setModoFormaPagamento('propostas');
     setPixParceladoAtivo(false);
     setCartaoAssistenteAtivo(false);
@@ -1437,13 +1439,13 @@ const PatientOrcamentos = ({ patient }: Props) => {
     const parsed = parseCondicoesPagamento(o.formasPagamento, o.total);
     if (parsed.length > 0) {
       setCondicoesNegociacao(parsed);
-      const sel = parsed.find((c) => c.selecionada) || parsed[0];
-      setCondicaoAtivaId(sel.id);
+      const sel = parsed.find((c) => c.selecionada);
+      setCondicaoAtivaId(sel ? sel.id : '');
       setModoFormaPagamento(parsed.length > 1 || parsed[0].tipo !== 'personalizado' ? 'propostas' : 'livre');
     } else {
       const trio = gerarTrioPropostasSugeridas(o.total || 0);
       setCondicoesNegociacao(trio);
-      setCondicaoAtivaId('2');
+      setCondicaoAtivaId('');
       setModoFormaPagamento('propostas');
     }
     setBuscaProcedimento('');
@@ -1979,30 +1981,47 @@ const PatientOrcamentos = ({ patient }: Props) => {
                           <Wallet className="h-3 w-3 text-primary" />
                           {conds.length} Condições de Pagamento Disponíveis:
                         </span>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
-                          {conds.map((c, i) => (
-                            <div
-                              key={c.id || i}
-                              className={`p-2 rounded-lg border text-[11px] space-y-0.5 ${
-                                c.selecionada
-                                  ? 'border-emerald-500/50 bg-emerald-500/10 text-foreground font-medium'
-                                  : 'border-border/60 bg-background text-muted-foreground'
-                              }`}
-                            >
-                              <div className="flex justify-between items-center gap-1">
-                                <span className="font-bold text-foreground truncate">{c.titulo}</span>
-                                {c.selecionada && (
-                                  <Badge className="bg-emerald-600 text-white text-[9px] px-1.5 py-0 h-4 shrink-0">
-                                    Escolhida
-                                  </Badge>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                          {conds.map((c, i) => {
+                            const isEscolhida = o.status === 'aprovado' && Boolean(c.selecionada);
+                            return (
+                              <div
+                                key={c.id || i}
+                                className={`p-2.5 rounded-xl border text-[11px] space-y-1.5 flex flex-col justify-between transition-all ${
+                                  isEscolhida
+                                    ? 'border-emerald-500 bg-emerald-500/10 text-foreground font-medium ring-1 ring-emerald-500/30'
+                                    : 'border-border/70 bg-card/60 text-foreground'
+                                }`}
+                              >
+                                <div className="space-y-1">
+                                  <div className="flex justify-between items-center gap-1">
+                                    <span className="font-bold text-foreground truncate">{c.titulo}</span>
+                                    {isEscolhida && (
+                                      <Badge className="bg-emerald-600 text-white text-[9px] px-1.5 py-0 h-4 shrink-0 flex items-center gap-0.5">
+                                        <Check className="h-2.5 w-2.5" /> Escolhida
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center justify-between text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400">
+                                    <span>Total: {formatMoney(c.valorTotal || o.total)}</span>
+                                  </div>
+                                  <p className="line-clamp-2 text-[10px] text-muted-foreground leading-tight">{c.descricao}</p>
+                                </div>
+
+                                {o.status !== 'aprovado' && o.status !== 'recusado' && (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    onClick={() => handleIniciarAprovacao(o, c.id)}
+                                    className="w-full h-6 text-[10px] font-bold gap-1 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs mt-1"
+                                    title={`Aprovar este orçamento escolhendo a ${c.titulo}`}
+                                  >
+                                    <Check className="h-3 w-3" /> Aprovar esta opção
+                                  </Button>
                                 )}
                               </div>
-                              <div className="flex items-center justify-between text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                                <span>Total: {formatMoney(c.valorTotal || o.total)}</span>
-                              </div>
-                              <p className="line-clamp-2 text-[10px] leading-tight">{c.descricao}</p>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     );
@@ -2620,7 +2639,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
                       if (condicoesNegociacao.length === 0) {
                         const trio = gerarTrioPropostasSugeridas(total);
                         setCondicoesNegociacao(trio);
-                        setCondicaoAtivaId(trio[1]?.id || '1');
+                        setCondicaoAtivaId('');
                       }
                     }}
                   >
@@ -2842,7 +2861,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
                                     ? 'bg-emerald-600 text-white font-semibold'
                                     : 'border-border text-muted-foreground hover:text-foreground'
                                 }`}
-                                onClick={() => setCondicaoAtivaId(c.id)}
+                                onClick={() => setCondicaoAtivaId(isAtiva ? '' : c.id)}
                               >
                                 {isAtiva ? '✓ Opção Padrão / Escolhida' : 'Definir como Padrão'}
                               </Button>
