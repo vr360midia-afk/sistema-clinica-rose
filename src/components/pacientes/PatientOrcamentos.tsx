@@ -768,6 +768,10 @@ const PatientOrcamentos = ({ patient }: Props) => {
       saldoMetodo: condicaoEmEdicao.saldoMetodo,
       saldoValorParcela: condicaoEmEdicao.saldoValorParcela,
       diaVencimento: condicaoEmEdicao.diaVencimento,
+      dataEntrada: condicaoEmEdicao.dataEntrada,
+      situacaoEntrada: condicaoEmEdicao.situacaoEntrada,
+      dataPrimeiroVencimento: condicaoEmEdicao.dataPrimeiroVencimento,
+      situacaoSaldo: condicaoEmEdicao.situacaoSaldo,
       formasCompostas: condicaoEmEdicao.formasCompostas,
       descricao: condicaoEmEdicao.descricao?.trim() || descAuto,
       destaque: !!condicaoEmEdicao.destaque,
@@ -796,14 +800,15 @@ const PatientOrcamentos = ({ patient }: Props) => {
   const handleIniciarAprovacao = (o: Orcamento, condicaoPreSelecionadaId?: string) => {
     setAprovandoOrcamento(o);
     const parsed = parseCondicoesPagamento(o.formasPagamento, o.total);
+    let sel: CondicaoPagamento;
     if (parsed.length > 0) {
       setCondicoesAprovacao(parsed);
-      const sel = condicaoPreSelecionadaId
+      sel = condicaoPreSelecionadaId
         ? parsed.find((c) => c.id === condicaoPreSelecionadaId) || parsed[0]
         : parsed.find((c) => c.selecionada) || parsed[0];
       setCondicaoEscolhidaAprovacaoId(sel.id);
     } else {
-      const single: CondicaoPagamento = {
+      sel = {
         id: '1',
         titulo: 'Condição de Pagamento',
         tipo: 'personalizado',
@@ -811,11 +816,23 @@ const PatientOrcamentos = ({ patient }: Props) => {
         descricao: o.formasPagamento || 'A combinar',
         selecionada: true,
       };
-      setCondicoesAprovacao([single]);
+      setCondicoesAprovacao([sel]);
       setCondicaoEscolhidaAprovacaoId('1');
     }
-    setFlexibilizandoAprovacao(false);
-    setCondicaoAprovacaoEmEdicao(null);
+
+    const hoje = formatIsoDate(new Date());
+    const em30 = formatIsoDate(somarMesesSeguro(new Date(), 1));
+    const condInicializada: CondicaoPagamento = {
+      ...sel,
+      dataEntrada: sel.dataEntrada || hoje,
+      situacaoEntrada: sel.situacaoEntrada || 'Quitada',
+      dataPrimeiroVencimento: sel.dataPrimeiroVencimento || em30,
+      situacaoSaldo: sel.situacaoSaldo || (sel.tipo === 'cartao' ? 'Autorizado' : 'A vencer'),
+    };
+    condInicializada.descricao = sel.descricao || calcularDescricaoCondicao(condInicializada, o.total);
+
+    setCondicaoAprovacaoEmEdicao(condInicializada);
+    setFlexibilizandoAprovacao(true);
   };
 
   const handleConfirmarAprovacao = async (
@@ -830,6 +847,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
 
       let formasAtualizadas = o.formasPagamento;
       let orcamentoFinal: Orcamento = { ...o };
+      let condicaoEscolhidaObj: CondicaoPagamento | undefined = undefined;
 
       if (condicoesDefinidas && condicoesDefinidas.length > 0) {
         // Ao aprovar o orçamento, apenas a opção escolhida pelo paciente é mantida
@@ -839,6 +857,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
           selecionadaId
         );
         formasAtualizadas = formasPagamentoFinal;
+        condicaoEscolhidaObj = condicaoEscolhida;
 
         const subtotalItens = (o.itens || []).reduce((acc: number, it: any) => acc + (Number(it.valor || 0) * Number(it.quantidade || 1)), 0);
         let totalFinal = o.total;
@@ -932,14 +951,24 @@ const PatientOrcamentos = ({ patient }: Props) => {
           // 1. O orçamento aprovado entra integralmente em Vendas (fechado) pelo status 'aprovado'.
           // 2. No Caixa (dinheiro em caixa) SÓ deve entrar o que já estiver efetivamente quitado.
           // 3. Caso esteja a receber ou for para passar cartão no balcão, NÃO entra no caixa (status: 'pendente').
-          // 4. Só é considerado quitado imediatamente se:
-          //    - Estiver expressamente marcado como quitado no descritivo ([Quitada], [Pago]), OU
-          //    - O usuário marcou 'Dar Baixa Imediata' E for entrada em PIX/dinheiro (não-cartão).
-          const isQuitada =
-            !isACombinar && (
-              isExplicitamenteQuitada ||
-              (!isCartao && darBaixaImediataAprovacao && (isEntrada || isUnicaParcela))
-            );
+          let isQuitada = false;
+          if (isEntrada) {
+            if (condicaoEscolhidaObj?.situacaoEntrada) {
+              isQuitada = condicaoEscolhidaObj.situacaoEntrada === 'Quitada';
+            } else {
+              isQuitada =
+                !isACombinar && (
+                  isExplicitamenteQuitada ||
+                  (!isCartao && darBaixaImediataAprovacao && (isEntrada || isUnicaParcela))
+                );
+            }
+          } else {
+            if (condicaoEscolhidaObj?.situacaoSaldo) {
+              isQuitada = condicaoEscolhidaObj.situacaoSaldo === 'Quitado' || condicaoEscolhidaObj.situacaoSaldo === 'Autorizado';
+            } else {
+              isQuitada = !isACombinar && isExplicitamenteQuitada;
+            }
+          }
           
           if (isQuitada) {
             totalQuitadasAgora++;
@@ -957,7 +986,20 @@ const PatientOrcamentos = ({ patient }: Props) => {
           }
 
           let dataVenc: Date = new Date();
-          if (p.vencimento && typeof p.vencimento === 'string') {
+          if (isEntrada && condicaoEscolhidaObj?.dataEntrada) {
+            const dateParts = condicaoEscolhidaObj.dataEntrada.split('-').map(Number);
+            if (dateParts.length === 3 && dateParts[0] && dateParts[1] && dateParts[2]) {
+              dataVenc = new Date(dateParts[0], dateParts[1] - 1, dateParts[2], 12, 0, 0);
+            }
+          } else if (!isEntrada && condicaoEscolhidaObj?.dataPrimeiroVencimento) {
+            const dateParts = condicaoEscolhidaObj.dataPrimeiroVencimento.split('-').map(Number);
+            if (dateParts.length === 3 && dateParts[0] && dateParts[1] && dateParts[2]) {
+              const baseVenc = new Date(dateParts[0], dateParts[1] - 1, dateParts[2], 12, 0, 0);
+              const temEntrada = parcelas.some((x: any) => (x.descricao || '').toLowerCase().includes('entrada'));
+              const offset = Math.max(0, (typeof p.numero === 'number' ? p.numero - (temEntrada ? 2 : 1) : 0));
+              dataVenc = somarMesesSeguro(baseVenc, offset);
+            }
+          } else if (p.vencimento && typeof p.vencimento === 'string') {
             const dateMatch = p.vencimento.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
             if (dateMatch) {
               const [, dia, mes, ano] = dateMatch;
@@ -1113,8 +1155,9 @@ const PatientOrcamentos = ({ patient }: Props) => {
     let listaFinal = [...condicoesAprovacao];
     let idEscolhido = condicaoEscolhidaAprovacaoId;
 
-    if (flexibilizandoAprovacao && condicaoAprovacaoEmEdicao) {
+    if (condicaoAprovacaoEmEdicao) {
       const finalCond: CondicaoPagamento = {
+        ...condicaoAprovacaoEmEdicao,
         id: condicaoAprovacaoEmEdicao.id || idEscolhido || String(Date.now()),
         titulo: condicaoAprovacaoEmEdicao.titulo?.trim() || 'Condição Acordada',
         tipo: condicaoAprovacaoEmEdicao.tipo || 'personalizado',
@@ -1123,6 +1166,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
         valorTotal: condicaoAprovacaoEmEdicao.valorTotal || aprovandoOrcamento.total,
         parcelas: condicaoAprovacaoEmEdicao.parcelas,
         valorParcela: condicaoAprovacaoEmEdicao.valorParcela,
+        operadoraCartaoId: condicaoAprovacaoEmEdicao.operadoraCartaoId,
         valorEntrada: condicaoAprovacaoEmEdicao.valorEntrada,
         metodoEntrada: condicaoAprovacaoEmEdicao.metodoEntrada,
         saldoTipoPrazo: condicaoAprovacaoEmEdicao.saldoTipoPrazo,
@@ -1132,6 +1176,10 @@ const PatientOrcamentos = ({ patient }: Props) => {
         saldoValorParcela: condicaoAprovacaoEmEdicao.saldoValorParcela,
         diaVencimento: condicaoAprovacaoEmEdicao.diaVencimento,
         tipoCartao: condicaoAprovacaoEmEdicao.tipoCartao,
+        dataEntrada: condicaoAprovacaoEmEdicao.dataEntrada,
+        situacaoEntrada: condicaoAprovacaoEmEdicao.situacaoEntrada,
+        dataPrimeiroVencimento: condicaoAprovacaoEmEdicao.dataPrimeiroVencimento,
+        situacaoSaldo: condicaoAprovacaoEmEdicao.situacaoSaldo,
         descricao:
           condicaoAprovacaoEmEdicao.descricao?.trim() ||
           calcularDescricaoCondicao(condicaoAprovacaoEmEdicao, aprovandoOrcamento.total),
@@ -4390,9 +4438,17 @@ const PatientOrcamentos = ({ patient }: Props) => {
                           key={c.id || idx}
                           onClick={() => {
                             setCondicaoEscolhidaAprovacaoId(c.id);
-                            if (flexibilizandoAprovacao) {
-                              setCondicaoAprovacaoEmEdicao({ ...c });
-                            }
+                            const hoje = formatIsoDate(new Date());
+                            const em30 = formatIsoDate(somarMesesSeguro(new Date(), 1));
+                            const atualizada: CondicaoPagamento = {
+                              ...c,
+                              dataEntrada: c.dataEntrada || hoje,
+                              situacaoEntrada: c.situacaoEntrada || 'Quitada',
+                              dataPrimeiroVencimento: c.dataPrimeiroVencimento || em30,
+                              situacaoSaldo: c.situacaoSaldo || (c.tipo === 'cartao' ? 'Autorizado' : 'A vencer'),
+                            };
+                            atualizada.descricao = c.descricao || calcularDescricaoCondicao(atualizada, aprovandoOrcamento.total);
+                            setCondicaoAprovacaoEmEdicao(atualizada);
                           }}
                           className={`p-3 rounded-xl border text-xs cursor-pointer transition-all flex flex-col justify-between gap-2 ${
                             isSel
@@ -4978,6 +5034,129 @@ const PatientOrcamentos = ({ patient }: Props) => {
                     );
                   })()}
 
+                  {/* Bloco de Ajuste de Datas e Situação de Pagamento */}
+                  <div className="p-3 rounded-xl bg-muted/40 border border-border/80 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                        <CalendarDays className="h-4 w-4 text-primary" />
+                        Ajuste de Datas e Situação de Pagamento (Contrato & Caixa)
+                      </Label>
+                      <span className="text-[10px] text-muted-foreground font-medium">
+                        Define vencimentos e status no contrato e financeiro
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      {/* Entrada / À Vista */}
+                      {(condicaoAprovacaoEmEdicao.tipo === 'entrada_saldo' ||
+                        condicaoAprovacaoEmEdicao.tipo === 'a_vista' ||
+                        (condicaoAprovacaoEmEdicao.valorEntrada && condicaoAprovacaoEmEdicao.valorEntrada > 0) ||
+                        condicaoAprovacaoEmEdicao.tipo === 'personalizado') && (
+                        <div className="p-2.5 rounded-lg bg-background border border-border/70 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                              {condicaoAprovacaoEmEdicao.tipo === 'a_vista' ? 'Pagamento À Vista' : 'Entrada (Sinal)'}
+                            </span>
+                            {condicaoAprovacaoEmEdicao.situacaoEntrada === 'Quitada' ? (
+                              <Badge className="bg-emerald-600 text-white text-[9px] px-1.5 py-0 h-4">
+                                ✓ Quitada no Caixa
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-amber-600 border-amber-500/40 text-[9px] px-1.5 py-0 h-4">
+                                A Vencer / Pendente
+                              </Badge>
+                            )}
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                              <Label className="text-[10px] text-muted-foreground font-medium">Data do Pagamento:</Label>
+                              <Input
+                                type="date"
+                                value={condicaoAprovacaoEmEdicao.dataEntrada || formatIsoDate(new Date())}
+                                onChange={(e) => {
+                                  const upd = { ...condicaoAprovacaoEmEdicao, dataEntrada: e.target.value };
+                                  upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
+                                  setCondicaoAprovacaoEmEdicao(upd);
+                                }}
+                                className="h-7 text-xs font-semibold"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-[10px] text-muted-foreground font-medium">Situação:</Label>
+                              <select
+                                value={condicaoAprovacaoEmEdicao.situacaoEntrada || 'Quitada'}
+                                onChange={(e) => {
+                                  const upd = { ...condicaoAprovacaoEmEdicao, situacaoEntrada: e.target.value as any };
+                                  upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
+                                  setCondicaoAprovacaoEmEdicao(upd);
+                                }}
+                                className="w-full h-7 px-1.5 text-xs font-semibold rounded bg-background border border-border"
+                              >
+                                <option value="Quitada">Quitada (Recebida agora)</option>
+                                <option value="A vencer">A vencer (Pendente / A receber)</option>
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Saldo / Parcelas / Cartão */}
+                      {(condicaoAprovacaoEmEdicao.tipo === 'cartao' ||
+                        condicaoAprovacaoEmEdicao.tipo === 'entrada_saldo' ||
+                        condicaoAprovacaoEmEdicao.tipo === 'pix_parcelado' ||
+                        condicaoAprovacaoEmEdicao.tipo === 'boleto' ||
+                        condicaoAprovacaoEmEdicao.tipo === 'personalizado') && (
+                        <div className="p-2.5 rounded-lg bg-background border border-border/70 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-bold text-primary">
+                              {condicaoAprovacaoEmEdicao.tipo === 'cartao' ? 'Cartão / Parcelamento' : 'Saldo Restante / Parcelas'}
+                            </span>
+                            <Badge variant="outline" className="text-primary border-primary/40 text-[9px] px-1.5 py-0 h-4">
+                              {condicaoAprovacaoEmEdicao.situacaoSaldo || 'A vencer'}
+                            </Badge>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                              <Label className="text-[10px] text-muted-foreground font-medium">
+                                {condicaoAprovacaoEmEdicao.tipo === 'entrada_saldo' && condicaoAprovacaoEmEdicao.saldoTipoPrazo === 'dias'
+                                  ? 'Data Vencimento Saldo:'
+                                  : 'Data 1º Vencimento:'}
+                              </Label>
+                              <Input
+                                type="date"
+                                value={condicaoAprovacaoEmEdicao.dataPrimeiroVencimento || formatIsoDate(somarMesesSeguro(new Date(), 1))}
+                                onChange={(e) => {
+                                  const upd = { ...condicaoAprovacaoEmEdicao, dataPrimeiroVencimento: e.target.value };
+                                  upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
+                                  setCondicaoAprovacaoEmEdicao(upd);
+                                }}
+                                className="h-7 text-xs font-semibold"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-[10px] text-muted-foreground font-medium">Situação do Saldo:</Label>
+                              <select
+                                value={condicaoAprovacaoEmEdicao.situacaoSaldo || (condicaoAprovacaoEmEdicao.tipo === 'cartao' ? 'Autorizado' : 'A vencer')}
+                                onChange={(e) => {
+                                  const upd = { ...condicaoAprovacaoEmEdicao, situacaoSaldo: e.target.value as any };
+                                  upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
+                                  setCondicaoAprovacaoEmEdicao(upd);
+                                }}
+                                className="w-full h-7 px-1.5 text-xs font-semibold rounded bg-background border border-border"
+                              >
+                                <option value="A vencer">A vencer no prazo</option>
+                                <option value="Quitado">Quitado antecipado</option>
+                                <option value="Autorizado">Autorizado na máquina</option>
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
                   {/* Visão Interna da Clínica — Desconto das Taxas do Cartão */}
                   <CardSimulacaoTaxasCartao
                     condicao={condicaoAprovacaoEmEdicao}
@@ -5049,6 +5228,10 @@ const PatientOrcamentos = ({ patient }: Props) => {
                           saldoValorParcela: condicaoAprovacaoEmEdicao.saldoValorParcela,
                           diaVencimento: condicaoAprovacaoEmEdicao.diaVencimento,
                           tipoCartao: condicaoAprovacaoEmEdicao.tipoCartao,
+                          dataEntrada: condicaoAprovacaoEmEdicao.dataEntrada,
+                          situacaoEntrada: condicaoAprovacaoEmEdicao.situacaoEntrada,
+                          dataPrimeiroVencimento: condicaoAprovacaoEmEdicao.dataPrimeiroVencimento,
+                          situacaoSaldo: condicaoAprovacaoEmEdicao.situacaoSaldo,
                           descricao: condicaoAprovacaoEmEdicao.descricao?.trim() || calcularDescricaoCondicao(condicaoAprovacaoEmEdicao, aprovandoOrcamento.total),
                           destaque: true,
                           selecionada: true,
@@ -5121,10 +5304,10 @@ const PatientOrcamentos = ({ patient }: Props) => {
                 size="sm"
                 disabled={lancandoFinanceiro}
                 onClick={() => prepararEConfirmarAprovacao(true, true)}
-                className="bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-1.5 shadow-xs"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-1.5 shadow-sm"
               >
                 <FileSignature className="h-4 w-4" />
-                Aprovar e Abrir Contrato
+                ✓ Aprovar e Gerar Contrato
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -6002,6 +6185,129 @@ const PatientOrcamentos = ({ patient }: Props) => {
                   </div>
                 );
               })()}
+
+              {/* Bloco de Ajuste de Datas e Situação de Pagamento */}
+              <div className="p-3 rounded-xl bg-muted/40 border border-border/80 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <CalendarDays className="h-4 w-4 text-primary" />
+                    Datas e Situação de Pagamento (Contrato & Caixa)
+                  </Label>
+                  <span className="text-[10px] text-muted-foreground font-medium">
+                    Opcional: defina datas e situações
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {/* Entrada / À Vista */}
+                  {(condicaoEmEdicao.tipo === 'entrada_saldo' ||
+                    condicaoEmEdicao.tipo === 'a_vista' ||
+                    (condicaoEmEdicao.valorEntrada && condicaoEmEdicao.valorEntrada > 0) ||
+                    condicaoEmEdicao.tipo === 'personalizado') && (
+                    <div className="p-2.5 rounded-lg bg-background border border-border/70 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                          {condicaoEmEdicao.tipo === 'a_vista' ? 'Pagamento À Vista' : 'Entrada (Sinal)'}
+                        </span>
+                        {condicaoEmEdicao.situacaoEntrada === 'Quitada' ? (
+                          <Badge className="bg-emerald-600 text-white text-[9px] px-1.5 py-0 h-4">
+                            ✓ Quitada no Caixa
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-amber-600 border-amber-500/40 text-[9px] px-1.5 py-0 h-4">
+                            A Vencer / Pendente
+                          </Badge>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <Label className="text-[10px] text-muted-foreground font-medium">Data do Pagamento:</Label>
+                          <Input
+                            type="date"
+                            value={condicaoEmEdicao.dataEntrada || formatIsoDate(new Date())}
+                            onChange={(e) => {
+                              const upd = { ...condicaoEmEdicao, dataEntrada: e.target.value };
+                              upd.descricao = calcularDescricaoCondicao(upd, total);
+                              setCondicaoEmEdicao(upd);
+                            }}
+                            className="h-7 text-xs font-semibold"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] text-muted-foreground font-medium">Situação:</Label>
+                          <select
+                            value={condicaoEmEdicao.situacaoEntrada || 'Quitada'}
+                            onChange={(e) => {
+                              const upd = { ...condicaoEmEdicao, situacaoEntrada: e.target.value as any };
+                              upd.descricao = calcularDescricaoCondicao(upd, total);
+                              setCondicaoEmEdicao(upd);
+                            }}
+                            className="w-full h-7 px-1.5 text-xs font-semibold rounded bg-background border border-border"
+                          >
+                            <option value="Quitada">Quitada (Recebida agora)</option>
+                            <option value="A vencer">A vencer (Pendente / A receber)</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Saldo / Parcelas / Cartão */}
+                  {(condicaoEmEdicao.tipo === 'cartao' ||
+                    condicaoEmEdicao.tipo === 'entrada_saldo' ||
+                    condicaoEmEdicao.tipo === 'pix_parcelado' ||
+                    condicaoEmEdicao.tipo === 'boleto' ||
+                    condicaoEmEdicao.tipo === 'personalizado') && (
+                    <div className="p-2.5 rounded-lg bg-background border border-border/70 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-primary">
+                          {condicaoEmEdicao.tipo === 'cartao' ? 'Cartão / Parcelamento' : 'Saldo Restante / Parcelas'}
+                        </span>
+                        <Badge variant="outline" className="text-primary border-primary/40 text-[9px] px-1.5 py-0 h-4">
+                          {condicaoEmEdicao.situacaoSaldo || 'A vencer'}
+                        </Badge>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <Label className="text-[10px] text-muted-foreground font-medium">
+                            {condicaoEmEdicao.tipo === 'entrada_saldo' && condicaoEmEdicao.saldoTipoPrazo === 'dias'
+                              ? 'Data Vencimento Saldo:'
+                              : 'Data 1º Vencimento:'}
+                          </Label>
+                          <Input
+                            type="date"
+                            value={condicaoEmEdicao.dataPrimeiroVencimento || formatIsoDate(somarMesesSeguro(new Date(), 1))}
+                            onChange={(e) => {
+                              const upd = { ...condicaoEmEdicao, dataPrimeiroVencimento: e.target.value };
+                              upd.descricao = calcularDescricaoCondicao(upd, total);
+                              setCondicaoEmEdicao(upd);
+                            }}
+                            className="h-7 text-xs font-semibold"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] text-muted-foreground font-medium">Situação do Saldo:</Label>
+                          <select
+                            value={condicaoEmEdicao.situacaoSaldo || (condicaoEmEdicao.tipo === 'cartao' ? 'Autorizado' : 'A vencer')}
+                            onChange={(e) => {
+                              const upd = { ...condicaoEmEdicao, situacaoSaldo: e.target.value as any };
+                              upd.descricao = calcularDescricaoCondicao(upd, total);
+                              setCondicaoEmEdicao(upd);
+                            }}
+                            className="w-full h-7 px-1.5 text-xs font-semibold rounded bg-background border border-border"
+                          >
+                            <option value="A vencer">A vencer no prazo</option>
+                            <option value="Quitado">Quitado antecipado</option>
+                            <option value="Autorizado">Autorizado na máquina</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
 
               {/* Visão Interna da Clínica — Desconto das Taxas do Cartão */}
               <CardSimulacaoTaxasCartao

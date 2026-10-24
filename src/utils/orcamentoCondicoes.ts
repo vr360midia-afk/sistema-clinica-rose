@@ -35,11 +35,15 @@ export interface CondicaoPagamento {
   tipoCartao?: 'credito' | 'debito';
   valorEntrada?: number;
   metodoEntrada?: 'pix' | 'dinheiro' | 'cartao_debito' | 'cartao_credito' | 'transferencia';
+  dataEntrada?: string;
+  situacaoEntrada?: 'Quitada' | 'A vencer';
   saldoTipoPrazo?: 'dias' | 'parcelas' | 'conclusao';
   saldoPrazoDias?: number;
   saldoParcelas?: number;
   saldoMetodo?: 'cartao' | 'pix_parcelado' | 'boleto' | 'conclusao';
   saldoValorParcela?: number;
+  dataPrimeiroVencimento?: string;
+  situacaoSaldo?: 'A vencer' | 'Quitado' | 'Autorizado';
   diaVencimento?: number;
   descricao: string;
   formasCompostas?: ItemFormaComposta[];
@@ -53,6 +57,13 @@ export interface EstruturaCondicoesPagamento {
   condicoes: CondicaoPagamento[];
 }
 
+function formatarDataBr(dStr?: string): string {
+  if (!dStr) return '';
+  const match = dStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (match) return `${match[3]}/${match[2]}/${match[1]}`;
+  return dStr;
+}
+
 /**
  * Calcula a descrição textual detalhada de uma condição com base em seus parâmetros
  */
@@ -63,23 +74,28 @@ export function calcularDescricaoCondicao(
   const tipo = cond.tipo || 'personalizado';
   const total = typeof cond.valorTotal === 'number' && cond.valorTotal > 0 ? cond.valorTotal : totalBase;
 
+  const tagSitEnt = cond.situacaoEntrada ? ` [${cond.situacaoEntrada}]` : '';
+  const tagDataEnt = cond.dataEntrada ? ` (em ${formatarDataBr(cond.dataEntrada)})` : '';
+  const tagSitSaldo = cond.situacaoSaldo ? ` [${cond.situacaoSaldo}]` : '';
+  const tagDataSaldo = cond.dataPrimeiroVencimento ? ` (Vencimento: ${formatarDataBr(cond.dataPrimeiroVencimento)})` : '';
+
   switch (tipo) {
     case 'a_vista': {
       const perc = cond.descontoPercentual || 0;
       if (perc > 0) {
         const descVal = cond.descontoValor ?? (totalBase * perc) / 100;
         const valComDesc = typeof cond.valorTotal === 'number' && cond.valorTotal > 0 ? cond.valorTotal : Math.max(0, totalBase - descVal);
-        return `Pagamento à vista via PIX com ${perc}% de desconto especial: ${formatMoney(valComDesc)} (Economia de ${formatMoney(descVal)})`;
+        return `Pagamento à vista via PIX com ${perc}% de desconto especial: ${formatMoney(valComDesc)} (Economia de ${formatMoney(descVal)})${tagDataEnt}${tagSitEnt}`;
       }
       if (total < totalBase) {
         const descVal = totalBase - total;
         const pDesc = Math.round((descVal / totalBase) * 100);
-        return `Pagamento à vista via PIX com desconto especial: ${formatMoney(total)} (Economia de ${formatMoney(descVal)} - ${pDesc}% OFF)`;
+        return `Pagamento à vista via PIX com desconto especial: ${formatMoney(total)} (Economia de ${formatMoney(descVal)} - ${pDesc}% OFF)${tagDataEnt}${tagSitEnt}`;
       }
       if (total > totalBase) {
-        return `Pagamento à vista: ${formatMoney(total)}`;
+        return `Pagamento à vista: ${formatMoney(total)}${tagDataEnt}${tagSitEnt}`;
       }
-      return `Pagamento à vista via PIX / Transferência: ${formatMoney(total)}`;
+      return `Pagamento à vista via PIX / Transferência: ${formatMoney(total)}${tagDataEnt}${tagSitEnt}`;
     }
 
     case 'cartao': {
@@ -87,12 +103,12 @@ export function calcularDescricaoCondicao(
       const valP = total / p;
       const isDebito = cond.tipoCartao === 'debito';
       if (isDebito) {
-        return `Cartão de Débito à vista: ${formatMoney(total)}`;
+        return `Cartão de Débito à vista: ${formatMoney(total)}${tagDataSaldo}${tagSitSaldo}`;
       }
       if (p > 1) {
-        return `Parcelamento no Cartão de Crédito em ${p}x de ${formatMoney(valP)} sem juros (Total: ${formatMoney(total)})`;
+        return `Parcelamento no Cartão de Crédito em ${p}x de ${formatMoney(valP)} sem juros (Total: ${formatMoney(total)})${tagDataSaldo}${tagSitSaldo}`;
       }
-      return `Cartão de Crédito à vista: ${formatMoney(total)}`;
+      return `Cartão de Crédito à vista: ${formatMoney(total)}${tagDataSaldo}${tagSitSaldo}`;
     }
 
     case 'entrada_saldo': {
@@ -125,18 +141,18 @@ export function calcularDescricaoCondicao(
 
       if (cond.saldoMetodo === 'conclusao' || cond.saldoTipoPrazo === 'conclusao') {
         if (ent > 0) {
-          return `Entrada de ${formatMoney(ent)}${strPercEnt} ${metEntrada} + Saldo de ${formatMoney(saldo)}${strPercSaldo} a pagar na conclusão do tratamento`;
+          return `Entrada de ${formatMoney(ent)}${strPercEnt} ${metEntrada}${tagDataEnt}${tagSitEnt} + Saldo de ${formatMoney(saldo)}${strPercSaldo} a pagar na conclusão do tratamento${tagSitSaldo}`;
         }
-        return `Saldo de ${formatMoney(saldo)} a pagar na conclusão do tratamento`;
+        return `Saldo de ${formatMoney(saldo)} a pagar na conclusão do tratamento${tagSitSaldo}`;
       }
 
       // Caso com prazo em dias (ex: entrada + saldo para 30 dias / X dias)
       if (cond.saldoTipoPrazo === 'dias' || (cond.saldoPrazoDias && cond.saldoPrazoDias > 0)) {
         const dias = cond.saldoPrazoDias || 30;
         if (ent > 0) {
-          return `Entrada de ${formatMoney(ent)}${strPercEnt} ${metEntrada} + Saldo de ${formatMoney(saldo)}${strPercSaldo} para ${dias} dias ${metSaldo}`;
+          return `Entrada de ${formatMoney(ent)}${strPercEnt} ${metEntrada}${tagDataEnt}${tagSitEnt} + Saldo de ${formatMoney(saldo)}${strPercSaldo} para ${dias} dias ${metSaldo}${tagDataSaldo}${tagSitSaldo}`;
         }
-        return `Saldo integral de ${formatMoney(total)} para ${dias} dias ${metSaldo}`;
+        return `Saldo integral de ${formatMoney(total)} para ${dias} dias ${metSaldo}${tagDataSaldo}${tagSitSaldo}`;
       }
 
       // Caso padrão com parcelas
@@ -144,11 +160,11 @@ export function calcularDescricaoCondicao(
       const valParcSaldo = saldo / parcSaldo;
       if (ent > 0) {
         if (parcSaldo === 1) {
-          return `Entrada de ${formatMoney(ent)}${strPercEnt} ${metEntrada} + Saldo de ${formatMoney(saldo)}${strPercSaldo} em 1x ${metSaldo}`;
+          return `Entrada de ${formatMoney(ent)}${strPercEnt} ${metEntrada}${tagDataEnt}${tagSitEnt} + Saldo de ${formatMoney(saldo)}${strPercSaldo} em 1x ${metSaldo}${tagDataSaldo}${tagSitSaldo}`;
         }
-        return `Entrada de ${formatMoney(ent)}${strPercEnt} ${metEntrada} + Saldo de ${formatMoney(saldo)}${strPercSaldo} em ${parcSaldo}x de ${formatMoney(valParcSaldo)} ${metSaldo}`;
+        return `Entrada de ${formatMoney(ent)}${strPercEnt} ${metEntrada}${tagDataEnt}${tagSitEnt} + Saldo de ${formatMoney(saldo)}${strPercSaldo} em ${parcSaldo}x de ${formatMoney(valParcSaldo)} ${metSaldo}${tagDataSaldo}${tagSitSaldo}`;
       }
-      return `Saldo de ${formatMoney(total)} em ${parcSaldo}x de ${formatMoney(valParcSaldo)} ${metSaldo}`;
+      return `Saldo de ${formatMoney(total)} em ${parcSaldo}x de ${formatMoney(valParcSaldo)} ${metSaldo}${tagDataSaldo}${tagSitSaldo}`;
     }
 
     case 'pix_parcelado': {
@@ -158,16 +174,16 @@ export function calcularDescricaoCondicao(
       const valP = saldo / p;
       const dia = cond.diaVencimento || 10;
       if (ent > 0) {
-        return `Entrada de ${formatMoney(ent)} via PIX + ${p}x de ${formatMoney(valP)} via PIX Parcelado (Vencimento todo dia ${dia})`;
+        return `Entrada de ${formatMoney(ent)} via PIX${tagDataEnt}${tagSitEnt} + ${p}x de ${formatMoney(valP)} via PIX Parcelado (Vencimento todo dia ${dia})${tagSitSaldo}`;
       }
-      return `Plano em ${p}x de ${formatMoney(valP)} via PIX Parcelado (Vencimento todo dia ${dia})`;
+      return `Plano em ${p}x de ${formatMoney(valP)} via PIX Parcelado (Vencimento todo dia ${dia})${tagSitSaldo}`;
     }
 
     case 'boleto': {
       const p = Math.max(1, cond.parcelas || 1);
       const valP = total / p;
       const dia = cond.diaVencimento || 10;
-      return `Boleto Bancário em ${p}x de ${formatMoney(valP)} (Vencimento todo dia ${dia})`;
+      return `Boleto Bancário em ${p}x de ${formatMoney(valP)} (Vencimento todo dia ${dia})${tagSitSaldo}`;
     }
 
     case 'personalizado':
@@ -453,6 +469,10 @@ export function parseCondicoesPagamento(
           saldoParcelas: c.saldoParcelas,
           saldoMetodo: c.saldoMetodo,
           saldoValorParcela: c.saldoValorParcela,
+          dataEntrada: c.dataEntrada,
+          situacaoEntrada: c.situacaoEntrada,
+          dataPrimeiroVencimento: c.dataPrimeiroVencimento,
+          situacaoSaldo: c.situacaoSaldo,
           diaVencimento: c.diaVencimento,
           formasCompostas: Array.isArray(c.formasCompostas) ? c.formasCompostas : undefined,
           descricao: c.descricao || calcularDescricaoCondicao(c, totalBase),
