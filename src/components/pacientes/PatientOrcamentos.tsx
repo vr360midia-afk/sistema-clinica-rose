@@ -36,6 +36,9 @@ import {
   obterCondicaoAtiva,
   obterTextoCondicaoParaContrato,
   filtrarApenasCondicaoEscolhida,
+  ItemFormaComposta,
+  montarTextoFormasCompostas,
+  parseTextoParaFormasCompostas,
 } from '@/utils/orcamentoCondicoes';
 import {
   AlertDialog,
@@ -716,7 +719,11 @@ const PatientOrcamentos = ({ patient }: Props) => {
   };
 
   const handleAbrirEditarCondicaoOrcamento = (c: CondicaoPagamento) => {
-    setCondicaoEmEdicao({ ...c });
+    let formas = c.formasCompostas;
+    if ((!formas || formas.length === 0) && (c.tipo === 'personalizado' || !c.tipo)) {
+      formas = parseTextoParaFormasCompostas(c.descricao || '', total);
+    }
+    setCondicaoEmEdicao({ ...c, formasCompostas: formas });
     setModalEdicaoCondicaoOpen(true);
   };
 
@@ -758,6 +765,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
       saldoMetodo: condicaoEmEdicao.saldoMetodo,
       saldoValorParcela: condicaoEmEdicao.saldoValorParcela,
       diaVencimento: condicaoEmEdicao.diaVencimento,
+      formasCompostas: condicaoEmEdicao.formasCompostas,
       descricao: condicaoEmEdicao.descricao?.trim() || descAuto,
       destaque: !!condicaoEmEdicao.destaque,
       selecionada: condicaoEmEdicao.selecionada ?? false,
@@ -5014,6 +5022,10 @@ const PatientOrcamentos = ({ patient }: Props) => {
                       updated.diaVencimento = updated.diaVencimento || 10;
                       updated.valorTotal = total;
                       updated.valorParcela = Number((total / (updated.parcelas || 4)).toFixed(2));
+                    } else if (t === 'personalizado') {
+                      if (!updated.formasCompostas || updated.formasCompostas.length === 0) {
+                        updated.formasCompostas = parseTextoParaFormasCompostas(updated.descricao || '', total);
+                      }
                     }
                     updated.descricao = calcularDescricaoCondicao(updated, total);
                     setCondicaoEmEdicao(updated);
@@ -5025,7 +5037,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
                   <option value="entrada_saldo">Entrada Facilitada + Saldo (em Dias ou Parcelas)</option>
                   <option value="pix_parcelado">PIX Parcelado (Sem Cartão)</option>
                   <option value="boleto">Boleto Bancário</option>
-                  <option value="personalizado">Personalizado / Texto Livre</option>
+                  <option value="personalizado">Personalizado (Composição com Todas as Formas)</option>
                 </select>
               </div>
 
@@ -5421,6 +5433,281 @@ const PatientOrcamentos = ({ patient }: Props) => {
                   </div>
                 </div>
               )}
+
+              {/* Construtor Visual Personalizado com Todas as Formas de Pagamento */}
+              {condicaoEmEdicao.tipo === 'personalizado' && (() => {
+                const formas: ItemFormaComposta[] =
+                  condicaoEmEdicao.formasCompostas && condicaoEmEdicao.formasCompostas.length > 0
+                    ? condicaoEmEdicao.formasCompostas
+                    : parseTextoParaFormasCompostas(condicaoEmEdicao.descricao || '', total);
+
+                const somaValores = formas.reduce((acc, f) => acc + (Number(f.valor) || 0), 0);
+                const diferenca = Number((total - somaValores).toFixed(2));
+                const diferencaAbs = Math.abs(diferenca);
+                const estaBalanceado = Math.abs(diferenca) < 0.05;
+
+                const handleAtualizarFormaComposta = (idx: number, campos: Partial<ItemFormaComposta>) => {
+                  const novasFormas = formas.map((item, i) => {
+                    if (i !== idx) return item;
+                    const atualizado = { ...item, ...campos };
+                    if (campos.metodo === 'cartao' && !atualizado.tipoCartao) {
+                      atualizado.tipoCartao = 'credito';
+                    }
+                    return atualizado;
+                  });
+                  const descAuto = montarTextoFormasCompostas(novasFormas, total);
+                  setCondicaoEmEdicao((prev) => ({
+                    ...prev,
+                    formasCompostas: novasFormas,
+                    descricao: descAuto,
+                  }));
+                };
+
+                const handleAdicionarFormaComposta = () => {
+                  const valorSugerido = Math.max(0, diferenca);
+                  const novoItem: ItemFormaComposta = {
+                    id: String(Date.now()),
+                    rotulo: formas.length === 1 ? 'Restante' : `Forma ${formas.length + 1}`,
+                    metodo: 'cartao',
+                    valor: valorSugerido,
+                    parcelas: 3,
+                    tipoCartao: 'credito',
+                    situacao: 'Autorizado',
+                  };
+                  const novasFormas = [...formas, novoItem];
+                  const descAuto = montarTextoFormasCompostas(novasFormas, total);
+                  setCondicaoEmEdicao((prev) => ({
+                    ...prev,
+                    formasCompostas: novasFormas,
+                    descricao: descAuto,
+                  }));
+                };
+
+                const handleRemoverFormaComposta = (idx: number) => {
+                  if (formas.length <= 1) {
+                    toast.error('Mantenha pelo menos uma forma de pagamento.');
+                    return;
+                  }
+                  const novasFormas = formas.filter((_, i) => i !== idx);
+                  const descAuto = montarTextoFormasCompostas(novasFormas, total);
+                  setCondicaoEmEdicao((prev) => ({
+                    ...prev,
+                    formasCompostas: novasFormas,
+                    descricao: descAuto,
+                  }));
+                };
+
+                const handlePreencherRestante = (idx: number) => {
+                  const somaOutras = formas.filter((_, i) => i !== idx).reduce((s, f) => s + (Number(f.valor) || 0), 0);
+                  const valorSobra = Math.max(0, Number((total - somaOutras).toFixed(2)));
+                  handleAtualizarFormaComposta(idx, { valor: valorSobra });
+                  toast.success(`Valor ajustado para ${formatMoney(valorSobra)}!`);
+                };
+
+                return (
+                  <div className="p-3.5 rounded-xl bg-muted/40 border border-border/80 space-y-3">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div>
+                        <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                          <Wallet className="h-3.5 w-3.5 text-primary" />
+                          Composição com Todas as Formas de Pagamento
+                        </Label>
+                        <p className="text-[11px] text-muted-foreground">
+                          Combine entradas, cartões, PIX, dinheiro e boletos livremente.
+                        </p>
+                      </div>
+                      <Badge variant="outline" className="text-[10px] font-semibold border-primary/40 text-primary">
+                        {formas.length} {formas.length === 1 ? 'forma' : 'formas'} combinadas
+                      </Badge>
+                    </div>
+
+                    {/* Cards de cada forma */}
+                    <div className="space-y-2.5">
+                      {formas.map((forma, idx) => {
+                        const isCartao = forma.metodo === 'cartao';
+                        const isDebito = isCartao && forma.tipoCartao === 'debito';
+                        const isPixParc = forma.metodo === 'pix_parcelado';
+                        const isBoleto = forma.metodo === 'boleto';
+                        const parcelas = forma.parcelas || 1;
+
+                        return (
+                          <div
+                            key={forma.id || idx}
+                            className="p-2.5 rounded-lg bg-background border border-border/70 space-y-2 shadow-xs"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-1.5 flex-1 max-w-xs">
+                                <span className="h-5 w-5 rounded-full bg-primary/10 text-primary font-bold text-[10px] flex items-center justify-center shrink-0">
+                                  {idx + 1}
+                                </span>
+                                <Input
+                                  value={forma.rotulo || ''}
+                                  onChange={(e) => handleAtualizarFormaComposta(idx, { rotulo: e.target.value })}
+                                  placeholder="Ex: Entrada, Restante..."
+                                  className="h-7 text-xs font-semibold"
+                                />
+                              </div>
+
+                              <div className="flex items-center gap-1">
+                                {['Entrada', 'Restante', 'Parcela 2'].map((rot) => (
+                                  <button
+                                    key={rot}
+                                    type="button"
+                                    onClick={() => handleAtualizarFormaComposta(idx, { rotulo: rot })}
+                                    className="px-1.5 py-0.5 text-[9px] rounded bg-muted hover:bg-primary/20 hover:text-primary font-medium text-muted-foreground"
+                                  >
+                                    {rot}
+                                  </button>
+                                ))}
+                                {formas.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoverFormaComposta(idx)}
+                                    className="p-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded transition-colors ml-1"
+                                    title="Remover esta forma"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Grid de Configurações da Linha */}
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                              {/* Meio / Método */}
+                              <div className="space-y-1">
+                                <Label className="text-[10px] text-muted-foreground">Forma de Pagamento:</Label>
+                                <select
+                                  value={forma.metodo}
+                                  onChange={(e) => {
+                                    const m = e.target.value as any;
+                                    const sitPadrao = m === 'cartao' ? 'Autorizado' : 'A vencer';
+                                    handleAtualizarFormaComposta(idx, { metodo: m, situacao: sitPadrao });
+                                  }}
+                                  className="w-full h-8 px-2 text-xs font-semibold rounded bg-background border border-border"
+                                >
+                                  <option value="cartao">Cartão de Crédito</option>
+                                  <option value="pix">PIX</option>
+                                  <option value="dinheiro">Dinheiro</option>
+                                  <option value="cartao_debito">Cartão de Débito</option>
+                                  <option value="pix_parcelado">PIX Parcelado</option>
+                                  <option value="boleto">Boleto Bancário</option>
+                                  <option value="transferencia">Transferência</option>
+                                </select>
+                              </div>
+
+                              {/* Valor */}
+                              <div className="space-y-1">
+                                <div className="flex justify-between items-center">
+                                  <Label className="text-[10px] text-muted-foreground">Valor (R$):</Label>
+                                  {!estaBalanceado && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handlePreencherRestante(idx)}
+                                      className="text-[9px] text-primary hover:underline font-semibold"
+                                      title="Ajusta para o saldo faltante do orçamento"
+                                    >
+                                      Cobrir Saldo
+                                    </button>
+                                  )}
+                                </div>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  min={0}
+                                  value={forma.valor || ''}
+                                  onChange={(e) => handleAtualizarFormaComposta(idx, { valor: Number(e.target.value) || 0 })}
+                                  className="h-8 text-xs font-bold text-foreground"
+                                  placeholder="0,00"
+                                />
+                              </div>
+
+                              {/* Detalhes de Parcelas ou Situação */}
+                              {isCartao && !isDebito ? (
+                                <div className="space-y-1">
+                                  <Label className="text-[10px] text-muted-foreground">Parcelas no Cartão:</Label>
+                                  <select
+                                    value={forma.parcelas || 1}
+                                    onChange={(e) => handleAtualizarFormaComposta(idx, { parcelas: Number(e.target.value) || 1 })}
+                                    className="w-full h-8 px-2 text-xs font-semibold rounded bg-background border border-border"
+                                  >
+                                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 18].map((n) => (
+                                      <option key={n} value={n}>
+                                        {n === 1 ? '1x (À vista)' : `${n}x de ${formatMoney(forma.valor / n)}`}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              ) : isPixParc || isBoleto ? (
+                                <div className="space-y-1">
+                                  <Label className="text-[10px] text-muted-foreground">Parcelas ({isPixParc ? 'PIX' : 'Boleto'}):</Label>
+                                  <select
+                                    value={forma.parcelas || 1}
+                                    onChange={(e) => handleAtualizarFormaComposta(idx, { parcelas: Number(e.target.value) || 1 })}
+                                    className="w-full h-8 px-2 text-xs font-semibold rounded bg-background border border-border"
+                                  >
+                                    {[1, 2, 3, 4, 5, 6, 8, 10, 12].map((n) => (
+                                      <option key={n} value={n}>
+                                        {n === 1 ? '1x à vista' : `${n}x de ${formatMoney(forma.valor / n)}`}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              ) : (
+                                <div className="space-y-1">
+                                  <Label className="text-[10px] text-muted-foreground">Situação:</Label>
+                                  <select
+                                    value={forma.situacao || 'A vencer'}
+                                    onChange={(e) => handleAtualizarFormaComposta(idx, { situacao: e.target.value as any })}
+                                    className="w-full h-8 px-2 text-xs font-semibold rounded bg-background border border-border"
+                                  >
+                                    <option value="A vencer">● A vencer</option>
+                                    <option value="Quitada">● Quitada</option>
+                                    <option value="Autorizado">● Autorizado</option>
+                                  </select>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Botão de Adicionar Forma */}
+                    <div className="flex items-center justify-between gap-2 pt-1 flex-wrap">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={handleAdicionarFormaComposta}
+                        className="h-8 text-xs font-semibold gap-1.5 border-dashed border-primary/50 text-primary hover:bg-primary/10"
+                      >
+                        <Plus className="h-3.5 w-3.5" /> Adicionar Outra Forma de Pagamento
+                      </Button>
+
+                      {/* Barra de Balanço */}
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className="text-muted-foreground text-[11px]">
+                          Soma: <strong>{formatMoney(somaValores)}</strong> / {formatMoney(total)}
+                        </span>
+                        {estaBalanceado ? (
+                          <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-[10px] gap-1">
+                            <Check className="h-3 w-3" /> 100% Coberto
+                          </Badge>
+                        ) : diferenca > 0 ? (
+                          <Badge className="bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 text-[10px]">
+                            Falta cobrir {formatMoney(diferenca)}
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30 text-[10px]">
+                            Excede em {formatMoney(diferencaAbs)}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Descrição em Texto da Condição */}
               <div className="space-y-1">

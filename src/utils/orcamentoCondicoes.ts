@@ -8,6 +8,19 @@ export type TipoCondicaoPagamento =
   | 'boleto'
   | 'personalizado';
 
+export interface ItemFormaComposta {
+  id: string;
+  rotulo: string; // Ex: "Entrada", "Restante", "Forma 2", etc.
+  metodo: 'pix' | 'cartao' | 'dinheiro' | 'boleto' | 'transferencia' | 'pix_parcelado';
+  valor: number;
+  parcelas?: number;
+  tipoCartao?: 'credito' | 'debito';
+  operadoraCartaoId?: string;
+  diaVencimento?: number;
+  situacao?: 'A vencer' | 'Quitada' | 'Autorizado';
+  prazoDias?: number;
+}
+
 export interface CondicaoPagamento {
   id: string;
   titulo: string;
@@ -28,6 +41,7 @@ export interface CondicaoPagamento {
   saldoValorParcela?: number;
   diaVencimento?: number;
   descricao: string;
+  formasCompostas?: ItemFormaComposta[];
   selecionada?: boolean;
   destaque?: boolean;
 }
@@ -149,8 +163,155 @@ export function calcularDescricaoCondicao(
 
     case 'personalizado':
     default:
+      if (cond.formasCompostas && cond.formasCompostas.length > 0) {
+        return montarTextoFormasCompostas(cond.formasCompostas, total);
+      }
       return cond.descricao || `Condição de pagamento: ${formatMoney(total)}`;
   }
+}
+
+/**
+ * Monta o descritivo de uma condição composta por múltiplas formas de pagamento
+ */
+export function montarTextoFormasCompostas(
+  formas: ItemFormaComposta[],
+  _totalOrcamento?: number
+): string {
+  if (!formas || formas.length === 0) return '';
+  const partes: string[] = [];
+
+  for (const f of formas) {
+    if (!f.valor || f.valor <= 0) continue;
+    const isDeb = f.tipoCartao === 'debito';
+    const rotulo = f.rotulo?.trim() || 'Parcela';
+    const sitPadrao = f.situacao || (f.metodo === 'cartao' ? 'Autorizado' : 'A vencer');
+    const sitStr = ` [${sitPadrao}]`;
+
+    if (f.metodo === 'cartao') {
+      if (isDeb) {
+        partes.push(`${rotulo}: ${formatMoney(f.valor)} via Cartão de Débito${sitStr}`);
+      } else {
+        const p = Math.max(1, f.parcelas || 1);
+        const valParc = f.valor / p;
+        if (p > 1) {
+          partes.push(`${rotulo}: ${formatMoney(f.valor)} em ${p}x de ${formatMoney(valParc)} no Cartão de Crédito${sitStr}`);
+        } else {
+          partes.push(`${rotulo}: ${formatMoney(f.valor)} via Cartão de Crédito à vista${sitStr}`);
+        }
+      }
+    } else if (f.metodo === 'pix') {
+      partes.push(`${rotulo}: ${formatMoney(f.valor)} via PIX${sitStr}`);
+    } else if (f.metodo === 'dinheiro') {
+      partes.push(`${rotulo}: ${formatMoney(f.valor)} em Dinheiro${sitStr}`);
+    } else if (f.metodo === 'pix_parcelado') {
+      const p = Math.max(1, f.parcelas || 1);
+      const valParc = f.valor / p;
+      const dia = f.diaVencimento || 10;
+      partes.push(`${rotulo}: ${formatMoney(f.valor)} em ${p}x de ${formatMoney(valParc)} no PIX Parcelado (Vencimento todo dia ${dia})${sitStr}`);
+    } else if (f.metodo === 'boleto') {
+      const p = Math.max(1, f.parcelas || 1);
+      const valParc = f.valor / p;
+      const dia = f.diaVencimento || 10;
+      partes.push(`${rotulo}: ${formatMoney(f.valor)} em ${p}x de ${formatMoney(valParc)} no Boleto Bancário (Vencimento todo dia ${dia})${sitStr}`);
+    } else if (f.metodo === 'transferencia') {
+      partes.push(`${rotulo}: ${formatMoney(f.valor)} via Transferência Bancária${sitStr}`);
+    } else {
+      partes.push(`${rotulo}: ${formatMoney(f.valor)}${sitStr}`);
+    }
+  }
+
+  return partes.join(' + ');
+}
+
+/**
+ * Converte um texto composto existente em uma lista estruturada de formas de pagamento
+ */
+export function parseTextoParaFormasCompostas(
+  texto: string,
+  totalBase: number = 0
+): ItemFormaComposta[] {
+  if (!texto || !texto.trim()) {
+    const meia = totalBase > 0 ? Number((totalBase * 0.5).toFixed(2)) : 0;
+    const rest = Math.max(0, totalBase - meia);
+    return [
+      { id: '1', rotulo: 'Entrada', metodo: 'pix', valor: meia, parcelas: 1, situacao: 'A vencer' },
+      { id: '2', rotulo: 'Restante', metodo: 'cartao', valor: rest, parcelas: 3, tipoCartao: 'credito', situacao: 'Autorizado' },
+    ];
+  }
+
+  // Tenta quebrar por " + " ou quebras de linha
+  const pedacos = texto.split(/\s+\+\s+|\n+/).map((p) => p.trim()).filter(Boolean);
+
+  if (pedacos.length >= 2) {
+    const resultado: ItemFormaComposta[] = [];
+    pedacos.forEach((p, idx) => {
+      // Ex: "Entrada: R$ 3.059,00 via Cartão de Crédito à vista [Autorizado]"
+      // Ex: "Restante: R$ 12.238,00 em 3x de R$ 4.079,33 no Cartão de Crédito [Autorizado]"
+      const rotuloMatch = p.match(/^([^:]+):/);
+      const rotulo = rotuloMatch ? rotuloMatch[1].trim() : (idx === 0 ? 'Entrada' : `Forma ${idx + 1}`);
+
+      // Valor R$
+      const valMatch = p.match(/R\$\s*([\d.,]+)/);
+      let valor = 0;
+      if (valMatch) {
+        valor = Number(valMatch[1].replace(/\./g, '').replace(',', '.')) || 0;
+      }
+
+      // Parcelas
+      const parcMatch = p.match(/(\d+)x/i);
+      const parcelas = parcMatch ? Number(parcMatch[1]) : 1;
+
+      // Método
+      const pLower = p.toLowerCase();
+      let metodo: ItemFormaComposta['metodo'] = 'cartao';
+      let tipoCartao: 'credito' | 'debito' = 'credito';
+
+      if (pLower.includes('pix parcelado')) {
+        metodo = 'pix_parcelado';
+      } else if (pLower.includes('pix')) {
+        metodo = 'pix';
+      } else if (pLower.includes('dinheiro')) {
+        metodo = 'dinheiro';
+      } else if (pLower.includes('boleto')) {
+        metodo = 'boleto';
+      } else if (pLower.includes('transfer')) {
+        metodo = 'transferencia';
+      } else if (pLower.includes('cart') || pLower.includes('crédito') || pLower.includes('credito') || pLower.includes('debito') || pLower.includes('débito')) {
+        metodo = 'cartao';
+        tipoCartao = pLower.includes('deb') ? 'debito' : 'credito';
+      }
+
+      // Situação
+      let situacao: ItemFormaComposta['situacao'] = 'Autorizado';
+      if (pLower.includes('[a vencer]')) {
+        situacao = 'A vencer';
+      } else if (pLower.includes('[quitada]') || pLower.includes('[pago]')) {
+        situacao = 'Quitada';
+      }
+
+      resultado.push({
+        id: String(idx + 1),
+        rotulo,
+        metodo,
+        valor,
+        parcelas,
+        tipoCartao,
+        situacao,
+      });
+    });
+
+    if (resultado.length > 0) {
+      return resultado;
+    }
+  }
+
+  // Fallback caso seja 1 texto simples
+  const meia = totalBase > 0 ? Number((totalBase * 0.5).toFixed(2)) : 0;
+  const rest = Math.max(0, totalBase - meia);
+  return [
+    { id: '1', rotulo: 'Entrada', metodo: 'pix', valor: meia, parcelas: 1, situacao: 'A vencer' },
+    { id: '2', rotulo: 'Restante', metodo: 'cartao', valor: rest, parcelas: 3, tipoCartao: 'credito', situacao: 'Autorizado' },
+  ];
 }
 
 /**
@@ -184,10 +345,13 @@ export function parseCondicoesPagamento(
           tipoCartao: c.tipoCartao,
           valorEntrada: c.valorEntrada,
           metodoEntrada: c.metodoEntrada,
+          saldoTipoPrazo: c.saldoTipoPrazo,
+          saldoPrazoDias: c.saldoPrazoDias,
           saldoParcelas: c.saldoParcelas,
           saldoMetodo: c.saldoMetodo,
           saldoValorParcela: c.saldoValorParcela,
           diaVencimento: c.diaVencimento,
+          formasCompostas: Array.isArray(c.formasCompostas) ? c.formasCompostas : undefined,
           descricao: c.descricao || calcularDescricaoCondicao(c, totalBase),
           selecionada: c.selecionada ?? (parsed.selecionadaId ? c.id === parsed.selecionadaId : index === 0),
           destaque: c.destaque,
