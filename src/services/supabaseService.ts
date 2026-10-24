@@ -142,6 +142,7 @@ class SupabaseService {
       estadoCivil: data.estado_civil,
       motivoArquivamento: data.motivo_arquivamento,
       pacienteId: data.paciente_id,
+      pacienteNome: data.paciente_nome,
       consultaId: data.consulta_id,
       metodoPagamento: data.metodo_pagamento,
       taxaCartaoPercentual: data.taxa_cartao_percentual,

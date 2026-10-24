@@ -60,6 +60,7 @@ export const STATUS_PACIENTE_OPCOES: { value: StatusPaciente; label: string }[] 
 
 export interface Consulta extends BaseEntity {
   pacienteId: string;
+  pacienteNome?: string;
   data: Date;
   hora: string;
   horaFim?: string;

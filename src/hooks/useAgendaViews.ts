@@ -36,7 +36,7 @@ export const useAgendaViews = (selectedDate: Date) => {
         dentista: consulta.dentista,
         observacoes: consulta.observacoes,
         valor: consulta.valor,
-        patient: paciente?.nome || 'Paciente não encontrado',
+        patient: paciente?.nome || consulta.pacienteNome || (consulta as any).paciente_nome || 'Paciente não encontrado',
         patientData: paciente ? {
           phone: paciente.telefone || '',
           age: idade,

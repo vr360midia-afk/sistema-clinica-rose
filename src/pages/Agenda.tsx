@@ -3,7 +3,7 @@ import Layout from '@/components/layout/Layout';
 import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CalendarDays, Plus, Bell, Lock, Smartphone, CalendarCheck2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -24,10 +24,28 @@ import { supabase } from '@/integrations/supabase/client';
 
 const Agenda = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { updateConsulta, consultas } = useDentalSystem();
   const { bloqueios, addBloqueio, updateBloqueio, deleteBloqueio } = useBloqueios();
 
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const initialDate = useMemo(() => {
+    const dataParam = searchParams.get('data');
+    if (dataParam && /^\d{4}-\d{2}-\d{2}$/.test(dataParam)) {
+      const [y, m, d] = dataParam.split('-').map(Number);
+      return new Date(y, m - 1, d);
+    }
+    return new Date();
+  }, [searchParams]);
+
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(initialDate);
+
+  useEffect(() => {
+    const dataParam = searchParams.get('data');
+    if (dataParam && /^\d{4}-\d{2}-\d{2}$/.test(dataParam)) {
+      const [y, m, d] = dataParam.split('-').map(Number);
+      setSelectedDate(new Date(y, m - 1, d));
+    }
+  }, [searchParams]);
   const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
   const [isConsultaModalOpen, setIsConsultaModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);

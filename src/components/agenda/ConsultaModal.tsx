@@ -81,41 +81,58 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
     }
   });
 
-  // Inicializar todos os campos somente ao abrir (sem sobrescrever a data
-  // escolhida pelo usuário enquanto o modal estiver em uso).
+  const prevOpenRef = React.useRef(false);
+  const prevEditingIdRef = React.useRef<string | null>(null);
+
+  // Inicializar todos os campos somente ao abrir (sem sobrescrever dados
+  // digitados pelo usuário caso o componente pai sofra re-renderização externa).
   React.useEffect(() => {
-    if (!isOpen) return;
-    if (editingConsulta) {
-      const horaIni = (editingConsulta.hora || editingConsulta.time || selectedTime || '09:00').substring(0, 5);
-      const dur = Number(editingConsulta.duracao) || (typeof editingConsulta.duration === 'string' ? parseInt(editingConsulta.duration, 10) : Number(editingConsulta.duration)) || 60;
-      form.reset({
-        data: editingConsulta.data ? new Date(editingConsulta.data) : (selectedDate ? new Date(selectedDate) : new Date()),
-        hora: horaIni,
-        horaFim: calcularHoraFim(horaIni, dur),
-        duracao: dur,
-        status: editingConsulta.status === 'remarcado' ? 'agendado' : (editingConsulta.status || 'agendado'),
-        procedimento: editingConsulta.procedimento || editingConsulta.procedure || '',
-        dentista: (editingConsulta.dentista || editingConsulta.dentist || '') === 'none' ? '' : (editingConsulta.dentista || editingConsulta.dentist || ''),
-        pacienteId: editingConsulta.pacienteId || editingConsulta.paciente_id || initialPatientId || '',
-        observacoes: editingConsulta.observacoes || '',
-        valor: editingConsulta.valor !== null && editingConsulta.valor !== undefined && !isNaN(Number(editingConsulta.valor)) ? Number(editingConsulta.valor) : undefined,
-      });
-    } else {
-      const horaIni = (selectedTime || '09:00').substring(0, 5);
-      const dur = 60;
-      form.reset({
-        data: selectedDate ? new Date(selectedDate) : new Date(),
-        hora: horaIni,
-        horaFim: calcularHoraFim(horaIni, dur),
-        duracao: dur,
-        status: 'agendado',
-        procedimento: '',
-        dentista: '',
-        pacienteId: initialPatientId || '',
-        observacoes: ''
-      });
+    if (!isOpen) {
+      prevOpenRef.current = false;
+      prevEditingIdRef.current = null;
+      return;
     }
-    setPeriodoSelecionado(null);
+
+    const currentEditingId = editingConsulta?.id || null;
+    const isOpening = !prevOpenRef.current;
+    const isEditingChanged = currentEditingId !== prevEditingIdRef.current;
+
+    if (isOpening || isEditingChanged) {
+      prevOpenRef.current = true;
+      prevEditingIdRef.current = currentEditingId;
+
+      if (editingConsulta) {
+        const horaIni = (editingConsulta.hora || editingConsulta.time || selectedTime || '09:00').substring(0, 5);
+        const dur = Number(editingConsulta.duracao) || (typeof editingConsulta.duration === 'string' ? parseInt(editingConsulta.duration, 10) : Number(editingConsulta.duration)) || 60;
+        form.reset({
+          data: editingConsulta.data ? new Date(editingConsulta.data) : (selectedDate ? new Date(selectedDate) : new Date()),
+          hora: horaIni,
+          horaFim: calcularHoraFim(horaIni, dur),
+          duracao: dur,
+          status: editingConsulta.status === 'remarcado' ? 'agendado' : (editingConsulta.status || 'agendado'),
+          procedimento: editingConsulta.procedimento || editingConsulta.procedure || '',
+          dentista: (editingConsulta.dentista || editingConsulta.dentist || '') === 'none' ? '' : (editingConsulta.dentista || editingConsulta.dentist || ''),
+          pacienteId: editingConsulta.pacienteId || editingConsulta.paciente_id || initialPatientId || '',
+          observacoes: editingConsulta.observacoes || '',
+          valor: editingConsulta.valor !== null && editingConsulta.valor !== undefined && !isNaN(Number(editingConsulta.valor)) ? Number(editingConsulta.valor) : undefined,
+        });
+      } else {
+        const horaIni = (selectedTime || '09:00').substring(0, 5);
+        const dur = 60;
+        form.reset({
+          data: selectedDate ? new Date(selectedDate) : new Date(),
+          hora: horaIni,
+          horaFim: calcularHoraFim(horaIni, dur),
+          duracao: dur,
+          status: 'agendado',
+          procedimento: '',
+          dentista: '',
+          pacienteId: initialPatientId || '',
+          observacoes: ''
+        });
+      }
+      setPeriodoSelecionado(null);
+    }
   }, [isOpen, selectedDate, selectedTime, initialPatientId, editingConsulta, form]);
 
   const handleHoraInicioChange = (novoInicio: string) => {
@@ -227,6 +244,7 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
       setIsLoading(true);
       const consultaData = {
         pacienteId: data.pacienteId,
+        pacienteNome: pacienteNome || '',
         data: data.data,
         hora: data.hora,
         duracao: data.duracao,

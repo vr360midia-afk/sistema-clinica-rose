@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import Layout from '@/components/layout/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -47,12 +48,26 @@ const Pacientes = () => {
     updateProcedimento,
   } = useProcedimentos();
   
+  const navigate = useNavigate();
   const [showForm, setShowForm] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || '');
   const [editingPatient, setEditingPatient] = useState(null);
   const [schedulingPatient, setSchedulingPatient] = useState<any>(null);
+
+  const handleConsultaSaved = (savedDate?: Date) => {
+    setSchedulingPatient(null);
+    const dataStr = savedDate instanceof Date && !isNaN(savedDate.getTime()) 
+      ? `${savedDate.getFullYear()}-${String(savedDate.getMonth() + 1).padStart(2, '0')}-${String(savedDate.getDate()).padStart(2, '0')}`
+      : '';
+    toast.success('Consulta agendada com sucesso!', {
+      action: {
+        label: 'Ver na Agenda',
+        onClick: () => navigate(dataStr ? `/agenda?data=${dataStr}` : '/agenda')
+      }
+    });
+  };
   const [procedimentoPatient, setProcedimentoPatient] = useState<any>(null);
   const [pacienteAnamneseModal, setPacienteAnamneseModal] = useState<any>(null);
   const [isEscolherPacienteAnamneseOpen, setIsEscolherPacienteAnamneseOpen] = useState(false);
@@ -365,9 +380,8 @@ const Pacientes = () => {
         <ConsultaModal
           isOpen={Boolean(schedulingPatient)}
           onClose={() => setSchedulingPatient(null)}
-          selectedDate={new Date()}
           initialPatientId={schedulingPatient?.id}
-          onSaved={() => setSchedulingPatient(null)}
+          onSaved={handleConsultaSaved}
         />
         <ProntuarioModal
           isOpen={Boolean(procedimentoPatient)}
@@ -857,9 +871,8 @@ const Pacientes = () => {
         <ConsultaModal
           isOpen={Boolean(schedulingPatient)}
           onClose={() => setSchedulingPatient(null)}
-          selectedDate={new Date()}
           initialPatientId={schedulingPatient?.id}
-          onSaved={() => setSchedulingPatient(null)}
+          onSaved={handleConsultaSaved}
         />
 
         {pacienteAnamneseModal && (

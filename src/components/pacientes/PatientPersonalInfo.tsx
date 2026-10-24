@@ -56,8 +56,15 @@ const PatientPersonalInfo = ({ patient }: PatientPersonalInfoProps) => {
   const consultasDoPaciente = (consultas || []).filter(
     (consulta) => consulta && consulta.pacienteId === patient?.id && consulta?.status !== 'cancelado'
   );
+  const hojeInicio = new Date();
+  hojeInicio.setHours(0, 0, 0, 0);
+
   const proximasConsultas = consultasDoPaciente
-    .filter((consulta) => getConsultaDateTime(consulta).getTime() >= Date.now())
+    .filter((consulta) => {
+      if (consulta?.status === 'cancelado' || consulta?.status === 'faltou') return false;
+      const dataHora = getConsultaDateTime(consulta);
+      return (consulta?.status === 'agendado' || consulta?.status === 'confirmado') && dataHora.getTime() >= hojeInicio.getTime();
+    })
     .sort((a, b) => getConsultaDateTime(a).getTime() - getConsultaDateTime(b).getTime());
   const ultimaConsulta = consultasDoPaciente
     .filter((consulta) => {
