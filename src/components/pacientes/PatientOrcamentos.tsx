@@ -40,6 +40,7 @@ import {
   montarTextoFormasCompostas,
   parseTextoParaFormasCompostas,
   calcularResumoCartaoCondicao,
+  recalcularValoresCondicaoComNovoTotal,
 } from '@/utils/orcamentoCondicoes';
 import CardSimulacaoTaxasCartao, { BadgeLiquidoInternoCartao } from '@/components/orcamentos/CardSimulacaoTaxasCartao';
 import {
@@ -4459,6 +4460,69 @@ const PatientOrcamentos = ({ patient }: Props) => {
                     </div>
                   </div>
 
+                  {/* Ajuste Direto do Valor Total da Condição Fechada */}
+                  {(() => {
+                    const vTot = typeof condicaoAprovacaoEmEdicao.valorTotal === 'number' && condicaoAprovacaoEmEdicao.valorTotal > 0
+                      ? condicaoAprovacaoEmEdicao.valorTotal
+                      : aprovandoOrcamento.total;
+                    const diff = aprovandoOrcamento.total - vTot;
+                    const temDesconto = diff > 0.01;
+                    const percDesc = temDesconto ? ((diff / aprovandoOrcamento.total) * 100).toFixed(0) : 0;
+                    return (
+                      <div className="p-2.5 rounded-lg bg-muted/40 border border-border/80 space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs font-semibold flex items-center gap-1.5">
+                            <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
+                            Valor Desta Condição (R$):
+                          </Label>
+                          {temDesconto && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const recalculada = recalcularValoresCondicaoComNovoTotal(
+                                  condicaoAprovacaoEmEdicao,
+                                  aprovandoOrcamento.total,
+                                  aprovandoOrcamento.total
+                                );
+                                setCondicaoAprovacaoEmEdicao(recalculada);
+                              }}
+                              className="text-[10px] text-muted-foreground hover:text-primary underline font-medium"
+                            >
+                              Resetar p/ Total Base ({formatMoney(aprovandoOrcamento.total)})
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min={0}
+                            value={condicaoAprovacaoEmEdicao.valorTotal ?? aprovandoOrcamento.total}
+                            onChange={(e) => {
+                              const vNovo = Number(e.target.value) || 0;
+                              const recalculada = recalcularValoresCondicaoComNovoTotal(
+                                condicaoAprovacaoEmEdicao,
+                                vNovo,
+                                aprovandoOrcamento.total
+                              );
+                              setCondicaoAprovacaoEmEdicao(recalculada);
+                            }}
+                            className="h-8 text-xs font-bold w-40"
+                          />
+                          {temDesconto ? (
+                            <span className="text-[11px] font-bold text-emerald-600 bg-emerald-500/10 px-2 py-1 rounded border border-emerald-500/30">
+                              Desconto de {formatMoney(diff)} ({percDesc}% OFF)
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-muted-foreground">
+                              Valor idêntico ao total base do orçamento
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                   {/* Campos contextuais por tipo */}
                   {condicaoAprovacaoEmEdicao.tipo === 'a_vista' && (
                     <div className="grid grid-cols-2 gap-2 p-2.5 rounded bg-background border border-border text-xs">
@@ -4472,14 +4536,13 @@ const PatientOrcamentos = ({ patient }: Props) => {
                           onChange={(e) => {
                             const p = Number(e.target.value) || 0;
                             const descVal = Number(((aprovandoOrcamento.total * p) / 100).toFixed(2));
-                            const upd = {
-                              ...condicaoAprovacaoEmEdicao,
-                              descontoPercentual: p,
-                              descontoValor: descVal,
-                              valorTotal: Math.max(0, aprovandoOrcamento.total - descVal),
-                            };
-                            upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
-                            setCondicaoAprovacaoEmEdicao(upd);
+                            const novoTotal = Math.max(0, aprovandoOrcamento.total - descVal);
+                            const recalculada = recalcularValoresCondicaoComNovoTotal(
+                              { ...condicaoAprovacaoEmEdicao, descontoPercentual: p },
+                              novoTotal,
+                              aprovandoOrcamento.total
+                            );
+                            setCondicaoAprovacaoEmEdicao(recalculada);
                           }}
                           className="h-7 text-xs font-bold"
                         />
@@ -4493,198 +4556,255 @@ const PatientOrcamentos = ({ patient }: Props) => {
                     </div>
                   )}
 
-                  {condicaoAprovacaoEmEdicao.tipo === 'cartao' && (
-                    <div className="grid grid-cols-2 gap-2 p-2.5 rounded bg-background border border-border text-xs">
-                      <div className="space-y-1">
-                        <Label className="text-[11px]">Qtd. Parcelas Cartão:</Label>
-                        <select
-                          value={condicaoAprovacaoEmEdicao.parcelas || 1}
-                          onChange={(e) => {
-                            const p = Number(e.target.value) || 1;
-                            const upd = {
-                              ...condicaoAprovacaoEmEdicao,
-                              parcelas: p,
-                              valorParcela: Number((aprovandoOrcamento.total / p).toFixed(2)),
-                            };
-                            upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
-                            setCondicaoAprovacaoEmEdicao(upd);
-                          }}
-                          className="w-full h-7 px-2 text-xs font-semibold rounded bg-background border border-border"
-                        >
-                          {[1, 2, 3, 4, 5, 6, 8, 10, 12, 18].map((n) => (
-                            <option key={n} value={n}>
-                              {n}x de {formatMoney(aprovandoOrcamento.total / n)}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-[11px]">Tipo:</Label>
-                        <select
-                          value={condicaoAprovacaoEmEdicao.tipoCartao || 'credito'}
-                          onChange={(e) => {
-                            const upd = { ...condicaoAprovacaoEmEdicao, tipoCartao: e.target.value as any };
-                            upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
-                            setCondicaoAprovacaoEmEdicao(upd);
-                          }}
-                          className="w-full h-7 px-2 text-xs font-semibold rounded bg-background border border-border"
-                        >
-                          <option value="credito">Crédito</option>
-                          <option value="debito">Débito (à vista)</option>
-                        </select>
-                      </div>
-                    </div>
-                  )}
-
-                  {condicaoAprovacaoEmEdicao.tipo === 'entrada_saldo' && (
-                    <div className="space-y-2.5 p-2.5 rounded bg-background border border-border text-xs">
-                      {/* Chips de porcentagem rápida de entrada */}
-                      <div className="flex items-center justify-between flex-wrap gap-1">
-                        <Label className="text-[11px] font-semibold text-muted-foreground">
-                          Atalhos de Entrada (%):
-                        </Label>
-                        <div className="flex items-center gap-1">
-                          {[10, 20, 30, 40, 50, 70].map((perc) => (
-                            <button
-                              key={perc}
-                              type="button"
-                              onClick={() => {
-                                const ent = Number(((aprovandoOrcamento.total * perc) / 100).toFixed(2));
-                                const saldo = Math.max(0, Number((aprovandoOrcamento.total - ent).toFixed(2)));
-                                const upd: Partial<CondicaoPagamento> = {
-                                  ...condicaoAprovacaoEmEdicao,
-                                  valorEntrada: ent,
-                                  saldoValorParcela: saldo,
-                                };
-                                upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
-                                setCondicaoAprovacaoEmEdicao(upd);
-                              }}
-                              className="px-1.5 py-0.5 text-[10px] rounded bg-muted hover:bg-primary/20 hover:text-primary font-bold border border-border"
-                            >
-                              {perc}%
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2">
+                  {condicaoAprovacaoEmEdicao.tipo === 'cartao' && (() => {
+                    const vTot = typeof condicaoAprovacaoEmEdicao.valorTotal === 'number' && condicaoAprovacaoEmEdicao.valorTotal > 0
+                      ? condicaoAprovacaoEmEdicao.valorTotal
+                      : aprovandoOrcamento.total;
+                    return (
+                      <div className="grid grid-cols-2 gap-2 p-2.5 rounded bg-background border border-border text-xs">
                         <div className="space-y-1">
-                          <Label className="text-[11px]">Valor Entrada (R$):</Label>
-                          <Input
-                            type="number"
-                            min={0}
-                            max={aprovandoOrcamento.total}
-                            step="0.01"
-                            value={condicaoAprovacaoEmEdicao.valorEntrada || ''}
-                            onChange={(e) => {
-                              const ent = Number(e.target.value) || 0;
-                              const s = Math.max(0, aprovandoOrcamento.total - ent);
-                              const parc = condicaoAprovacaoEmEdicao.saldoParcelas || 1;
-                              const upd: Partial<CondicaoPagamento> = {
-                                ...condicaoAprovacaoEmEdicao,
-                                valorEntrada: ent,
-                                saldoValorParcela: Number((s / parc).toFixed(2)),
-                              };
-                              upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
-                              setCondicaoAprovacaoEmEdicao(upd);
-                            }}
-                            className="h-7 text-xs font-bold"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-[11px]">Método Entrada:</Label>
+                          <Label className="text-[11px]">Qtd. Parcelas Cartão:</Label>
                           <select
-                            value={condicaoAprovacaoEmEdicao.metodoEntrada || 'pix'}
+                            value={condicaoAprovacaoEmEdicao.parcelas || 1}
                             onChange={(e) => {
-                              const upd: Partial<CondicaoPagamento> = { ...condicaoAprovacaoEmEdicao, metodoEntrada: e.target.value as any };
+                              const p = Number(e.target.value) || 1;
+                              const upd = {
+                                ...condicaoAprovacaoEmEdicao,
+                                parcelas: p,
+                                valorParcela: Number((vTot / p).toFixed(2)),
+                              };
                               upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
                               setCondicaoAprovacaoEmEdicao(upd);
                             }}
                             className="w-full h-7 px-2 text-xs font-semibold rounded bg-background border border-border"
                           >
-                            <option value="pix">PIX</option>
-                            <option value="dinheiro">Dinheiro</option>
-                            <option value="cartao_debito">Débito</option>
-                            <option value="cartao_credito">Crédito</option>
-                            <option value="transferencia">Transferência</option>
+                            {[1, 2, 3, 4, 5, 6, 8, 10, 12, 18].map((n) => (
+                              <option key={n} value={n}>
+                                {n}x de {formatMoney(vTot / n)}
+                              </option>
+                            ))}
                           </select>
                         </div>
-                      </div>
-
-                      {/* Modalidade do Saldo: Dias, Parcelas ou Conclusão */}
-                      <div className="pt-2 border-t border-border/60 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <Label className="text-[11px] font-semibold">Como o saldo será pago?</Label>
+                        <div className="space-y-1">
+                          <Label className="text-[11px]">Tipo:</Label>
                           <select
-                            value={condicaoAprovacaoEmEdicao.saldoTipoPrazo || (condicaoAprovacaoEmEdicao.saldoPrazoDias ? 'dias' : 'parcelas')}
+                            value={condicaoAprovacaoEmEdicao.tipoCartao || 'credito'}
                             onChange={(e) => {
-                              const stp = e.target.value as 'dias' | 'parcelas' | 'conclusao';
-                              const upd: Partial<CondicaoPagamento> = {
-                                ...condicaoAprovacaoEmEdicao,
-                                saldoTipoPrazo: stp,
-                              };
-                              if (stp === 'dias') {
-                                upd.saldoPrazoDias = upd.saldoPrazoDias || 30;
-                              }
+                              const upd = { ...condicaoAprovacaoEmEdicao, tipoCartao: e.target.value as any };
                               upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
                               setCondicaoAprovacaoEmEdicao(upd);
                             }}
-                            className="h-7 px-2 text-[11px] font-semibold rounded bg-background border border-primary/50"
+                            className="w-full h-7 px-2 text-xs font-semibold rounded bg-background border border-border"
                           >
-                            <option value="dias">Prazo em Dias (ex: em 30 dias)</option>
-                            <option value="parcelas">Parcelado em vezes mensais</option>
-                            <option value="conclusao">Na Conclusão do Tratamento</option>
+                            <option value="credito">Crédito</option>
+                            <option value="debito">Débito (à vista)</option>
                           </select>
                         </div>
+                      </div>
+                    );
+                  })()}
 
-                        {(condicaoAprovacaoEmEdicao.saldoTipoPrazo === 'dias' || (!condicaoAprovacaoEmEdicao.saldoTipoPrazo && condicaoAprovacaoEmEdicao.saldoPrazoDias)) && (
-                          <div className="space-y-1.5 p-2 rounded bg-muted/30 border border-border/60">
-                            <div className="flex items-center justify-between gap-1 flex-wrap">
-                              <span className="text-[10px] text-muted-foreground font-medium">Atalhos de prazo:</span>
-                              <div className="flex items-center gap-1">
-                                {[15, 30, 45, 60, 90].map((dias) => (
-                                  <button
-                                    key={dias}
-                                    type="button"
-                                    onClick={() => {
+                  {condicaoAprovacaoEmEdicao.tipo === 'entrada_saldo' && (() => {
+                    const vTot = typeof condicaoAprovacaoEmEdicao.valorTotal === 'number' && condicaoAprovacaoEmEdicao.valorTotal > 0
+                      ? condicaoAprovacaoEmEdicao.valorTotal
+                      : aprovandoOrcamento.total;
+                    const entAtual = Math.min(vTot, Math.max(0, condicaoAprovacaoEmEdicao.valorEntrada || 0));
+                    const saldoAtual = Math.max(0, vTot - entAtual);
+                    const parcAtual = condicaoAprovacaoEmEdicao.saldoParcelas || 1;
+                    return (
+                      <div className="space-y-2.5 p-2.5 rounded bg-background border border-border text-xs">
+                        {/* Chips de porcentagem rápida de entrada */}
+                        <div className="flex items-center justify-between flex-wrap gap-1">
+                          <Label className="text-[11px] font-semibold text-muted-foreground">
+                            Atalhos de Entrada (% do Total):
+                          </Label>
+                          <div className="flex items-center gap-1">
+                            {[10, 20, 30, 40, 50, 70].map((perc) => (
+                              <button
+                                key={perc}
+                                type="button"
+                                onClick={() => {
+                                  const ent = Number(((vTot * perc) / 100).toFixed(2));
+                                  const saldo = Math.max(0, Number((vTot - ent).toFixed(2)));
+                                  const upd: Partial<CondicaoPagamento> = {
+                                    ...condicaoAprovacaoEmEdicao,
+                                    valorEntrada: ent,
+                                    saldoValorParcela: Number((saldo / parcAtual).toFixed(2)),
+                                  };
+                                  upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
+                                  setCondicaoAprovacaoEmEdicao(upd);
+                                }}
+                                className="px-1.5 py-0.5 text-[10px] rounded bg-muted hover:bg-primary/20 hover:text-primary font-bold border border-border"
+                              >
+                                {perc}%
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <Label className="text-[11px]">Valor Entrada (R$):</Label>
+                            <Input
+                              type="number"
+                              min={0}
+                              max={vTot}
+                              step="0.01"
+                              value={condicaoAprovacaoEmEdicao.valorEntrada ?? ''}
+                              onChange={(e) => {
+                                const ent = Number(e.target.value) || 0;
+                                const s = Math.max(0, vTot - ent);
+                                const parc = condicaoAprovacaoEmEdicao.saldoParcelas || 1;
+                                const upd: Partial<CondicaoPagamento> = {
+                                  ...condicaoAprovacaoEmEdicao,
+                                  valorEntrada: ent,
+                                  saldoValorParcela: Number((s / parc).toFixed(2)),
+                                };
+                                upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
+                                setCondicaoAprovacaoEmEdicao(upd);
+                              }}
+                              className="h-7 text-xs font-bold"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[11px]">Método Entrada:</Label>
+                            <select
+                              value={condicaoAprovacaoEmEdicao.metodoEntrada || 'pix'}
+                              onChange={(e) => {
+                                const upd: Partial<CondicaoPagamento> = { ...condicaoAprovacaoEmEdicao, metodoEntrada: e.target.value as any };
+                                upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
+                                setCondicaoAprovacaoEmEdicao(upd);
+                              }}
+                              className="w-full h-7 px-2 text-xs font-semibold rounded bg-background border border-border"
+                            >
+                              <option value="pix">PIX</option>
+                              <option value="dinheiro">Dinheiro</option>
+                              <option value="cartao_debito">Débito</option>
+                              <option value="cartao_credito">Crédito</option>
+                              <option value="transferencia">Transferência</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Modalidade do Saldo: Dias, Parcelas ou Conclusão */}
+                        <div className="pt-2 border-t border-border/60 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-[11px] font-semibold">Como o saldo será pago?</Label>
+                            <select
+                              value={condicaoAprovacaoEmEdicao.saldoTipoPrazo || (condicaoAprovacaoEmEdicao.saldoPrazoDias ? 'dias' : 'parcelas')}
+                              onChange={(e) => {
+                                const stp = e.target.value as 'dias' | 'parcelas' | 'conclusao';
+                                const upd: Partial<CondicaoPagamento> = {
+                                  ...condicaoAprovacaoEmEdicao,
+                                  saldoTipoPrazo: stp,
+                                };
+                                if (stp === 'dias') {
+                                  upd.saldoPrazoDias = upd.saldoPrazoDias || 30;
+                                }
+                                upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
+                                setCondicaoAprovacaoEmEdicao(upd);
+                              }}
+                              className="h-7 px-2 text-[11px] font-semibold rounded bg-background border border-primary/50"
+                            >
+                              <option value="dias">Prazo em Dias (ex: em 30 dias)</option>
+                              <option value="parcelas">Parcelado em vezes mensais</option>
+                              <option value="conclusao">Na Conclusão do Tratamento</option>
+                            </select>
+                          </div>
+
+                          {(condicaoAprovacaoEmEdicao.saldoTipoPrazo === 'dias' || (!condicaoAprovacaoEmEdicao.saldoTipoPrazo && condicaoAprovacaoEmEdicao.saldoPrazoDias)) && (
+                            <div className="space-y-1.5 p-2 rounded bg-muted/30 border border-border/60">
+                              <div className="flex items-center justify-between gap-1 flex-wrap">
+                                <span className="text-[10px] text-muted-foreground font-medium">Atalhos de prazo:</span>
+                                <div className="flex items-center gap-1">
+                                  {[15, 30, 45, 60, 90].map((dias) => (
+                                    <button
+                                      key={dias}
+                                      type="button"
+                                      onClick={() => {
+                                        const upd: Partial<CondicaoPagamento> = {
+                                          ...condicaoAprovacaoEmEdicao,
+                                          saldoTipoPrazo: 'dias',
+                                          saldoPrazoDias: dias,
+                                        };
+                                        upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
+                                        setCondicaoAprovacaoEmEdicao(upd);
+                                      }}
+                                      className="px-1.5 py-0.5 text-[10px] rounded bg-background hover:bg-primary/20 hover:text-primary font-semibold border border-border"
+                                    >
+                                      {dias} dias
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-2 gap-2">
+                                <div className="space-y-1">
+                                  <Label className="text-[11px]">Prazo em Dias:</Label>
+                                  <Input
+                                    type="number"
+                                    min={1}
+                                    max={365}
+                                    value={condicaoAprovacaoEmEdicao.saldoPrazoDias || 30}
+                                    onChange={(e) => {
+                                      const d = Number(e.target.value) || 30;
                                       const upd: Partial<CondicaoPagamento> = {
                                         ...condicaoAprovacaoEmEdicao,
                                         saldoTipoPrazo: 'dias',
-                                        saldoPrazoDias: dias,
+                                        saldoPrazoDias: d,
                                       };
                                       upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
                                       setCondicaoAprovacaoEmEdicao(upd);
                                     }}
-                                    className="px-1.5 py-0.5 text-[10px] rounded bg-background hover:bg-primary/20 hover:text-primary font-semibold border border-border"
+                                    className="h-7 text-xs font-bold"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className="text-[11px]">Meio do Saldo:</Label>
+                                  <select
+                                    value={condicaoAprovacaoEmEdicao.saldoMetodo || 'cartao'}
+                                    onChange={(e) => {
+                                      const upd: Partial<CondicaoPagamento> = { ...condicaoAprovacaoEmEdicao, saldoMetodo: e.target.value as any };
+                                      upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
+                                      setCondicaoAprovacaoEmEdicao(upd);
+                                    }}
+                                    className="w-full h-7 px-2 text-xs font-semibold rounded bg-background border border-border"
                                   >
-                                    {dias} dias
-                                  </button>
-                                ))}
+                                    <option value="cartao">Cartão de Crédito</option>
+                                    <option value="pix_parcelado">PIX</option>
+                                    <option value="boleto">Boleto Bancário</option>
+                                  </select>
+                                </div>
                               </div>
                             </div>
-                            <div className="grid grid-cols-2 gap-2">
+                          )}
+
+                          {condicaoAprovacaoEmEdicao.saldoTipoPrazo === 'parcelas' && (
+                            <div className="grid grid-cols-2 gap-2 p-2 rounded bg-muted/30 border border-border/60">
                               <div className="space-y-1">
-                                <Label className="text-[11px]">Prazo em Dias:</Label>
-                                <Input
-                                  type="number"
-                                  min={1}
-                                  max={365}
-                                  value={condicaoAprovacaoEmEdicao.saldoPrazoDias || 30}
+                                <Label className="text-[11px]">Parcelas do Saldo:</Label>
+                                <select
+                                  value={condicaoAprovacaoEmEdicao.saldoParcelas || 1}
                                   onChange={(e) => {
-                                    const d = Number(e.target.value) || 30;
+                                    const parc = Number(e.target.value) || 1;
                                     const upd: Partial<CondicaoPagamento> = {
                                       ...condicaoAprovacaoEmEdicao,
-                                      saldoTipoPrazo: 'dias',
-                                      saldoPrazoDias: d,
+                                      saldoParcelas: parc,
+                                      saldoValorParcela: Number((saldoAtual / parc).toFixed(2)),
                                     };
                                     upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
                                     setCondicaoAprovacaoEmEdicao(upd);
                                   }}
-                                  className="h-7 text-xs font-bold"
-                                />
+                                  className="w-full h-7 px-2 text-xs font-semibold rounded bg-background border border-border"
+                                >
+                                  {[1, 2, 3, 4, 5, 6, 8, 10, 12, 18].map((n) => (
+                                    <option key={n} value={n}>
+                                      {n === 1 ? '1x à vista' : `${n}x de ${formatMoney(saldoAtual / n)}`}
+                                    </option>
+                                  ))}
+                                </select>
                               </div>
                               <div className="space-y-1">
-                                <Label className="text-[11px]">Meio do Saldo:</Label>
+                                <Label className="text-[11px]">Forma do Saldo:</Label>
                                 <select
                                   value={condicaoAprovacaoEmEdicao.saldoMetodo || 'cartao'}
                                   onChange={(e) => {
@@ -4695,105 +4815,70 @@ const PatientOrcamentos = ({ patient }: Props) => {
                                   className="w-full h-7 px-2 text-xs font-semibold rounded bg-background border border-border"
                                 >
                                   <option value="cartao">Cartão de Crédito</option>
-                                  <option value="pix_parcelado">PIX</option>
+                                  <option value="pix_parcelado">PIX Parcelado</option>
                                   <option value="boleto">Boleto Bancário</option>
                                 </select>
                               </div>
                             </div>
-                          </div>
-                        )}
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
-                        {condicaoAprovacaoEmEdicao.saldoTipoPrazo === 'parcelas' && (
-                          <div className="grid grid-cols-2 gap-2 p-2 rounded bg-muted/30 border border-border/60">
-                            <div className="space-y-1">
-                              <Label className="text-[11px]">Parcelas do Saldo:</Label>
-                              <select
-                                value={condicaoAprovacaoEmEdicao.saldoParcelas || 1}
-                                onChange={(e) => {
-                                  const parc = Number(e.target.value) || 1;
-                                  const ent = condicaoAprovacaoEmEdicao.valorEntrada || 0;
-                                  const s = Math.max(0, aprovandoOrcamento.total - ent);
-                                  const upd: Partial<CondicaoPagamento> = {
-                                    ...condicaoAprovacaoEmEdicao,
-                                    saldoParcelas: parc,
-                                    saldoValorParcela: Number((s / parc).toFixed(2)),
-                                  };
-                                  upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
-                                  setCondicaoAprovacaoEmEdicao(upd);
-                                }}
-                                className="w-full h-7 px-2 text-xs font-semibold rounded bg-background border border-border"
-                              >
-                                {[1, 2, 3, 4, 5, 6, 8, 10, 12, 18].map((n) => (
-                                  <option key={n} value={n}>
-                                    {n}x mensais
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-[11px]">Forma do Saldo:</Label>
-                              <select
-                                value={condicaoAprovacaoEmEdicao.saldoMetodo || 'cartao'}
-                                onChange={(e) => {
-                                  const upd: Partial<CondicaoPagamento> = { ...condicaoAprovacaoEmEdicao, saldoMetodo: e.target.value as any };
-                                  upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
-                                  setCondicaoAprovacaoEmEdicao(upd);
-                                }}
-                                className="w-full h-7 px-2 text-xs font-semibold rounded bg-background border border-border"
-                              >
-                                <option value="cartao">Cartão de Crédito</option>
-                                <option value="pix_parcelado">PIX Parcelado</option>
-                                <option value="boleto">Boleto Bancário</option>
-                              </select>
-                            </div>
-                          </div>
-                        )}
+                  {condicaoAprovacaoEmEdicao.tipo === 'pix_parcelado' && (() => {
+                    const vTot = typeof condicaoAprovacaoEmEdicao.valorTotal === 'number' && condicaoAprovacaoEmEdicao.valorTotal > 0
+                      ? condicaoAprovacaoEmEdicao.valorTotal
+                      : aprovandoOrcamento.total;
+                    const ent = condicaoAprovacaoEmEdicao.valorEntrada || 0;
+                    const saldo = Math.max(0, vTot - ent);
+                    return (
+                      <div className="grid grid-cols-2 gap-2 p-2.5 rounded bg-background border border-border text-xs">
+                        <div className="space-y-1">
+                          <Label className="text-[11px]">Parcelas no PIX:</Label>
+                          <select
+                            value={condicaoAprovacaoEmEdicao.parcelas || 3}
+                            onChange={(e) => {
+                              const p = Number(e.target.value) || 3;
+                              const upd = {
+                                ...condicaoAprovacaoEmEdicao,
+                                parcelas: p,
+                                valorParcela: Number((saldo / p).toFixed(2)),
+                              };
+                              upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
+                              setCondicaoAprovacaoEmEdicao(upd);
+                            }}
+                            className="w-full h-7 px-2 text-xs font-semibold rounded bg-background border border-border"
+                          >
+                            {[2, 3, 4, 5, 6, 8, 10, 12].map((n) => (
+                              <option key={n} value={n}>
+                                {n}x de {formatMoney(saldo / n)}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[11px]">Vencimento:</Label>
+                          <select
+                            value={condicaoAprovacaoEmEdicao.diaVencimento || 10}
+                            onChange={(e) => {
+                              const d = Number(e.target.value) || 10;
+                              const upd = { ...condicaoAprovacaoEmEdicao, diaVencimento: d };
+                              upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
+                              setCondicaoAprovacaoEmEdicao(upd);
+                            }}
+                            className="w-full h-7 px-2 text-xs font-semibold rounded bg-background border border-border"
+                          >
+                            {[1, 5, 10, 15, 20, 25, 28, 30].map((d) => (
+                              <option key={d} value={d}>
+                                Todo dia {d}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                       </div>
-                    </div>
-                  )}
-
-                  {condicaoAprovacaoEmEdicao.tipo === 'pix_parcelado' && (
-                    <div className="grid grid-cols-2 gap-2 p-2.5 rounded bg-background border border-border text-xs">
-                      <div className="space-y-1">
-                        <Label className="text-[11px]">Parcelas no PIX:</Label>
-                        <select
-                          value={condicaoAprovacaoEmEdicao.parcelas || 3}
-                          onChange={(e) => {
-                            const p = Number(e.target.value) || 3;
-                            const upd = { ...condicaoAprovacaoEmEdicao, parcelas: p };
-                            upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
-                            setCondicaoAprovacaoEmEdicao(upd);
-                          }}
-                          className="w-full h-7 px-2 text-xs font-semibold rounded bg-background border border-border"
-                        >
-                          {[2, 3, 4, 5, 6, 8, 10, 12].map((n) => (
-                            <option key={n} value={n}>
-                              {n}x de {formatMoney(aprovandoOrcamento.total / n)}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-[11px]">Vencimento:</Label>
-                        <select
-                          value={condicaoAprovacaoEmEdicao.diaVencimento || 10}
-                          onChange={(e) => {
-                            const d = Number(e.target.value) || 10;
-                            const upd = { ...condicaoAprovacaoEmEdicao, diaVencimento: d };
-                            upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
-                            setCondicaoAprovacaoEmEdicao(upd);
-                          }}
-                          className="w-full h-7 px-2 text-xs font-semibold rounded bg-background border border-border"
-                        >
-                          {[1, 5, 10, 15, 20, 25, 28, 30].map((d) => (
-                            <option key={d} value={d}>
-                              Todo dia {d}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  )}
+                    );
+                  })()}
 
                   {/* Visão Interna da Clínica — Desconto das Taxas do Cartão */}
                   <CardSimulacaoTaxasCartao
@@ -5081,23 +5166,9 @@ const PatientOrcamentos = ({ patient }: Props) => {
                     <button
                       type="button"
                       onClick={() => {
-                        const vBase = total;
-                        const updated: Partial<CondicaoPagamento> = {
-                          ...condicaoEmEdicao,
-                          valorTotal: vBase,
-                          descontoPercentual: 0,
-                          descontoValor: 0,
-                        };
-                        if (updated.tipo === 'cartao') {
-                          updated.valorParcela = Number((vBase / (updated.parcelas || 1)).toFixed(2));
-                        } else if (updated.tipo === 'entrada_saldo') {
-                          const ent = updated.valorEntrada || 0;
-                          const s = Math.max(0, vBase - ent);
-                          updated.saldoValorParcela = Number((s / (updated.saldoParcelas || 1)).toFixed(2));
-                        }
-                        updated.descricao = calcularDescricaoCondicao(updated, total);
+                        const updated = recalcularValoresCondicaoComNovoTotal(condicaoEmEdicao, total, total);
                         setCondicaoEmEdicao(updated);
-                        toast.info(`Valor resetado para o total base (${formatMoney(vBase)})`);
+                        toast.info(`Valor resetado para o total base (${formatMoney(total)})`);
                       }}
                       className="text-[10px] text-primary hover:underline font-semibold"
                     >
@@ -5114,34 +5185,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
                     value={condicaoEmEdicao.valorTotal ?? total}
                     onChange={(e) => {
                       const vNovo = Math.max(0, Number(e.target.value) || 0);
-                      const updated: Partial<CondicaoPagamento> = {
-                        ...condicaoEmEdicao,
-                        valorTotal: vNovo,
-                      };
-
-                      if (updated.tipo === 'a_vista') {
-                        if (vNovo < total) {
-                          const desc = total - vNovo;
-                          updated.descontoValor = desc;
-                          updated.descontoPercentual = Number(((desc / total) * 100).toFixed(1));
-                        } else {
-                          updated.descontoValor = 0;
-                          updated.descontoPercentual = 0;
-                        }
-                      } else if (updated.tipo === 'cartao') {
-                        const p = updated.parcelas || 1;
-                        updated.valorParcela = Number((vNovo / p).toFixed(2));
-                      } else if (updated.tipo === 'entrada_saldo') {
-                        const ent = updated.valorEntrada || 0;
-                        const s = Math.max(0, vNovo - ent);
-                        const parc = updated.saldoParcelas || 1;
-                        updated.saldoValorParcela = Number((s / parc).toFixed(2));
-                      } else if (updated.tipo === 'pix_parcelado' || updated.tipo === 'boleto') {
-                        const p = updated.parcelas || 1;
-                        updated.valorParcela = Number((vNovo / p).toFixed(2));
-                      }
-
-                      updated.descricao = calcularDescricaoCondicao(updated, total);
+                      const updated = recalcularValoresCondicaoComNovoTotal(condicaoEmEdicao, vNovo, total);
                       setCondicaoEmEdicao(updated);
                     }}
                     className="h-9 font-extrabold text-sm text-foreground bg-background"
@@ -5238,115 +5282,122 @@ const PatientOrcamentos = ({ patient }: Props) => {
               )}
 
               {/* Detalhes de Cartão */}
-              {condicaoEmEdicao.tipo === 'cartao' && (
-                <div className="p-3 rounded-xl bg-muted/40 border border-border/70 space-y-2.5">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <Label className="text-xs font-semibold">Qtd. Parcelas:</Label>
-                      <select
-                        value={condicaoEmEdicao.parcelas || 1}
-                        onChange={(e) => {
-                          const p = Number(e.target.value) || 1;
-                          const updated: Partial<CondicaoPagamento> = {
-                            ...condicaoEmEdicao,
-                            parcelas: p,
-                            valorParcela: Number((total / p).toFixed(2)),
-                          };
-                          updated.descricao = calcularDescricaoCondicao(updated, total);
-                          setCondicaoEmEdicao(updated);
-                        }}
-                        className="w-full h-8 px-2 text-xs font-semibold rounded-md bg-background border border-border"
-                      >
-                        {[1, 2, 3, 4, 5, 6, 8, 10, 12, 18].map((n) => (
-                          <option key={n} value={n}>
-                            {n === 1 ? '1x (À vista)' : `${n}x de ${formatMoney(total / n)}`}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs font-semibold">Tipo Cartão:</Label>
-                      <select
-                        value={condicaoEmEdicao.tipoCartao || 'credito'}
-                        onChange={(e) => {
-                          const tc = e.target.value as 'credito' | 'debito';
-                          const updated: Partial<CondicaoPagamento> = {
-                            ...condicaoEmEdicao,
-                            tipoCartao: tc,
-                            parcelas: tc === 'debito' ? 1 : condicaoEmEdicao.parcelas || 1,
-                          };
-                          updated.descricao = calcularDescricaoCondicao(updated, total);
-                          setCondicaoEmEdicao(updated);
-                        }}
-                        className="w-full h-8 px-2 text-xs font-semibold rounded-md bg-background border border-border"
-                      >
-                        <option value="credito">Crédito</option>
-                        <option value="debito">Débito</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Detalhes de Entrada + Saldo */}
-              {condicaoEmEdicao.tipo === 'entrada_saldo' && (
-                <div className="p-3 rounded-xl bg-muted/40 border border-border/70 space-y-2.5">
-                  {/* Chips de porcentagem rápida de entrada */}
-                  <div className="flex items-center justify-between flex-wrap gap-1">
-                    <Label className="text-[11px] font-semibold text-muted-foreground">
-                      Atalhos de Entrada (%):
-                    </Label>
-                    <div className="flex items-center gap-1">
-                      {[10, 20, 30, 40, 50, 70].map((perc) => (
-                        <button
-                          key={perc}
-                          type="button"
-                          onClick={() => {
-                            const ent = Number(((total * perc) / 100).toFixed(2));
-                            const saldo = Math.max(0, Number((total - ent).toFixed(2)));
+              {condicaoEmEdicao.tipo === 'cartao' && (() => {
+                const vTotal = typeof condicaoEmEdicao.valorTotal === 'number' && condicaoEmEdicao.valorTotal > 0 ? condicaoEmEdicao.valorTotal : total;
+                return (
+                  <div className="p-3 rounded-xl bg-muted/40 border border-border/70 space-y-2.5">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-xs font-semibold">Qtd. Parcelas:</Label>
+                        <select
+                          value={condicaoEmEdicao.parcelas || 1}
+                          onChange={(e) => {
+                            const p = Number(e.target.value) || 1;
                             const updated: Partial<CondicaoPagamento> = {
                               ...condicaoEmEdicao,
-                              valorEntrada: ent,
-                              saldoValorParcela: saldo,
+                              parcelas: p,
+                              valorParcela: Number((vTotal / p).toFixed(2)),
                             };
                             updated.descricao = calcularDescricaoCondicao(updated, total);
                             setCondicaoEmEdicao(updated);
                           }}
-                          className="px-1.5 py-0.5 text-[10px] rounded bg-background hover:bg-primary/20 hover:text-primary font-bold border border-border"
+                          className="w-full h-8 px-2 text-xs font-semibold rounded-md bg-background border border-border"
                         >
-                          {perc}%
-                        </button>
-                      ))}
+                          {[1, 2, 3, 4, 5, 6, 8, 10, 12, 18].map((n) => (
+                            <option key={n} value={n}>
+                              {n === 1 ? '1x (À vista)' : `${n}x de ${formatMoney(vTotal / n)}`}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs font-semibold">Tipo Cartão:</Label>
+                        <select
+                          value={condicaoEmEdicao.tipoCartao || 'credito'}
+                          onChange={(e) => {
+                            const tc = e.target.value as 'credito' | 'debito';
+                            const updated: Partial<CondicaoPagamento> = {
+                              ...condicaoEmEdicao,
+                              tipoCartao: tc,
+                              parcelas: tc === 'debito' ? 1 : condicaoEmEdicao.parcelas || 1,
+                            };
+                            updated.descricao = calcularDescricaoCondicao(updated, total);
+                            setCondicaoEmEdicao(updated);
+                          }}
+                          className="w-full h-8 px-2 text-xs font-semibold rounded-md bg-background border border-border"
+                        >
+                          <option value="credito">Crédito</option>
+                          <option value="debito">Débito</option>
+                        </select>
+                      </div>
                     </div>
                   </div>
+                );
+              })()}
 
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <Label className="text-xs font-semibold">Valor da Entrada (R$):</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        max={total}
-                        step="0.01"
-                        value={condicaoEmEdicao.valorEntrada || ''}
-                        onChange={(e) => {
-                          const ent = Number(e.target.value) || 0;
-                          const saldo = Math.max(0, total - ent);
-                          const parc = condicaoEmEdicao.saldoParcelas || 1;
-                          const updated: Partial<CondicaoPagamento> = {
-                            ...condicaoEmEdicao,
-                            valorEntrada: ent,
-                            saldoValorParcela: Number((saldo / parc).toFixed(2)),
-                          };
-                          updated.descricao = calcularDescricaoCondicao(updated, total);
-                          setCondicaoEmEdicao(updated);
-                        }}
-                        className="h-8 text-xs font-bold"
-                      />
+              {/* Detalhes de Entrada + Saldo */}
+              {condicaoEmEdicao.tipo === 'entrada_saldo' && (() => {
+                const vTotal = typeof condicaoEmEdicao.valorTotal === 'number' && condicaoEmEdicao.valorTotal > 0 ? condicaoEmEdicao.valorTotal : total;
+                const entAtual = Math.min(vTotal, Math.max(0, condicaoEmEdicao.valorEntrada || 0));
+                const saldoAtual = Math.max(0, vTotal - entAtual);
+                const parcAtual = condicaoEmEdicao.saldoParcelas || 1;
+                return (
+                  <div className="p-3 rounded-xl bg-muted/40 border border-border/70 space-y-2.5">
+                    {/* Chips de porcentagem rápida de entrada */}
+                    <div className="flex items-center justify-between flex-wrap gap-1">
+                      <Label className="text-[11px] font-semibold text-muted-foreground">
+                        Atalhos de Entrada (% do Total com Desconto):
+                      </Label>
+                      <div className="flex items-center gap-1">
+                        {[10, 20, 30, 40, 50, 70].map((perc) => (
+                          <button
+                            key={perc}
+                            type="button"
+                            onClick={() => {
+                              const ent = Number(((vTotal * perc) / 100).toFixed(2));
+                              const saldo = Math.max(0, Number((vTotal - ent).toFixed(2)));
+                              const updated: Partial<CondicaoPagamento> = {
+                                ...condicaoEmEdicao,
+                                valorEntrada: ent,
+                                saldoValorParcela: Number((saldo / parcAtual).toFixed(2)),
+                              };
+                              updated.descricao = calcularDescricaoCondicao(updated, total);
+                              setCondicaoEmEdicao(updated);
+                            }}
+                            className="px-1.5 py-0.5 text-[10px] rounded bg-background hover:bg-primary/20 hover:text-primary font-bold border border-border"
+                          >
+                            {perc}%
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs font-semibold">Meio da Entrada:</Label>
-                      <select
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-xs font-semibold">Valor da Entrada (R$):</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={vTotal}
+                          step="0.01"
+                          value={condicaoEmEdicao.valorEntrada ?? ''}
+                          onChange={(e) => {
+                            const ent = Number(e.target.value) || 0;
+                            const saldo = Math.max(0, vTotal - ent);
+                            const updated: Partial<CondicaoPagamento> = {
+                              ...condicaoEmEdicao,
+                              valorEntrada: ent,
+                              saldoValorParcela: Number((saldo / parcAtual).toFixed(2)),
+                            };
+                            updated.descricao = calcularDescricaoCondicao(updated, total);
+                            setCondicaoEmEdicao(updated);
+                          }}
+                          className="h-8 text-xs font-bold"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs font-semibold">Meio da Entrada:</Label>
+                        <select
                         value={condicaoEmEdicao.metodoEntrada || 'pix'}
                         onChange={(e) => {
                           const me = e.target.value as any;
@@ -5464,110 +5515,120 @@ const PatientOrcamentos = ({ patient }: Props) => {
                       </div>
                     )}
 
-                    {condicaoEmEdicao.saldoTipoPrazo === 'parcelas' && (
-                      <div className="grid grid-cols-2 gap-2 p-2 rounded bg-background border border-border/70">
-                        <div className="space-y-1">
-                          <Label className="text-xs font-semibold">Parcelas do Saldo:</Label>
-                          <select
-                            value={condicaoEmEdicao.saldoParcelas || 1}
-                            onChange={(e) => {
-                              const parc = Number(e.target.value) || 1;
-                              const ent = condicaoEmEdicao.valorEntrada || 0;
-                              const saldo = Math.max(0, total - ent);
-                              const updated: Partial<CondicaoPagamento> = {
-                                ...condicaoEmEdicao,
-                                saldoParcelas: parc,
-                                saldoValorParcela: Number((saldo / parc).toFixed(2)),
-                              };
-                              updated.descricao = calcularDescricaoCondicao(updated, total);
-                              setCondicaoEmEdicao(updated);
-                            }}
-                            className="w-full h-8 px-2 text-xs font-semibold rounded-md bg-background border border-border"
-                          >
-                            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18].map((n) => (
-                              <option key={n} value={n}>
-                                {n === 1 ? '1x à vista' : `${n}x mensais`}
-                              </option>
-                            ))}
-                          </select>
+                    {condicaoEmEdicao.saldoTipoPrazo === 'parcelas' && (() => {
+                      const vTotal = typeof condicaoEmEdicao.valorTotal === 'number' && condicaoEmEdicao.valorTotal > 0 ? condicaoEmEdicao.valorTotal : total;
+                      const ent = condicaoEmEdicao.valorEntrada || 0;
+                      const saldo = Math.max(0, vTotal - ent);
+                      return (
+                        <div className="grid grid-cols-2 gap-2 p-2 rounded bg-background border border-border/70">
+                          <div className="space-y-1">
+                            <Label className="text-xs font-semibold">Parcelas do Saldo:</Label>
+                            <select
+                              value={condicaoEmEdicao.saldoParcelas || 1}
+                              onChange={(e) => {
+                                const parc = Number(e.target.value) || 1;
+                                const updated: Partial<CondicaoPagamento> = {
+                                  ...condicaoEmEdicao,
+                                  saldoParcelas: parc,
+                                  saldoValorParcela: Number((saldo / parc).toFixed(2)),
+                                };
+                                updated.descricao = calcularDescricaoCondicao(updated, total);
+                                setCondicaoEmEdicao(updated);
+                              }}
+                              className="w-full h-8 px-2 text-xs font-semibold rounded-md bg-background border border-border"
+                            >
+                              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18].map((n) => (
+                                <option key={n} value={n}>
+                                  {n === 1 ? '1x à vista' : `${n}x de ${formatMoney(saldo / n)}`}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs font-semibold">Forma do Saldo:</Label>
+                            <select
+                              value={condicaoEmEdicao.saldoMetodo || 'cartao'}
+                              onChange={(e) => {
+                                const sm = e.target.value as any;
+                                const updated: Partial<CondicaoPagamento> = {
+                                  ...condicaoEmEdicao,
+                                  saldoMetodo: sm,
+                                };
+                                updated.descricao = calcularDescricaoCondicao(updated, total);
+                                setCondicaoEmEdicao(updated);
+                              }}
+                              className="w-full h-8 px-2 text-xs font-semibold rounded-md bg-background border border-border"
+                            >
+                              <option value="cartao">Cartão de Crédito</option>
+                              <option value="pix_parcelado">PIX Parcelado</option>
+                              <option value="boleto">Boleto Bancário</option>
+                            </select>
+                          </div>
                         </div>
-                        <div className="space-y-1">
-                          <Label className="text-xs font-semibold">Forma do Saldo:</Label>
-                          <select
-                            value={condicaoEmEdicao.saldoMetodo || 'cartao'}
-                            onChange={(e) => {
-                              const sm = e.target.value as any;
-                              const updated: Partial<CondicaoPagamento> = {
-                                ...condicaoEmEdicao,
-                                saldoMetodo: sm,
-                              };
-                              updated.descricao = calcularDescricaoCondicao(updated, total);
-                              setCondicaoEmEdicao(updated);
-                            }}
-                            className="w-full h-8 px-2 text-xs font-semibold rounded-md bg-background border border-border"
-                          >
-                            <option value="cartao">Cartão de Crédito</option>
-                            <option value="pix_parcelado">PIX Parcelado</option>
-                            <option value="boleto">Boleto Bancário</option>
-                          </select>
-                        </div>
-                      </div>
-                    )}
+                      );
+                    })()}
                   </div>
                 </div>
-              )}
+              );
+            })()}
 
               {/* Detalhes de PIX Parcelado */}
-              {condicaoEmEdicao.tipo === 'pix_parcelado' && (
-                <div className="p-3 rounded-xl bg-muted/40 border border-border/70 space-y-2.5">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <Label className="text-xs font-semibold">Parcelas no PIX:</Label>
-                      <select
-                        value={condicaoEmEdicao.parcelas || 3}
-                        onChange={(e) => {
-                          const p = Number(e.target.value) || 3;
-                          const updated: Partial<CondicaoPagamento> = {
-                            ...condicaoEmEdicao,
-                            parcelas: p,
-                          };
-                          updated.descricao = calcularDescricaoCondicao(updated, total);
-                          setCondicaoEmEdicao(updated);
-                        }}
-                        className="w-full h-8 px-2 text-xs font-semibold rounded-md bg-background border border-border"
-                      >
-                        {[2, 3, 4, 5, 6, 8, 10, 12].map((n) => (
-                          <option key={n} value={n}>
-                            {n}x de {formatMoney(total / n)}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs font-semibold">Dia de Vencimento:</Label>
-                      <select
-                        value={condicaoEmEdicao.diaVencimento || 10}
-                        onChange={(e) => {
-                          const d = Number(e.target.value) || 10;
-                          const updated: Partial<CondicaoPagamento> = {
-                            ...condicaoEmEdicao,
-                            diaVencimento: d,
-                          };
-                          updated.descricao = calcularDescricaoCondicao(updated, total);
-                          setCondicaoEmEdicao(updated);
-                        }}
-                        className="w-full h-8 px-2 text-xs font-semibold rounded-md bg-background border border-border"
-                      >
-                        {[1, 5, 10, 15, 20, 25, 28, 30].map((d) => (
-                          <option key={d} value={d}>
-                            Todo dia {d}
-                          </option>
-                        ))}
-                      </select>
+              {condicaoEmEdicao.tipo === 'pix_parcelado' && (() => {
+                const vTotal = typeof condicaoEmEdicao.valorTotal === 'number' && condicaoEmEdicao.valorTotal > 0 ? condicaoEmEdicao.valorTotal : total;
+                const ent = condicaoEmEdicao.valorEntrada || 0;
+                const saldo = Math.max(0, vTotal - ent);
+                return (
+                  <div className="p-3 rounded-xl bg-muted/40 border border-border/70 space-y-2.5">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-xs font-semibold">Parcelas no PIX:</Label>
+                        <select
+                          value={condicaoEmEdicao.parcelas || 3}
+                          onChange={(e) => {
+                            const p = Number(e.target.value) || 3;
+                            const updated: Partial<CondicaoPagamento> = {
+                              ...condicaoEmEdicao,
+                              parcelas: p,
+                              valorParcela: Number((saldo / p).toFixed(2)),
+                            };
+                            updated.descricao = calcularDescricaoCondicao(updated, total);
+                            setCondicaoEmEdicao(updated);
+                          }}
+                          className="w-full h-8 px-2 text-xs font-semibold rounded-md bg-background border border-border"
+                        >
+                          {[2, 3, 4, 5, 6, 8, 10, 12].map((n) => (
+                            <option key={n} value={n}>
+                              {n}x de {formatMoney(saldo / n)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs font-semibold">Dia de Vencimento:</Label>
+                        <select
+                          value={condicaoEmEdicao.diaVencimento || 10}
+                          onChange={(e) => {
+                            const d = Number(e.target.value) || 10;
+                            const updated: Partial<CondicaoPagamento> = {
+                              ...condicaoEmEdicao,
+                              diaVencimento: d,
+                            };
+                            updated.descricao = calcularDescricaoCondicao(updated, total);
+                            setCondicaoEmEdicao(updated);
+                          }}
+                          className="w-full h-8 px-2 text-xs font-semibold rounded-md bg-background border border-border"
+                        >
+                          {[1, 5, 10, 15, 20, 25, 28, 30].map((d) => (
+                            <option key={d} value={d}>
+                              Todo dia {d}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* Construtor Visual Personalizado com Todas as Formas de Pagamento */}
               {condicaoEmEdicao.tipo === 'personalizado' && (() => {

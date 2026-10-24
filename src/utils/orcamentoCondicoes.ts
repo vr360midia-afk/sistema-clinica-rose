@@ -84,7 +84,7 @@ export function calcularDescricaoCondicao(
 
     case 'cartao': {
       const p = Math.max(1, cond.parcelas || 1);
-      const valP = cond.valorParcela ?? (total / p);
+      const valP = total / p;
       const isDebito = cond.tipoCartao === 'debito';
       if (isDebito) {
         return `Cartão de Débito à vista: ${formatMoney(total)}`;
@@ -141,7 +141,7 @@ export function calcularDescricaoCondicao(
 
       // Caso padrão com parcelas
       const parcSaldo = Math.max(1, cond.saldoParcelas || 1);
-      const valParcSaldo = cond.saldoValorParcela ?? (saldo / parcSaldo);
+      const valParcSaldo = saldo / parcSaldo;
       if (ent > 0) {
         if (parcSaldo === 1) {
           return `Entrada de ${formatMoney(ent)}${strPercEnt} ${metEntrada} + Saldo de ${formatMoney(saldo)}${strPercSaldo} em 1x ${metSaldo}`;
@@ -177,6 +177,100 @@ export function calcularDescricaoCondicao(
       }
       return cond.descricao || `Condição de pagamento: ${formatMoney(total)}`;
   }
+}
+
+/**
+ * Recalcula de forma inteligente e proporcional todas as entradas, saldos, parcelas
+ * e descontos de uma condição quando o usuário ajusta seu valor total.
+ */
+export function recalcularValoresCondicaoComNovoTotal(
+  cond: Partial<CondicaoPagamento>,
+  novoTotal: number,
+  totalBase: number
+): Partial<CondicaoPagamento> {
+  const vNovo = Math.max(0, Number(novoTotal) || 0);
+  const vAnterior = typeof cond.valorTotal === 'number' && cond.valorTotal > 0 ? cond.valorTotal : totalBase;
+  const descVal = Math.max(0, totalBase - vNovo);
+  const descPerc = totalBase > 0 && descVal > 0 ? Number(((descVal / totalBase) * 100).toFixed(1)) : 0;
+
+  const updated: Partial<CondicaoPagamento> = {
+    ...cond,
+    valorTotal: vNovo,
+    descontoValor: descVal,
+    descontoPercentual: descPerc,
+  };
+
+  switch (updated.tipo) {
+    case 'a_vista':
+      break;
+
+    case 'cartao': {
+      const p = Math.max(1, updated.parcelas || 1);
+      updated.valorParcela = Number((vNovo / p).toFixed(2));
+      break;
+    }
+
+    case 'entrada_saldo': {
+      // Proporção de entrada que existia antes (ex: 50% de entrada)
+      let propEntrada = 0.5;
+      if (typeof cond.valorEntrada === 'number' && vAnterior > 0) {
+        propEntrada = cond.valorEntrada / vAnterior;
+      }
+      propEntrada = Math.min(1, Math.max(0, propEntrada));
+
+      // Aplica o desconto proporcionalmente tanto na entrada quanto no saldo
+      const novaEntrada = Number((vNovo * propEntrada).toFixed(2));
+      const novoSaldo = Math.max(0, Number((vNovo - novaEntrada).toFixed(2)));
+      const parc = Math.max(1, updated.saldoParcelas || 1);
+      const valParc = Number((novoSaldo / parc).toFixed(2));
+
+      updated.valorEntrada = novaEntrada;
+      updated.saldoValorParcela = valParc;
+      break;
+    }
+
+    case 'pix_parcelado': {
+      let novaEntrada = 0;
+      if (typeof cond.valorEntrada === 'number' && cond.valorEntrada > 0 && vAnterior > 0) {
+        const prop = Math.min(1, Math.max(0, cond.valorEntrada / vAnterior));
+        novaEntrada = Number((vNovo * prop).toFixed(2));
+      }
+      const novoSaldo = Math.max(0, Number((vNovo - novaEntrada).toFixed(2)));
+      const p = Math.max(1, updated.parcelas || updated.saldoParcelas || 3);
+      updated.valorEntrada = novaEntrada;
+      updated.valorParcela = Number((novoSaldo / p).toFixed(2));
+      break;
+    }
+
+    case 'boleto': {
+      const p = Math.max(1, updated.parcelas || 1);
+      updated.valorParcela = Number((vNovo / p).toFixed(2));
+      break;
+    }
+
+    case 'personalizado':
+    default: {
+      if (updated.formasCompostas && updated.formasCompostas.length > 0 && vAnterior > 0) {
+        const fator = vAnterior > 0 ? vNovo / vAnterior : 1;
+        let somaAjustada = 0;
+        const novas = updated.formasCompostas.map((f, i) => {
+          if (i === updated.formasCompostas!.length - 1) {
+            const valRest = Math.max(0, Number((vNovo - somaAjustada).toFixed(2)));
+            return { ...f, valor: valRest };
+          }
+          const v = Number((f.valor * fator).toFixed(2));
+          somaAjustada += v;
+          return { ...f, valor: v };
+        });
+        updated.formasCompostas = novas;
+      }
+      break;
+    }
+  }
+
+  // Recalcula o descritivo textual oficial da condição
+  updated.descricao = calcularDescricaoCondicao(updated, totalBase);
+  return updated;
 }
 
 /**
