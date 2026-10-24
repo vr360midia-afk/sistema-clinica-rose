@@ -41,6 +41,7 @@ import {
   Layers,
   ArrowRight,
   DollarSign,
+  Lock,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -65,6 +66,7 @@ import {
   montarTextoFormasCompostas,
   parseTextoParaFormasCompostas,
 } from '@/utils/orcamentoCondicoes';
+import CardSimulacaoTaxasCartao, { BadgeLiquidoInternoCartao } from '@/components/orcamentos/CardSimulacaoTaxasCartao';
 
 interface ModalApresentarOrcamentoProps {
   isOpen: boolean;
@@ -106,6 +108,7 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
   // Estados de Múltiplas Condições de Pagamento / Propostas de Negociação
   const [condicoes, setCondicoes] = useState<CondicaoPagamento[]>([]);
   const [condicaoSelecionadaId, setCondicaoSelecionadaId] = useState<string>('1');
+  const [mostrarMargemInterna, setMostrarMargemInterna] = useState(false);
 
   // Modal para Criar / Editar Condição de Negociação
   const [modalCondicaoOpen, setModalCondicaoOpen] = useState(false);
@@ -895,6 +898,22 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
                   <Button
                     type="button"
                     size="sm"
+                    variant={mostrarMargemInterna ? 'default' : 'outline'}
+                    onClick={() => setMostrarMargemInterna((prev) => !prev)}
+                    className={cn(
+                      'h-8 text-xs gap-1.5 font-semibold transition-all',
+                      mostrarMargemInterna
+                        ? 'bg-amber-600 hover:bg-amber-700 text-white border-amber-600 shadow-xs'
+                        : 'border-amber-500/40 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10'
+                    )}
+                    title="Visualização restrita da administração: exibe o valor líquido após desconto das taxas de máquina (não visível ao paciente por padrão)"
+                  >
+                    <Lock className="h-3.5 w-3.5" />
+                    {mostrarMargemInterna ? 'Ocultar Margem Interna' : '🔒 Margem Interna (Taxas)'}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
                     onClick={handleAbrirNovaCondicao}
                     className="h-8 text-xs gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 font-medium"
                   >
@@ -1032,6 +1051,11 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
                         <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-3">
                           {c.descricao}
                         </p>
+
+                        {/* Visão Interna Confidencial do Líquido do Cartão para a Clínica (Ativada pelo Toggle) */}
+                        {mostrarMargemInterna && (
+                          <BadgeLiquidoInternoCartao condicao={c} totalBase={total} />
+                        )}
                       </div>
 
                       {/* Botão de Selecionar Proposta */}
@@ -2196,6 +2220,16 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
                   </div>
                 );
               })()}
+
+              {/* Visão Interna da Clínica — Desconto das Taxas do Cartão */}
+              <CardSimulacaoTaxasCartao
+                condicao={condicaoEmEdicao}
+                totalBase={total}
+                operadoraIdSelecionada={condicaoEmEdicao.operadoraCartaoId}
+                onAlterarOperadora={(opId) =>
+                  setCondicaoEmEdicao((prev) => (prev ? { ...prev, operadoraCartaoId: opId } : null))
+                }
+              />
 
               {/* Descrição em Texto da Condição */}
               <div className="space-y-1">

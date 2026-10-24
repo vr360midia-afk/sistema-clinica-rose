@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ClipboardList, Plus, Trash2, MessageCircle, Check, X, Handshake, FileText, Pencil, FileSignature, Sparkles, CalendarDays, Link as LinkIcon, Layers, CreditCard, Wallet, CheckCircle2, RefreshCw, Search, ChevronsUpDown, Calculator, Eye, DollarSign } from 'lucide-react';
+import { ClipboardList, Plus, Trash2, MessageCircle, Check, X, Handshake, FileText, Pencil, FileSignature, Sparkles, CalendarDays, Link as LinkIcon, Layers, CreditCard, Wallet, CheckCircle2, RefreshCw, Search, ChevronsUpDown, Calculator, Eye, DollarSign, Lock } from 'lucide-react';
 import ModalApresentarOrcamento from '@/components/orcamentos/ModalApresentarOrcamento';
 import { Switch } from '@/components/ui/switch';
 import { useOrcamentos, OrcamentoItem, Orcamento } from '@/hooks/useOrcamentos';
@@ -39,7 +39,9 @@ import {
   ItemFormaComposta,
   montarTextoFormasCompostas,
   parseTextoParaFormasCompostas,
+  calcularResumoCartaoCondicao,
 } from '@/utils/orcamentoCondicoes';
+import CardSimulacaoTaxasCartao, { BadgeLiquidoInternoCartao } from '@/components/orcamentos/CardSimulacaoTaxasCartao';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -2745,6 +2747,9 @@ const PatientOrcamentos = ({ patient }: Props) => {
                               <p className="text-[11px] text-muted-foreground line-clamp-3 leading-relaxed">
                                 {c.descricao}
                               </p>
+
+                              {/* Visão Interna Confidencial do Líquido do Cartão para a Clínica */}
+                              <BadgeLiquidoInternoCartao condicao={c} totalBase={total} />
                             </div>
 
                             <div className="pt-2 border-t border-border/50 flex items-center justify-between">
@@ -4790,6 +4795,16 @@ const PatientOrcamentos = ({ patient }: Props) => {
                     </div>
                   )}
 
+                  {/* Visão Interna da Clínica — Desconto das Taxas do Cartão */}
+                  <CardSimulacaoTaxasCartao
+                    condicao={condicaoAprovacaoEmEdicao}
+                    totalBase={aprovandoOrcamento.total}
+                    operadoraIdSelecionada={condicaoAprovacaoEmEdicao.operadoraCartaoId}
+                    onAlterarOperadora={(opId) =>
+                      setCondicaoAprovacaoEmEdicao((prev) => (prev ? { ...prev, operadoraCartaoId: opId } : null))
+                    }
+                  />
+
                   <div className="space-y-1">
                     <div className="flex justify-between items-center">
                       <Label className="text-[11px] font-semibold">Texto da Condição Fechada:</Label>
@@ -5828,6 +5843,16 @@ const PatientOrcamentos = ({ patient }: Props) => {
                   </div>
                 );
               })()}
+
+              {/* Visão Interna da Clínica — Desconto das Taxas do Cartão */}
+              <CardSimulacaoTaxasCartao
+                condicao={condicaoEmEdicao}
+                totalBase={total}
+                operadoraIdSelecionada={condicaoEmEdicao.operadoraCartaoId}
+                onAlterarOperadora={(opId) =>
+                  setCondicaoEmEdicao((prev) => (prev ? { ...prev, operadoraCartaoId: opId } : null))
+                }
+              />
 
               {/* Descrição em Texto da Condição */}
               <div className="space-y-1">

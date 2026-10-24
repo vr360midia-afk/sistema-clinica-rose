@@ -1,4 +1,5 @@
 import { formatMoney } from './exportCsv';
+import { calcularTaxaCartao } from '@/hooks/useMaquinasCartao';
 
 export type TipoCondicaoPagamento =
   | 'a_vista'
@@ -609,4 +610,129 @@ export function gerarTrioPropostasSugeridas(totalOrcamento: number): CondicaoPag
   };
 
   return [opt1, opt2, opt3];
+}
+
+export interface ResumoTaxaCartaoCondicao {
+  temCartao: boolean;
+  valorBrutoCartao: number;
+  taxaValorTotal: number;
+  taxaPercentual: number;
+  valorLiquidoTotal: number;
+  operadoraNome: string;
+  operadoraId: string;
+  detalhes?: string;
+}
+
+/**
+ * Calcula a taxa da máquina de cartão e o valor líquido que ficará para a clínica.
+ * Esta informação é de uso estritamente INTERNO da clínica e não é exibida ao cliente.
+ */
+export function calcularResumoCartaoCondicao(
+  cond: Partial<CondicaoPagamento>,
+  totalBase: number,
+  operadoras: any[] = [],
+  operadoraPadrao?: any
+): ResumoTaxaCartaoCondicao {
+  const opId = cond.operadoraCartaoId || operadoraPadrao?.id || 'infinitepay';
+  const op = operadoras.find((o) => o.id === opId) || operadoraPadrao;
+  const opNome = op?.nome || 'Cartão';
+  const total = typeof cond.valorTotal === 'number' && cond.valorTotal > 0 ? cond.valorTotal : totalBase;
+
+  // 1. Tipo Cartão Direto
+  if (cond.tipo === 'cartao') {
+    const isDebito = cond.tipoCartao === 'debito';
+    const parcelas = Math.max(1, cond.parcelas || 1);
+    const calc = calcularTaxaCartao(op, parcelas, total, isDebito);
+    return {
+      temCartao: true,
+      valorBrutoCartao: total,
+      taxaValorTotal: calc.taxaValor,
+      taxaPercentual: calc.taxaPercentual,
+      valorLiquidoTotal: calc.valorLiquido,
+      operadoraNome: opNome,
+      operadoraId: opId,
+      detalhes: parcelas > 1 ? `${parcelas}x de ${formatMoney(calc.valorParcelaLiquido)}` : undefined,
+    };
+  }
+
+  // 2. Tipo Entrada + Saldo
+  if (cond.tipo === 'entrada_saldo') {
+    const ent = Math.max(0, cond.valorEntrada || 0);
+    const saldo = Math.max(0, total - ent);
+    let taxaTotal = 0;
+    let brutoCartao = 0;
+    let tem = false;
+
+    // Se entrada for cartão
+    if (cond.metodoEntrada === 'cartao_credito' || cond.metodoEntrada === 'cartao_debito') {
+      tem = true;
+      brutoCartao += ent;
+      const isDeb = cond.metodoEntrada === 'cartao_debito';
+      const cEnt = calcularTaxaCartao(op, 1, ent, isDeb);
+      taxaTotal += cEnt.taxaValor;
+    }
+
+    // Se saldo for cartão
+    if (cond.saldoMetodo === 'cartao' && saldo > 0) {
+      tem = true;
+      brutoCartao += saldo;
+      const p = Math.max(1, cond.saldoParcelas || 1);
+      const cSaldo = calcularTaxaCartao(op, p, saldo, false);
+      taxaTotal += cSaldo.taxaValor;
+    }
+
+    if (tem) {
+      const percMedia = brutoCartao > 0 ? (taxaTotal / brutoCartao) * 100 : 0;
+      return {
+        temCartao: true,
+        valorBrutoCartao: brutoCartao,
+        taxaValorTotal: taxaTotal,
+        taxaPercentual: Number(percMedia.toFixed(2)),
+        valorLiquidoTotal: total - taxaTotal,
+        operadoraNome: opNome,
+        operadoraId: opId,
+      };
+    }
+  }
+
+  // 3. Tipo Personalizado com Formas Compostas
+  if (cond.tipo === 'personalizado' && cond.formasCompostas && cond.formasCompostas.length > 0) {
+    let taxaTotal = 0;
+    let brutoCartao = 0;
+    let tem = false;
+
+    for (const f of cond.formasCompostas) {
+      if (f.metodo === 'cartao' && f.valor > 0) {
+        tem = true;
+        brutoCartao += f.valor;
+        const isDeb = f.tipoCartao === 'debito';
+        const p = Math.max(1, f.parcelas || 1);
+        const cForma = calcularTaxaCartao(op, p, f.valor, isDeb);
+        taxaTotal += cForma.taxaValor;
+      }
+    }
+
+    if (tem) {
+      const percMedia = brutoCartao > 0 ? (taxaTotal / brutoCartao) * 100 : 0;
+      return {
+        temCartao: true,
+        valorBrutoCartao: brutoCartao,
+        taxaValorTotal: taxaTotal,
+        taxaPercentual: Number(percMedia.toFixed(2)),
+        valorLiquidoTotal: total - taxaTotal,
+        operadoraNome: opNome,
+        operadoraId: opId,
+      };
+    }
+  }
+
+  return {
+    temCartao: false,
+    valorBrutoCartao: 0,
+    taxaValorTotal: 0,
+    taxaPercentual: 0,
+    valorLiquidoTotal: total,
+    operadoraNome: opNome,
+    operadoraId: opId,
+  };
 }
