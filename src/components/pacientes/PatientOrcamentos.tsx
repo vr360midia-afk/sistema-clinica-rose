@@ -26,6 +26,17 @@ import { somarMesesSeguro } from '@/utils/documentoFormat';
 import { downloadTcleLentesResinaPdf } from '@/utils/tcleLentesResina';
 import { useMaquinasCartao, calcularTaxaCartao, extrairDetalhesCartaoDeTexto } from '@/hooks/useMaquinasCartao';
 import {
+  CondicaoPagamento,
+  TipoCondicaoPagamento,
+  parseCondicoesPagamento,
+  serializarCondicoesPagamento,
+  calcularDescricaoCondicao,
+  gerarTextoWhatsAppCondicoes,
+  gerarTrioPropostasSugeridas,
+  obterCondicaoAtiva,
+  obterTextoCondicaoParaContrato,
+} from '@/utils/orcamentoCondicoes';
+import {
   AlertDialog,
   AlertDialogContent,
   AlertDialogHeader,
@@ -84,6 +95,11 @@ const PatientOrcamentos = ({ patient }: Props) => {
   const [desconto, setDesconto] = useState(0);
   const [observacoes, setObservacoes] = useState('');
   const [formasPagamento, setFormasPagamento] = useState('');
+  const [modoFormaPagamento, setModoFormaPagamento] = useState<'propostas' | 'livre'>('propostas');
+  const [condicoesNegociacao, setCondicoesNegociacao] = useState<CondicaoPagamento[]>([]);
+  const [condicaoAtivaId, setCondicaoAtivaId] = useState<string>('1');
+  const [modalEdicaoCondicaoOpen, setModalEdicaoCondicaoOpen] = useState(false);
+  const [condicaoEmEdicao, setCondicaoEmEdicao] = useState<Partial<CondicaoPagamento> | null>(null);
   const [selectKey, setSelectKey] = useState(0);
   const [statusEdicao, setStatusEdicao] = useState<'rascunho' | 'enviado' | 'aprovado' | 'recusado'>('rascunho');
   const [contratoModalOpen, setContratoModalOpen] = useState(false);
@@ -671,6 +687,94 @@ const PatientOrcamentos = ({ patient }: Props) => {
     toast.success('Entrada e opções de pagamento do saldo aplicadas com sucesso!');
   };
 
+  const handleGerarTrioSugeridoOrcamento = () => {
+    const trio = gerarTrioPropostasSugeridas(total);
+    setCondicoesNegociacao(trio);
+    setCondicaoAtivaId('2');
+    toast.success('3 propostas de negociação geradas automaticamente com base no total!');
+  };
+
+  const handleAbrirNovaCondicaoOrcamento = () => {
+    const novoId = String(Date.now());
+    const pDef = 6;
+    setCondicaoEmEdicao({
+      id: novoId,
+      titulo: `Opção ${condicoesNegociacao.length + 1}: Parcelado em ${pDef}x`,
+      tipo: 'cartao',
+      parcelas: pDef,
+      valorTotal: total,
+      tipoCartao: 'credito',
+      destaque: false,
+      selecionada: false,
+    });
+    setModalEdicaoCondicaoOpen(true);
+  };
+
+  const handleAbrirEditarCondicaoOrcamento = (c: CondicaoPagamento) => {
+    setCondicaoEmEdicao({ ...c });
+    setModalEdicaoCondicaoOpen(true);
+  };
+
+  const handleRemoverCondicaoOrcamento = (id: string) => {
+    if (condicoesNegociacao.length <= 1) {
+      toast.error('O orçamento precisa de pelo menos uma condição de pagamento.');
+      return;
+    }
+    const novas = condicoesNegociacao.filter((c) => c.id !== id);
+    setCondicoesNegociacao(novas);
+    if (condicaoAtivaId === id) {
+      setCondicaoAtivaId(novas[0].id);
+    }
+    toast.info('Condição removida');
+  };
+
+  const handleSalvarCondicaoEmEdicaoOrcamento = () => {
+    if (!condicaoEmEdicao || !condicaoEmEdicao.titulo?.trim()) {
+      toast.error('Informe um título para a condição.');
+      return;
+    }
+    const descAuto = calcularDescricaoCondicao(condicaoEmEdicao, total);
+    const condFinal: CondicaoPagamento = {
+      id: condicaoEmEdicao.id || String(Date.now()),
+      titulo: condicaoEmEdicao.titulo.trim(),
+      tipo: condicaoEmEdicao.tipo || 'personalizado',
+      descontoPercentual: condicaoEmEdicao.descontoPercentual,
+      descontoValor: condicaoEmEdicao.descontoValor,
+      valorTotal: typeof condicaoEmEdicao.valorTotal === 'number' && condicaoEmEdicao.valorTotal > 0 ? condicaoEmEdicao.valorTotal : total,
+      parcelas: condicaoEmEdicao.parcelas,
+      valorParcela: condicaoEmEdicao.valorParcela,
+      operadoraCartaoId: condicaoEmEdicao.operadoraCartaoId,
+      tipoCartao: condicaoEmEdicao.tipoCartao,
+      valorEntrada: condicaoEmEdicao.valorEntrada,
+      metodoEntrada: condicaoEmEdicao.metodoEntrada,
+      saldoParcelas: condicaoEmEdicao.saldoParcelas,
+      saldoMetodo: condicaoEmEdicao.saldoMetodo,
+      saldoValorParcela: condicaoEmEdicao.saldoValorParcela,
+      diaVencimento: condicaoEmEdicao.diaVencimento,
+      descricao: condicaoEmEdicao.descricao?.trim() || descAuto,
+      destaque: !!condicaoEmEdicao.destaque,
+      selecionada: condicaoEmEdicao.selecionada ?? false,
+    };
+
+    setCondicoesNegociacao((prev) => {
+      const idx = prev.findIndex((c) => c.id === condFinal.id);
+      if (idx >= 0) {
+        const copy = [...prev];
+        copy[idx] = condFinal;
+        return copy;
+      }
+      return [...prev, condFinal];
+    });
+
+    if (condFinal.selecionada) {
+      setCondicaoAtivaId(condFinal.id);
+    }
+
+    setModalEdicaoCondicaoOpen(false);
+    setCondicaoEmEdicao(null);
+    toast.success('Condição de pagamento salva!');
+  };
+
   const handleConfirmarAprovacao = async (o: Orcamento, lancarFinanceiro: boolean) => {
     try {
       setLancandoFinanceiro(true);
@@ -1024,6 +1128,10 @@ const PatientOrcamentos = ({ patient }: Props) => {
     setDesconto(0);
     setObservacoes('');
     setFormasPagamento('');
+    const trio = gerarTrioPropostasSugeridas(0);
+    setCondicoesNegociacao(trio);
+    setCondicaoAtivaId('2');
+    setModoFormaPagamento('propostas');
     setPixParceladoAtivo(false);
     setCartaoAssistenteAtivo(false);
     setEntradaAssistenteAtivo(false);
@@ -1073,6 +1181,18 @@ const PatientOrcamentos = ({ patient }: Props) => {
     setDesconto(o.desconto || 0);
     setObservacoes(o.observacoes || '');
     setFormasPagamento(o.formasPagamento || '');
+    const parsed = parseCondicoesPagamento(o.formasPagamento, o.total);
+    if (parsed.length > 0) {
+      setCondicoesNegociacao(parsed);
+      const sel = parsed.find((c) => c.selecionada) || parsed[0];
+      setCondicaoAtivaId(sel.id);
+      setModoFormaPagamento(parsed.length > 1 || parsed[0].tipo !== 'personalizado' ? 'propostas' : 'livre');
+    } else {
+      const trio = gerarTrioPropostasSugeridas(o.total || 0);
+      setCondicoesNegociacao(trio);
+      setCondicaoAtivaId('2');
+      setModoFormaPagamento('propostas');
+    }
     setBuscaProcedimento('');
     setOpenBuscaProcedimento(false);
     setSelectedProcedimentoIndex(0);
@@ -1378,13 +1498,18 @@ const PatientOrcamentos = ({ patient }: Props) => {
       toast.error('Adicione pelo menos um procedimento');
       return;
     }
+    const formasParaSalvar =
+      modoFormaPagamento === 'propostas' && condicoesNegociacao.length > 0
+        ? serializarCondicoesPagamento(condicoesNegociacao, condicaoAtivaId)
+        : formasPagamento;
+
     await saveOrcamento({
       id: editingId || undefined,
       titulo,
       itens,
       desconto,
       observacoes,
-      formasPagamento,
+      formasPagamento: formasParaSalvar,
       pacienteId: patient.id,
       pacienteNome: patient.nome,
       status: statusEdicao,
@@ -1485,7 +1610,8 @@ const PatientOrcamentos = ({ patient }: Props) => {
       ...o.itens.map((i) => `• ${i.nome} ${i.quantidade > 1 ? `(${i.quantidade}x) ` : ''}— ${formatMoney(i.valor * i.quantidade)}`),
       o.desconto ? `Desconto: ${formatMoney(o.desconto)}` : null,
       `*Total: ${formatMoney(o.total)}*`,
-      o.formasPagamento ? `Formas de pagamento: ${o.formasPagamento}` : null,
+      '',
+      gerarTextoWhatsAppCondicoes(parseCondicoesPagamento(o.formasPagamento, o.total), o.total),
       o.observacoes || null,
     ];
 
@@ -1591,11 +1717,46 @@ const PatientOrcamentos = ({ patient }: Props) => {
                   <span>Total</span>
                   <span>{formatMoney(o.total || 0)}</span>
                 </div>
-                {o.formasPagamento && (
-                  <p className="text-muted-foreground pt-1">
-                    Pagamento: <span className="text-foreground">{o.formasPagamento}</span>
-                  </p>
-                )}
+                {o.formasPagamento && (() => {
+                  const conds = parseCondicoesPagamento(o.formasPagamento, o.total);
+                  if (conds.length > 1) {
+                    return (
+                      <div className="pt-2 border-t border-border/60 space-y-1.5">
+                        <span className="text-[11px] font-semibold text-foreground flex items-center gap-1">
+                          <Wallet className="h-3 w-3 text-primary" />
+                          {conds.length} Condições de Pagamento Disponíveis:
+                        </span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
+                          {conds.map((c, i) => (
+                            <div
+                              key={c.id || i}
+                              className={`p-2 rounded-lg border text-[11px] space-y-0.5 ${
+                                c.selecionada
+                                  ? 'border-emerald-500/50 bg-emerald-500/10 text-foreground font-medium'
+                                  : 'border-border/60 bg-background text-muted-foreground'
+                              }`}
+                            >
+                              <div className="flex justify-between items-center">
+                                <span className="font-bold text-foreground truncate">{c.titulo}</span>
+                                {c.selecionada && (
+                                  <Badge className="bg-emerald-600 text-white text-[9px] px-1.5 py-0 h-4">
+                                    Escolhida
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="line-clamp-2 text-[10px] leading-tight">{c.descricao}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  }
+                  return (
+                    <p className="text-muted-foreground pt-1">
+                      Pagamento: <span className="text-foreground">{conds[0]?.descricao || o.formasPagamento}</span>
+                    </p>
+                  );
+                })()}
               </div>
 
               <div className="flex flex-wrap gap-2">
@@ -2176,103 +2337,292 @@ const PatientOrcamentos = ({ patient }: Props) => {
               )}
             </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>Formas de pagamento</Label>
-                <div className="flex items-center gap-1.5 flex-wrap">
+            <div className="space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b pb-2">
+                <div>
+                  <Label className="text-sm font-bold flex items-center gap-1.5 text-foreground">
+                    <Wallet className="h-4 w-4 text-primary" />
+                    Condições de Pagamento & Negociação
+                  </Label>
+                  <p className="text-[11px] text-muted-foreground">
+                    Apresente múltiplas opções (ex: À vista com desconto, Entrada + Saldo, ou Parcelado no Cartão).
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-1.5 self-start sm:self-auto">
                   <Button
                     type="button"
                     size="sm"
-                    variant={entradaAssistenteAtivo ? 'default' : 'outline'}
-                    className={`h-7 text-xs gap-1.5 ${
-                      entradaAssistenteAtivo
-                        ? 'bg-purple-600 text-white font-semibold shadow-xs'
-                        : 'border-purple-500/40 text-purple-600 dark:text-purple-400'
-                    }`}
-                    onClick={handleToggleEntradaAssistente}
-                  >
-                    <Wallet className="h-3.5 w-3.5" />
-                    Entrada + Saldo
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={cartaoAssistenteAtivo ? 'default' : 'outline'}
-                    className={`h-7 text-xs gap-1.5 ${
-                      cartaoAssistenteAtivo
-                        ? 'bg-blue-600 text-white font-semibold shadow-xs'
-                        : 'border-blue-500/40 text-blue-600 dark:text-blue-400'
+                    variant={modoFormaPagamento === 'propostas' ? 'default' : 'outline'}
+                    className={`h-7 text-xs font-semibold ${
+                      modoFormaPagamento === 'propostas'
+                        ? 'bg-primary text-primary-foreground shadow-xs'
+                        : 'text-muted-foreground hover:text-foreground'
                     }`}
                     onClick={() => {
-                      const novo = !cartaoAssistenteAtivo;
-                      setCartaoAssistenteAtivo(novo);
-                      if (novo) {
-                        setPixParceladoAtivo(false);
-                        setMultiplasFormasAtivo(false);
-                        setEntradaAssistenteAtivo(false);
+                      setModoFormaPagamento('propostas');
+                      if (condicoesNegociacao.length === 0) {
+                        const trio = gerarTrioPropostasSugeridas(total);
+                        setCondicoesNegociacao(trio);
+                        setCondicaoAtivaId(trio[1]?.id || '1');
                       }
                     }}
                   >
-                    <CreditCard className="h-3.5 w-3.5" />
-                    Máquina de Cartão
+                    <Layers className="h-3.5 w-3.5 mr-1" />
+                    Múltiplas Opções ({condicoesNegociacao.length})
                   </Button>
                   <Button
                     type="button"
                     size="sm"
-                    variant={multiplasFormasAtivo ? 'default' : 'outline'}
-                    className={`h-7 text-xs gap-1.5 ${
-                      multiplasFormasAtivo
-                        ? 'bg-emerald-600 text-white font-semibold shadow-xs'
-                        : 'border-emerald-500/40 text-emerald-600 dark:text-emerald-400'
+                    variant={modoFormaPagamento === 'livre' ? 'default' : 'outline'}
+                    className={`h-7 text-xs font-semibold ${
+                      modoFormaPagamento === 'livre'
+                        ? 'bg-primary text-primary-foreground shadow-xs'
+                        : 'text-muted-foreground hover:text-foreground'
                     }`}
-                    onClick={handleToggleMultiplasFormas}
+                    onClick={() => setModoFormaPagamento('livre')}
                   >
-                    <Layers className="h-3.5 w-3.5" />
-                    Múltiplas Formas
+                    Texto Livre / Clássico
                   </Button>
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-1.5">
-                {['À vista (PIX)', 'Entrada + Saldo', 'PIX Parcelado', 'Dinheiro', 'Cartão de crédito', 'Cartão de débito', '2x sem juros', '3x sem juros', '6x', '12x', 'Boleto'].map((f) => {
-                  const isPixParcelado = f === 'PIX Parcelado';
-                  const isEntradaSaldo = f === 'Entrada + Saldo';
-                  const isActive = (isPixParcelado && pixParceladoAtivo) || (isEntradaSaldo && entradaAssistenteAtivo);
-                  return (
-                    <Button
-                      key={f}
-                      type="button"
-                      size="sm"
-                      variant={isActive ? 'default' : 'outline'}
-                      className={`h-7 text-xs ${isActive ? 'bg-primary text-primary-foreground font-semibold shadow-xs' : ''}`}
-                      onClick={() => {
-                        if (isEntradaSaldo) {
-                          handleToggleEntradaAssistente();
-                        } else if (isPixParcelado) {
-                          handleTogglePixParcelado();
-                        } else if (f === 'Cartão de crédito') {
-                          setCartaoTipo('credito');
-                          setCartaoAssistenteAtivo(true);
-                          setPixParceladoAtivo(false);
-                          setMultiplasFormasAtivo(false);
-                          setEntradaAssistenteAtivo(false);
-                        } else if (f === 'Cartão de débito') {
-                          setCartaoTipo('debito');
-                          setCartaoParcelas(1);
-                          setCartaoAssistenteAtivo(true);
-                          setPixParceladoAtivo(false);
-                          setMultiplasFormasAtivo(false);
-                          setEntradaAssistenteAtivo(false);
-                        } else {
-                          setFormasPagamento((prev) => (prev ? (prev.includes(f) ? prev : `${prev}, ${f}`) : f));
-                        }
-                      }}
-                    >
-                      {f}
-                    </Button>
-                  );
-                })}
-              </div>
+              {modoFormaPagamento === 'propostas' ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <span className="text-xs text-muted-foreground">
+                      Defina as propostas comerciais para o paciente escolher na consulta:
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={handleGerarTrioSugeridoOrcamento}
+                        className="h-7 text-xs gap-1 border-primary/40 text-primary hover:bg-primary/10 font-semibold"
+                        title="Gera 3 opções: À Vista com 10% OFF, Entrada Facilitada + 5x, e 10x sem juros"
+                      >
+                        <Sparkles className="h-3 w-3" />
+                        Sugerir 3 Opções Rápidas
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={handleAbrirNovaCondicaoOrcamento}
+                        className="h-7 text-xs gap-1 font-bold"
+                      >
+                        <Plus className="h-3 w-3" />
+                        Nova Condição
+                      </Button>
+                    </div>
+                  </div>
+
+                  {condicoesNegociacao.length === 0 ? (
+                    <div className="p-6 text-center rounded-xl border border-dashed border-border bg-muted/20 space-y-2">
+                      <p className="text-xs text-muted-foreground">
+                        Nenhuma proposta cadastrada ainda para este orçamento.
+                      </p>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={handleGerarTrioSugeridoOrcamento}
+                        className="text-xs gap-1"
+                      >
+                        <Sparkles className="h-3.5 w-3.5" />
+                        Gerar 3 Opções Sugeridas Automaticamente
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                      {condicoesNegociacao.map((c, idx) => {
+                        const isAtiva = c.id === condicaoAtivaId;
+                        return (
+                          <div
+                            key={c.id || idx}
+                            className={`p-3 rounded-xl border text-xs flex flex-col justify-between gap-2 transition-all ${
+                              isAtiva
+                                ? 'border-emerald-500/80 bg-emerald-500/10 shadow-xs ring-1 ring-emerald-500/30'
+                                : 'border-border/80 bg-background/80 hover:border-primary/40'
+                            }`}
+                          >
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between gap-1">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span
+                                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                      isAtiva ? 'bg-emerald-600 text-white' : 'bg-muted text-muted-foreground'
+                                    }`}
+                                  >
+                                    Opção {idx + 1}
+                                  </span>
+                                  {c.destaque && (
+                                    <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                                      ★ Recomendada
+                                    </span>
+                                  )}
+                                  {isAtiva && (
+                                    <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
+                                      ✓ Padrão
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAbrirEditarCondicaoOrcamento(c)}
+                                    className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted"
+                                    title="Editar esta condição"
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </button>
+                                  {condicoesNegociacao.length > 1 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoverCondicaoOrcamento(c.id)}
+                                      className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                      title="Remover esta condição"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+
+                              <h5 className="font-bold text-foreground text-xs leading-snug">
+                                {c.titulo}
+                              </h5>
+
+                              <p className="text-[11px] text-muted-foreground line-clamp-3 leading-relaxed">
+                                {c.descricao}
+                              </p>
+                            </div>
+
+                            <div className="pt-2 border-t border-border/50 flex items-center justify-between">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant={isAtiva ? 'default' : 'outline'}
+                                className={`h-6 text-[11px] w-full ${
+                                  isAtiva
+                                    ? 'bg-emerald-600 text-white font-semibold'
+                                    : 'border-border text-muted-foreground hover:text-foreground'
+                                }`}
+                                onClick={() => setCondicaoAtivaId(c.id)}
+                              >
+                                {isAtiva ? '✓ Opção Padrão / Escolhida' : 'Definir como Padrão'}
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <div className="p-2.5 rounded-lg bg-muted/40 border border-border/60 text-[11px] text-muted-foreground flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-primary shrink-0" />
+                    <span>
+                      Todas essas opções aparecerão na tela interativa de <strong>Apresentar Orçamento</strong>, no PDF gerado e na mensagem do WhatsApp.
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-muted-foreground">Assistentes rápidos:</Label>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={entradaAssistenteAtivo ? 'default' : 'outline'}
+                        className={`h-7 text-xs gap-1.5 ${
+                          entradaAssistenteAtivo
+                            ? 'bg-purple-600 text-white font-semibold shadow-xs'
+                            : 'border-purple-500/40 text-purple-600 dark:text-purple-400'
+                        }`}
+                        onClick={handleToggleEntradaAssistente}
+                      >
+                        <Wallet className="h-3.5 w-3.5" />
+                        Entrada + Saldo
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={cartaoAssistenteAtivo ? 'default' : 'outline'}
+                        className={`h-7 text-xs gap-1.5 ${
+                          cartaoAssistenteAtivo
+                            ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                            : 'border-blue-500/40 text-blue-600 dark:text-blue-400'
+                        }`}
+                        onClick={() => {
+                          const novo = !cartaoAssistenteAtivo;
+                          setCartaoAssistenteAtivo(novo);
+                          if (novo) {
+                            setPixParceladoAtivo(false);
+                            setMultiplasFormasAtivo(false);
+                            setEntradaAssistenteAtivo(false);
+                          }
+                        }}
+                      >
+                        <CreditCard className="h-3.5 w-3.5" />
+                        Máquina de Cartão
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={multiplasFormasAtivo ? 'default' : 'outline'}
+                        className={`h-7 text-xs gap-1.5 ${
+                          multiplasFormasAtivo
+                            ? 'bg-emerald-600 text-white font-semibold shadow-xs'
+                            : 'border-emerald-500/40 text-emerald-600 dark:text-emerald-400'
+                        }`}
+                        onClick={handleToggleMultiplasFormas}
+                      >
+                        <Layers className="h-3.5 w-3.5" />
+                        Múltiplas Formas
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-1.5">
+                    {['À vista (PIX)', 'Entrada + Saldo', 'PIX Parcelado', 'Dinheiro', 'Cartão de crédito', 'Cartão de débito', '2x sem juros', '3x sem juros', '6x', '12x', 'Boleto'].map((f) => {
+                      const isPixParcelado = f === 'PIX Parcelado';
+                      const isEntradaSaldo = f === 'Entrada + Saldo';
+                      const isActive = (isPixParcelado && pixParceladoAtivo) || (isEntradaSaldo && entradaAssistenteAtivo);
+                      return (
+                        <Button
+                          key={f}
+                          type="button"
+                          size="sm"
+                          variant={isActive ? 'default' : 'outline'}
+                          className={`h-7 text-xs ${isActive ? 'bg-primary text-primary-foreground font-semibold shadow-xs' : ''}`}
+                          onClick={() => {
+                            if (isEntradaSaldo) {
+                              handleToggleEntradaAssistente();
+                            } else if (isPixParcelado) {
+                              handleTogglePixParcelado();
+                            } else if (f === 'Cartão de crédito') {
+                              setCartaoTipo('credito');
+                              setCartaoAssistenteAtivo(true);
+                              setPixParceladoAtivo(false);
+                              setMultiplasFormasAtivo(false);
+                              setEntradaAssistenteAtivo(false);
+                            } else if (f === 'Cartão de débito') {
+                              setCartaoTipo('debito');
+                              setCartaoParcelas(1);
+                              setCartaoAssistenteAtivo(true);
+                              setPixParceladoAtivo(false);
+                              setMultiplasFormasAtivo(false);
+                              setEntradaAssistenteAtivo(false);
+                            } else {
+                              setFormasPagamento((prev) => (prev ? (prev.includes(f) ? prev : `${prev}, ${f}`) : f));
+                            }
+                          }}
+                        >
+                          {f}
+                        </Button>
+                      );
+                    })}
+                  </div>
 
               {/* Assistente de Entrada + Saldo */}
               {entradaAssistenteAtivo && (
@@ -3513,6 +3863,8 @@ const PatientOrcamentos = ({ patient }: Props) => {
                 placeholder="Ex.: À vista com 10% de desconto, ou em até 12x no cartão"
                 maxLength={500}
               />
+                </>
+              )}
             </div>
 
 
@@ -3648,7 +4000,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
                   <strong className="text-foreground">{formatMoney(aprovandoOrcamento.total)}</strong> será aprovado.
                 </p>
                 <div className="rounded-md bg-muted/50 p-2.5 border border-border text-xs space-y-2">
-                  <div><strong>Condição de Pagamento:</strong> {aprovandoOrcamento.formasPagamento || 'A combinar'}</div>
+                  <div><strong>Condição de Pagamento:</strong> {obterTextoCondicaoParaContrato(aprovandoOrcamento.formasPagamento) || aprovandoOrcamento.formasPagamento || 'A combinar'}</div>
                   <div className="text-muted-foreground">
                     Deseja lançar no <strong>Contas a Receber (Financeiro)</strong> para monitoramento de receitas, taxas de máquina e extrato do paciente?
                   </div>
@@ -3684,6 +4036,402 @@ const PatientOrcamentos = ({ patient }: Props) => {
           </AlertDialogContent>
         </AlertDialog>
       )}
+      {/* Modal para Adicionar / Editar Condição de Pagamento do Orçamento */}
+      <Dialog open={modalEdicaoCondicaoOpen} onOpenChange={(open) => !open && setModalEdicaoCondicaoOpen(false)}>
+        <DialogContent className="max-w-md w-full">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Wallet className="h-5 w-5 text-primary" />
+              {condicaoEmEdicao?.id && condicoesNegociacao.some((c) => c.id === condicaoEmEdicao.id)
+                ? 'Editar Condição de Pagamento'
+                : 'Nova Condição de Pagamento'}
+            </DialogTitle>
+          </DialogHeader>
+
+          {condicaoEmEdicao && (
+            <div className="space-y-3.5 py-1">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Título da Opção Comercial:</Label>
+                <Input
+                  value={condicaoEmEdicao.titulo || ''}
+                  onChange={(e) => setCondicaoEmEdicao((prev) => ({ ...prev, titulo: e.target.value }))}
+                  placeholder="Ex.: Opção 1: À Vista Especial (10% OFF)"
+                  className="text-xs font-semibold"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Modelo da Condição:</Label>
+                <select
+                  value={condicaoEmEdicao.tipo || 'personalizado'}
+                  onChange={(e) => {
+                    const t = e.target.value as any;
+                    const updated: Partial<CondicaoPagamento> = {
+                      ...condicaoEmEdicao,
+                      tipo: t,
+                    };
+                    if (t === 'a_vista') {
+                      updated.descontoPercentual = updated.descontoPercentual ?? 10;
+                      updated.descontoValor = Number(((total * (updated.descontoPercentual || 10)) / 100).toFixed(2));
+                      updated.valorTotal = Math.max(0, total - (updated.descontoValor || 0));
+                    } else if (t === 'cartao') {
+                      updated.parcelas = updated.parcelas || 10;
+                      updated.valorTotal = total;
+                      updated.valorParcela = Number((total / (updated.parcelas || 10)).toFixed(2));
+                      updated.tipoCartao = 'credito';
+                    } else if (t === 'entrada_saldo') {
+                      updated.valorEntrada = updated.valorEntrada ?? Math.round(total * 0.3);
+                      updated.metodoEntrada = updated.metodoEntrada || 'pix';
+                      updated.saldoParcelas = updated.saldoParcelas || 5;
+                      updated.saldoMetodo = updated.saldoMetodo || 'cartao';
+                      const s = Math.max(0, total - (updated.valorEntrada || 0));
+                      updated.saldoValorParcela = Number((s / (updated.saldoParcelas || 5)).toFixed(2));
+                      updated.valorTotal = total;
+                    } else if (t === 'pix_parcelado') {
+                      updated.parcelas = updated.parcelas || 4;
+                      updated.diaVencimento = updated.diaVencimento || 10;
+                      updated.valorTotal = total;
+                      updated.valorParcela = Number((total / (updated.parcelas || 4)).toFixed(2));
+                    }
+                    updated.descricao = calcularDescricaoCondicao(updated, total);
+                    setCondicaoEmEdicao(updated);
+                  }}
+                  className="w-full h-9 px-3 text-xs font-semibold rounded-md bg-background border border-border"
+                >
+                  <option value="a_vista">À Vista (PIX / Transferência com ou sem Desconto)</option>
+                  <option value="cartao">Cartão de Crédito / Débito (Parcelamento)</option>
+                  <option value="entrada_saldo">Entrada Facilitada + Saldo Parcelado</option>
+                  <option value="pix_parcelado">PIX Parcelado (Sem Cartão)</option>
+                  <option value="boleto">Boleto Bancário</option>
+                  <option value="personalizado">Personalizado / Texto Livre</option>
+                </select>
+              </div>
+
+              {/* Detalhes de À Vista */}
+              {condicaoEmEdicao.tipo === 'a_vista' && (
+                <div className="p-3 rounded-xl bg-muted/40 border border-border/70 space-y-2.5">
+                  <div className="flex justify-between items-center">
+                    <Label className="text-xs font-semibold">Desconto Especial:</Label>
+                    <div className="flex gap-1">
+                      {[5, 10, 15].map((p) => (
+                        <button
+                          key={p}
+                          type="button"
+                          onClick={() => {
+                            const descVal = Number(((total * p) / 100).toFixed(2));
+                            const updated: Partial<CondicaoPagamento> = {
+                              ...condicaoEmEdicao,
+                              descontoPercentual: p,
+                              descontoValor: descVal,
+                              valorTotal: Math.max(0, total - descVal),
+                            };
+                            updated.descricao = calcularDescricaoCondicao(updated, total);
+                            setCondicaoEmEdicao(updated);
+                          }}
+                          className="px-1.5 py-0.5 rounded text-[10px] bg-background border border-border hover:border-primary font-semibold"
+                        >
+                          {p}%
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-[11px] text-muted-foreground">% Desconto:</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={condicaoEmEdicao.descontoPercentual ?? ''}
+                        onChange={(e) => {
+                          const p = Number(e.target.value) || 0;
+                          const descVal = Number(((total * p) / 100).toFixed(2));
+                          const updated: Partial<CondicaoPagamento> = {
+                            ...condicaoEmEdicao,
+                            descontoPercentual: p,
+                            descontoValor: descVal,
+                            valorTotal: Math.max(0, total - descVal),
+                          };
+                          updated.descricao = calcularDescricaoCondicao(updated, total);
+                          setCondicaoEmEdicao(updated);
+                        }}
+                        className="h-8 text-xs font-bold"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[11px] text-muted-foreground">Valor Final (R$):</Label>
+                      <div className="h-8 px-2.5 flex items-center rounded-md bg-background border border-border font-bold text-xs text-emerald-600">
+                        {formatMoney(condicaoEmEdicao.valorTotal || total)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Detalhes de Cartão */}
+              {condicaoEmEdicao.tipo === 'cartao' && (
+                <div className="p-3 rounded-xl bg-muted/40 border border-border/70 space-y-2.5">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold">Qtd. Parcelas:</Label>
+                      <select
+                        value={condicaoEmEdicao.parcelas || 1}
+                        onChange={(e) => {
+                          const p = Number(e.target.value) || 1;
+                          const updated: Partial<CondicaoPagamento> = {
+                            ...condicaoEmEdicao,
+                            parcelas: p,
+                            valorParcela: Number((total / p).toFixed(2)),
+                          };
+                          updated.descricao = calcularDescricaoCondicao(updated, total);
+                          setCondicaoEmEdicao(updated);
+                        }}
+                        className="w-full h-8 px-2 text-xs font-semibold rounded-md bg-background border border-border"
+                      >
+                        {[1, 2, 3, 4, 5, 6, 8, 10, 12, 18].map((n) => (
+                          <option key={n} value={n}>
+                            {n === 1 ? '1x (À vista)' : `${n}x de ${formatMoney(total / n)}`}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold">Tipo Cartão:</Label>
+                      <select
+                        value={condicaoEmEdicao.tipoCartao || 'credito'}
+                        onChange={(e) => {
+                          const tc = e.target.value as 'credito' | 'debito';
+                          const updated: Partial<CondicaoPagamento> = {
+                            ...condicaoEmEdicao,
+                            tipoCartao: tc,
+                            parcelas: tc === 'debito' ? 1 : condicaoEmEdicao.parcelas || 1,
+                          };
+                          updated.descricao = calcularDescricaoCondicao(updated, total);
+                          setCondicaoEmEdicao(updated);
+                        }}
+                        className="w-full h-8 px-2 text-xs font-semibold rounded-md bg-background border border-border"
+                      >
+                        <option value="credito">Crédito</option>
+                        <option value="debito">Débito</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Detalhes de Entrada + Saldo */}
+              {condicaoEmEdicao.tipo === 'entrada_saldo' && (
+                <div className="p-3 rounded-xl bg-muted/40 border border-border/70 space-y-2.5">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold">Valor da Entrada (R$):</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={total}
+                        step="0.01"
+                        value={condicaoEmEdicao.valorEntrada || ''}
+                        onChange={(e) => {
+                          const ent = Number(e.target.value) || 0;
+                          const saldo = Math.max(0, total - ent);
+                          const parc = condicaoEmEdicao.saldoParcelas || 1;
+                          const updated: Partial<CondicaoPagamento> = {
+                            ...condicaoEmEdicao,
+                            valorEntrada: ent,
+                            saldoValorParcela: Number((saldo / parc).toFixed(2)),
+                          };
+                          updated.descricao = calcularDescricaoCondicao(updated, total);
+                          setCondicaoEmEdicao(updated);
+                        }}
+                        className="h-8 text-xs font-bold"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold">Meio da Entrada:</Label>
+                      <select
+                        value={condicaoEmEdicao.metodoEntrada || 'pix'}
+                        onChange={(e) => {
+                          const me = e.target.value as any;
+                          const updated: Partial<CondicaoPagamento> = {
+                            ...condicaoEmEdicao,
+                            metodoEntrada: me,
+                          };
+                          updated.descricao = calcularDescricaoCondicao(updated, total);
+                          setCondicaoEmEdicao(updated);
+                        }}
+                        className="w-full h-8 px-2 text-xs font-semibold rounded-md bg-background border border-border"
+                      >
+                        <option value="pix">PIX</option>
+                        <option value="dinheiro">Dinheiro</option>
+                        <option value="cartao_debito">Débito</option>
+                        <option value="cartao_credito">Crédito</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold">Parcelas do Saldo:</Label>
+                      <select
+                        value={condicaoEmEdicao.saldoParcelas || 1}
+                        onChange={(e) => {
+                          const parc = Number(e.target.value) || 1;
+                          const ent = condicaoEmEdicao.valorEntrada || 0;
+                          const saldo = Math.max(0, total - ent);
+                          const updated: Partial<CondicaoPagamento> = {
+                            ...condicaoEmEdicao,
+                            saldoParcelas: parc,
+                            saldoValorParcela: Number((saldo / parc).toFixed(2)),
+                          };
+                          updated.descricao = calcularDescricaoCondicao(updated, total);
+                          setCondicaoEmEdicao(updated);
+                        }}
+                        className="w-full h-8 px-2 text-xs font-semibold rounded-md bg-background border border-border"
+                      >
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18].map((n) => (
+                          <option key={n} value={n}>
+                            {n === 1 ? '1x à vista' : `${n}x mensais`}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold">Forma do Saldo:</Label>
+                      <select
+                        value={condicaoEmEdicao.saldoMetodo || 'cartao'}
+                        onChange={(e) => {
+                          const sm = e.target.value as any;
+                          const updated: Partial<CondicaoPagamento> = {
+                            ...condicaoEmEdicao,
+                            saldoMetodo: sm,
+                          };
+                          updated.descricao = calcularDescricaoCondicao(updated, total);
+                          setCondicaoEmEdicao(updated);
+                        }}
+                        className="w-full h-8 px-2 text-xs font-semibold rounded-md bg-background border border-border"
+                      >
+                        <option value="cartao">Cartão de Crédito</option>
+                        <option value="pix_parcelado">PIX Parcelado</option>
+                        <option value="boleto">Boleto Bancário</option>
+                        <option value="conclusao">Na Conclusão do Tratamento</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Detalhes de PIX Parcelado */}
+              {condicaoEmEdicao.tipo === 'pix_parcelado' && (
+                <div className="p-3 rounded-xl bg-muted/40 border border-border/70 space-y-2.5">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold">Parcelas no PIX:</Label>
+                      <select
+                        value={condicaoEmEdicao.parcelas || 3}
+                        onChange={(e) => {
+                          const p = Number(e.target.value) || 3;
+                          const updated: Partial<CondicaoPagamento> = {
+                            ...condicaoEmEdicao,
+                            parcelas: p,
+                          };
+                          updated.descricao = calcularDescricaoCondicao(updated, total);
+                          setCondicaoEmEdicao(updated);
+                        }}
+                        className="w-full h-8 px-2 text-xs font-semibold rounded-md bg-background border border-border"
+                      >
+                        {[2, 3, 4, 5, 6, 8, 10, 12].map((n) => (
+                          <option key={n} value={n}>
+                            {n}x de {formatMoney(total / n)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold">Dia de Vencimento:</Label>
+                      <select
+                        value={condicaoEmEdicao.diaVencimento || 10}
+                        onChange={(e) => {
+                          const d = Number(e.target.value) || 10;
+                          const updated: Partial<CondicaoPagamento> = {
+                            ...condicaoEmEdicao,
+                            diaVencimento: d,
+                          };
+                          updated.descricao = calcularDescricaoCondicao(updated, total);
+                          setCondicaoEmEdicao(updated);
+                        }}
+                        className="w-full h-8 px-2 text-xs font-semibold rounded-md bg-background border border-border"
+                      >
+                        {[1, 5, 10, 15, 20, 25, 28, 30].map((d) => (
+                          <option key={d} value={d}>
+                            Todo dia {d}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Descrição em Texto da Condição */}
+              <div className="space-y-1">
+                <div className="flex justify-between items-center">
+                  <Label className="text-xs font-semibold">Texto Detalhado da Condição:</Label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const desc = calcularDescricaoCondicao(condicaoEmEdicao, total);
+                      setCondicaoEmEdicao((prev) => ({ ...prev, descricao: desc }));
+                      toast.info('Texto recalculado automaticamente!');
+                    }}
+                    className="text-[10px] text-primary hover:underline font-medium"
+                  >
+                    Recalcular texto
+                  </button>
+                </div>
+                <Textarea
+                  rows={2}
+                  value={condicaoEmEdicao.descricao || ''}
+                  onChange={(e) => setCondicaoEmEdicao((prev) => ({ ...prev, descricao: e.target.value }))}
+                  placeholder="Descrição da condição..."
+                  className="text-xs font-medium"
+                />
+              </div>
+
+              {/* Destaque e Seleção */}
+              <div className="flex flex-col sm:flex-row gap-3 pt-1 border-t border-border/60">
+                <label className="flex items-center gap-2 cursor-pointer text-xs">
+                  <input
+                    type="checkbox"
+                    checked={!!condicaoEmEdicao.destaque}
+                    onChange={(e) => setCondicaoEmEdicao((prev) => ({ ...prev, destaque: e.target.checked }))}
+                    className="rounded border-border text-primary focus:ring-primary"
+                  />
+                  <span>Marcar como <strong>"★ Mais Escolhida / Recomendada"</strong></span>
+                </label>
+
+                <label className="flex items-center gap-2 cursor-pointer text-xs">
+                  <input
+                    type="checkbox"
+                    checked={!!condicaoEmEdicao.selecionada}
+                    onChange={(e) => setCondicaoEmEdicao((prev) => ({ ...prev, selecionada: e.target.checked }))}
+                    className="rounded border-border text-primary focus:ring-primary"
+                  />
+                  <span>Definir como <strong>Opção Padrão</strong></span>
+                </label>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" size="sm" onClick={() => setModalEdicaoCondicaoOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button size="sm" onClick={handleSalvarCondicaoEmEdicaoOrcamento} className="font-bold">
+                  Salvar Condição
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 };

@@ -20,6 +20,7 @@ import {
   downloadTcleEndodontiaPdf,
 } from './contratoEndodontia';
 import { slugifyNome } from './anamneseEngine';
+import { obterTextoCondicaoParaContrato } from './orcamentoCondicoes';
 
 export {
   identificarTipoDocumento,
@@ -378,7 +379,9 @@ export const limparFormaPagamentoParaContrato = (texto?: string): string => {
 export const obterCardsResumoPagamento = (snapshot?: Partial<ContratoSnapshot> | null): ContratoCardPagamento[] => {
   if (!snapshot || !snapshot.financeiro) return [];
   const financeiro = snapshot.financeiro;
-  const formasTexto = limparFormaPagamentoParaContrato(financeiro.formaPagamento || snapshot.orcamento?.formasPagamento || '').trim();
+  const formasTexto = limparFormaPagamentoParaContrato(
+    obterTextoCondicaoParaContrato(financeiro.formaPagamento || snapshot.orcamento?.formasPagamento) || ''
+  ).trim();
   const parcelas = financeiro.parcelas || [];
   const cards: ContratoCardPagamento[] = [];
 
@@ -814,7 +817,9 @@ export const mapearDadosContrato = ({
     desconto,
     total,
     totalExtenso,
-    formasPagamento: limparFormaPagamentoParaContrato(orcamento?.formasPagamento || orcamento?.formas_pagamento || 'Conforme acordado entre as partes'),
+    formasPagamento: limparFormaPagamentoParaContrato(
+      obterTextoCondicaoParaContrato(orcamento?.formasPagamento || orcamento?.formas_pagamento) || 'Conforme acordado entre as partes'
+    ),
     validade: formatarData(orcamento?.validade),
     dataAprovacao: formatarData(orcamento?.atualizadoEm || orcamento?.criadoEm),
     itens: itensOrcamento,
@@ -878,7 +883,7 @@ export const mapearDadosContrato = ({
   } else {
     // Se ainda não foram criadas transações consistentes no financeiro,
     // extrai a negociação das opções de parcelamento do orçamento de forma infalível
-    const formas = orcamento?.formasPagamento || orcamento?.formas_pagamento || '';
+    const formas = obterTextoCondicaoParaContrato(orcamento?.formasPagamento || orcamento?.formas_pagamento || '');
     const hoje = new Date();
 
     // Se possui múltiplas formas separadas por '+' (Compositor de Pagamento Misto)

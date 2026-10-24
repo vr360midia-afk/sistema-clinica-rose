@@ -1,5 +1,6 @@
 import { downloadHtmlAsPdf } from './pdfDownload';
 import { identificarTipoDocumento } from './documentoFormat';
+import { parseCondicoesPagamento } from './orcamentoCondicoes';
 
 interface ClinicaInfo {
   nomeClinica?: string;
@@ -40,6 +41,38 @@ export const gerarOrcamentoPdf = async (o: OrcamentoPdf, clinica: ClinicaInfo = 
   const dataFmt = isNaN(data.getTime()) ? new Date().toLocaleDateString('pt-BR') : data.toLocaleDateString('pt-BR');
   const subtotal = o.itens.reduce((s, i) => s + (i.valor || 0) * (i.quantidade || 1), 0);
   const responsavel = o.dentistaNome || emissor;
+
+  const condicoes = parseCondicoesPagamento(o.formasPagamento, o.total);
+  const blocoFormasPagamentoHtml = (() => {
+    if (!o.formasPagamento || condicoes.length === 0) return '';
+    if (condicoes.length > 1) {
+      return `
+        <div class="bloco">
+          <h3>Condições de Pagamento / Propostas de Negociação</h3>
+          <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
+            ${condicoes
+              .map(
+                (c) => `
+              <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 12px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">
+                  <strong style="color: #0f172a; font-size: 12px;">${c.titulo}</strong>
+                  ${
+                    c.selecionada
+                      ? `<span style="background: #dcfce7; color: #15803d; font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 9999px;">Opção Escolhida</span>`
+                      : ''
+                  }
+                </div>
+                <div style="color: #334155; font-size: 11px; line-height: 1.4;">${c.descricao}</div>
+              </div>
+            `
+              )
+              .join('')}
+          </div>
+        </div>
+      `;
+    }
+    return `<div class="bloco"><h3>Formas de pagamento</h3>${String(condicoes[0]?.descricao || o.formasPagamento).replace(/\n/g, '<br/>')}</div>`;
+  })();
 
   const html = `<!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8" />
@@ -119,7 +152,7 @@ export const gerarOrcamentoPdf = async (o: OrcamentoPdf, clinica: ClinicaInfo = 
       <div class="grande"><span>Total</span><span>${money(o.total)}</span></div>
     </div>
 
-    ${o.formasPagamento ? `<div class="bloco"><h3>Formas de pagamento</h3>${String(o.formasPagamento).replace(/\n/g, '<br/>')}</div>` : ''}
+    ${blocoFormasPagamentoHtml}
     ${o.observacoes ? `<div class="bloco"><h3>Observações</h3>${String(o.observacoes).replace(/\n/g, '<br/>')}</div>` : ''}
 
     <div class="assinaturas">

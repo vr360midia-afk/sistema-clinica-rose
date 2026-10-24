@@ -34,6 +34,12 @@ import {
   SlidersHorizontal,
   Tag,
   Link as LinkIcon,
+  Plus,
+  Trash2,
+  Sparkles,
+  Pencil,
+  Layers,
+  ArrowRight,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -44,6 +50,16 @@ import { useConfiguracoesContrato } from '@/hooks/useConfiguracoesContrato';
 import { Orcamento, OrcamentoItem } from '@/hooks/useOrcamentos';
 import { mapearDadosContrato, gerarLinkAssinaturaContrato } from '@/utils/contratoEngine';
 import { openWhatsApp } from '@/lib/whatsapp';
+import {
+  CondicaoPagamento,
+  TipoCondicaoPagamento,
+  parseCondicoesPagamento,
+  serializarCondicoesPagamento,
+  calcularDescricaoCondicao,
+  gerarTextoWhatsAppCondicoes,
+  gerarTrioPropostasSugeridas,
+  obterCondicaoAtiva,
+} from '@/utils/orcamentoCondicoes';
 
 interface ModalApresentarOrcamentoProps {
   isOpen: boolean;
@@ -82,25 +98,13 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
   const [inputValorFinal, setInputValorFinal] = useState<string>('');
   const [mostrarDesconto, setMostrarDesconto] = useState(false);
 
-  // Estados de Formas de Pagamento
-  const [abaPagamento, setAbaPagamento] = useState<AbaPagamento>('a_vista_pix');
-  const [formasPagamentoTexto, setFormasPagamentoTexto] = useState<string>('');
+  // Estados de Múltiplas Condições de Pagamento / Propostas de Negociação
+  const [condicoes, setCondicoes] = useState<CondicaoPagamento[]>([]);
+  const [condicaoSelecionadaId, setCondicaoSelecionadaId] = useState<string>('1');
 
-  // Opção: À Vista
-  const [descontoAVistaPerc, setDescontoAVistaPerc] = useState<number>(0);
-
-  // Opção: Cartão Parcelado
-  const [cartaoParcelasQtd, setCartaoParcelasQtd] = useState<number>(6);
-
-  // Opção: Entrada + Parcelas
-  const [entradaValor, setEntradaValor] = useState<number>(0);
-  const [entradaMetodo, setEntradaMetodo] = useState<'pix' | 'dinheiro' | 'cartao'>('pix');
-  const [restanteParcelasQtd, setRestanteParcelasQtd] = useState<number>(6);
-  const [restanteMetodo, setRestanteMetodo] = useState<'cartao' | 'pix_parcelado' | 'boleto'>('cartao');
-
-  // Opção: PIX Parcelado
-  const [pixParcelasQtd, setPixParcelasQtd] = useState<number>(4);
-  const [pixDiaVencimento, setPixDiaVencimento] = useState<number>(10);
+  // Modal para Criar / Editar Condição de Negociação
+  const [modalCondicaoOpen, setModalCondicaoOpen] = useState(false);
+  const [condicaoEmEdicao, setCondicaoEmEdicao] = useState<Partial<CondicaoPagamento> | null>(null);
 
   // Opções de Aprovação
   const [mostrarOpcoesAprovacao, setMostrarOpcoesAprovacao] = useState(false);
@@ -117,29 +121,16 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
     if (orcamento) {
       setDesconto(orcamento.desconto || 0);
       setInputValorFinal(orcamento.total ? String(orcamento.total) : '');
-      setFormasPagamentoTexto(orcamento.formasPagamento || '');
 
-      // Detecta forma atual
-      const fp = (orcamento.formasPagamento || '').toLowerCase();
-      if (fp.includes('+') || fp.includes('entrada')) {
-        setAbaPagamento('entrada_parcelas');
-        const entMatch = fp.match(/entrada[^\d]*?(?:r\$)?\s*([\d.,]+)/i);
-        if (entMatch) {
-          const v = Number(entMatch[1].replace(/\./g, '').replace(',', '.')) || 0;
-          setEntradaValor(v);
-        }
-      } else if (fp.includes('pix parcelado') || fp.includes('pix mensal')) {
-        setAbaPagamento('pix_parcelado');
-        const parcMatch = fp.match(/(\d+)\s*x/i);
-        if (parcMatch) setPixParcelasQtd(Number(parcMatch[1]) || 4);
-      } else if (fp.includes('cart') || fp.includes('crédito') || fp.includes('credito')) {
-        setAbaPagamento('cartao_parcelado');
-        const parcMatch = fp.match(/(\d+)\s*x/i);
-        if (parcMatch) setCartaoParcelasQtd(Number(parcMatch[1]) || 6);
-      } else if (fp.includes('pix') || fp.includes('vista')) {
-        setAbaPagamento('a_vista_pix');
+      const parsed = parseCondicoesPagamento(orcamento.formasPagamento, orcamento.total || 0);
+      if (parsed.length > 0) {
+        setCondicoes(parsed);
+        const sel = parsed.find((c) => c.selecionada) || parsed[0];
+        setCondicaoSelecionadaId(sel.id);
       } else {
-        setAbaPagamento('personalizado');
+        const trio = gerarTrioPropostasSugeridas(orcamento.total || 0);
+        setCondicoes(trio);
+        setCondicaoSelecionadaId('2');
       }
     }
   }, [orcamento, isOpen]);
@@ -186,80 +177,170 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
     toast.success(`Desconto de ${perc}% aplicado (-${formatMoney(desc)})! Novo total: ${formatMoney(valFinal)}`);
   };
 
-  // Gerador dinâmico de texto da forma de pagamento selecionada
-  useEffect(() => {
-    if (!orcamento) return;
+  // Condição de pagamento ativa / selecionada pelo paciente
+  const condicaoAtiva = useMemo(() => {
+    return condicoes.find((c) => c.id === condicaoSelecionadaId) || condicoes[0] || null;
+  }, [condicoes, condicaoSelecionadaId]);
 
-    if (abaPagamento === 'a_vista_pix') {
-      if (descontoAVistaPerc > 0) {
-        const valComDesc = Math.max(0, total * (1 - descontoAVistaPerc / 100));
-        setFormasPagamentoTexto(
-          `Pagamento à vista via PIX com ${descontoAVistaPerc}% de desconto especial: ${formatMoney(valComDesc)}`
-        );
-      } else {
-        setFormasPagamentoTexto(`Pagamento à vista via PIX / Transferência: ${formatMoney(total)}`);
-      }
-    } else if (abaPagamento === 'cartao_parcelado') {
-      const parc = Math.max(1, cartaoParcelasQtd);
-      const valParc = total / parc;
-      setFormasPagamentoTexto(
-        `Parcelamento no Cartão de Crédito em ${parc}x de ${formatMoney(valParc)} sem juros (Total: ${formatMoney(total)})`
-      );
-    } else if (abaPagamento === 'entrada_parcelas') {
-      const ent = Math.min(total, Math.max(0, entradaValor));
-      const saldo = Math.max(0, total - ent);
-      const parc = Math.max(1, restanteParcelasQtd);
-      const valParc = saldo / parc;
-      const metodoEntradaStr = entradaMetodo === 'pix' ? 'via PIX' : entradaMetodo === 'dinheiro' ? 'em Dinheiro' : 'no Cartão';
-      const metodoRestanteStr = restanteMetodo === 'cartao' ? 'no Cartão de Crédito' : restanteMetodo === 'pix_parcelado' ? 'via PIX Parcelado' : 'no Boleto';
-
-      if (ent > 0) {
-        setFormasPagamentoTexto(
-          `Entrada: ${formatMoney(ent)} ${metodoEntradaStr} + Saldo Restante: ${formatMoney(saldo)} em ${parc}x de ${formatMoney(valParc)} ${metodoRestanteStr}`
-        );
-      } else {
-        setFormasPagamentoTexto(
-          `Saldo de ${formatMoney(total)} em ${parc}x de ${formatMoney(valParc)} ${metodoRestanteStr}`
-        );
-      }
-    } else if (abaPagamento === 'pix_parcelado') {
-      const parc = Math.max(1, pixParcelasQtd);
-      const valParc = total / parc;
-      setFormasPagamentoTexto(
-        `Plano em ${parc}x de ${formatMoney(valParc)} via PIX Parcelado (Vencimento todo dia ${pixDiaVencimento})`
-      );
-    }
-  }, [
-    abaPagamento,
-    total,
-    descontoAVistaPerc,
-    cartaoParcelasQtd,
-    entradaValor,
-    entradaMetodo,
-    restanteParcelasQtd,
-    restanteMetodo,
-    pixParcelasQtd,
-    pixDiaVencimento,
-  ]);
+  // Serializa texto das condições para salvar e para o contrato
+  const formasPagamentoTexto = useMemo(() => {
+    return serializarCondicoesPagamento(condicoes, condicaoSelecionadaId);
+  }, [condicoes, condicaoSelecionadaId]);
 
   // Identifica se há PIX na forma escolhida e qual o valor alvo do PIX
   const { temPix, valorPixAlvo, labelPixAlvo } = useMemo(() => {
-    if (abaPagamento === 'a_vista_pix') {
-      const valComDesc = descontoAVistaPerc > 0 ? Math.max(0, total * (1 - descontoAVistaPerc / 100)) : total;
-      return { temPix: true, valorPixAlvo: valComDesc, labelPixAlvo: 'Valor Total à Vista' };
+    if (!condicaoAtiva) return { temPix: false, valorPixAlvo: 0, labelPixAlvo: '' };
+
+    if (condicaoAtiva.tipo === 'a_vista') {
+      return {
+        temPix: true,
+        valorPixAlvo: condicaoAtiva.valorTotal || total,
+        labelPixAlvo: 'Valor com Desconto à Vista',
+      };
     }
-    if (abaPagamento === 'entrada_parcelas' && entradaMetodo === 'pix' && entradaValor > 0) {
-      return { temPix: true, valorPixAlvo: entradaValor, labelPixAlvo: 'Valor da Entrada' };
+
+    if (condicaoAtiva.tipo === 'entrada_saldo') {
+      const isPix = !condicaoAtiva.metodoEntrada || condicaoAtiva.metodoEntrada === 'pix';
+      if (isPix && (condicaoAtiva.valorEntrada || 0) > 0) {
+        return {
+          temPix: true,
+          valorPixAlvo: condicaoAtiva.valorEntrada || 0,
+          labelPixAlvo: 'Valor da Entrada via PIX',
+        };
+      }
     }
-    if (abaPagamento === 'pix_parcelado') {
-      const valParc = total / Math.max(1, pixParcelasQtd);
-      return { temPix: true, valorPixAlvo: valParc, labelPixAlvo: 'Valor da 1ª Parcela PIX' };
+
+    if (condicaoAtiva.tipo === 'pix_parcelado') {
+      const ent = condicaoAtiva.valorEntrada || 0;
+      if (ent > 0) {
+        return {
+          temPix: true,
+          valorPixAlvo: ent,
+          labelPixAlvo: 'Valor da Entrada via PIX',
+        };
+      }
+      const p = Math.max(1, condicaoAtiva.parcelas || 3);
+      const valParc = (condicaoAtiva.valorTotal || total) / p;
+      return {
+        temPix: true,
+        valorPixAlvo: valParc,
+        labelPixAlvo: 'Valor da 1ª Parcela via PIX',
+      };
     }
-    if (abaPagamento === 'personalizado' && /pix/i.test(formasPagamentoTexto)) {
-      return { temPix: true, valorPixAlvo: total, labelPixAlvo: 'Valor PIX' };
+
+    if (/pix/i.test(condicaoAtiva.descricao || '')) {
+      const matchV = (condicaoAtiva.descricao || '').match(/(?:r\$)?\s*([\d.,]+)/i);
+      const val = matchV ? Number(matchV[1].replace(/\./g, '').replace(',', '.')) : total;
+      return {
+        temPix: true,
+        valorPixAlvo: val || total,
+        labelPixAlvo: 'Valor via PIX',
+      };
     }
+
     return { temPix: false, valorPixAlvo: 0, labelPixAlvo: '' };
-  }, [abaPagamento, total, descontoAVistaPerc, entradaValor, entradaMetodo, pixParcelasQtd, formasPagamentoTexto]);
+  }, [condicaoAtiva, total]);
+
+  // Ações de gerenciamento de condições
+  const handleSelecionarCondicao = (id: string) => {
+    setCondicaoSelecionadaId(id);
+    setCondicoes((prev) =>
+      prev.map((c) => ({
+        ...c,
+        selecionada: c.id === id,
+      }))
+    );
+    const cond = condicoes.find((c) => c.id === id);
+    toast.success(`"${cond?.titulo || 'Proposta'}" selecionada como condição escolhida!`);
+  };
+
+  const handleGerarTrioSugerido = () => {
+    const trio = gerarTrioPropostasSugeridas(total);
+    setCondicoes(trio);
+    setCondicaoSelecionadaId('2');
+    toast.success('3 propostas de negociação geradas com base no total do orçamento!');
+  };
+
+  const handleRemoverCondicao = (id: string) => {
+    if (condicoes.length <= 1) {
+      toast.error('Mantenha pelo menos uma condição de pagamento no orçamento.');
+      return;
+    }
+    const novas = condicoes.filter((c) => c.id !== id);
+    setCondicoes(novas);
+    if (condicaoSelecionadaId === id) {
+      setCondicaoSelecionadaId(novas[0].id);
+    }
+    toast.info('Condição de negociação removida');
+  };
+
+  const handleAbrirNovaCondicao = () => {
+    const novoId = String(Date.now());
+    const pDef = 6;
+    setCondicaoEmEdicao({
+      id: novoId,
+      titulo: `Opção ${condicoes.length + 1}: Parcelado em ${pDef}x`,
+      tipo: 'cartao',
+      parcelas: pDef,
+      valorTotal: total,
+      tipoCartao: 'credito',
+      destaque: false,
+      selecionada: false,
+    });
+    setModalCondicaoOpen(true);
+  };
+
+  const handleAbrirEditarCondicao = (c: CondicaoPagamento) => {
+    setCondicaoEmEdicao({ ...c });
+    setModalCondicaoOpen(true);
+  };
+
+  const handleSalvarCondicaoEmEdicao = () => {
+    if (!condicaoEmEdicao || !condicaoEmEdicao.titulo?.trim()) {
+      toast.error('Informe um título para a condição (ex: Opção 1: À Vista no PIX).');
+      return;
+    }
+    const descAuto = calcularDescricaoCondicao(condicaoEmEdicao, total);
+    const condFinal: CondicaoPagamento = {
+      id: condicaoEmEdicao.id || String(Date.now()),
+      titulo: condicaoEmEdicao.titulo.trim(),
+      tipo: condicaoEmEdicao.tipo || 'personalizado',
+      descontoPercentual: condicaoEmEdicao.descontoPercentual,
+      descontoValor: condicaoEmEdicao.descontoValor,
+      valorTotal: typeof condicaoEmEdicao.valorTotal === 'number' && condicaoEmEdicao.valorTotal > 0 ? condicaoEmEdicao.valorTotal : total,
+      parcelas: condicaoEmEdicao.parcelas,
+      valorParcela: condicaoEmEdicao.valorParcela,
+      operadoraCartaoId: condicaoEmEdicao.operadoraCartaoId,
+      tipoCartao: condicaoEmEdicao.tipoCartao,
+      valorEntrada: condicaoEmEdicao.valorEntrada,
+      metodoEntrada: condicaoEmEdicao.metodoEntrada,
+      saldoParcelas: condicaoEmEdicao.saldoParcelas,
+      saldoMetodo: condicaoEmEdicao.saldoMetodo,
+      saldoValorParcela: condicaoEmEdicao.saldoValorParcela,
+      diaVencimento: condicaoEmEdicao.diaVencimento,
+      descricao: condicaoEmEdicao.descricao?.trim() || descAuto,
+      destaque: !!condicaoEmEdicao.destaque,
+      selecionada: condicaoEmEdicao.selecionada ?? false,
+    };
+
+    setCondicoes((prev) => {
+      const idx = prev.findIndex((c) => c.id === condFinal.id);
+      if (idx >= 0) {
+        const copy = [...prev];
+        copy[idx] = condFinal;
+        return copy;
+      }
+      return [...prev, condFinal];
+    });
+
+    if (condFinal.selecionada) {
+      setCondicaoSelecionadaId(condFinal.id);
+    }
+
+    setModalCondicaoOpen(false);
+    setCondicaoEmEdicao(null);
+    toast.success('Condição de pagamento salva!');
+  };
 
   // Dados oficiais da clínica para o PIX
   const chavePixOficial =
@@ -379,7 +460,8 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
       ...orcamento.itens.map((i) => `• ${i.nome} ${i.quantidade > 1 ? `(${i.quantidade}x) ` : ''}— ${formatMoney(i.valor * i.quantidade)}`),
       desconto > 0 ? `Desconto especial: -${formatMoney(desconto)}` : null,
       `*Valor Total: ${formatMoney(total)}*`,
-      formasPagamentoTexto ? `💳 *Condições de Pagamento:* ${formasPagamentoTexto}` : null,
+      '',
+      gerarTextoWhatsAppCondicoes(condicoes, total),
     ];
 
     if (temPix && chavePixOficial) {
@@ -759,258 +841,235 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
               )}
             </div>
 
-            {/* 3. Liberar e Personalizar Formas de Pagamento na Tela */}
+            {/* 3. Propostas & Condições de Pagamento / Negociação */}
             <div className="p-4 sm:p-5 rounded-2xl border border-border/80 bg-card space-y-4 shadow-xs">
-              <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 flex-wrap">
                 <div>
                   <h4 className="font-bold text-sm sm:text-base text-foreground flex items-center gap-2">
                     <Wallet className="h-4 w-4 text-primary" />
-                    Condições & Formas de Pagamento
+                    Condições & Propostas de Negociação
+                    <Badge variant="outline" className="text-[11px] font-normal border-primary/30 text-primary">
+                      {condicoes.length} {condicoes.length === 1 ? 'opção' : 'opções'} de pagamento
+                    </Badge>
                   </h4>
-                  <p className="text-xs text-muted-foreground">
-                    Selecione a modalidade combinada. O cálculo e o QR Code PIX são ajustados instantaneamente.
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Apresente e compare condições diferentes para o paciente escolher na consulta (ex.: À Vista com desconto, Entrada facilitada, Parcelado).
                   </p>
                 </div>
-              </div>
 
-              {/* Seletor de Modalidade */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setAbaPagamento('a_vista_pix')}
-                  className={cn(
-                    'p-3 rounded-xl border text-left transition-all flex flex-col justify-between gap-1 text-xs',
-                    abaPagamento === 'a_vista_pix'
-                      ? 'bg-primary text-primary-foreground border-primary shadow-xs ring-2 ring-primary/20'
-                      : 'bg-muted/30 border-border/70 hover:border-border text-muted-foreground hover:text-foreground'
-                  )}
-                >
-                  <span className="font-bold flex items-center gap-1.5">
-                    <QrCode className="h-4 w-4" /> À Vista (PIX)
-                  </span>
-                  <span className={cn('text-[11px]', abaPagamento === 'a_vista_pix' ? 'opacity-90' : 'text-muted-foreground')}>
-                    QR Code com valor total
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setAbaPagamento('cartao_parcelado')}
-                  className={cn(
-                    'p-3 rounded-xl border text-left transition-all flex flex-col justify-between gap-1 text-xs',
-                    abaPagamento === 'cartao_parcelado'
-                      ? 'bg-primary text-primary-foreground border-primary shadow-xs ring-2 ring-primary/20'
-                      : 'bg-muted/30 border-border/70 hover:border-border text-muted-foreground hover:text-foreground'
-                  )}
-                >
-                  <span className="font-bold flex items-center gap-1.5">
-                    <CreditCard className="h-4 w-4" /> Cartão de Crédito
-                  </span>
-                  <span className={cn('text-[11px]', abaPagamento === 'cartao_parcelado' ? 'opacity-90' : 'text-muted-foreground')}>
-                    Até 12x parcelado
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setAbaPagamento('entrada_parcelas')}
-                  className={cn(
-                    'p-3 rounded-xl border text-left transition-all flex flex-col justify-between gap-1 text-xs',
-                    abaPagamento === 'entrada_parcelas'
-                      ? 'bg-primary text-primary-foreground border-primary shadow-xs ring-2 ring-primary/20'
-                      : 'bg-muted/30 border-border/70 hover:border-border text-muted-foreground hover:text-foreground'
-                  )}
-                >
-                  <span className="font-bold flex items-center gap-1.5">
-                    <Banknote className="h-4 w-4" /> Entrada + Parcelas
-                  </span>
-                  <span className={cn('text-[11px]', abaPagamento === 'entrada_parcelas' ? 'opacity-90' : 'text-muted-foreground')}>
-                    Entrada + Saldo Parcelado
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setAbaPagamento('pix_parcelado')}
-                  className={cn(
-                    'p-3 rounded-xl border text-left transition-all flex flex-col justify-between gap-1 text-xs',
-                    abaPagamento === 'pix_parcelado'
-                      ? 'bg-primary text-primary-foreground border-primary shadow-xs ring-2 ring-primary/20'
-                      : 'bg-muted/30 border-border/70 hover:border-border text-muted-foreground hover:text-foreground'
-                  )}
-                >
-                  <span className="font-bold flex items-center gap-1.5">
-                    <CalendarDays className="h-4 w-4" /> PIX Parcelado
-                  </span>
-                  <span className={cn('text-[11px]', abaPagamento === 'pix_parcelado' ? 'opacity-90' : 'text-muted-foreground')}>
-                    Parcelas mensais via PIX
-                  </span>
-                </button>
-              </div>
-
-              {/* Conteúdo Dinâmico por Modalidade */}
-              <div className="bg-background rounded-xl p-4 border border-border/70 space-y-4">
-                {/* 1. Opção À Vista PIX */}
-                {abaPagamento === 'a_vista_pix' && (
-                  <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 border border-border/60 text-xs">
-                    <div className="h-8 w-8 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-                      <CheckCircle2 className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <p className="font-semibold text-foreground">Pagamento à Vista via PIX Oficial Bacen</p>
-                      <p className="text-[11px] text-muted-foreground">
-                        Aprovação imediata do plano e liberação dos agendamentos. Utilize o QR Code dinâmico abaixo para pagamento direto pelo app do banco.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {/* 2. Opção Cartão Parcelado */}
-                {abaPagamento === 'cartao_parcelado' && (
-                  <div className="space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-xs font-semibold text-foreground">Selecione o Número de Parcelas no Cartão:</Label>
-                      <span className="text-[11px] text-muted-foreground font-medium">Sem acréscimo</span>
-                    </div>
-                    <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                      {[1, 2, 3, 4, 5, 6, 8, 10, 12].map((parc) => {
-                        const valParc = total / parc;
-                        const isSelected = cartaoParcelasQtd === parc;
-                        return (
-                          <button
-                            key={parc}
-                            type="button"
-                            onClick={() => setCartaoParcelasQtd(parc)}
-                            className={cn(
-                              'p-2.5 rounded-xl border text-center transition-all text-xs flex flex-col items-center justify-center gap-0.5',
-                              isSelected
-                                ? 'bg-primary text-primary-foreground border-primary shadow-xs'
-                                : 'bg-muted/20 border-border/70 hover:border-border hover:bg-muted/50 text-foreground'
-                            )}
-                          >
-                            <span className="font-bold text-sm">{parc}x</span>
-                            <span className={cn('text-[11px]', isSelected ? 'opacity-90 font-medium' : 'text-muted-foreground')}>
-                              {formatMoney(valParc)}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* 3. Opção Entrada + Parcelas */}
-                {abaPagamento === 'entrada_parcelas' && (
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">Valor da Entrada (R$)</Label>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          min={0}
-                          max={total}
-                          value={entradaValor || ''}
-                          onChange={(e) => setEntradaValor(Math.max(0, Number(e.target.value) || 0))}
-                          placeholder="Ex: 500,00"
-                          className="font-bold text-foreground h-9"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">Forma da Entrada</Label>
-                        <div className="grid grid-cols-3 gap-1">
-                          {(['pix', 'dinheiro', 'cartao'] as const).map((m) => (
-                            <Button
-                              key={m}
-                              type="button"
-                              size="sm"
-                              variant={entradaMetodo === m ? 'default' : 'outline'}
-                              onClick={() => setEntradaMetodo(m)}
-                              className="h-9 text-xs capitalize px-1 border-border/70"
-                            >
-                              {m === 'pix' ? 'PIX' : m === 'dinheiro' ? 'Dinheiro' : 'Cartão'}
-                            </Button>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">Parcelas do Saldo Restante</Label>
-                        <div className="flex gap-1.5 flex-wrap">
-                          {[2, 3, 4, 5, 6, 10, 12].map((p) => (
-                            <Button
-                              key={p}
-                              type="button"
-                              size="sm"
-                              variant={restanteParcelasQtd === p ? 'default' : 'outline'}
-                              onClick={() => setRestanteParcelasQtd(p)}
-                              className="h-9 px-2.5 text-xs font-semibold border-border/70"
-                            >
-                              {p}x
-                            </Button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* 4. Opção PIX Parcelado */}
-                {abaPagamento === 'pix_parcelado' && (
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">Número de Parcelas Mensais via PIX:</Label>
-                        <div className="flex gap-1.5 flex-wrap">
-                          {[2, 3, 4, 5, 6, 8, 10].map((p) => (
-                            <Button
-                              key={p}
-                              type="button"
-                              size="sm"
-                              variant={pixParcelasQtd === p ? 'default' : 'outline'}
-                              onClick={() => setPixParcelasQtd(p)}
-                              className="h-8 px-3 text-xs font-bold border-border/70"
-                            >
-                              {p}x
-                            </Button>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">Dia de Vencimento Mensal:</Label>
-                        <div className="flex gap-1.5 flex-wrap">
-                          {[5, 10, 15, 20, 25].map((d) => (
-                            <Button
-                              key={d}
-                              type="button"
-                              size="sm"
-                              variant={pixDiaVencimento === d ? 'default' : 'outline'}
-                              onClick={() => setPixDiaVencimento(d)}
-                              className="h-8 px-2.5 text-xs font-semibold border-border/70"
-                            >
-                              Dia {d}
-                            </Button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Texto da Condição Formal */}
-                <div className="space-y-1 pt-2 border-t border-border/60">
-                  <Label className="text-[11px] text-muted-foreground">Descrição das Condições de Pagamento:</Label>
-                  <Textarea
-                    rows={2}
-                    value={formasPagamentoTexto}
-                    onChange={(e) => {
-                      setFormasPagamentoTexto(e.target.value);
-                      setAbaPagamento('personalizado');
-                    }}
-                    placeholder="Descrição das formas de pagamento..."
-                    className="text-xs font-medium resize-none bg-background border-border/70"
-                  />
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={handleGerarTrioSugerido}
+                    className="h-8 text-xs gap-1.5 border-primary/40 text-primary hover:bg-primary/10"
+                    title="Gera automaticamente 3 opções recomendadas: À Vista com 10% OFF, Entrada Facilitada + 5x, e 10x sem juros"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    Sugerir 3 Opções Rápidas
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleAbrirNovaCondicao}
+                    className="h-8 text-xs gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 font-medium"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Nova Condição
+                  </Button>
                 </div>
               </div>
+
+              {/* Grid de Cards de Propostas de Negociação */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                {condicoes.map((c, index) => {
+                  const isSelected = c.id === condicaoSelecionadaId;
+                  const isAVista = c.tipo === 'a_vista';
+                  const isEntrada = c.tipo === 'entrada_saldo';
+                  const isCartao = c.tipo === 'cartao';
+                  const isPixParc = c.tipo === 'pix_parcelado';
+
+                  return (
+                    <div
+                      key={c.id || index}
+                      className={cn(
+                        'rounded-2xl border p-4 transition-all relative flex flex-col justify-between gap-3 text-xs',
+                        isSelected
+                          ? 'border-emerald-500 bg-emerald-500/5 dark:bg-emerald-950/20 shadow-md ring-2 ring-emerald-500/20'
+                          : 'border-border/80 bg-background hover:border-primary/40 hover:bg-muted/20'
+                      )}
+                    >
+                      {/* Topo do Card */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span
+                              className={cn(
+                                'px-2 py-0.5 rounded-full font-bold text-[10px]',
+                                isSelected
+                                  ? 'bg-emerald-600 text-white'
+                                  : 'bg-muted text-muted-foreground'
+                              )}
+                            >
+                              Opção {index + 1}
+                            </span>
+                            {c.destaque && (
+                              <span className="px-2 py-0.5 rounded-full font-semibold text-[10px] bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 flex items-center gap-1">
+                                ★ Mais Escolhida
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleAbrirEditarCondicao(c)}
+                              className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                              title="Editar esta condição"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            {condicoes.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoverCondicao(c.id)}
+                                className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                title="Remover esta condição"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Título da Opção */}
+                        <h5 className="font-bold text-sm text-foreground leading-snug">
+                          {c.titulo}
+                        </h5>
+
+                        {/* Destaque Visual de Valores */}
+                        <div className="p-2.5 rounded-xl bg-card border border-border/70 space-y-1">
+                          {isAVista ? (
+                            <div>
+                              <span className="text-[10px] text-muted-foreground block">Valor à vista:</span>
+                              <div className="text-xl sm:text-2xl font-extrabold text-foreground tracking-tight">
+                                {formatMoney(c.valorTotal || total)}
+                              </div>
+                              {(c.descontoPercentual || 0) > 0 && (
+                                <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-none font-semibold text-[10px] mt-0.5">
+                                  Economia de {formatMoney(c.descontoValor || (total * (c.descontoPercentual || 0)) / 100)} ({c.descontoPercentual}% OFF)
+                                </Badge>
+                              )}
+                            </div>
+                          ) : isEntrada ? (
+                            <div>
+                              <div className="flex justify-between items-baseline">
+                                <span className="text-[10px] text-muted-foreground">Entrada + Saldo:</span>
+                                <span className="text-[10px] text-foreground font-semibold">Total: {formatMoney(c.valorTotal || total)}</span>
+                              </div>
+                              <div className="text-base sm:text-lg font-extrabold text-foreground">
+                                Entrada: {formatMoney(c.valorEntrada || 0)}
+                              </div>
+                              <div className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                                + {c.saldoParcelas || 1}x de {formatMoney(c.saldoValorParcela || (Math.max(0, (c.valorTotal || total) - (c.valorEntrada || 0)) / (c.saldoParcelas || 1)))}
+                              </div>
+                            </div>
+                          ) : isCartao ? (
+                            <div>
+                              <span className="text-[10px] text-muted-foreground block">Parcelado no Cartão:</span>
+                              <div className="text-xl sm:text-2xl font-extrabold text-foreground tracking-tight">
+                                {c.parcelas || 1}x de {formatMoney(c.valorParcela || (c.valorTotal || total) / (c.parcelas || 1))}
+                              </div>
+                              <span className="text-[10px] text-muted-foreground block mt-0.5">
+                                Sem juros (Total: {formatMoney(c.valorTotal || total)})
+                              </span>
+                            </div>
+                          ) : isPixParc ? (
+                            <div>
+                              <span className="text-[10px] text-muted-foreground block">PIX Parcelado:</span>
+                              <div className="text-xl sm:text-2xl font-extrabold text-foreground tracking-tight">
+                                {c.parcelas || 3}x de {formatMoney((c.valorTotal || total) / (c.parcelas || 3))}
+                              </div>
+                              <span className="text-[10px] text-muted-foreground block mt-0.5">
+                                Vencimento mensal todo dia {c.diaVencimento || 10}
+                              </span>
+                            </div>
+                          ) : (
+                            <div>
+                              <span className="text-[10px] text-muted-foreground block">Condição especial:</span>
+                              <div className="text-lg font-bold text-foreground">
+                                {formatMoney(c.valorTotal || total)}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Descrição legível */}
+                        <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-3">
+                          {c.descricao}
+                        </p>
+                      </div>
+
+                      {/* Botão de Selecionar Proposta */}
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => handleSelecionarCondicao(c.id)}
+                        variant={isSelected ? 'default' : 'outline'}
+                        className={cn(
+                          'w-full h-8 text-xs font-bold gap-1.5 transition-all',
+                          isSelected
+                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs'
+                            : 'border-border/80 hover:bg-primary/10 hover:text-primary hover:border-primary/50'
+                        )}
+                      >
+                        {isSelected ? (
+                          <>
+                            <CheckCircle2 className="h-4 w-4" />
+                            Proposta Escolhida pelo Paciente
+                          </>
+                        ) : (
+                          <>
+                            Escolher esta Proposta
+                            <ArrowRight className="h-3 w-3 opacity-70" />
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Barra da Condição Escolhida Atual */}
+              {condicaoAtiva && (
+                <div className="rounded-xl bg-muted/40 border border-border/70 p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                    <div>
+                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block">
+                        Condição Selecionada para Fechamento & Contrato:
+                      </span>
+                      <strong className="text-foreground text-xs sm:text-sm">
+                        {condicaoAtiva.titulo}
+                      </strong>
+                      <span className="text-muted-foreground ml-2 hidden sm:inline">
+                        — {condicaoAtiva.descricao}
+                      </span>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => handleAbrirEditarCondicao(condicaoAtiva)}
+                    className="h-7 text-xs text-primary hover:text-primary gap-1 shrink-0"
+                  >
+                    <Pencil className="h-3 w-3" /> Ajustar Detalhes
+                  </Button>
+                </div>
+              )}
+            </div>
 
               {/* 4. Card do QR Code PIX em Tempo Real se a forma for PIX */}
               {temPix && (
@@ -1250,6 +1309,416 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
               Fechar
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+      {/* Modal Dialog para Criar ou Editar uma Condição de Pagamento */}
+      <Dialog open={modalCondicaoOpen} onOpenChange={setModalCondicaoOpen}>
+        <DialogContent className="max-w-lg w-full p-5 space-y-4 max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-bold text-foreground">
+              <Pencil className="h-4 w-4 text-primary" />
+              {condicaoEmEdicao?.id && condicoes.some((c) => c.id === condicaoEmEdicao.id)
+                ? 'Editar Condição de Negociação'
+                : 'Nova Condição de Negociação'}
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Configure os detalhes desta proposta comercial para apresentar ao paciente.
+            </DialogDescription>
+          </DialogHeader>
+
+          {condicaoEmEdicao && (
+            <div className="space-y-3.5 text-xs">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Título da Condição / Proposta:</Label>
+                <Input
+                  value={condicaoEmEdicao.titulo || ''}
+                  onChange={(e) => setCondicaoEmEdicao((prev) => ({ ...prev, titulo: e.target.value }))}
+                  placeholder="Ex: Opção 1: À Vista no PIX (10% OFF)"
+                  className="h-9 text-xs font-medium"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Tipo de Pagamento:</Label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                  {(
+                    [
+                      { id: 'a_vista', label: 'À Vista (PIX)' },
+                      { id: 'cartao', label: 'Cartão de Crédito' },
+                      { id: 'entrada_saldo', label: 'Entrada + Saldo' },
+                      { id: 'pix_parcelado', label: 'PIX Parcelado' },
+                      { id: 'boleto', label: 'Boleto' },
+                      { id: 'personalizado', label: 'Personalizado' },
+                    ] as const
+                  ).map((t) => (
+                    <Button
+                      key={t.id}
+                      type="button"
+                      size="sm"
+                      variant={condicaoEmEdicao.tipo === t.id ? 'default' : 'outline'}
+                      onClick={() => {
+                        const novoTipo = t.id as TipoCondicaoPagamento;
+                        const copy: Partial<CondicaoPagamento> = { ...condicaoEmEdicao, tipo: novoTipo };
+                        if (novoTipo === 'a_vista' && !copy.descontoPercentual) {
+                          copy.descontoPercentual = 10;
+                          copy.descontoValor = Number(((total * 10) / 100).toFixed(2));
+                          copy.valorTotal = Math.max(0, total - copy.descontoValor);
+                        } else if (novoTipo === 'cartao' && !copy.parcelas) {
+                          copy.parcelas = 6;
+                          copy.valorTotal = total;
+                          copy.valorParcela = Number((total / 6).toFixed(2));
+                        } else if (novoTipo === 'entrada_saldo') {
+                          copy.valorEntrada = copy.valorEntrada || Math.round(total * 0.3);
+                          copy.saldoParcelas = copy.saldoParcelas || 5;
+                          copy.saldoMetodo = 'cartao';
+                          copy.valorTotal = total;
+                        }
+                        copy.descricao = calcularDescricaoCondicao(copy, total);
+                        setCondicaoEmEdicao(copy);
+                      }}
+                      className={cn(
+                        'h-8 text-[11px] font-medium px-2 justify-center',
+                        condicaoEmEdicao.tipo === t.id ? 'bg-primary text-primary-foreground font-bold' : 'border-border/70'
+                      )}
+                    >
+                      {t.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Campos específicos por Tipo */}
+              {condicaoEmEdicao.tipo === 'a_vista' && (
+                <div className="p-3 rounded-xl bg-muted/40 border border-border/70 space-y-2.5">
+                  <div className="flex justify-between items-center">
+                    <Label className="text-xs font-semibold">Desconto à vista (%):</Label>
+                    <div className="flex gap-1">
+                      {[0, 5, 8, 10, 15].map((p) => (
+                        <button
+                          key={p}
+                          type="button"
+                          onClick={() => {
+                            const valDesc = Number(((total * p) / 100).toFixed(2));
+                            const vTotal = Math.max(0, total - valDesc);
+                            const updated: Partial<CondicaoPagamento> = {
+                              ...condicaoEmEdicao,
+                              descontoPercentual: p,
+                              descontoValor: valDesc,
+                              valorTotal: vTotal,
+                            };
+                            updated.descricao = calcularDescricaoCondicao(updated, total);
+                            setCondicaoEmEdicao(updated);
+                          }}
+                          className={cn(
+                            'px-2 py-0.5 rounded text-[10px] font-bold border transition-colors',
+                            condicaoEmEdicao.descontoPercentual === p
+                              ? 'bg-primary text-primary-foreground border-primary'
+                              : 'bg-background text-muted-foreground border-border/60 hover:text-foreground'
+                          )}
+                        >
+                          {p === 0 ? '0%' : `${p}%`}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-[11px] text-muted-foreground">% Desconto</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={condicaoEmEdicao.descontoPercentual ?? ''}
+                        onChange={(e) => {
+                          const p = Math.max(0, Number(e.target.value) || 0);
+                          const valDesc = Number(((total * p) / 100).toFixed(2));
+                          const vTotal = Math.max(0, total - valDesc);
+                          const updated: Partial<CondicaoPagamento> = {
+                            ...condicaoEmEdicao,
+                            descontoPercentual: p,
+                            descontoValor: valDesc,
+                            valorTotal: vTotal,
+                          };
+                          updated.descricao = calcularDescricaoCondicao(updated, total);
+                          setCondicaoEmEdicao(updated);
+                        }}
+                        className="h-8 text-xs font-semibold"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[11px] text-muted-foreground">Valor Final à Vista</Label>
+                      <div className="h-8 px-3 rounded-md bg-background border border-border flex items-center font-bold text-emerald-600">
+                        {formatMoney(condicaoEmEdicao.valorTotal || total)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {condicaoEmEdicao.tipo === 'cartao' && (
+                <div className="p-3 rounded-xl bg-muted/40 border border-border/70 space-y-2.5">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold">Qtd. de Parcelas:</Label>
+                      <select
+                        value={condicaoEmEdicao.parcelas || 1}
+                        onChange={(e) => {
+                          const p = Number(e.target.value) || 1;
+                          const vTotal = condicaoEmEdicao.valorTotal || total;
+                          const valParc = Number((vTotal / p).toFixed(2));
+                          const updated: Partial<CondicaoPagamento> = {
+                            ...condicaoEmEdicao,
+                            parcelas: p,
+                            valorParcela: valParc,
+                          };
+                          updated.descricao = calcularDescricaoCondicao(updated, total);
+                          setCondicaoEmEdicao(updated);
+                        }}
+                        className="w-full h-8 px-2 text-xs font-semibold rounded-md bg-background border border-border"
+                      >
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18, 24].map((n) => (
+                          <option key={n} value={n}>
+                            {n === 1 ? '1x (À vista)' : `${n}x de ${formatMoney((condicaoEmEdicao.valorTotal || total) / n)}`}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold">Modalidade:</Label>
+                      <select
+                        value={condicaoEmEdicao.tipoCartao || 'credito'}
+                        onChange={(e) => {
+                          const t = e.target.value as 'credito' | 'debito';
+                          const updated: Partial<CondicaoPagamento> = {
+                            ...condicaoEmEdicao,
+                            tipoCartao: t,
+                            parcelas: t === 'debito' ? 1 : condicaoEmEdicao.parcelas || 1,
+                          };
+                          updated.descricao = calcularDescricaoCondicao(updated, total);
+                          setCondicaoEmEdicao(updated);
+                        }}
+                        className="w-full h-8 px-2 text-xs font-semibold rounded-md bg-background border border-border"
+                      >
+                        <option value="credito">Crédito</option>
+                        <option value="debito">Débito</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {condicaoEmEdicao.tipo === 'entrada_saldo' && (
+                <div className="p-3 rounded-xl bg-muted/40 border border-border/70 space-y-2.5">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold">Valor da Entrada (R$):</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={total}
+                        step="0.01"
+                        value={condicaoEmEdicao.valorEntrada ?? ''}
+                        onChange={(e) => {
+                          const ent = Math.max(0, Number(e.target.value) || 0);
+                          const saldo = Math.max(0, total - ent);
+                          const parc = condicaoEmEdicao.saldoParcelas || 1;
+                          const updated: Partial<CondicaoPagamento> = {
+                            ...condicaoEmEdicao,
+                            valorEntrada: ent,
+                            saldoValorParcela: Number((saldo / parc).toFixed(2)),
+                          };
+                          updated.descricao = calcularDescricaoCondicao(updated, total);
+                          setCondicaoEmEdicao(updated);
+                        }}
+                        className="h-8 text-xs font-semibold"
+                        placeholder="Ex: 500.00"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold">Forma da Entrada:</Label>
+                      <select
+                        value={condicaoEmEdicao.metodoEntrada || 'pix'}
+                        onChange={(e) => {
+                          const met = e.target.value as any;
+                          const updated: Partial<CondicaoPagamento> = {
+                            ...condicaoEmEdicao,
+                            metodoEntrada: met,
+                          };
+                          updated.descricao = calcularDescricaoCondicao(updated, total);
+                          setCondicaoEmEdicao(updated);
+                        }}
+                        className="w-full h-8 px-2 text-xs font-semibold rounded-md bg-background border border-border"
+                      >
+                        <option value="pix">PIX</option>
+                        <option value="dinheiro">Dinheiro</option>
+                        <option value="cartao_debito">Cartão de Débito</option>
+                        <option value="cartao_credito">Cartão de Crédito</option>
+                        <option value="transferencia">Transferência</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold">Parcelas do Saldo:</Label>
+                      <select
+                        value={condicaoEmEdicao.saldoParcelas || 1}
+                        onChange={(e) => {
+                          const parc = Number(e.target.value) || 1;
+                          const ent = condicaoEmEdicao.valorEntrada || 0;
+                          const saldo = Math.max(0, total - ent);
+                          const updated: Partial<CondicaoPagamento> = {
+                            ...condicaoEmEdicao,
+                            saldoParcelas: parc,
+                            saldoValorParcela: Number((saldo / parc).toFixed(2)),
+                          };
+                          updated.descricao = calcularDescricaoCondicao(updated, total);
+                          setCondicaoEmEdicao(updated);
+                        }}
+                        className="w-full h-8 px-2 text-xs font-semibold rounded-md bg-background border border-border"
+                      >
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18].map((n) => (
+                          <option key={n} value={n}>
+                            {n === 1 ? '1x à vista' : `${n}x mensais`}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold">Forma do Saldo:</Label>
+                      <select
+                        value={condicaoEmEdicao.saldoMetodo || 'cartao'}
+                        onChange={(e) => {
+                          const sm = e.target.value as any;
+                          const updated: Partial<CondicaoPagamento> = {
+                            ...condicaoEmEdicao,
+                            saldoMetodo: sm,
+                          };
+                          updated.descricao = calcularDescricaoCondicao(updated, total);
+                          setCondicaoEmEdicao(updated);
+                        }}
+                        className="w-full h-8 px-2 text-xs font-semibold rounded-md bg-background border border-border"
+                      >
+                        <option value="cartao">Cartão de Crédito</option>
+                        <option value="pix_parcelado">PIX Parcelado</option>
+                        <option value="boleto">Boleto Bancário</option>
+                        <option value="conclusao">Na Conclusão do Tratamento</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {condicaoEmEdicao.tipo === 'pix_parcelado' && (
+                <div className="p-3 rounded-xl bg-muted/40 border border-border/70 space-y-2.5">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold">Parcelas no PIX:</Label>
+                      <select
+                        value={condicaoEmEdicao.parcelas || 3}
+                        onChange={(e) => {
+                          const p = Number(e.target.value) || 3;
+                          const updated: Partial<CondicaoPagamento> = {
+                            ...condicaoEmEdicao,
+                            parcelas: p,
+                          };
+                          updated.descricao = calcularDescricaoCondicao(updated, total);
+                          setCondicaoEmEdicao(updated);
+                        }}
+                        className="w-full h-8 px-2 text-xs font-semibold rounded-md bg-background border border-border"
+                      >
+                        {[2, 3, 4, 5, 6, 8, 10, 12].map((n) => (
+                          <option key={n} value={n}>
+                            {n}x de {formatMoney(total / n)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold">Dia de Vencimento:</Label>
+                      <select
+                        value={condicaoEmEdicao.diaVencimento || 10}
+                        onChange={(e) => {
+                          const d = Number(e.target.value) || 10;
+                          const updated: Partial<CondicaoPagamento> = {
+                            ...condicaoEmEdicao,
+                            diaVencimento: d,
+                          };
+                          updated.descricao = calcularDescricaoCondicao(updated, total);
+                          setCondicaoEmEdicao(updated);
+                        }}
+                        className="w-full h-8 px-2 text-xs font-semibold rounded-md bg-background border border-border"
+                      >
+                        {[1, 5, 10, 15, 20, 25, 28, 30].map((d) => (
+                          <option key={d} value={d}>
+                            Todo dia {d}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Descrição em Texto da Condição */}
+              <div className="space-y-1">
+                <div className="flex justify-between items-center">
+                  <Label className="text-xs font-semibold">Texto Detalhado da Condição:</Label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const desc = calcularDescricaoCondicao(condicaoEmEdicao, total);
+                      setCondicaoEmEdicao((prev) => ({ ...prev, descricao: desc }));
+                      toast.info('Texto recalculado automaticamente!');
+                    }}
+                    className="text-[10px] text-primary hover:underline font-medium"
+                  >
+                    Recalcular texto
+                  </button>
+                </div>
+                <Textarea
+                  rows={2}
+                  value={condicaoEmEdicao.descricao || ''}
+                  onChange={(e) => setCondicaoEmEdicao((prev) => ({ ...prev, descricao: e.target.value }))}
+                  placeholder="Descrição da condição..."
+                  className="text-xs font-medium"
+                />
+              </div>
+
+              {/* Destaque e Seleção */}
+              <div className="flex flex-col sm:flex-row gap-3 pt-1 border-t border-border/60">
+                <label className="flex items-center gap-2 cursor-pointer text-xs">
+                  <input
+                    type="checkbox"
+                    checked={!!condicaoEmEdicao.destaque}
+                    onChange={(e) => setCondicaoEmEdicao((prev) => ({ ...prev, destaque: e.target.checked }))}
+                    className="rounded border-border text-primary focus:ring-primary"
+                  />
+                  <span>Marcar com badge <strong>"★ Mais Escolhida"</strong></span>
+                </label>
+
+                <label className="flex items-center gap-2 cursor-pointer text-xs">
+                  <input
+                    type="checkbox"
+                    checked={!!condicaoEmEdicao.selecionada}
+                    onChange={(e) => setCondicaoEmEdicao((prev) => ({ ...prev, selecionada: e.target.checked }))}
+                    className="rounded border-border text-primary focus:ring-primary"
+                  />
+                  <span>Definir como a <strong>Proposta Escolhida</strong></span>
+                </label>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" size="sm" onClick={() => setModalCondicaoOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button size="sm" onClick={handleSalvarCondicaoEmEdicao} className="font-bold">
+                  Salvar Condição
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </>
