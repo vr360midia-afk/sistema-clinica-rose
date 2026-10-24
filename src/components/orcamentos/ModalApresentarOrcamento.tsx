@@ -1138,9 +1138,8 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
                 </div>
               )}
             </div>
-          </div>
 
-          {/* Rodapé de Ações & Aprovação */}
+            {/* Rodapé de Ações & Aprovação */}
           <div className="bg-card border-t border-border/80 px-5 py-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 flex-shrink-0">
             <div className="flex items-center gap-2 w-full sm:w-auto justify-start flex-wrap">
               <Button
