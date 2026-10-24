@@ -1487,7 +1487,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
     const parsed = parseCondicoesPagamento(o.formasPagamento, o.total);
     if (parsed.length > 0) {
       setCondicoesNegociacao(parsed);
-      const sel = parsed.find((c) => c.selecionada);
+      const sel = o.status === 'aprovado' ? parsed.find((c) => c.selecionada) : undefined;
       setCondicaoAtivaId(sel ? sel.id : '');
       setModoFormaPagamento(parsed.length > 1 || parsed[0].tipo !== 'personalizado' ? 'propostas' : 'livre');
     } else {

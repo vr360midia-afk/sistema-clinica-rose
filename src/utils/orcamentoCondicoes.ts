@@ -476,7 +476,7 @@ export function parseCondicoesPagamento(
           diaVencimento: c.diaVencimento,
           formasCompostas: Array.isArray(c.formasCompostas) ? c.formasCompostas : undefined,
           descricao: c.descricao || calcularDescricaoCondicao(c, totalBase),
-          selecionada: parsed.selecionadaId ? c.id === parsed.selecionadaId : Boolean(c.selecionada),
+          selecionada: Boolean(parsed.selecionadaId && String(c.id) === String(parsed.selecionadaId)),
           destaque: c.destaque,
         }));
       }
@@ -531,7 +531,7 @@ export function parseCondicoesPagamento(
       tipo: 'personalizado',
       valorTotal: totalBase,
       descricao: str,
-      selecionada: true,
+      selecionada: false,
     },
   ];
 }
@@ -552,16 +552,17 @@ export function serializarCondicoesPagamento(
     return condicoes[0].descricao;
   }
 
-  const idAtivo = selecionadaId !== undefined && selecionadaId !== ''
-    ? selecionadaId
-    : condicoes.find((c) => c.selecionada)?.id;
+  const idAtivo =
+    selecionadaId !== undefined
+      ? (selecionadaId.trim() !== '' ? selecionadaId.trim() : undefined)
+      : condicoes.find((c) => c.selecionada)?.id;
 
   const payload: EstruturaCondicoesPagamento = {
     versao: 2,
     selecionadaId: idAtivo,
     condicoes: condicoes.map((c) => ({
       ...c,
-      selecionada: Boolean(idAtivo && c.id === idAtivo),
+      selecionada: Boolean(idAtivo && String(c.id) === String(idAtivo)),
     })),
   };
 

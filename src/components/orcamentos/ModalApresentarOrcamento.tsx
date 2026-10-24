@@ -108,7 +108,7 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
 
   // Estados de Múltiplas Condições de Pagamento / Propostas de Negociação
   const [condicoes, setCondicoes] = useState<CondicaoPagamento[]>([]);
-  const [condicaoSelecionadaId, setCondicaoSelecionadaId] = useState<string>('1');
+  const [condicaoSelecionadaId, setCondicaoSelecionadaId] = useState<string>('');
   const [mostrarMargemInterna, setMostrarMargemInterna] = useState(false);
 
   // Modal para Criar / Editar Condição de Negociação
@@ -134,12 +134,12 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
       const parsed = parseCondicoesPagamento(orcamento.formasPagamento, orcamento.total || 0);
       if (parsed.length > 0) {
         setCondicoes(parsed);
-        const sel = parsed.find((c) => c.selecionada) || parsed[0];
-        setCondicaoSelecionadaId(sel.id);
+        const sel = orcamento.status === 'aprovado' ? parsed.find((c) => c.selecionada) : undefined;
+        setCondicaoSelecionadaId(sel ? sel.id : '');
       } else {
         const trio = gerarTrioPropostasSugeridas(orcamento.total || 0);
         setCondicoes(trio);
-        setCondicaoSelecionadaId('2');
+        setCondicaoSelecionadaId('');
       }
     }
   }, [orcamento, isOpen]);
@@ -188,7 +188,8 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
 
   // Condição de pagamento ativa / selecionada pelo paciente
   const condicaoAtiva = useMemo(() => {
-    return condicoes.find((c) => c.id === condicaoSelecionadaId) || condicoes[0] || null;
+    if (!condicaoSelecionadaId) return null;
+    return condicoes.find((c) => c.id === condicaoSelecionadaId) || null;
   }, [condicoes, condicaoSelecionadaId]);
 
   // Serializa texto das condições para salvar e para o contrato
@@ -252,21 +253,26 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
 
   // Ações de gerenciamento de condições
   const handleSelecionarCondicao = (id: string) => {
-    setCondicaoSelecionadaId(id);
+    const novoId = condicaoSelecionadaId === id ? '' : id;
+    setCondicaoSelecionadaId(novoId);
     setCondicoes((prev) =>
       prev.map((c) => ({
         ...c,
-        selecionada: c.id === id,
+        selecionada: novoId ? c.id === novoId : false,
       }))
     );
-    const cond = condicoes.find((c) => c.id === id);
-    toast.success(`"${cond?.titulo || 'Proposta'}" selecionada como condição escolhida!`);
+    if (novoId) {
+      const cond = condicoes.find((c) => c.id === novoId);
+      toast.success(`"${cond?.titulo || 'Proposta'}" selecionada como condição escolhida!`);
+    } else {
+      toast.info('Seleção removida. Nenhuma opção marcada como escolhida.');
+    }
   };
 
   const handleGerarTrioSugerido = () => {
     const trio = gerarTrioPropostasSugeridas(total);
     setCondicoes(trio);
-    setCondicaoSelecionadaId('2');
+    setCondicaoSelecionadaId('');
     toast.success('3 propostas de negociação geradas com base no total do orçamento!');
   };
 

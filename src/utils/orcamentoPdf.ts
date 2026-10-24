@@ -57,7 +57,7 @@ export const gerarOrcamentoPdf = async (o: OrcamentoPdf, clinica: ClinicaInfo = 
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">
                   <strong style="color: #0f172a; font-size: 12px;">${c.titulo}</strong>
                   ${
-                    c.selecionada
+                    (o.status === 'aprovado' || o.status === 'concluido') && c.selecionada
                       ? `<span style="background: #dcfce7; color: #15803d; font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 9999px;">Opção Escolhida</span>`
                       : ''
                   }
