@@ -67,8 +67,16 @@ export function calcularDescricaoCondicao(
       const perc = cond.descontoPercentual || 0;
       if (perc > 0) {
         const descVal = cond.descontoValor ?? (totalBase * perc) / 100;
-        const valComDesc = Math.max(0, totalBase - descVal);
+        const valComDesc = typeof cond.valorTotal === 'number' && cond.valorTotal > 0 ? cond.valorTotal : Math.max(0, totalBase - descVal);
         return `Pagamento à vista via PIX com ${perc}% de desconto especial: ${formatMoney(valComDesc)} (Economia de ${formatMoney(descVal)})`;
+      }
+      if (total < totalBase) {
+        const descVal = totalBase - total;
+        const pDesc = Math.round((descVal / totalBase) * 100);
+        return `Pagamento à vista via PIX com desconto especial: ${formatMoney(total)} (Economia de ${formatMoney(descVal)} - ${pDesc}% OFF)`;
+      }
+      if (total > totalBase) {
+        return `Pagamento à vista: ${formatMoney(total)}`;
       }
       return `Pagamento à vista via PIX / Transferência: ${formatMoney(total)}`;
     }

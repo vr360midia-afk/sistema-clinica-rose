@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ClipboardList, Plus, Trash2, MessageCircle, Check, X, Handshake, FileText, Pencil, FileSignature, Sparkles, CalendarDays, Link as LinkIcon, Layers, CreditCard, Wallet, CheckCircle2, RefreshCw, Search, ChevronsUpDown, Calculator, Eye } from 'lucide-react';
+import { ClipboardList, Plus, Trash2, MessageCircle, Check, X, Handshake, FileText, Pencil, FileSignature, Sparkles, CalendarDays, Link as LinkIcon, Layers, CreditCard, Wallet, CheckCircle2, RefreshCw, Search, ChevronsUpDown, Calculator, Eye, DollarSign } from 'lucide-react';
 import ModalApresentarOrcamento from '@/components/orcamentos/ModalApresentarOrcamento';
 import { Switch } from '@/components/ui/switch';
 import { useOrcamentos, OrcamentoItem, Orcamento } from '@/hooks/useOrcamentos';
@@ -829,13 +829,25 @@ const PatientOrcamentos = ({ patient }: Props) => {
       if (condicoesDefinidas && condicoesDefinidas.length > 0) {
         // Ao aprovar o orçamento, apenas a opção escolhida pelo paciente é mantida
         // As demais propostas são descartadas automaticamente
-        const { formasPagamentoFinal } = filtrarApenasCondicaoEscolhida(
+        const { condicaoEscolhida, formasPagamentoFinal } = filtrarApenasCondicaoEscolhida(
           condicoesDefinidas,
           selecionadaId
         );
         formasAtualizadas = formasPagamentoFinal;
+
+        const subtotalItens = (o.itens || []).reduce((acc: number, it: any) => acc + (Number(it.valor || 0) * Number(it.quantidade || 1)), 0);
+        let totalFinal = o.total;
+        let descontoFinal = o.desconto;
+
+        if (typeof condicaoEscolhida?.valorTotal === 'number' && condicaoEscolhida.valorTotal > 0) {
+          totalFinal = condicaoEscolhida.valorTotal;
+          descontoFinal = Math.max(0, Number((subtotalItens - totalFinal).toFixed(2)));
+        }
+
         orcamentoFinal = {
           ...o,
+          total: totalFinal,
+          desconto: descontoFinal,
           formasPagamento: formasAtualizadas,
           status: 'aprovado',
         };
@@ -843,7 +855,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
           id: o.id,
           titulo: o.titulo,
           itens: o.itens,
-          desconto: o.desconto,
+          desconto: descontoFinal,
           observacoes: o.observacoes,
           formasPagamento: formasAtualizadas,
           pacienteId: o.pacienteId || patient?.id,
@@ -5041,6 +5053,114 @@ const PatientOrcamentos = ({ patient }: Props) => {
                 </select>
               </div>
 
+              {/* Campo Editável de Valor Total da Condição */}
+              <div className="space-y-1.5 p-3 rounded-xl bg-muted/30 border border-border/80">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <DollarSign className="h-4 w-4 text-emerald-600" />
+                    <Label className="text-xs font-bold text-foreground">
+                      Valor Total Desta Condição (R$):
+                    </Label>
+                  </div>
+                  {Number(condicaoEmEdicao.valorTotal ?? total) !== Number(total) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const vBase = total;
+                        const updated: Partial<CondicaoPagamento> = {
+                          ...condicaoEmEdicao,
+                          valorTotal: vBase,
+                          descontoPercentual: 0,
+                          descontoValor: 0,
+                        };
+                        if (updated.tipo === 'cartao') {
+                          updated.valorParcela = Number((vBase / (updated.parcelas || 1)).toFixed(2));
+                        } else if (updated.tipo === 'entrada_saldo') {
+                          const ent = updated.valorEntrada || 0;
+                          const s = Math.max(0, vBase - ent);
+                          updated.saldoValorParcela = Number((s / (updated.saldoParcelas || 1)).toFixed(2));
+                        }
+                        updated.descricao = calcularDescricaoCondicao(updated, total);
+                        setCondicaoEmEdicao(updated);
+                        toast.info(`Valor resetado para o total base (${formatMoney(vBase)})`);
+                      }}
+                      className="text-[10px] text-primary hover:underline font-semibold"
+                    >
+                      Resetar p/ Total Base ({formatMoney(total)})
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min={0}
+                    value={condicaoEmEdicao.valorTotal ?? total}
+                    onChange={(e) => {
+                      const vNovo = Math.max(0, Number(e.target.value) || 0);
+                      const updated: Partial<CondicaoPagamento> = {
+                        ...condicaoEmEdicao,
+                        valorTotal: vNovo,
+                      };
+
+                      if (updated.tipo === 'a_vista') {
+                        if (vNovo < total) {
+                          const desc = total - vNovo;
+                          updated.descontoValor = desc;
+                          updated.descontoPercentual = Number(((desc / total) * 100).toFixed(1));
+                        } else {
+                          updated.descontoValor = 0;
+                          updated.descontoPercentual = 0;
+                        }
+                      } else if (updated.tipo === 'cartao') {
+                        const p = updated.parcelas || 1;
+                        updated.valorParcela = Number((vNovo / p).toFixed(2));
+                      } else if (updated.tipo === 'entrada_saldo') {
+                        const ent = updated.valorEntrada || 0;
+                        const s = Math.max(0, vNovo - ent);
+                        const parc = updated.saldoParcelas || 1;
+                        updated.saldoValorParcela = Number((s / parc).toFixed(2));
+                      } else if (updated.tipo === 'pix_parcelado' || updated.tipo === 'boleto') {
+                        const p = updated.parcelas || 1;
+                        updated.valorParcela = Number((vNovo / p).toFixed(2));
+                      }
+
+                      updated.descricao = calcularDescricaoCondicao(updated, total);
+                      setCondicaoEmEdicao(updated);
+                    }}
+                    className="h-9 font-extrabold text-sm text-foreground bg-background"
+                    placeholder="0,00"
+                  />
+
+                  {(() => {
+                    const v = Number(condicaoEmEdicao.valorTotal ?? total);
+                    const diff = v - total;
+                    if (Math.abs(diff) < 0.05) {
+                      return (
+                        <Badge variant="outline" className="text-[10px] whitespace-nowrap border-border text-muted-foreground shrink-0">
+                          Igual ao total base
+                        </Badge>
+                      );
+                    }
+                    if (diff < 0) {
+                      const perc = Math.round((Math.abs(diff) / total) * 100);
+                      return (
+                        <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-[10px] whitespace-nowrap shrink-0">
+                          Desconto de {formatMoney(Math.abs(diff))} ({perc}% OFF)
+                        </Badge>
+                      );
+                    }
+                    const perc = Math.round((diff / total) * 100);
+                    return (
+                      <Badge className="bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30 text-[10px] whitespace-nowrap shrink-0">
+                        Acréscimo de {formatMoney(diff)} (+{perc}%)
+                      </Badge>
+                    );
+                  })()}
+                </div>
+              </div>
+
               {/* Detalhes de À Vista */}
               {condicaoEmEdicao.tipo === 'a_vista' && (
                 <div className="p-3 rounded-xl bg-muted/40 border border-border/70 space-y-2.5">
@@ -5440,9 +5560,9 @@ const PatientOrcamentos = ({ patient }: Props) => {
                   condicaoEmEdicao.formasCompostas && condicaoEmEdicao.formasCompostas.length > 0
                     ? condicaoEmEdicao.formasCompostas
                     : parseTextoParaFormasCompostas(condicaoEmEdicao.descricao || '', total);
-
+                const totalAlvo = typeof condicaoEmEdicao.valorTotal === 'number' && condicaoEmEdicao.valorTotal > 0 ? condicaoEmEdicao.valorTotal : total;
                 const somaValores = formas.reduce((acc, f) => acc + (Number(f.valor) || 0), 0);
-                const diferenca = Number((total - somaValores).toFixed(2));
+                const diferenca = Number((totalAlvo - somaValores).toFixed(2));
                 const diferencaAbs = Math.abs(diferenca);
                 const estaBalanceado = Math.abs(diferenca) < 0.05;
 
