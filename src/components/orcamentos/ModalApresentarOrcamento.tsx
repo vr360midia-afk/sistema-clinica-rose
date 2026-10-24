@@ -992,7 +992,33 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
                         </h5>
 
                         {/* Destaque Visual de Valores */}
-                        <div className="p-2.5 rounded-xl bg-card border border-border/70 space-y-1">
+                        <div className="p-3 rounded-xl bg-card border border-border/70 space-y-2">
+                          {/* Barra do Valor Total da Forma */}
+                          {(() => {
+                            const vTotalCond = typeof c.valorTotal === 'number' && c.valorTotal > 0 ? c.valorTotal : total;
+                            const diff = total - vTotalCond;
+                            const temDesc = diff > 0.01;
+                            const pDesc = temDesc ? Math.round((diff / total) * 100) : 0;
+                            return (
+                              <div className="flex items-center justify-between pb-1.5 border-b border-border/50">
+                                <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground flex items-center gap-1">
+                                  <DollarSign className="w-3.5 h-3.5 text-emerald-500" />
+                                  Valor Total da Forma:
+                                </span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-base font-black text-emerald-600 dark:text-emerald-400">
+                                    {formatMoney(vTotalCond)}
+                                  </span>
+                                  {temDesc && (
+                                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/30">
+                                      -{pDesc}% OFF
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })()}
+
                           {isAVista ? (
                             <div>
                               <span className="text-[10px] text-muted-foreground block">Valor à vista:</span>
@@ -1009,7 +1035,6 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
                             <div>
                               <div className="flex justify-between items-baseline">
                                 <span className="text-[10px] text-muted-foreground">Entrada + Saldo:</span>
-                                <span className="text-[10px] text-foreground font-semibold">Total: {formatMoney(c.valorTotal || total)}</span>
                               </div>
                               <div className="text-base sm:text-lg font-extrabold text-foreground">
                                 Entrada: {formatMoney(c.valorEntrada || 0)}

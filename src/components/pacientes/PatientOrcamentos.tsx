@@ -1989,13 +1989,16 @@ const PatientOrcamentos = ({ patient }: Props) => {
                                   : 'border-border/60 bg-background text-muted-foreground'
                               }`}
                             >
-                              <div className="flex justify-between items-center">
+                              <div className="flex justify-between items-center gap-1">
                                 <span className="font-bold text-foreground truncate">{c.titulo}</span>
                                 {c.selecionada && (
-                                  <Badge className="bg-emerald-600 text-white text-[9px] px-1.5 py-0 h-4">
+                                  <Badge className="bg-emerald-600 text-white text-[9px] px-1.5 py-0 h-4 shrink-0">
                                     Escolhida
                                   </Badge>
                                 )}
+                              </div>
+                              <div className="flex items-center justify-between text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                                <span>Total: {formatMoney(c.valorTotal || o.total)}</span>
                               </div>
                               <p className="line-clamp-2 text-[10px] leading-tight">{c.descricao}</p>
                             </div>
@@ -2744,6 +2747,82 @@ const PatientOrcamentos = ({ patient }: Props) => {
                               <h5 className="font-bold text-foreground text-xs leading-snug">
                                 {c.titulo}
                               </h5>
+
+                              {/* Destaque Visual e Nítido do Valor Total da Forma */}
+                              {(() => {
+                                const vTotalCond = typeof c.valorTotal === 'number' && c.valorTotal > 0 ? c.valorTotal : total;
+                                const diferenca = total - vTotalCond;
+                                const temDesconto = diferenca > 0.01;
+                                const percDesc = temDesconto ? Math.round((diferenca / total) * 100) : 0;
+                                const ent = c.valorEntrada || 0;
+                                const saldo = Math.max(0, vTotalCond - ent);
+
+                                return (
+                                  <div className="p-2.5 rounded-xl bg-card/90 border border-border/80 space-y-1.5 shadow-xs">
+                                    <div className="flex items-center justify-between gap-1 flex-wrap">
+                                      <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground flex items-center gap-1">
+                                        <DollarSign className="w-3.5 h-3.5 text-emerald-500" />
+                                        Valor Total da Forma:
+                                      </span>
+                                      {temDesconto && (
+                                        <span className="text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.5 rounded">
+                                          {percDesc}% OFF
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    <div className="flex items-baseline justify-between gap-2">
+                                      <span className="text-base sm:text-lg font-black text-emerald-600 dark:text-emerald-400 tracking-tight">
+                                        {formatMoney(vTotalCond)}
+                                      </span>
+                                      {temDesconto && (
+                                        <span className="text-xs text-muted-foreground line-through font-medium">
+                                          {formatMoney(total)}
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    {/* Resumo visual da forma de pagamento */}
+                                    <div className="text-[11px] font-semibold text-foreground/90 pt-1 border-t border-border/40">
+                                      {c.tipo === 'cartao' && (
+                                        <span>
+                                          💳 {c.parcelas || 1}x de {formatMoney(vTotalCond / (c.parcelas || 1))} sem juros
+                                        </span>
+                                      )}
+                                      {c.tipo === 'entrada_saldo' && (
+                                        <span>
+                                          ⚡ Entrada: {formatMoney(ent)} + Saldo: {formatMoney(saldo)}
+                                          {c.saldoTipoPrazo === 'parcelas' && c.saldoParcelas && c.saldoParcelas > 1
+                                            ? ` (${c.saldoParcelas}x de ${formatMoney(saldo / c.saldoParcelas)})`
+                                            : c.saldoTipoPrazo === 'dias' || (!c.saldoTipoPrazo && c.saldoPrazoDias)
+                                            ? ` (em ${c.saldoPrazoDias || 30} dias)`
+                                            : ''}
+                                        </span>
+                                      )}
+                                      {c.tipo === 'pix_parcelado' && (
+                                        <span>
+                                          💠 {c.parcelas || 3}x de {formatMoney(saldo / (c.parcelas || 3))} no PIX
+                                        </span>
+                                      )}
+                                      {c.tipo === 'a_vista' && (
+                                        <span className="text-emerald-600 dark:text-emerald-400">
+                                          {temDesconto ? `✓ Economia de ${formatMoney(diferenca)} à vista` : '✓ Pagamento integral à vista'}
+                                        </span>
+                                      )}
+                                      {c.tipo === 'boleto' && (
+                                        <span>
+                                          📄 {c.parcelas || 1}x de {formatMoney(vTotalCond / (c.parcelas || 1))} no boleto
+                                        </span>
+                                      )}
+                                      {c.tipo === 'personalizado' && (
+                                        <span>
+                                          🤝 Condição combinada personalizada
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })()}
 
                               <p className="text-[11px] text-muted-foreground line-clamp-3 leading-relaxed">
                                 {c.descricao}
