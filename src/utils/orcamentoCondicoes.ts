@@ -21,6 +21,8 @@ export interface CondicaoPagamento {
   tipoCartao?: 'credito' | 'debito';
   valorEntrada?: number;
   metodoEntrada?: 'pix' | 'dinheiro' | 'cartao_debito' | 'cartao_credito' | 'transferencia';
+  saldoTipoPrazo?: 'dias' | 'parcelas' | 'conclusao';
+  saldoPrazoDias?: number;
   saldoParcelas?: number;
   saldoMetodo?: 'cartao' | 'pix_parcelado' | 'boleto' | 'conclusao';
   saldoValorParcela?: number;
@@ -73,8 +75,11 @@ export function calcularDescricaoCondicao(
     case 'entrada_saldo': {
       const ent = Math.max(0, cond.valorEntrada || 0);
       const saldo = Math.max(0, total - ent);
-      const parcSaldo = Math.max(1, cond.saldoParcelas || 1);
-      const valParcSaldo = cond.saldoValorParcela ?? (saldo / parcSaldo);
+      const percEnt = total > 0 ? Math.round((ent / total) * 100) : 0;
+      const percSaldo = Math.max(0, 100 - percEnt);
+      const strPercEnt = percEnt > 0 && percEnt < 100 ? ` (${percEnt}%)` : '';
+      const strPercSaldo = percSaldo > 0 && percSaldo < 100 ? ` (${percSaldo}%)` : '';
+
       const metEntrada =
         cond.metodoEntrada === 'dinheiro'
           ? 'em Dinheiro'
@@ -88,19 +93,37 @@ export function calcularDescricaoCondicao(
 
       const metSaldo =
         cond.saldoMetodo === 'pix_parcelado'
-          ? 'via PIX Parcelado'
+          ? 'via PIX'
           : cond.saldoMetodo === 'boleto'
           ? 'no Boleto Bancário'
           : cond.saldoMetodo === 'conclusao'
           ? 'na conclusão do tratamento'
-          : 'no Cartão de Crédito';
+          : 'no Cartão';
 
-      if (cond.saldoMetodo === 'conclusao') {
-        return `Entrada de ${formatMoney(ent)} ${metEntrada} + Saldo de ${formatMoney(saldo)} a pagar na conclusão do tratamento`;
+      if (cond.saldoMetodo === 'conclusao' || cond.saldoTipoPrazo === 'conclusao') {
+        if (ent > 0) {
+          return `Entrada de ${formatMoney(ent)}${strPercEnt} ${metEntrada} + Saldo de ${formatMoney(saldo)}${strPercSaldo} a pagar na conclusão do tratamento`;
+        }
+        return `Saldo de ${formatMoney(saldo)} a pagar na conclusão do tratamento`;
       }
 
+      // Caso com prazo em dias (ex: entrada + saldo para 30 dias / X dias)
+      if (cond.saldoTipoPrazo === 'dias' || (cond.saldoPrazoDias && cond.saldoPrazoDias > 0)) {
+        const dias = cond.saldoPrazoDias || 30;
+        if (ent > 0) {
+          return `Entrada de ${formatMoney(ent)}${strPercEnt} ${metEntrada} + Saldo de ${formatMoney(saldo)}${strPercSaldo} para ${dias} dias ${metSaldo}`;
+        }
+        return `Saldo integral de ${formatMoney(total)} para ${dias} dias ${metSaldo}`;
+      }
+
+      // Caso padrão com parcelas
+      const parcSaldo = Math.max(1, cond.saldoParcelas || 1);
+      const valParcSaldo = cond.saldoValorParcela ?? (saldo / parcSaldo);
       if (ent > 0) {
-        return `Entrada de ${formatMoney(ent)} ${metEntrada} + Saldo de ${formatMoney(saldo)} em ${parcSaldo}x de ${formatMoney(valParcSaldo)} ${metSaldo}`;
+        if (parcSaldo === 1) {
+          return `Entrada de ${formatMoney(ent)}${strPercEnt} ${metEntrada} + Saldo de ${formatMoney(saldo)}${strPercSaldo} em 1x ${metSaldo}`;
+        }
+        return `Entrada de ${formatMoney(ent)}${strPercEnt} ${metEntrada} + Saldo de ${formatMoney(saldo)}${strPercSaldo} em ${parcSaldo}x de ${formatMoney(valParcSaldo)} ${metSaldo}`;
       }
       return `Saldo de ${formatMoney(total)} em ${parcSaldo}x de ${formatMoney(valParcSaldo)} ${metSaldo}`;
     }
@@ -311,6 +334,48 @@ export function gerarTextoWhatsAppCondicoes(
 }
 
 /**
+ * Filtra EXCLUSIVAMENTE a condição selecionada/escolhida,
+ * descartando automaticamente todas as outras opções da negociação.
+ * Retorna a condição única e o payload serializado limpo para o contrato e financeiro.
+ */
+export function filtrarApenasCondicaoEscolhida(
+  condicoes: CondicaoPagamento[],
+  selecionadaId?: string
+): { condicaoEscolhida: CondicaoPagamento; formasPagamentoFinal: string } {
+  if (!condicoes || condicoes.length === 0) {
+    const fallback: CondicaoPagamento = {
+      id: '1',
+      titulo: 'Condição de Pagamento',
+      tipo: 'personalizado',
+      valorTotal: 0,
+      descricao: 'A combinar',
+      selecionada: true,
+    };
+    return {
+      condicaoEscolhida: fallback,
+      formasPagamentoFinal: 'A combinar',
+    };
+  }
+
+  const idAlvo = selecionadaId || condicoes.find((c) => c.selecionada)?.id || condicoes[0]?.id;
+  const encontrada = condicoes.find((c) => c.id === idAlvo) || condicoes[0];
+
+  const condicaoEscolhida: CondicaoPagamento = {
+    ...encontrada,
+    selecionada: true,
+    destaque: true,
+  };
+
+  // Serializa estritamente esta condição única, para que as outras não existam mais no registro
+  const formasPagamentoFinal = serializarCondicoesPagamento([condicaoEscolhida], condicaoEscolhida.id);
+
+  return {
+    condicaoEscolhida,
+    formasPagamentoFinal,
+  };
+}
+
+/**
  * Gera um trio de propostas padrão inteligentes com base no valor do orçamento
  */
 export function gerarTrioPropostasSugeridas(totalOrcamento: number): CondicaoPagamento[] {
@@ -333,23 +398,23 @@ export function gerarTrioPropostasSugeridas(totalOrcamento: number): CondicaoPag
     selecionada: false,
   };
 
-  // 2. Entrada Facilitada de 30% + Saldo em até 5x ou 6x no Cartão
-  const entSugerida = Math.round((total * 0.3) / 10) * 10; // Arredonda entrada
-  const saldoSugerido = Math.max(0, total - entSugerida);
-  const parcSaldo = 5;
-  const valParcSaldo = saldoSugerido > 0 ? Number((saldoSugerido / parcSaldo).toFixed(2)) : 0;
+  // 2. Entrada de 50% + Saldo de 50% para 30 dias (ou parcelado)
+  const entSugerida = Number((total * 0.5).toFixed(2));
+  const saldoSugerido = Math.max(0, Number((total - entSugerida).toFixed(2)));
 
   const opt2: CondicaoPagamento = {
     id: '2',
-    titulo: 'Opção 2: Entrada + Saldo Parcelado',
+    titulo: 'Opção 2: Entrada 50% + Saldo para 30 dias',
     tipo: 'entrada_saldo',
     valorEntrada: entSugerida,
     metodoEntrada: 'pix',
-    saldoParcelas: parcSaldo,
+    saldoTipoPrazo: 'dias',
+    saldoPrazoDias: 30,
+    saldoParcelas: 1,
     saldoMetodo: 'cartao',
-    saldoValorParcela: valParcSaldo,
+    saldoValorParcela: saldoSugerido,
     valorTotal: total,
-    descricao: `Entrada de ${formatMoney(entSugerida)} via PIX + Saldo de ${formatMoney(saldoSugerido)} em ${parcSaldo}x de ${formatMoney(valParcSaldo)} no Cartão de Crédito`,
+    descricao: `Entrada de ${formatMoney(entSugerida)} (50%) via PIX + Saldo de ${formatMoney(saldoSugerido)} (50%) para 30 dias no Cartão`,
     destaque: true,
     selecionada: true,
   };
