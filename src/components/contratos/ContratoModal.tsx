@@ -44,10 +44,18 @@ import {
   Camera,
   EyeOff,
   Stethoscope,
+  Wallet,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Switch } from '@/components/ui/switch';
+import {
+  parseCondicoesPagamento,
+  serializarCondicoesPagamento,
+  calcularDescricaoCondicao,
+  CondicaoPagamento,
+} from '@/utils/orcamentoCondicoes';
 
 import { useOrcamentos, Orcamento } from '@/hooks/useOrcamentos';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
@@ -93,7 +101,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
   patient,
   initialOrcamento,
 }) => {
-  const { orcamentos } = useOrcamentos(patient?.id);
+  const { orcamentos, saveOrcamento } = useOrcamentos(patient?.id);
   const { configuracoes } = useConfiguracoes();
   const { configContrato } = useConfiguracoesContrato();
   const { dentistas } = useDentistas();
@@ -114,6 +122,12 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
   const [salvando, setSalvando] = useState<boolean>(false);
   const [baixandoPdf, setBaixandoPdf] = useState<boolean>(false);
   const [copiouLink, setCopiouLink] = useState<boolean>(false);
+
+  // Múltiplas condições e flexibilização de pagamento do contrato
+  const [condicoesContrato, setCondicoesContrato] = useState<CondicaoPagamento[]>([]);
+  const [condicaoContratoAtivaId, setCondicaoContratoAtivaId] = useState<string>('');
+  const [modalFlexibilizarContratoOpen, setModalFlexibilizarContratoOpen] = useState(false);
+  const [condicaoFlexibilizarContrato, setCondicaoFlexibilizarContrato] = useState<Partial<CondicaoPagamento> | null>(null);
 
   // Assinatura digital interna
   const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
@@ -364,6 +378,118 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     dentistaAtual,
     cidadeLocal,
   ]);
+
+  // Sincroniza as condições de pagamento negociadas do orçamento
+  useEffect(() => {
+    if (orcamentoAtual?.formasPagamento) {
+      const parsed = parseCondicoesPagamento(orcamentoAtual.formasPagamento, orcamentoAtual.total);
+      setCondicoesContrato(parsed);
+      const sel = parsed.find((c) => c.selecionada) || parsed[0];
+      if (sel) {
+        setCondicaoContratoAtivaId(sel.id);
+      }
+    } else {
+      setCondicoesContrato([]);
+      setCondicaoContratoAtivaId('');
+    }
+  }, [orcamentoAtual?.id, orcamentoAtual?.formasPagamento, orcamentoAtual?.total]);
+
+  const handleTrocarCondicaoContrato = async (id: string) => {
+    if (!orcamentoAtual) return;
+    setCondicaoContratoAtivaId(id);
+    const atualizadas = condicoesContrato.map((c) => ({
+      ...c,
+      selecionada: c.id === id,
+    }));
+    setCondicoesContrato(atualizadas);
+    const novoJson = serializarCondicoesPagamento(atualizadas, id);
+
+    const orcAtualizado: Orcamento = {
+      ...orcamentoAtual,
+      formasPagamento: novoJson,
+    };
+    if (saveOrcamento) {
+      try {
+        await saveOrcamento(orcAtualizado);
+      } catch (e) {
+        console.error('Erro ao atualizar orcamento com nova condicao:', e);
+      }
+    }
+
+    const snap = mapearDadosContrato({
+      patient,
+      orcamento: orcAtualizado,
+      transacoes: transacoesOrcamento,
+      configuracoes,
+      configuracoesContrato: configContrato,
+      dentistaNome: selectedDentistaNome || configContrato?.dentistaResponsavelContrato || configuracoes?.croResponsavel,
+      dentistaCro: dentistaAtual?.cro || configContrato?.croResponsavelContrato || configuracoes?.croResponsavel,
+      cidadeLocal: cidadeLocal || configContrato?.cidadeForoContrato,
+      dadosRestauracoesPreexistentes: patient?.restauracoesPreexistentes,
+    });
+    setSnapshotAtual(snap);
+    toast.success('Condição de pagamento do contrato atualizada!');
+  };
+
+  const handleSalvarFlexibilizacaoContrato = async () => {
+    if (!condicaoFlexibilizarContrato || !orcamentoAtual) return;
+    const descAuto = calcularDescricaoCondicao(condicaoFlexibilizarContrato, orcamentoAtual.total);
+    const finalCond: CondicaoPagamento = {
+      id: condicaoFlexibilizarContrato.id || String(Date.now()),
+      titulo: condicaoFlexibilizarContrato.titulo?.trim() || 'Opção Ajustada',
+      tipo: condicaoFlexibilizarContrato.tipo || 'personalizado',
+      descontoPercentual: condicaoFlexibilizarContrato.descontoPercentual,
+      descontoValor: condicaoFlexibilizarContrato.descontoValor,
+      valorTotal: condicaoFlexibilizarContrato.valorTotal || orcamentoAtual.total,
+      parcelas: condicaoFlexibilizarContrato.parcelas,
+      valorParcela: condicaoFlexibilizarContrato.valorParcela,
+      valorEntrada: condicaoFlexibilizarContrato.valorEntrada,
+      metodoEntrada: condicaoFlexibilizarContrato.metodoEntrada,
+      saldoParcelas: condicaoFlexibilizarContrato.saldoParcelas,
+      saldoMetodo: condicaoFlexibilizarContrato.saldoMetodo,
+      saldoValorParcela: condicaoFlexibilizarContrato.saldoValorParcela,
+      diaVencimento: condicaoFlexibilizarContrato.diaVencimento,
+      tipoCartao: condicaoFlexibilizarContrato.tipoCartao,
+      descricao: condicaoFlexibilizarContrato.descricao?.trim() || descAuto,
+      destaque: true,
+      selecionada: true,
+    };
+
+    const atualizadas = condicoesContrato.map((c) => (c.id === finalCond.id ? finalCond : { ...c, selecionada: false }));
+    if (!atualizadas.some((c) => c.id === finalCond.id)) {
+      atualizadas.push(finalCond);
+    }
+    setCondicoesContrato(atualizadas);
+    setCondicaoContratoAtivaId(finalCond.id);
+    const novoJson = serializarCondicoesPagamento(atualizadas, finalCond.id);
+
+    const orcAtualizado: Orcamento = {
+      ...orcamentoAtual,
+      formasPagamento: novoJson,
+    };
+    if (saveOrcamento) {
+      try {
+        await saveOrcamento(orcAtualizado);
+      } catch (e) {
+        console.error('Erro ao salvar orcamento flexibilizado:', e);
+      }
+    }
+
+    const snap = mapearDadosContrato({
+      patient,
+      orcamento: orcAtualizado,
+      transacoes: transacoesOrcamento,
+      configuracoes,
+      configuracoesContrato: configContrato,
+      dentistaNome: selectedDentistaNome || configContrato?.dentistaResponsavelContrato || configuracoes?.croResponsavel,
+      dentistaCro: dentistaAtual?.cro || configContrato?.croResponsavelContrato || configuracoes?.croResponsavel,
+      cidadeLocal: cidadeLocal || configContrato?.cidadeForoContrato,
+      dadosRestauracoesPreexistentes: patient?.restauracoesPreexistentes,
+    });
+    setSnapshotAtual(snap);
+    setModalFlexibilizarContratoOpen(false);
+    toast.success('Condição flexibilizada e contrato atualizado com sucesso!');
+  };
 
   // Identifica se o contrato inclui lentes em resina composta e as cláusulas específicas
   const temLentesResinaNoContrato = useMemo(() => {
@@ -1504,6 +1630,77 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                         </span>
                       )}
                     </div>
+
+                    {condicoesContrato.length > 1 ? (
+                      <div className="w-full mt-2 pt-2 border-t border-border/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[11px] font-bold text-foreground flex items-center gap-1">
+                            <Wallet className="h-3.5 w-3.5 text-primary" />
+                            Opção Fechada para este Contrato:
+                          </span>
+                          {condicoesContrato.map((c, idx) => {
+                            const isAtiva = c.id === condicaoContratoAtivaId;
+                            return (
+                              <button
+                                key={c.id || idx}
+                                type="button"
+                                onClick={() => handleTrocarCondicaoContrato(c.id)}
+                                className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all flex items-center gap-1.5 ${
+                                  isAtiva
+                                    ? 'bg-emerald-600 text-white shadow-xs ring-1 ring-emerald-500'
+                                    : 'bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/80'
+                                }`}
+                              >
+                                <span>{c.titulo}</span>
+                                {isAtiva && <Check className="h-3 w-3" />}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            const sel = condicoesContrato.find((c) => c.id === condicaoContratoAtivaId) || condicoesContrato[0];
+                            setCondicaoFlexibilizarContrato({ ...sel });
+                            setModalFlexibilizarContratoOpen(true);
+                          }}
+                          className="h-6 text-[11px] gap-1 text-primary border-primary/40 hover:bg-primary/10 font-medium"
+                        >
+                          <Pencil className="h-3 w-3" />
+                          Flexibilizar Pagamento
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="w-full mt-1.5 pt-1.5 border-t border-border/50 flex items-center justify-between gap-2">
+                        <span className="text-[11px] text-muted-foreground">
+                          Condição de pagamento do contrato definida. Deseja flexibilizar os termos antes de assinar?
+                        </span>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            const sel = condicoesContrato[0] || {
+                              id: '1',
+                              titulo: 'Condição de Pagamento',
+                              tipo: 'personalizado' as const,
+                              valorTotal: orcamentoAtual.total,
+                              descricao: snapshotAtual?.financeiro.formaPagamento || orcamentoAtual.formasPagamento || '',
+                              selecionada: true,
+                            };
+                            setCondicaoFlexibilizarContrato({ ...sel });
+                            setModalFlexibilizarContratoOpen(true);
+                          }}
+                          className="h-6 text-[11px] gap-1 text-primary border-primary/40 hover:bg-primary/10 font-medium"
+                        >
+                          <Pencil className="h-3 w-3" />
+                          Flexibilizar Pagamento
+                        </Button>
+                      </div>
+                    )}
 
                     <div className="flex items-center gap-2">
                       <Button
@@ -2710,6 +2907,330 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
         initialRg={signerRole === 'paciente' ? (temValorValido(patient?.rg) ? patient.rg : '') : snapshotAtual?.clinica?.cro}
         onSignatureComplete={handleAssinaturaConcluida}
       />
+
+      {/* Modal de Flexibilização de Pagamento no Contrato */}
+      <Dialog open={modalFlexibilizarContratoOpen} onOpenChange={(open) => !open && setModalFlexibilizarContratoOpen(false)}>
+        <DialogContent className="max-w-md w-full">
+          <div className="space-y-1 border-b pb-2">
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Wallet className="h-5 w-5 text-primary" />
+              Flexibilizar Condição de Pagamento do Contrato
+            </DialogTitle>
+            <p className="text-xs text-muted-foreground">
+              Ajuste valores de entrada, desconto ou parcelas. O contrato e o cronograma serão atualizados na hora.
+            </p>
+          </div>
+
+          {condicaoFlexibilizarContrato && orcamentoAtual && (
+            <div className="space-y-3.5 py-1">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Título Comercial da Condição:</Label>
+                <Input
+                  value={condicaoFlexibilizarContrato.titulo || ''}
+                  onChange={(e) => setCondicaoFlexibilizarContrato((prev) => ({ ...prev, titulo: e.target.value }))}
+                  className="h-8 text-xs font-semibold"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Modelo:</Label>
+                <select
+                  value={condicaoFlexibilizarContrato.tipo || 'personalizado'}
+                  onChange={(e) => {
+                    const t = e.target.value as any;
+                    const upd: Partial<CondicaoPagamento> = { ...condicaoFlexibilizarContrato, tipo: t };
+                    if (t === 'a_vista') {
+                      upd.descontoPercentual = upd.descontoPercentual ?? 10;
+                      upd.descontoValor = Number(((orcamentoAtual.total * (upd.descontoPercentual || 10)) / 100).toFixed(2));
+                      upd.valorTotal = Math.max(0, orcamentoAtual.total - (upd.descontoValor || 0));
+                    } else if (t === 'cartao') {
+                      upd.parcelas = upd.parcelas || 6;
+                      upd.valorTotal = orcamentoAtual.total;
+                      upd.valorParcela = Number((orcamentoAtual.total / (upd.parcelas || 6)).toFixed(2));
+                      upd.tipoCartao = 'credito';
+                    } else if (t === 'entrada_saldo') {
+                      upd.valorEntrada = upd.valorEntrada ?? Math.round(orcamentoAtual.total * 0.3);
+                      upd.metodoEntrada = upd.metodoEntrada || 'pix';
+                      upd.saldoParcelas = upd.saldoParcelas || 5;
+                      upd.saldoMetodo = upd.saldoMetodo || 'cartao';
+                      const s = Math.max(0, orcamentoAtual.total - (upd.valorEntrada || 0));
+                      upd.saldoValorParcela = Number((s / (upd.saldoParcelas || 5)).toFixed(2));
+                      upd.valorTotal = orcamentoAtual.total;
+                    } else if (t === 'pix_parcelado') {
+                      upd.parcelas = upd.parcelas || 4;
+                      upd.diaVencimento = upd.diaVencimento || 10;
+                      upd.valorTotal = orcamentoAtual.total;
+                      upd.valorParcela = Number((orcamentoAtual.total / (upd.parcelas || 4)).toFixed(2));
+                    }
+                    upd.descricao = calcularDescricaoCondicao(upd, orcamentoAtual.total);
+                    setCondicaoFlexibilizarContrato(upd);
+                  }}
+                  className="w-full h-8 px-2 text-xs font-semibold rounded-md bg-background border border-border"
+                >
+                  <option value="a_vista">À Vista (PIX / Transferência)</option>
+                  <option value="cartao">Cartão de Crédito</option>
+                  <option value="entrada_saldo">Entrada + Saldo Parcelado</option>
+                  <option value="pix_parcelado">PIX Parcelado</option>
+                  <option value="boleto">Boleto Bancário</option>
+                  <option value="personalizado">Personalizado</option>
+                </select>
+              </div>
+
+              {condicaoFlexibilizarContrato.tipo === 'a_vista' && (
+                <div className="grid grid-cols-2 gap-2 p-2.5 rounded bg-muted/40 border border-border text-xs">
+                  <div className="space-y-1">
+                    <Label className="text-[11px]">% Desconto:</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={condicaoFlexibilizarContrato.descontoPercentual ?? ''}
+                      onChange={(e) => {
+                        const p = Number(e.target.value) || 0;
+                        const descVal = Number(((orcamentoAtual.total * p) / 100).toFixed(2));
+                        const upd = {
+                          ...condicaoFlexibilizarContrato,
+                          descontoPercentual: p,
+                          descontoValor: descVal,
+                          valorTotal: Math.max(0, orcamentoAtual.total - descVal),
+                        };
+                        upd.descricao = calcularDescricaoCondicao(upd, orcamentoAtual.total);
+                        setCondicaoFlexibilizarContrato(upd);
+                      }}
+                      className="h-8 text-xs font-bold"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[11px]">Valor Final Contrato:</Label>
+                    <div className="h-8 px-2 flex items-center font-bold text-xs text-emerald-600 bg-background rounded border border-border">
+                      {formatMoney(condicaoFlexibilizarContrato.valorTotal || orcamentoAtual.total)}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {condicaoFlexibilizarContrato.tipo === 'cartao' && (
+                <div className="grid grid-cols-2 gap-2 p-2.5 rounded bg-muted/40 border border-border text-xs">
+                  <div className="space-y-1">
+                    <Label className="text-[11px]">Parcelas Cartão:</Label>
+                    <select
+                      value={condicaoFlexibilizarContrato.parcelas || 1}
+                      onChange={(e) => {
+                        const p = Number(e.target.value) || 1;
+                        const upd = {
+                          ...condicaoFlexibilizarContrato,
+                          parcelas: p,
+                          valorParcela: Number((orcamentoAtual.total / p).toFixed(2)),
+                        };
+                        upd.descricao = calcularDescricaoCondicao(upd, orcamentoAtual.total);
+                        setCondicaoFlexibilizarContrato(upd);
+                      }}
+                      className="w-full h-8 px-2 text-xs font-semibold rounded bg-background border border-border"
+                    >
+                      {[1, 2, 3, 4, 5, 6, 8, 10, 12, 18].map((n) => (
+                        <option key={n} value={n}>
+                          {n}x de {formatMoney(orcamentoAtual.total / n)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[11px]">Tipo:</Label>
+                    <select
+                      value={condicaoFlexibilizarContrato.tipoCartao || 'credito'}
+                      onChange={(e) => {
+                        const upd = { ...condicaoFlexibilizarContrato, tipoCartao: e.target.value as any };
+                        upd.descricao = calcularDescricaoCondicao(upd, orcamentoAtual.total);
+                        setCondicaoFlexibilizarContrato(upd);
+                      }}
+                      className="w-full h-8 px-2 text-xs font-semibold rounded bg-background border border-border"
+                    >
+                      <option value="credito">Crédito</option>
+                      <option value="debito">Débito</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {condicaoFlexibilizarContrato.tipo === 'entrada_saldo' && (
+                <div className="space-y-2 p-2.5 rounded bg-muted/40 border border-border text-xs">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-[11px]">Entrada (R$):</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={orcamentoAtual.total}
+                        step="0.01"
+                        value={condicaoFlexibilizarContrato.valorEntrada || ''}
+                        onChange={(e) => {
+                          const ent = Number(e.target.value) || 0;
+                          const s = Math.max(0, orcamentoAtual.total - ent);
+                          const parc = condicaoFlexibilizarContrato.saldoParcelas || 1;
+                          const upd = {
+                            ...condicaoFlexibilizarContrato,
+                            valorEntrada: ent,
+                            saldoValorParcela: Number((s / parc).toFixed(2)),
+                          };
+                          upd.descricao = calcularDescricaoCondicao(upd, orcamentoAtual.total);
+                          setCondicaoFlexibilizarContrato(upd);
+                        }}
+                        className="h-8 text-xs font-bold"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[11px]">Método Entrada:</Label>
+                      <select
+                        value={condicaoFlexibilizarContrato.metodoEntrada || 'pix'}
+                        onChange={(e) => {
+                          const upd = { ...condicaoFlexibilizarContrato, metodoEntrada: e.target.value as any };
+                          upd.descricao = calcularDescricaoCondicao(upd, orcamentoAtual.total);
+                          setCondicaoFlexibilizarContrato(upd);
+                        }}
+                        className="w-full h-8 px-2 text-xs font-semibold rounded bg-background border border-border"
+                      >
+                        <option value="pix">PIX</option>
+                        <option value="dinheiro">Dinheiro</option>
+                        <option value="cartao_debito">Débito</option>
+                        <option value="cartao_credito">Crédito</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-[11px]">Parcelas do Saldo:</Label>
+                      <select
+                        value={condicaoFlexibilizarContrato.saldoParcelas || 1}
+                        onChange={(e) => {
+                          const parc = Number(e.target.value) || 1;
+                          const ent = condicaoFlexibilizarContrato.valorEntrada || 0;
+                          const s = Math.max(0, orcamentoAtual.total - ent);
+                          const upd = {
+                            ...condicaoFlexibilizarContrato,
+                            saldoParcelas: parc,
+                            saldoValorParcela: Number((s / parc).toFixed(2)),
+                          };
+                          upd.descricao = calcularDescricaoCondicao(upd, orcamentoAtual.total);
+                          setCondicaoFlexibilizarContrato(upd);
+                        }}
+                        className="w-full h-8 px-2 text-xs font-semibold rounded bg-background border border-border"
+                      >
+                        {[1, 2, 3, 4, 5, 6, 8, 10, 12, 18].map((n) => (
+                          <option key={n} value={n}>
+                            {n}x mensais
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[11px]">Forma do Saldo:</Label>
+                      <select
+                        value={condicaoFlexibilizarContrato.saldoMetodo || 'cartao'}
+                        onChange={(e) => {
+                          const upd = { ...condicaoFlexibilizarContrato, saldoMetodo: e.target.value as any };
+                          upd.descricao = calcularDescricaoCondicao(upd, orcamentoAtual.total);
+                          setCondicaoFlexibilizarContrato(upd);
+                        }}
+                        className="w-full h-8 px-2 text-xs font-semibold rounded bg-background border border-border"
+                      >
+                        <option value="cartao">Cartão de Crédito</option>
+                        <option value="pix_parcelado">PIX Parcelado</option>
+                        <option value="boleto">Boleto Bancário</option>
+                        <option value="conclusao">Na Conclusão</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {condicaoFlexibilizarContrato.tipo === 'pix_parcelado' && (
+                <div className="grid grid-cols-2 gap-2 p-2.5 rounded bg-muted/40 border border-border text-xs">
+                  <div className="space-y-1">
+                    <Label className="text-[11px]">Parcelas no PIX:</Label>
+                    <select
+                      value={condicaoFlexibilizarContrato.parcelas || 3}
+                      onChange={(e) => {
+                        const p = Number(e.target.value) || 3;
+                        const upd = { ...condicaoFlexibilizarContrato, parcelas: p };
+                        upd.descricao = calcularDescricaoCondicao(upd, orcamentoAtual.total);
+                        setCondicaoFlexibilizarContrato(upd);
+                      }}
+                      className="w-full h-8 px-2 text-xs font-semibold rounded bg-background border border-border"
+                    >
+                      {[2, 3, 4, 5, 6, 8, 10, 12].map((n) => (
+                        <option key={n} value={n}>
+                          {n}x de {formatMoney(orcamentoAtual.total / n)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[11px]">Dia de Vencimento:</Label>
+                    <select
+                      value={condicaoFlexibilizarContrato.diaVencimento || 10}
+                      onChange={(e) => {
+                        const d = Number(e.target.value) || 10;
+                        const upd = { ...condicaoFlexibilizarContrato, diaVencimento: d };
+                        upd.descricao = calcularDescricaoCondicao(upd, orcamentoAtual.total);
+                        setCondicaoFlexibilizarContrato(upd);
+                      }}
+                      className="w-full h-8 px-2 text-xs font-semibold rounded bg-background border border-border"
+                    >
+                      {[1, 5, 10, 15, 20, 25, 28, 30].map((d) => (
+                        <option key={d} value={d}>
+                          Todo dia {d}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-1">
+                <div className="flex justify-between items-center">
+                  <Label className="text-[11px] font-semibold">Descrição no Contrato (Cláusula 3ª):</Label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const desc = calcularDescricaoCondicao(condicaoFlexibilizarContrato, orcamentoAtual.total);
+                      setCondicaoFlexibilizarContrato((prev) => (prev ? { ...prev, descricao: desc } : null));
+                    }}
+                    className="text-[10px] text-primary hover:underline font-medium"
+                  >
+                    Recalcular texto
+                  </button>
+                </div>
+                <Textarea
+                  rows={2}
+                  value={condicaoFlexibilizarContrato.descricao || ''}
+                  onChange={(e) => setCondicaoFlexibilizarContrato((prev) => (prev ? { ...prev, descricao: e.target.value } : null))}
+                  className="text-xs"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-border">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setModalFlexibilizarContratoOpen(false)}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="font-bold bg-primary text-primary-foreground hover:bg-primary/90"
+                  onClick={handleSalvarFlexibilizacaoContrato}
+                >
+                  Aplicar ao Contrato e Salvar
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 };

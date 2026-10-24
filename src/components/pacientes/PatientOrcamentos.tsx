@@ -106,10 +106,14 @@ const PatientOrcamentos = ({ patient }: Props) => {
   const [contratoOrcamento, setContratoOrcamento] = useState<Orcamento | null>(null);
   const [apresentarOrcamento, setApresentarOrcamento] = useState<Orcamento | null>(null);
 
-  // Aprovação com lançamento financeiro
+  // Aprovação com lançamento financeiro e fechamento de contrato
   const [aprovandoOrcamento, setAprovandoOrcamento] = useState<Orcamento | null>(null);
   const [lancandoFinanceiro, setLancandoFinanceiro] = useState(false);
   const [darBaixaImediataAprovacao, setDarBaixaImediataAprovacao] = useState(false);
+  const [condicoesAprovacao, setCondicoesAprovacao] = useState<CondicaoPagamento[]>([]);
+  const [condicaoEscolhidaAprovacaoId, setCondicaoEscolhidaAprovacaoId] = useState<string>('');
+  const [flexibilizandoAprovacao, setFlexibilizandoAprovacao] = useState(false);
+  const [condicaoAprovacaoEmEdicao, setCondicaoAprovacaoEmEdicao] = useState<Partial<CondicaoPagamento> | null>(null);
 
   // Assistente de Máquina de Cartão (PagBank / InfinitePay)
   const [cartaoAssistenteAtivo, setCartaoAssistenteAtivo] = useState(false);
@@ -775,10 +779,65 @@ const PatientOrcamentos = ({ patient }: Props) => {
     toast.success('Condição de pagamento salva!');
   };
 
-  const handleConfirmarAprovacao = async (o: Orcamento, lancarFinanceiro: boolean) => {
+  const handleIniciarAprovacao = (o: Orcamento) => {
+    setAprovandoOrcamento(o);
+    const parsed = parseCondicoesPagamento(o.formasPagamento, o.total);
+    if (parsed.length > 0) {
+      setCondicoesAprovacao(parsed);
+      const sel = parsed.find((c) => c.selecionada) || parsed[0];
+      setCondicaoEscolhidaAprovacaoId(sel.id);
+    } else {
+      const single: CondicaoPagamento = {
+        id: '1',
+        titulo: 'Condição de Pagamento',
+        tipo: 'personalizado',
+        valorTotal: o.total,
+        descricao: o.formasPagamento || 'A combinar',
+        selecionada: true,
+      };
+      setCondicoesAprovacao([single]);
+      setCondicaoEscolhidaAprovacaoId('1');
+    }
+    setFlexibilizandoAprovacao(false);
+    setCondicaoAprovacaoEmEdicao(null);
+  };
+
+  const handleConfirmarAprovacao = async (
+    o: Orcamento,
+    lancarFinanceiro: boolean,
+    condicoesDefinidas?: CondicaoPagamento[],
+    selecionadaId?: string,
+    abrirContratoApos?: boolean
+  ) => {
     try {
       setLancandoFinanceiro(true);
-      await updateStatus(o.id, 'aprovado');
+
+      let formasAtualizadas = o.formasPagamento;
+      let orcamentoFinal: Orcamento = { ...o };
+
+      if (condicoesDefinidas && condicoesDefinidas.length > 0) {
+        formasAtualizadas = serializarCondicoesPagamento(condicoesDefinidas, selecionadaId);
+        orcamentoFinal = {
+          ...o,
+          formasPagamento: formasAtualizadas,
+          status: 'aprovado',
+        };
+        await saveOrcamento({
+          id: o.id,
+          titulo: o.titulo,
+          itens: o.itens,
+          desconto: o.desconto,
+          observacoes: o.observacoes,
+          formasPagamento: formasAtualizadas,
+          pacienteId: o.pacienteId || patient?.id,
+          pacienteNome: o.pacienteNome || patient?.nome,
+          status: 'aprovado',
+          validade: o.validade,
+        });
+      } else {
+        await updateStatus(o.id, 'aprovado');
+      }
+
       if (updatePaciente && (patient?.id || o.pacienteId)) {
         try {
           await updatePaciente(patient?.id || o.pacienteId, { status: 'Em Tratamento' });
@@ -815,8 +874,8 @@ const PatientOrcamentos = ({ patient }: Props) => {
         }
 
         const snap = mapearDadosContrato({
-          patient: patient || { id: o.pacienteId, nome: o.pacienteNome },
-          orcamento: o,
+          patient: patient || { id: orcamentoFinal.pacienteId, nome: orcamentoFinal.pacienteNome },
+          orcamento: orcamentoFinal,
           transacoes: [],
           configuracoes,
         });
@@ -996,6 +1055,11 @@ const PatientOrcamentos = ({ patient }: Props) => {
         }
       } else {
         toast.success('Orçamento aprovado e contabilizado em Vendas (fechado) com sucesso!');
+      }
+
+      if (abrirContratoApos) {
+        setContratoOrcamento(orcamentoFinal);
+        setContratoModalOpen(true);
       }
     } catch (err: any) {
       console.error('Erro ao aprovar orçamento:', err);
@@ -1812,7 +1876,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
                     size="sm"
                     variant="outline"
                     className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
-                    onClick={() => setAprovandoOrcamento(o)}
+                    onClick={() => handleIniciarAprovacao(o)}
                     title="Sincronizar ou relançar parcelas no Contas a Receber"
                   >
                     <RefreshCw className="h-4 w-4 mr-1" /> Financeiro
@@ -1821,7 +1885,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
 
                 {o?.status !== 'aprovado' && o?.status !== 'recusado' && (
                   <>
-                    <Button size="sm" variant="outline" onClick={() => setAprovandoOrcamento(o)}>
+                    <Button size="sm" variant="outline" onClick={() => handleIniciarAprovacao(o)}>
                       <Check className="h-4 w-4 mr-1 text-emerald-600" /> Aprovar
                     </Button>
                     <Button size="sm" variant="outline" onClick={() => updateStatus(o.id, 'recusado')}>
@@ -3985,56 +4049,517 @@ const PatientOrcamentos = ({ patient }: Props) => {
         />
       )}
 
-      {/* Diálogo de Aprovação com Lançamento Financeiro Opcional */}
+      {/* Diálogo de Aprovação com Seleção e Flexibilização de Condição para Contrato */}
       {aprovandoOrcamento && (
-        <AlertDialog open={!!aprovandoOrcamento} onOpenChange={(open) => !open && setAprovandoOrcamento(null)}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle className="flex items-center gap-2">
+        <Dialog open={!!aprovandoOrcamento} onOpenChange={(open) => !open && setAprovandoOrcamento(null)}>
+          <DialogContent className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
                 <Check className="h-5 w-5 text-emerald-600" />
-                Aprovar Orçamento #{aprovandoOrcamento.id ? aprovandoOrcamento.id.slice(0, 8).toUpperCase() : ''}
-              </AlertDialogTitle>
-              <AlertDialogDescription className="space-y-2 text-sm text-muted-foreground pt-1">
-                <p>
-                  O plano <strong>{aprovandoOrcamento.titulo}</strong> no valor total de{' '}
-                  <strong className="text-foreground">{formatMoney(aprovandoOrcamento.total)}</strong> será aprovado.
-                </p>
-                <div className="rounded-md bg-muted/50 p-2.5 border border-border text-xs space-y-2">
-                  <div><strong>Condição de Pagamento:</strong> {obterTextoCondicaoParaContrato(aprovandoOrcamento.formasPagamento) || aprovandoOrcamento.formasPagamento || 'A combinar'}</div>
-                  <div className="text-muted-foreground">
-                    Deseja lançar no <strong>Contas a Receber (Financeiro)</strong> para monitoramento de receitas, taxas de máquina e extrato do paciente?
-                  </div>
-                  <label className="flex items-center gap-2 pt-2 border-t border-border/70 text-xs font-semibold text-emerald-400 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={darBaixaImediataAprovacao}
-                      onChange={(e) => setDarBaixaImediataAprovacao(e.target.checked)}
-                      className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-                    />
-                    <span>Dar baixa imediata apenas na entrada recebida agora (se for a receber ou passar cartão, deixe desmarcado)</span>
-                  </label>
+                Aprovação e Definição de Pagamento para Contrato
+              </DialogTitle>
+              <div className="text-xs text-muted-foreground flex flex-wrap items-center gap-2 pt-1">
+                <span>Plano: <strong className="text-foreground">{aprovandoOrcamento.titulo}</strong></span>
+                <span>•</span>
+                <span>Total: <strong className="text-foreground">{formatMoney(aprovandoOrcamento.total)}</strong></span>
+                <span>•</span>
+                <span className="font-mono text-[11px]">#{aprovandoOrcamento.id ? aprovandoOrcamento.id.slice(0, 8).toUpperCase() : ''}</span>
+              </div>
+            </DialogHeader>
+
+            <div className="space-y-4 py-2">
+              {/* Etapa 1: Seleção da Condição Fechada */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <Wallet className="h-4 w-4 text-primary" />
+                    Qual condição de pagamento foi acordada para o Contrato?
+                  </Label>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const condAtual = condicoesAprovacao.find((c) => c.id === condicaoEscolhidaAprovacaoId) || condicoesAprovacao[0];
+                      setCondicaoAprovacaoEmEdicao({ ...condAtual });
+                      setFlexibilizandoAprovacao(!flexibilizandoAprovacao);
+                    }}
+                    className="h-7 text-xs gap-1 border-primary/40 text-primary hover:bg-primary/10 font-medium"
+                  >
+                    <Pencil className="h-3 w-3" />
+                    {flexibilizandoAprovacao ? 'Fechar Ajustes' : 'Flexibilizar / Alterar Condição'}
+                  </Button>
                 </div>
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-              <AlertDialogCancel disabled={lancandoFinanceiro}>Cancelar</AlertDialogCancel>
+
+                {condicoesAprovacao.length > 1 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                    {condicoesAprovacao.map((c, idx) => {
+                      const isSel = c.id === condicaoEscolhidaAprovacaoId;
+                      return (
+                        <div
+                          key={c.id || idx}
+                          onClick={() => {
+                            setCondicaoEscolhidaAprovacaoId(c.id);
+                            if (flexibilizandoAprovacao) {
+                              setCondicaoAprovacaoEmEdicao({ ...c });
+                            }
+                          }}
+                          className={`p-3 rounded-xl border text-xs cursor-pointer transition-all flex flex-col justify-between gap-2 ${
+                            isSel
+                              ? 'border-emerald-500 bg-emerald-500/10 dark:bg-emerald-950/20 shadow-xs ring-2 ring-emerald-500/20'
+                              : 'border-border/80 bg-card hover:border-primary/40'
+                          }`}
+                        >
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between">
+                              <span
+                                className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                  isSel ? 'bg-emerald-600 text-white' : 'bg-muted text-muted-foreground'
+                                }`}
+                              >
+                                Opção {idx + 1}
+                              </span>
+                              {isSel && (
+                                <Badge className="bg-emerald-600 text-white text-[9px] px-1.5 py-0 h-4">
+                                  ✓ Escolhida
+                                </Badge>
+                              )}
+                            </div>
+                            <h5 className="font-bold text-foreground text-xs leading-snug">{c.titulo}</h5>
+                            <p className="text-[11px] text-muted-foreground line-clamp-3 leading-tight">{c.descricao}</p>
+                          </div>
+
+                          <div className="pt-1.5 border-t border-border/50 text-[10px] text-right font-semibold text-emerald-600">
+                            {formatMoney(c.valorTotal || aprovandoOrcamento.total)}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="p-3 rounded-xl bg-card border border-border flex items-center justify-between text-xs">
+                    <div>
+                      <span className="font-bold text-foreground block">
+                        {condicoesAprovacao[0]?.titulo || 'Condição Única'}
+                      </span>
+                      <p className="text-[11px] text-muted-foreground">
+                        {condicoesAprovacao[0]?.descricao || aprovandoOrcamento.formasPagamento || 'A combinar'}
+                      </p>
+                    </div>
+                    <Badge variant="outline" className="text-emerald-600 border-emerald-500/40 text-[10px]">
+                      Padrão
+                    </Badge>
+                  </div>
+                )}
+              </div>
+
+              {/* Painel de Flexibilização / Alteração da Condição */}
+              {flexibilizandoAprovacao && condicaoAprovacaoEmEdicao && (
+                <div className="p-3.5 rounded-xl bg-muted/40 border border-primary/30 space-y-3 animate-in fade-in duration-200">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-primary flex items-center gap-1.5">
+                      <Sparkles className="h-3.5 w-3.5" />
+                      Personalizar e Flexibilizar Condição para o Fechamento
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">
+                      Ajuste valores de entrada, parcelas ou descontos combinados com o paciente
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div className="space-y-1">
+                      <Label className="text-[11px] font-semibold">Título Comercial:</Label>
+                      <Input
+                        value={condicaoAprovacaoEmEdicao.titulo || ''}
+                        onChange={(e) => setCondicaoAprovacaoEmEdicao((prev) => ({ ...prev, titulo: e.target.value }))}
+                        className="h-8 text-xs font-semibold"
+                        placeholder="Ex: Opção Acordada em Consulta"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-[11px] font-semibold">Tipo de Pagamento:</Label>
+                      <select
+                        value={condicaoAprovacaoEmEdicao.tipo || 'personalizado'}
+                        onChange={(e) => {
+                          const t = e.target.value as any;
+                          const upd: Partial<CondicaoPagamento> = { ...condicaoAprovacaoEmEdicao, tipo: t };
+                          if (t === 'a_vista') {
+                            upd.descontoPercentual = upd.descontoPercentual ?? 10;
+                            upd.descontoValor = Number(((aprovandoOrcamento.total * (upd.descontoPercentual || 10)) / 100).toFixed(2));
+                            upd.valorTotal = Math.max(0, aprovandoOrcamento.total - (upd.descontoValor || 0));
+                          } else if (t === 'cartao') {
+                            upd.parcelas = upd.parcelas || 6;
+                            upd.valorTotal = aprovandoOrcamento.total;
+                            upd.valorParcela = Number((aprovandoOrcamento.total / (upd.parcelas || 6)).toFixed(2));
+                            upd.tipoCartao = 'credito';
+                          } else if (t === 'entrada_saldo') {
+                            upd.valorEntrada = upd.valorEntrada ?? Math.round(aprovandoOrcamento.total * 0.3);
+                            upd.metodoEntrada = upd.metodoEntrada || 'pix';
+                            upd.saldoParcelas = upd.saldoParcelas || 5;
+                            upd.saldoMetodo = upd.saldoMetodo || 'cartao';
+                            const s = Math.max(0, aprovandoOrcamento.total - (upd.valorEntrada || 0));
+                            upd.saldoValorParcela = Number((s / (upd.saldoParcelas || 5)).toFixed(2));
+                            upd.valorTotal = aprovandoOrcamento.total;
+                          } else if (t === 'pix_parcelado') {
+                            upd.parcelas = upd.parcelas || 4;
+                            upd.diaVencimento = upd.diaVencimento || 10;
+                            upd.valorTotal = aprovandoOrcamento.total;
+                            upd.valorParcela = Number((aprovandoOrcamento.total / (upd.parcelas || 4)).toFixed(2));
+                          }
+                          upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
+                          setCondicaoAprovacaoEmEdicao(upd);
+                        }}
+                        className="w-full h-8 px-2 text-xs font-semibold rounded-md bg-background border border-border"
+                      >
+                        <option value="a_vista">À Vista (PIX / Transferência)</option>
+                        <option value="cartao">Cartão de Crédito</option>
+                        <option value="entrada_saldo">Entrada + Saldo Parcelado</option>
+                        <option value="pix_parcelado">PIX Parcelado</option>
+                        <option value="boleto">Boleto Bancário</option>
+                        <option value="personalizado">Personalizado</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Campos contextuais por tipo */}
+                  {condicaoAprovacaoEmEdicao.tipo === 'a_vista' && (
+                    <div className="grid grid-cols-2 gap-2 p-2.5 rounded bg-background border border-border text-xs">
+                      <div className="space-y-1">
+                        <Label className="text-[11px]">% Desconto:</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={condicaoAprovacaoEmEdicao.descontoPercentual ?? ''}
+                          onChange={(e) => {
+                            const p = Number(e.target.value) || 0;
+                            const descVal = Number(((aprovandoOrcamento.total * p) / 100).toFixed(2));
+                            const upd = {
+                              ...condicaoAprovacaoEmEdicao,
+                              descontoPercentual: p,
+                              descontoValor: descVal,
+                              valorTotal: Math.max(0, aprovandoOrcamento.total - descVal),
+                            };
+                            upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
+                            setCondicaoAprovacaoEmEdicao(upd);
+                          }}
+                          className="h-7 text-xs font-bold"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px]">Valor Final com Desconto:</Label>
+                        <div className="h-7 px-2 flex items-center font-bold text-xs text-emerald-600 bg-muted/30 rounded border border-border">
+                          {formatMoney(condicaoAprovacaoEmEdicao.valorTotal || aprovandoOrcamento.total)}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {condicaoAprovacaoEmEdicao.tipo === 'cartao' && (
+                    <div className="grid grid-cols-2 gap-2 p-2.5 rounded bg-background border border-border text-xs">
+                      <div className="space-y-1">
+                        <Label className="text-[11px]">Qtd. Parcelas Cartão:</Label>
+                        <select
+                          value={condicaoAprovacaoEmEdicao.parcelas || 1}
+                          onChange={(e) => {
+                            const p = Number(e.target.value) || 1;
+                            const upd = {
+                              ...condicaoAprovacaoEmEdicao,
+                              parcelas: p,
+                              valorParcela: Number((aprovandoOrcamento.total / p).toFixed(2)),
+                            };
+                            upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
+                            setCondicaoAprovacaoEmEdicao(upd);
+                          }}
+                          className="w-full h-7 px-2 text-xs font-semibold rounded bg-background border border-border"
+                        >
+                          {[1, 2, 3, 4, 5, 6, 8, 10, 12, 18].map((n) => (
+                            <option key={n} value={n}>
+                              {n}x de {formatMoney(aprovandoOrcamento.total / n)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px]">Tipo:</Label>
+                        <select
+                          value={condicaoAprovacaoEmEdicao.tipoCartao || 'credito'}
+                          onChange={(e) => {
+                            const upd = { ...condicaoAprovacaoEmEdicao, tipoCartao: e.target.value as any };
+                            upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
+                            setCondicaoAprovacaoEmEdicao(upd);
+                          }}
+                          className="w-full h-7 px-2 text-xs font-semibold rounded bg-background border border-border"
+                        >
+                          <option value="credito">Crédito</option>
+                          <option value="debito">Débito (à vista)</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
+                  {condicaoAprovacaoEmEdicao.tipo === 'entrada_saldo' && (
+                    <div className="space-y-2 p-2.5 rounded bg-background border border-border text-xs">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <Label className="text-[11px]">Valor Entrada (R$):</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={aprovandoOrcamento.total}
+                            step="0.01"
+                            value={condicaoAprovacaoEmEdicao.valorEntrada || ''}
+                            onChange={(e) => {
+                              const ent = Number(e.target.value) || 0;
+                              const s = Math.max(0, aprovandoOrcamento.total - ent);
+                              const parc = condicaoAprovacaoEmEdicao.saldoParcelas || 1;
+                              const upd = {
+                                ...condicaoAprovacaoEmEdicao,
+                                valorEntrada: ent,
+                                saldoValorParcela: Number((s / parc).toFixed(2)),
+                              };
+                              upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
+                              setCondicaoAprovacaoEmEdicao(upd);
+                            }}
+                            className="h-7 text-xs font-bold"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[11px]">Método Entrada:</Label>
+                          <select
+                            value={condicaoAprovacaoEmEdicao.metodoEntrada || 'pix'}
+                            onChange={(e) => {
+                              const upd = { ...condicaoAprovacaoEmEdicao, metodoEntrada: e.target.value as any };
+                              upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
+                              setCondicaoAprovacaoEmEdicao(upd);
+                            }}
+                            className="w-full h-7 px-2 text-xs font-semibold rounded bg-background border border-border"
+                          >
+                            <option value="pix">PIX</option>
+                            <option value="dinheiro">Dinheiro</option>
+                            <option value="cartao_debito">Débito</option>
+                            <option value="cartao_credito">Crédito</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <Label className="text-[11px]">Parcelas do Saldo:</Label>
+                          <select
+                            value={condicaoAprovacaoEmEdicao.saldoParcelas || 1}
+                            onChange={(e) => {
+                              const parc = Number(e.target.value) || 1;
+                              const ent = condicaoAprovacaoEmEdicao.valorEntrada || 0;
+                              const s = Math.max(0, aprovandoOrcamento.total - ent);
+                              const upd = {
+                                ...condicaoAprovacaoEmEdicao,
+                                saldoParcelas: parc,
+                                saldoValorParcela: Number((s / parc).toFixed(2)),
+                              };
+                              upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
+                              setCondicaoAprovacaoEmEdicao(upd);
+                            }}
+                            className="w-full h-7 px-2 text-xs font-semibold rounded bg-background border border-border"
+                          >
+                            {[1, 2, 3, 4, 5, 6, 8, 10, 12, 18].map((n) => (
+                              <option key={n} value={n}>
+                                {n}x mensais
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[11px]">Forma do Saldo:</Label>
+                          <select
+                            value={condicaoAprovacaoEmEdicao.saldoMetodo || 'cartao'}
+                            onChange={(e) => {
+                              const upd = { ...condicaoAprovacaoEmEdicao, saldoMetodo: e.target.value as any };
+                              upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
+                              setCondicaoAprovacaoEmEdicao(upd);
+                            }}
+                            className="w-full h-7 px-2 text-xs font-semibold rounded bg-background border border-border"
+                          >
+                            <option value="cartao">Cartão de Crédito</option>
+                            <option value="pix_parcelado">PIX Parcelado</option>
+                            <option value="boleto">Boleto Bancário</option>
+                            <option value="conclusao">Na Conclusão</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {condicaoAprovacaoEmEdicao.tipo === 'pix_parcelado' && (
+                    <div className="grid grid-cols-2 gap-2 p-2.5 rounded bg-background border border-border text-xs">
+                      <div className="space-y-1">
+                        <Label className="text-[11px]">Parcelas no PIX:</Label>
+                        <select
+                          value={condicaoAprovacaoEmEdicao.parcelas || 3}
+                          onChange={(e) => {
+                            const p = Number(e.target.value) || 3;
+                            const upd = { ...condicaoAprovacaoEmEdicao, parcelas: p };
+                            upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
+                            setCondicaoAprovacaoEmEdicao(upd);
+                          }}
+                          className="w-full h-7 px-2 text-xs font-semibold rounded bg-background border border-border"
+                        >
+                          {[2, 3, 4, 5, 6, 8, 10, 12].map((n) => (
+                            <option key={n} value={n}>
+                              {n}x de {formatMoney(aprovandoOrcamento.total / n)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px]">Vencimento:</Label>
+                        <select
+                          value={condicaoAprovacaoEmEdicao.diaVencimento || 10}
+                          onChange={(e) => {
+                            const d = Number(e.target.value) || 10;
+                            const upd = { ...condicaoAprovacaoEmEdicao, diaVencimento: d };
+                            upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
+                            setCondicaoAprovacaoEmEdicao(upd);
+                          }}
+                          className="w-full h-7 px-2 text-xs font-semibold rounded bg-background border border-border"
+                        >
+                          {[1, 5, 10, 15, 20, 25, 28, 30].map((d) => (
+                            <option key={d} value={d}>
+                              Todo dia {d}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-semibold">Texto da Condição Fechada:</Label>
+                    <Textarea
+                      rows={2}
+                      value={condicaoAprovacaoEmEdicao.descricao || ''}
+                      onChange={(e) => setCondicaoAprovacaoEmEdicao((prev) => ({ ...prev, descricao: e.target.value }))}
+                      className="text-xs"
+                      placeholder="Descrição dos pagamentos..."
+                    />
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs"
+                      onClick={() => setFlexibilizandoAprovacao(false)}
+                    >
+                      Cancelar Ajuste
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="h-7 text-xs font-bold"
+                      onClick={() => {
+                        if (!condicaoAprovacaoEmEdicao.titulo?.trim()) {
+                          toast.error('Informe um título');
+                          return;
+                        }
+                        const finalCond: CondicaoPagamento = {
+                          id: condicaoAprovacaoEmEdicao.id || String(Date.now()),
+                          titulo: condicaoAprovacaoEmEdicao.titulo.trim(),
+                          tipo: condicaoAprovacaoEmEdicao.tipo || 'personalizado',
+                          descontoPercentual: condicaoAprovacaoEmEdicao.descontoPercentual,
+                          descontoValor: condicaoAprovacaoEmEdicao.descontoValor,
+                          valorTotal: condicaoAprovacaoEmEdicao.valorTotal || aprovandoOrcamento.total,
+                          parcelas: condicaoAprovacaoEmEdicao.parcelas,
+                          valorParcela: condicaoAprovacaoEmEdicao.valorParcela,
+                          valorEntrada: condicaoAprovacaoEmEdicao.valorEntrada,
+                          metodoEntrada: condicaoAprovacaoEmEdicao.metodoEntrada,
+                          saldoParcelas: condicaoAprovacaoEmEdicao.saldoParcelas,
+                          saldoMetodo: condicaoAprovacaoEmEdicao.saldoMetodo,
+                          saldoValorParcela: condicaoAprovacaoEmEdicao.saldoValorParcela,
+                          diaVencimento: condicaoAprovacaoEmEdicao.diaVencimento,
+                          tipoCartao: condicaoAprovacaoEmEdicao.tipoCartao,
+                          descricao: condicaoAprovacaoEmEdicao.descricao?.trim() || calcularDescricaoCondicao(condicaoAprovacaoEmEdicao, aprovandoOrcamento.total),
+                          destaque: true,
+                          selecionada: true,
+                        };
+
+                        setCondicoesAprovacao((prev) => {
+                          const idx = prev.findIndex((c) => c.id === finalCond.id);
+                          if (idx >= 0) {
+                            const cpy = [...prev];
+                            cpy[idx] = finalCond;
+                            return cpy;
+                          }
+                          return [...prev, finalCond];
+                        });
+                        setCondicaoEscolhidaAprovacaoId(finalCond.id);
+                        setFlexibilizandoAprovacao(false);
+                        toast.success('Condição atualizada para aprovação!');
+                      }}
+                    >
+                      Aplicar Ajuste da Condição
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Etapa 2: Lançamento Financeiro */}
+              <div className="rounded-xl bg-muted/40 p-3 border border-border text-xs space-y-2">
+                <div className="text-muted-foreground">
+                  Deseja lançar no <strong>Contas a Receber (Financeiro)</strong> para monitoramento de receitas, taxas de máquina e extrato do paciente?
+                </div>
+                <label className="flex items-center gap-2 pt-2 border-t border-border/70 text-xs font-semibold text-emerald-400 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={darBaixaImediataAprovacao}
+                    onChange={(e) => setDarBaixaImediataAprovacao(e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                  />
+                  <span>Dar baixa imediata apenas na entrada recebida agora (se for a receber ou passar cartão, deixe desmarcado)</span>
+                </label>
+              </div>
+            </div>
+
+            <DialogFooter className="flex-col sm:flex-row gap-2 pt-2 border-t border-border/70">
               <Button
                 variant="outline"
+                size="sm"
                 disabled={lancandoFinanceiro}
-                onClick={() => handleConfirmarAprovacao(aprovandoOrcamento, false)}
+                onClick={() => setAprovandoOrcamento(null)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={lancandoFinanceiro}
+                onClick={() => handleConfirmarAprovacao(aprovandoOrcamento, false, condicoesAprovacao, condicaoEscolhidaAprovacaoId, false)}
               >
                 Apenas Aprovar
               </Button>
-              <AlertDialogAction
-                className="bg-primary text-primary-foreground hover:bg-primary/90"
+              <Button
+                variant="outline"
+                size="sm"
                 disabled={lancandoFinanceiro}
-                onClick={() => handleConfirmarAprovacao(aprovandoOrcamento, true)}
+                onClick={() => handleConfirmarAprovacao(aprovandoOrcamento, true, condicoesAprovacao, condicaoEscolhidaAprovacaoId, false)}
+                className="border-emerald-500/40 text-emerald-600 hover:bg-emerald-500/10"
               >
-                {lancandoFinanceiro ? 'Lançando...' : 'Sim, Lançar no Financeiro'}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+                {lancandoFinanceiro ? 'Lançando...' : 'Aprovar + Financeiro'}
+              </Button>
+              <Button
+                size="sm"
+                disabled={lancandoFinanceiro}
+                onClick={() => handleConfirmarAprovacao(aprovandoOrcamento, true, condicoesAprovacao, condicaoEscolhidaAprovacaoId, true)}
+                className="bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-1.5 shadow-xs"
+              >
+                <FileSignature className="h-4 w-4" />
+                Aprovar e Abrir Contrato
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
       {/* Modal para Adicionar / Editar Condição de Pagamento do Orçamento */}
       <Dialog open={modalEdicaoCondicaoOpen} onOpenChange={(open) => !open && setModalEdicaoCondicaoOpen(false)}>
