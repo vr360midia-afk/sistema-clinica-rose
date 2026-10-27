@@ -10,13 +10,15 @@ import { calcularIdade } from '@/utils/idade';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import { StatusPaciente } from '@/types/shared';
 import { toast } from 'sonner';
+import AgendarRetornoCard from './AgendarRetornoCard';
 
 
 interface PatientPersonalInfoProps {
   patient: any;
+  onSchedule?: () => void;
 }
 
-const PatientPersonalInfo = ({ patient }: PatientPersonalInfoProps) => {
+const PatientPersonalInfo = ({ patient, onSchedule }: PatientPersonalInfoProps) => {
   const idade = calcularIdade(patient.dataNascimento) ?? patient.idade;
   const { consultas, updatePaciente } = useDentalSystem();
 
@@ -225,6 +227,9 @@ const PatientPersonalInfo = ({ patient }: PatientPersonalInfoProps) => {
             </div>
           </CardContent>
         </Card>
+ 
+        {/* Agendamento de Retorno com prazos pré-estabelecidos e data personalizada */}
+        <AgendarRetornoCard patient={patient} onOpenFullModal={onSchedule} />
 
         <Card>
           <CardHeader>

@@ -9,8 +9,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { consultaSchema, ConsultaFormData } from '@/schemas/validations';
 import { useDentalSystem } from '@/context/DentalSystemContext';
-import { CalendarIcon, Clock, User, UserPlus, Loader2 } from 'lucide-react';
-import { format } from 'date-fns';
+import { CalendarIcon, Clock, User, UserPlus, Loader2, RotateCcw } from 'lucide-react';
+import { format, addDays, addMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useAuth } from '@/context/AuthContext';
 import QuickPatientModal from './QuickPatientModal';
@@ -403,7 +403,46 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
                   name="data"
                   render={({ field }) => (
                     <FormItem className="flex flex-col space-y-1">
-                      <FormLabel className="text-xs">Data</FormLabel>
+                      <div className="flex items-center justify-between">
+                        <FormLabel className="text-xs">Data</FormLabel>
+                        <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                          <RotateCcw className="h-2.5 w-2.5 text-blue-500" /> Atalhos de Retorno
+                        </span>
+                      </div>
+
+                      {/* Atalhos de Retorno Pré-estabelecidos */}
+                      <div className="flex items-center gap-1 flex-wrap pb-1">
+                        {[
+                          { label: '15d', dias: 15 },
+                          { label: '30d', dias: 30 },
+                          { label: '60d', dias: 60 },
+                          { label: '90d', dias: 90 },
+                          { label: '120d', dias: 120 },
+                          { label: '6m', meses: 6 },
+                        ].map((p, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => {
+                              const base = new Date();
+                              let d = new Date();
+                              if (p.meses) d = addMonths(base, p.meses);
+                              else if (p.dias) d = addDays(base, p.dias);
+                              const novaData = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+                              field.onChange(novaData);
+                              if (!form.getValues('procedimento')) {
+                                form.setValue('procedimento', 'Consulta de Retorno', { shouldValidate: true, shouldDirty: true });
+                              }
+                              toast.info(`Data de retorno definida para ${format(novaData, 'dd/MM/yyyy')} (+${p.label})`);
+                            }}
+                            className="text-[10px] px-1.5 py-0.5 rounded border border-border bg-muted/40 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 dark:hover:bg-blue-950/50 dark:hover:text-blue-300 transition-colors cursor-pointer font-medium"
+                            title={`Definir retorno para +${p.label}`}
+                          >
+                            +{p.label}
+                          </button>
+                        ))}
+                      </div>
+
                       <Popover>
                         <PopoverTrigger asChild>
                           <FormControl>

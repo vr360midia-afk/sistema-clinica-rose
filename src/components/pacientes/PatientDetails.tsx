@@ -3,7 +3,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, CalendarPlus, Edit2, Plus, User, FileText, ClipboardList, ListChecks, FolderOpen, History, DollarSign, Stethoscope, MessageCircle } from 'lucide-react';
+import { ArrowLeft, CalendarPlus, Edit2, Plus, User, FileText, ClipboardList, ListChecks, FolderOpen, History, DollarSign, Stethoscope, MessageCircle, RotateCcw } from 'lucide-react';
 import { openWhatsApp } from '@/lib/whatsapp';
 import PatientPersonalInfo from './PatientPersonalInfo';
 import PatientMedicalRecords from './PatientMedicalRecords';
@@ -14,6 +14,7 @@ import PatientFinancial from './PatientFinancial';
 import PatientOrcamentos from './PatientOrcamentos';
 import PatientDocumentosClinicos from './PatientDocumentosClinicos';
 import { ImpressaoDocs } from './ImpressaoDocs';
+import ModalAgendarRetorno from './ModalAgendarRetorno';
 
 
 interface PatientDetailsProps {
@@ -25,6 +26,7 @@ interface PatientDetailsProps {
 }
 
 const PatientDetails = ({ patient, onClose, onEdit, onSchedule, onAddProcedimento }: PatientDetailsProps) => {
+  const [isRetornoModalOpen, setIsRetornoModalOpen] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState<string>(() => {
     return (patient?.id && sessionStorage.getItem(`dental_tab_${patient.id}`)) || 'personal';
   });
@@ -102,8 +104,8 @@ const PatientDetails = ({ patient, onClose, onEdit, onSchedule, onAddProcediment
 
         {/* Linha 2: Barra de Ações Rápida e Elegante */}
         <div className="pt-3 border-t border-border/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-          {/* Ações Principais: Agendar, Procedimento, Editar */}
-          <div className="grid grid-cols-3 sm:flex sm:items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
+          {/* Ações Principais: Agendar, Retorno, Procedimento, Editar */}
+          <div className="grid grid-cols-2 sm:flex sm:items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
             <Button
               onClick={onSchedule}
               size="sm"
@@ -111,6 +113,17 @@ const PatientDetails = ({ patient, onClose, onEdit, onSchedule, onAddProcediment
             >
               <CalendarPlus className="h-3.5 w-3.5 shrink-0" />
               <span>Agendar</span>
+            </Button>
+
+            <Button
+              onClick={() => setIsRetornoModalOpen(true)}
+              variant="outline"
+              size="sm"
+              className="h-9 px-2 sm:px-3 text-xs font-semibold gap-1.5 border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-900 dark:text-blue-300 dark:hover:bg-blue-950/50 justify-center shadow-xs"
+              title="Agendar retorno com prazos de 15, 30, 60, 90, 120 dias, 6 meses ou data personalizada"
+            >
+              <RotateCcw className="h-3.5 w-3.5 shrink-0 text-blue-600 dark:text-blue-400" />
+              <span>Agendar Retorno</span>
             </Button>
 
             {onAddProcedimento && (
@@ -182,7 +195,7 @@ const PatientDetails = ({ patient, onClose, onEdit, onSchedule, onAddProcediment
 
 
         <TabsContent value="personal" className="space-y-6">
-          <PatientPersonalInfo patient={patient} />
+          <PatientPersonalInfo patient={patient} onSchedule={onSchedule} />
         </TabsContent>
 
         <TabsContent value="records" className="space-y-6">
@@ -213,6 +226,13 @@ const PatientDetails = ({ patient, onClose, onEdit, onSchedule, onAddProcediment
           <PatientDocuments patient={patient} />
         </TabsContent>
       </Tabs>
+
+      <ModalAgendarRetorno
+        isOpen={isRetornoModalOpen}
+        onClose={() => setIsRetornoModalOpen(false)}
+        patient={patient}
+        onOpenFullModal={onSchedule}
+      />
     </div>
   );
 };
