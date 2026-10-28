@@ -404,6 +404,17 @@ export default function CRM() {
             </div>
 
             <Button
+              variant="default"
+              size="sm"
+              onClick={() => navigate('/novos-leads')}
+              className="h-8 gap-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-medium hover:from-blue-700 hover:to-indigo-700 shadow-xs"
+              title="Abrir Caixa de Entrada do Módulo Novos Leads"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-white" />
+              <span>Novos Leads</span>
+            </Button>
+
+            <Button
               variant="outline"
               size="sm"
               onClick={() => setIsIntegracoesOpen(true)}

@@ -2,3 +2,6 @@ project_id = "skonxcdojbkbfnfemayz"
 
 [functions.agenda-sync]
 verify_jwt = false
+
+[functions.crm-webhook]
+verify_jwt = false

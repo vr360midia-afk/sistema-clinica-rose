@@ -22,7 +22,9 @@ import {
   Trash2,
   Handshake,
   CalendarCheck2,
+  Sparkles,
 } from 'lucide-react';
+import { useNovosLeadsBadgeCount } from '@/hooks/useNovosLeadsBadgeCount';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -34,10 +36,12 @@ interface NavItem {
   href: string;
   icon: typeof Home;
   allow?: AppRole[];
+  badge?: boolean;
 }
 
 const navigation: NavItem[] = [
   { name: 'Dashboard', href: '/', icon: Home },
+  { name: 'Novos Leads', href: '/novos-leads', icon: Sparkles, badge: true },
   { name: 'CRM / Leads', href: '/crm', icon: Target },
   { name: 'Agenda', href: '/agenda', icon: Calendar },
   { name: 'Tarefas da Equipe', href: '/tarefas', icon: CalendarCheck2 },
@@ -58,6 +62,8 @@ const navigation: NavItem[] = [
 
 const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
   const location = useLocation();
+  const unreviewedLeadsCount = useNovosLeadsBadgeCount();
+
   const { roles } = useUserRoles();
   const semPerfil = roles.length === 0;
   const podeVer = (item: NavItem) =>
@@ -113,7 +119,12 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
                     )}
                   >
                     <item.icon className="h-5 w-5 flex-shrink-0" />
-                    <span className="truncate">{item.name}</span>
+                    <span className="truncate flex-1 text-left">{item.name}</span>
+                    {item.badge && unreviewedLeadsCount > 0 && (
+                      <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[11px] font-bold text-white bg-blue-600 rounded-full shadow-sm animate-pulse">
+                        {unreviewedLeadsCount > 99 ? '99+' : unreviewedLeadsCount}
+                      </span>
+                    )}
                   </Link>
                 </li>
               );

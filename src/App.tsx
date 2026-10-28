@@ -13,6 +13,7 @@ import AgendamentoPublico from '@/pages/AgendamentoPublico';
 import Dashboard from '@/pages/Dashboard';
 import Pacientes from '@/pages/Pacientes';
 import CRM from '@/pages/CRM';
+import NovosLeads from '@/pages/NovosLeads';
 import Agenda from '@/pages/Agenda';
 import Financeiro from '@/pages/Financeiro';
 import FaturamentoParceiros from '@/pages/FaturamentoParceiros';
@@ -99,6 +100,7 @@ function App() {
               <Route path="/verificar" element={<VerificarRecibo />} />
               <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              <Route path="/novos-leads" element={<ProtectedRoute><NovosLeads /></ProtectedRoute>} />
               <Route path="/crm" element={<ProtectedRoute><CRM /></ProtectedRoute>} />
               <Route path="/pacientes" element={<ProtectedRoute><PermissionRoute modulo="pacientes"><Pacientes /></PermissionRoute></ProtectedRoute>} />
               <Route path="/agenda" element={<ProtectedRoute><PermissionRoute modulo="agenda"><Agenda /></PermissionRoute></ProtectedRoute>} />
