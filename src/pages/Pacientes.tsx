@@ -23,7 +23,7 @@ import { openWhatsApp } from '@/lib/whatsapp';
 import { useSecurityGate } from '@/context/SecurityContext';
 import { useProcedimentos } from '@/hooks/useProcedimentos';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Users, Search, Plus, UserCheck, Calendar, Archive, MoreVertical, MoreHorizontal, ChevronDown, Edit2, Trash2, RotateCcw, Stethoscope, Sparkles, ClipboardList, Link2, UploadCloud, MessageSquare } from 'lucide-react';
+import { Users, Search, Plus, UserCheck, Calendar, Archive, MoreVertical, MoreHorizontal, ChevronDown, Filter, X, Edit2, Trash2, RotateCcw, Stethoscope, Sparkles, ClipboardList, Link2, UploadCloud, MessageSquare } from 'lucide-react';
 import { Procedimento } from '@/types/procedimentos';
 import { ScannerProntuarioModal } from '@/components/pacientes/ScannerProntuarioModal';
 import { ModalLeitorPdfFichas } from '@/components/pacientes/ModalLeitorPdfFichas';
@@ -76,6 +76,7 @@ const Pacientes = () => {
   const [tipoData, setTipoData] = useState<'cadastro' | 'atendimento'>('cadastro');
   const [mesFiltro, setMesFiltro] = useState('todos');
   const [anoFiltro, setAnoFiltro] = useState('todos');
+  const [showFiltros, setShowFiltros] = useState(false);
   const { requireMasterPassword } = useSecurityGate();
   
   const [isScannerOpen, setIsScannerOpen] = useState(false);
@@ -144,6 +145,12 @@ const Pacientes = () => {
   }, [pacientes]);
 
   const [statusFiltro, setStatusFiltro] = useState<string>('todos');
+  const totalFiltrosAtivos = (statusFiltro !== 'todos' ? 1 : 0) +
+    (mesFiltro !== 'todos' ? 1 : 0) +
+    (anoFiltro !== 'todos' ? 1 : 0);
+  const temFiltroAtivo = totalFiltrosAtivos > 0;
+
+
 
   const pacientesAtivos = (pacientes || []).filter(p => p && p.status !== 'Arquivado');
   const pacientesArquivados = (pacientes || []).filter(p => p && p.status === 'Arquivado');
@@ -444,6 +451,29 @@ const Pacientes = () => {
                 Enviar Anamnese
               </Button>
 
+              {/* Botão Símbolo de Filtros no Topo da Página */}
+              <Button
+                type="button"
+                variant={showFiltros || temFiltroAtivo ? "default" : "outline"}
+                size="sm"
+                onClick={() => setShowFiltros((prev) => !prev)}
+                className={cn(
+                  "h-10 px-3 font-semibold shadow-xs shrink-0 gap-1.5 transition-all cursor-pointer relative",
+                  (showFiltros || temFiltroAtivo)
+                    ? "bg-slate-800 text-white hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 border-transparent"
+                    : "border-border/80 text-foreground hover:bg-muted/60"
+                )}
+                title={showFiltros ? "Ocultar filtros" : "Filtrar pacientes por status, data, mês ou ano"}
+              >
+                <Filter className="h-4 w-4 text-blue-500" />
+                <span className="text-xs font-semibold hidden xs:inline sm:inline">Filtros</span>
+                {totalFiltrosAtivos > 0 && (
+                  <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-bold bg-blue-500 text-white rounded-full">
+                    {totalFiltrosAtivos}
+                  </Badge>
+                )}
+              </Button>
+
               {/* Botão de Ferramentas Ocultas (Menu Suspenso Discreto no Mobile e Desktop) */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -592,64 +622,146 @@ const Pacientes = () => {
             )}
           </div>
 
-          {/* Filtro por status e data */}
-          <div className="flex flex-col sm:flex-row gap-2 mt-3 flex-wrap">
-            <Select value={statusFiltro} onValueChange={setStatusFiltro}>
-              <SelectTrigger className="w-full sm:w-48">
-                <SelectValue placeholder="Filtrar por Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos os status</SelectItem>
-                <SelectItem value="Ativo">Ativo</SelectItem>
-                <SelectItem value="Pendente">Pendente</SelectItem>
-                <SelectItem value="Em Tratamento">Em Tratamento</SelectItem>
-                <SelectItem value="Tratamento Concluido">Tratamento Concluído</SelectItem>
-              </SelectContent>
-            </Select>
+          {/* Painel de Filtros Oculto por Padrão: Aberto pelo símbolo de filtros no topo */}
+          {showFiltros && (
+            <div className="p-3.5 mt-3 rounded-xl border border-border/80 bg-muted/30 dark:bg-muted/10 space-y-3 animate-in fade-in-0 slide-in-from-top-2 duration-150">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Filter className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  <span className="text-xs font-bold text-foreground uppercase tracking-wide">
+                    Filtros de Pacientes
+                  </span>
+                  {totalFiltrosAtivos > 0 && (
+                    <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300 border-blue-300">
+                      {totalFiltrosAtivos} {totalFiltrosAtivos === 1 ? 'filtro ativo' : 'filtros ativos'}
+                    </Badge>
+                  )}
+                </div>
 
-            <Select value={tipoData} onValueChange={(v) => setTipoData(v as 'cadastro' | 'atendimento')}>
-              <SelectTrigger className="w-full sm:w-52">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="cadastro">Data de cadastro</SelectItem>
-                <SelectItem value="atendimento">Data do último atendimento</SelectItem>
-              </SelectContent>
-            </Select>
+                <div className="flex items-center gap-2">
+                  {temFiltroAtivo && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setMesFiltro('todos');
+                        setAnoFiltro('todos');
+                        setStatusFiltro('todos');
+                        setTipoData('cadastro');
+                      }}
+                      className="h-7 text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 px-2 font-medium"
+                    >
+                      Limpar filtros
+                    </Button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setShowFiltros(false)}
+                    className="p-1 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                    title="Fechar painel de filtros"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
 
-            <Select value={mesFiltro} onValueChange={setMesFiltro}>
-              <SelectTrigger className="w-full sm:w-44">
-                <SelectValue placeholder="Mês" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos os meses</SelectItem>
-                {MESES.map((m, i) => (
-                  <SelectItem key={m} value={String(i)}>{m}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
+                <Select value={statusFiltro} onValueChange={setStatusFiltro}>
+                  <SelectTrigger className="w-full h-9 text-xs bg-background">
+                    <SelectValue placeholder="Filtrar por Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos os status</SelectItem>
+                    <SelectItem value="Ativo">Ativo</SelectItem>
+                    <SelectItem value="Pendente">Pendente</SelectItem>
+                    <SelectItem value="Em Tratamento">Em Tratamento</SelectItem>
+                    <SelectItem value="Tratamento Concluido">Tratamento Concluído</SelectItem>
+                  </SelectContent>
+                </Select>
 
-            <Select value={anoFiltro} onValueChange={setAnoFiltro}>
-              <SelectTrigger className="w-full sm:w-36">
-                <SelectValue placeholder="Ano" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos os anos</SelectItem>
-                {anosDisponiveis.map((ano) => (
-                  <SelectItem key={ano} value={ano}>{ano}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                <Select value={tipoData} onValueChange={(v) => setTipoData(v as 'cadastro' | 'atendimento')}>
+                  <SelectTrigger className="w-full h-9 text-xs bg-background">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cadastro">Data de cadastro</SelectItem>
+                    <SelectItem value="atendimento">Data do último atendimento</SelectItem>
+                  </SelectContent>
+                </Select>
 
-            {(mesFiltro !== 'todos' || anoFiltro !== 'todos' || statusFiltro !== 'todos') && (
-              <Button
-                variant="ghost"
-                onClick={() => { setMesFiltro('todos'); setAnoFiltro('todos'); setStatusFiltro('todos'); }}
+                <Select value={mesFiltro} onValueChange={setMesFiltro}>
+                  <SelectTrigger className="w-full h-9 text-xs bg-background">
+                    <SelectValue placeholder="Mês" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos os meses</SelectItem>
+                    {MESES.map((m, i) => (
+                      <SelectItem key={m} value={String(i)}>{m}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={anoFiltro} onValueChange={setAnoFiltro}>
+                  <SelectTrigger className="w-full h-9 text-xs bg-background">
+                    <SelectValue placeholder="Ano" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos os anos</SelectItem>
+                    {anosDisponiveis.map((ano) => (
+                      <SelectItem key={ano} value={ano}>{ano}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
+          {/* Indicador sutil de filtros ativos quando o painel estiver fechado */}
+          {!showFiltros && temFiltroAtivo && (
+            <div className="flex items-center gap-1.5 flex-wrap pt-2 text-xs">
+              <span className="text-muted-foreground text-[11px] font-medium flex items-center gap-1">
+                <Filter className="h-3 w-3 text-blue-500" />
+                Filtros ativos:
+              </span>
+              {statusFiltro !== 'todos' && (
+                <Badge variant="secondary" className="gap-1 text-[11px] h-6 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                  Status: {statusFiltro}
+                  <button type="button" onClick={() => setStatusFiltro('todos')} className="hover:text-foreground">
+                    <X className="h-2.5 w-2.5" />
+                  </button>
+                </Badge>
+              )}
+              {mesFiltro !== 'todos' && (
+                <Badge variant="secondary" className="gap-1 text-[11px] h-6 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                  Mês: {MESES[Number(mesFiltro)]}
+                  <button type="button" onClick={() => setMesFiltro('todos')} className="hover:text-foreground">
+                    <X className="h-2.5 w-2.5" />
+                  </button>
+                </Badge>
+              )}
+              {anoFiltro !== 'todos' && (
+                <Badge variant="secondary" className="gap-1 text-[11px] h-6 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                  Ano: {anoFiltro}
+                  <button type="button" onClick={() => setAnoFiltro('todos')} className="hover:text-foreground">
+                    <X className="h-2.5 w-2.5" />
+                  </button>
+                </Badge>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setMesFiltro('todos');
+                  setAnoFiltro('todos');
+                  setStatusFiltro('todos');
+                  setTipoData('cadastro');
+                }}
+                className="text-[11px] text-blue-600 hover:underline ml-1 cursor-pointer font-medium"
               >
-                Limpar filtros
-              </Button>
-            )}
-          </div>
+                Limpar todos
+              </button>
+            </div>
+          )}
 
 
           <TabsContent value="ativos">
