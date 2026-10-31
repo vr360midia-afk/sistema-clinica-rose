@@ -32,6 +32,7 @@ import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { ModalEnviarAnamnese } from '@/components/anamnese/ModalEnviarAnamnese';
 import { PacienteCombobox } from '@/components/pacientes/PacienteCombobox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
 
 
 const Pacientes = () => {
