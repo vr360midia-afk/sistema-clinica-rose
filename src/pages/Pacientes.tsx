@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import PatientForm from '@/components/pacientes/PatientForm';
 import PatientDetails from '@/components/pacientes/PatientDetails';
 import PatientArchiveModal from '@/components/pacientes/PatientArchiveModal';
@@ -23,7 +23,7 @@ import { openWhatsApp } from '@/lib/whatsapp';
 import { useSecurityGate } from '@/context/SecurityContext';
 import { useProcedimentos } from '@/hooks/useProcedimentos';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Users, Search, Plus, UserCheck, Calendar, Archive, MoreVertical, Edit2, Trash2, RotateCcw, Stethoscope, Sparkles, ClipboardList, Link2, UploadCloud, MessageSquare } from 'lucide-react';
+import { Users, Search, Plus, UserCheck, Calendar, Archive, MoreVertical, MoreHorizontal, ChevronDown, Edit2, Trash2, RotateCcw, Stethoscope, Sparkles, ClipboardList, Link2, UploadCloud, MessageSquare } from 'lucide-react';
 import { Procedimento } from '@/types/procedimentos';
 import { ScannerProntuarioModal } from '@/components/pacientes/ScannerProntuarioModal';
 import { ModalLeitorPdfFichas } from '@/components/pacientes/ModalLeitorPdfFichas';
@@ -402,9 +402,9 @@ const Pacientes = () => {
             <h1 className="text-xl sm:text-2xl font-bold text-foreground">Pacientes</h1>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full xl:w-auto flex-wrap">
-            {/* Buscador de Paciente em Destaque ao lado do botão Novo Paciente */}
-            <div className="relative flex-1 sm:w-80 md:w-96 min-w-[260px]">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full xl:w-auto">
+            {/* Buscador de Paciente */}
+            <div className="relative flex-1 sm:w-80 md:w-96 min-w-[200px]">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4 pointer-events-none" />
               <Input
                 placeholder="Buscar por nome, telefone ou CPF..."
@@ -424,44 +424,82 @@ const Pacientes = () => {
               )}
             </div>
 
-            <Button onClick={() => setShowForm(true)} className="bg-blue-600 hover:bg-blue-700 h-10 px-4 font-semibold text-white shadow-xs shrink-0">
-              <Plus className="h-4 w-4 mr-2" />
-              Novo Paciente
-            </Button>
-            <Button
-              onClick={() => setIsEscolherPacienteAnamneseOpen(true)}
-              variant="outline"
-              className="border-indigo-300 text-indigo-700 bg-indigo-50/50 hover:bg-indigo-100 dark:border-indigo-800 dark:text-indigo-300 dark:bg-indigo-950/40 h-10 font-semibold shadow-xs shrink-0"
-              title="Gerar e enviar link de anamnese para qualquer paciente preencher ou assinar"
-            >
-              <ClipboardList className="h-4 w-4 mr-2 text-indigo-600" />
-              Enviar Anamnese
-            </Button>
-            <Button
-              onClick={() => setIsLeitorPdfOpen(true)}
-              className="bg-emerald-600 hover:bg-emerald-700 h-10 px-4 font-semibold text-white shadow-xs shrink-0 gap-1.5 cursor-pointer"
-              title="Importar e ler arquivos PDF de fichas manuais, associando ao paciente ou criando nova ficha automaticamente"
-            >
-              <UploadCloud className="h-4 w-4" />
-              Importar Fichas PDF
-            </Button>
-            <Button
-              onClick={() => setIsComandosWhatsappOpen(true)}
-              variant="outline"
-              className="border-emerald-300 text-emerald-700 bg-emerald-50/60 hover:bg-emerald-100 dark:border-emerald-800 dark:text-emerald-300 dark:bg-emerald-950/40 h-10 px-3.5 font-semibold shadow-xs shrink-0 gap-1.5 cursor-pointer"
-              title="Criar fichas enviando comandos pelo WhatsApp"
-            >
-              <MessageSquare className="h-4 w-4 text-emerald-600" />
-              Comandos WhatsApp
-            </Button>
-            <Button onClick={() => setIsScannerOpen(true)} variant="outline" className="h-10 px-4 font-semibold shadow-xs shrink-0">
-              <Sparkles className="h-4 w-4 mr-2 text-indigo-600" />
-              Ficha Digital (IA)
-            </Button>
-            <Button onClick={handleAddProcedimento} variant="outline" className="h-10 px-4 font-medium shrink-0">
-              <Stethoscope className="h-4 w-4 mr-2" />
-              Novo Procedimento
-            </Button>
+            {/* Barra de Ações: Direta e Limpa no Celular, Completa no Desktop */}
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={() => setShowForm(true)}
+                className="bg-blue-600 hover:bg-blue-700 h-10 px-3.5 sm:px-4 font-semibold text-white shadow-xs flex-1 sm:flex-none justify-center shrink-0"
+              >
+                <Plus className="h-4 w-4 mr-1.5" />
+                Novo Paciente
+              </Button>
+
+              <Button
+                onClick={() => setIsEscolherPacienteAnamneseOpen(true)}
+                variant="outline"
+                className="hidden md:inline-flex border-indigo-300 text-indigo-700 bg-indigo-50/50 hover:bg-indigo-100 dark:border-indigo-800 dark:text-indigo-300 dark:bg-indigo-950/40 h-10 font-semibold shadow-xs shrink-0"
+                title="Gerar e enviar link de anamnese para qualquer paciente preencher ou assinar"
+              >
+                <ClipboardList className="h-4 w-4 mr-2 text-indigo-600" />
+                Enviar Anamnese
+              </Button>
+
+              {/* Botão de Ferramentas Ocultas (Menu Suspenso Discreto no Mobile e Desktop) */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="h-10 px-3 font-semibold shadow-xs shrink-0 gap-1.5 border-border/80 text-foreground hover:bg-muted/60"
+                    title="Mais ferramentas e ações"
+                  >
+                    <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-xs font-semibold">Mais</span>
+                    <ChevronDown className="h-3 w-3 opacity-60 hidden sm:inline" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 p-1.5 shadow-xl bg-popover border border-border">
+                  <DropdownMenuLabel className="text-xs text-muted-foreground font-semibold px-2 py-1">
+                    Ferramentas & Integrações
+                  </DropdownMenuLabel>
+                  <DropdownMenuItem
+                    onClick={() => setIsEscolherPacienteAnamneseOpen(true)}
+                    className="cursor-pointer gap-2.5 py-2 text-xs font-medium md:hidden"
+                  >
+                    <ClipboardList className="h-4 w-4 text-indigo-600" />
+                    <span>Enviar Anamnese</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setIsLeitorPdfOpen(true)}
+                    className="cursor-pointer gap-2.5 py-2 text-xs font-medium"
+                  >
+                    <UploadCloud className="h-4 w-4 text-emerald-600" />
+                    <span>Importar Fichas PDF</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setIsComandosWhatsappOpen(true)}
+                    className="cursor-pointer gap-2.5 py-2 text-xs font-medium"
+                  >
+                    <MessageSquare className="h-4 w-4 text-emerald-600" />
+                    <span>Comandos WhatsApp</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setIsScannerOpen(true)}
+                    className="cursor-pointer gap-2.5 py-2 text-xs font-medium"
+                  >
+                    <Sparkles className="h-4 w-4 text-indigo-600" />
+                    <span>Ficha Digital (IA)</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={handleAddProcedimento}
+                    className="cursor-pointer gap-2.5 py-2 text-xs font-medium"
+                  >
+                    <Stethoscope className="h-4 w-4 text-blue-600" />
+                    <span>Novo Procedimento</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
         </div>
 
