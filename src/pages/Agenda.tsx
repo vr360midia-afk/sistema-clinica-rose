@@ -4,7 +4,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { CalendarDays, Plus, Bell, Lock, Smartphone, CalendarCheck2 } from 'lucide-react';
+import { CalendarDays, Plus, Bell, Lock, Smartphone, CalendarCheck2, RotateCcw } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useDentalSystem } from '@/context/DentalSystemContext';
@@ -14,6 +14,7 @@ import { BloqueioModal } from '@/components/agenda/BloqueioModal';
 import { BloqueioDetailsModal } from '@/components/agenda/BloqueioDetailsModal';
 import { AgendaBigCalendar } from '@/components/agenda/AgendaBigCalendar';
 import AppointmentDetailsModal from '@/components/agenda/AppointmentDetailsModal';
+import ModalAgendarRetorno from '@/components/pacientes/ModalAgendarRetorno';
 import PendentesModal from '@/components/agenda/PendentesModal';
 import { ModalSincronizarCalendario } from '@/components/agenda/ModalSincronizarCalendario';
 import { useAgendaViews } from '@/hooks/useAgendaViews';
@@ -61,6 +62,13 @@ const Agenda = () => {
   const [selectedBloqueio, setSelectedBloqueio] = useState<BloqueioAgenda | null>(null);
   const [bloqueioEmEdicao, setBloqueioEmEdicao] = useState<BloqueioAgenda | null>(null);
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
+  const [isRetornoModalOpen, setIsRetornoModalOpen] = useState(false);
+  const [retornoPatient, setRetornoPatient] = useState<any>(null);
+
+  const handleOpenNewRetorno = (patient?: any) => {
+    setRetornoPatient(patient || null);
+    setIsRetornoModalOpen(true);
+  };
 
   const carregarPendentes = async () => {
     try {
@@ -437,6 +445,14 @@ const Agenda = () => {
               Bloquear Horário
             </Button>
             <Button
+              variant="outline"
+              className="flex items-center gap-2 flex-1 sm:flex-none justify-center border-blue-500/40 text-blue-700 dark:text-blue-300 hover:bg-blue-500/10 hover:border-blue-500/60 font-medium"
+              onClick={() => handleOpenNewRetorno()}
+            >
+              <RotateCcw className="h-4 w-4 text-blue-500" />
+              Agendar Retorno
+            </Button>
+            <Button
               className="flex items-center gap-2 flex-1 sm:flex-none justify-center"
               onClick={handleNewAppointment}
             >
@@ -584,6 +600,21 @@ const Agenda = () => {
           onStatusChange={handleStatusChange}
           onConfirmacaoChange={handleConfirmacaoChange}
           onReschedule={handleReschedule}
+          onAgendarRetorno={(appointment) => {
+            setIsDetailsModalOpen(false);
+            const pt = appointment.patientData || (pacientes || []).find((p: any) => p.id === appointment.pacienteId);
+            handleOpenNewRetorno(pt);
+          }}
+        />
+
+        {/* Modal Dedicado para Agendar Retorno */}
+        <ModalAgendarRetorno
+          isOpen={isRetornoModalOpen}
+          onClose={() => {
+            setIsRetornoModalOpen(false);
+            setRetornoPatient(null);
+          }}
+          patient={retornoPatient}
         />
         <PendentesModal
           isOpen={isPendentesModalOpen}

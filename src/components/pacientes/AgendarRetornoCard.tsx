@@ -25,6 +25,7 @@ import { toast } from 'sonner';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import { useDentistas } from '@/hooks/useDentistas';
 import { openWhatsApp } from '@/lib/whatsapp';
+import { cn } from '@/lib/utils';
 
 export const PRAZOS_RETORNO = [
   { id: '15d', label: '15 dias', dias: 15 },
@@ -280,31 +281,38 @@ export const AgendarRetornoCard = ({
   };
 
   return (
-    <Card className="border border-blue-200 dark:border-blue-900/60 shadow-xs bg-gradient-to-br from-card via-card to-blue-50/30 dark:to-blue-950/20">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400">
-              <RotateCcw className="h-4 w-4" />
-            </div>
-            <div>
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
-                Agendar Retorno
-                {proximaConsultaFutura && !modoEdicao && (
-                  <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-300">
-                    Agendado
-                  </Badge>
-                )}
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Prazos pré-estabelecidos ou data personalizada
-              </CardDescription>
+    <Card className={cn(
+      "shadow-xs transition-all",
+      compact
+        ? "border-0 shadow-none bg-transparent p-0"
+        : "border border-blue-200 dark:border-blue-900/60 bg-gradient-to-br from-card via-card to-blue-50/30 dark:to-blue-950/20"
+    )}>
+      {!compact && (
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <div className="h-8 w-8 rounded-lg bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                <RotateCcw className="h-4 w-4" />
+              </div>
+              <div>
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  Agendar Retorno
+                  {proximaConsultaFutura && !modoEdicao && (
+                    <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-300">
+                      Agendado
+                    </Badge>
+                  )}
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Prazos pré-estabelecidos ou data personalizada
+                </CardDescription>
+              </div>
             </div>
           </div>
-        </div>
-      </CardHeader>
+        </CardHeader>
+      )}
 
-      <CardContent className="space-y-4">
+      <CardContent className={cn("space-y-4", compact && "p-0")}>
         {/* Banner de Retorno já existente */}
         {proximaConsultaFutura && !modoEdicao && (
           <div className="p-3 rounded-lg border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50/60 dark:bg-emerald-950/30 space-y-2">

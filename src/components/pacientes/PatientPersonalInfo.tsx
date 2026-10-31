@@ -229,7 +229,7 @@ const PatientPersonalInfo = ({ patient, onSchedule }: PatientPersonalInfoProps) 
         </Card>
  
         {/* Agendamento de Retorno com prazos pré-estabelecidos e data personalizada */}
-        <AgendarRetornoCard patient={patient} onOpenFullModal={onSchedule} />
+        <AgendarRetornoCard patient={patient} />
 
         <Card>
           <CardHeader>

@@ -16,6 +16,7 @@ import {
   XCircle,
   MessageCircle,
   CalendarClock,
+  RotateCcw,
 } from 'lucide-react';
 import { ConfirmacaoStatus, StatusConsulta } from '@/types/shared';
 import { buildConfirmacaoPacienteMessage, openWhatsApp } from '@/lib/whatsapp';
@@ -53,6 +54,7 @@ interface AppointmentDetailsModalProps {
   onStatusChange?: (appointmentId: string, newStatus: StatusConsulta) => void;
   onConfirmacaoChange?: (appointmentId: string, novo: ConfirmacaoStatus) => void;
   onReschedule?: (appointment: any) => void;
+  onAgendarRetorno?: (appointment: any) => void;
 }
 
 const AppointmentDetailsModal = ({
@@ -64,6 +66,7 @@ const AppointmentDetailsModal = ({
   onStatusChange,
   onConfirmacaoChange,
   onReschedule,
+  onAgendarRetorno,
 }: AppointmentDetailsModalProps) => {
   if (!appointment) return null;
 
@@ -295,6 +298,20 @@ const AppointmentDetailsModal = ({
                 >
                   <CalendarClock className="h-3.5 w-3.5" />
                   <span>Remarcar</span>
+                </Button>
+              )}
+
+              {onAgendarRetorno && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onAgendarRetorno(appointment)}
+                  className="h-7.5 text-xs font-semibold gap-1.5 text-blue-600 dark:text-blue-400 border-blue-500/30 hover:bg-blue-50 dark:hover:bg-blue-950/40"
+                  title="Agendar retorno para este paciente"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  <span>Agendar Retorno</span>
                 </Button>
               )}
 

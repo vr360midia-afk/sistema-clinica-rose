@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Command } from 'cmdk';
 import { useNavigate } from 'react-router-dom';
-import { Search, Users, Calendar, DollarSign, Settings, Plus, FileText, X } from 'lucide-react';
+import { Search, Users, Calendar, DollarSign, Settings, Plus, FileText, X, RotateCcw } from 'lucide-react';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 
 export const CommandPalette = () => {
@@ -63,6 +63,13 @@ export const CommandPalette = () => {
               >
                 <Calendar className="w-4 h-4 mr-2" />
                 Agendar Consulta
+              </Command.Item>
+              <Command.Item 
+                onSelect={() => runCommand(() => navigate('/agenda'))}
+                className="flex items-center px-2 py-2.5 text-sm rounded-md cursor-pointer hover:bg-accent hover:text-accent-foreground aria-selected:bg-accent aria-selected:text-accent-foreground"
+              >
+                <RotateCcw className="w-4 h-4 mr-2 text-blue-500" />
+                Agendar Retorno
               </Command.Item>
             </Command.Group>
 

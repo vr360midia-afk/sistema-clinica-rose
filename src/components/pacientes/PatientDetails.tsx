@@ -112,7 +112,7 @@ const PatientDetails = ({ patient, onClose, onEdit, onSchedule, onAddProcediment
               className="h-9 px-2 sm:px-3 text-xs font-semibold gap-1.5 shadow-xs justify-center"
             >
               <CalendarPlus className="h-3.5 w-3.5 shrink-0" />
-              <span>Agendar</span>
+              <span>Agendar Consulta</span>
             </Button>
 
             <Button
@@ -231,7 +231,7 @@ const PatientDetails = ({ patient, onClose, onEdit, onSchedule, onAddProcediment
         isOpen={isRetornoModalOpen}
         onClose={() => setIsRetornoModalOpen(false)}
         patient={patient}
-        onOpenFullModal={onSchedule}
+
       />
     </div>
   );
