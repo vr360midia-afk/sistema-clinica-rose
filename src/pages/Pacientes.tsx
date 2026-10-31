@@ -409,13 +409,13 @@ const Pacientes = () => {
             <h1 className="text-xl sm:text-2xl font-bold text-foreground">Pacientes</h1>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full xl:w-auto">
+          <div className="flex items-center gap-2 w-full xl:w-auto">
             {/* Buscador de Paciente */}
-            <div className="relative flex-1 sm:w-80 md:w-96 min-w-[200px]">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4 pointer-events-none" />
+            <div className="relative flex-1 min-w-0 sm:w-80 md:w-96">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4 pointer-events-none" />
               <Input
-                placeholder="Buscar por nome, telefone ou CPF..."
-                className="pl-10 pr-9 h-10 w-full bg-background border-2 border-slate-300 dark:border-slate-700 focus:border-blue-600 dark:focus:border-blue-500 text-sm font-medium rounded-lg shadow-xs transition-all placeholder:text-muted-foreground"
+                placeholder="Buscar paciente..."
+                className="pl-9 pr-8 h-10 w-full bg-background border border-input focus:border-blue-600 dark:focus:border-blue-500 text-sm font-medium rounded-lg shadow-xs transition-all placeholder:text-muted-foreground"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -423,7 +423,7 @@ const Pacientes = () => {
                 <button
                   type="button"
                   onClick={() => setSearchTerm('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground text-xs rounded-full hover:bg-muted transition-colors cursor-pointer"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground text-xs rounded-full hover:bg-muted transition-colors cursor-pointer"
                   title="Limpar busca"
                 >
                   ✕
@@ -431,59 +431,65 @@ const Pacientes = () => {
               )}
             </div>
 
-            {/* Barra de Ações: Direta e Limpa no Celular, Completa no Desktop */}
-            <div className="flex items-center gap-2">
+            {/* Barra de Ações: Apenas Ícones no Mobile (Minimalista e Otimizado), com Texto no Desktop */}
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+              {/* 1. Novo Paciente: Apenas ícone (+) no mobile */}
               <Button
                 onClick={() => setShowForm(true)}
-                className="bg-blue-600 hover:bg-blue-700 h-10 px-3.5 sm:px-4 font-semibold text-white shadow-xs flex-1 sm:flex-none justify-center shrink-0"
+                className="bg-blue-600 hover:bg-blue-700 h-10 w-10 sm:w-auto sm:px-4 p-0 font-semibold text-white shadow-xs shrink-0 flex items-center justify-center gap-1.5"
+                title="Cadastrar Novo Paciente"
+                aria-label="Novo Paciente"
               >
-                <Plus className="h-4 w-4 mr-1.5" />
-                Novo Paciente
+                <Plus className="h-4 w-4 shrink-0" />
+                <span className="hidden sm:inline">Novo Paciente</span>
               </Button>
 
+              {/* 2. Enviar Anamnese: Direto no desktop, agrupado no menu no mobile */}
               <Button
                 onClick={() => setIsEscolherPacienteAnamneseOpen(true)}
                 variant="outline"
-                className="hidden md:inline-flex border-indigo-300 text-indigo-700 bg-indigo-50/50 hover:bg-indigo-100 dark:border-indigo-800 dark:text-indigo-300 dark:bg-indigo-950/40 h-10 font-semibold shadow-xs shrink-0"
+                className="hidden md:inline-flex border-indigo-300 text-indigo-700 bg-indigo-50/50 hover:bg-indigo-100 dark:border-indigo-800 dark:text-indigo-300 dark:bg-indigo-950/40 h-10 font-semibold shadow-xs shrink-0 gap-1.5"
                 title="Gerar e enviar link de anamnese para qualquer paciente preencher ou assinar"
               >
-                <ClipboardList className="h-4 w-4 mr-2 text-indigo-600" />
-                Enviar Anamnese
+                <ClipboardList className="h-4 w-4 mr-1 text-indigo-600" />
+                <span>Enviar Anamnese</span>
               </Button>
 
-              {/* Botão Símbolo de Filtros no Topo da Página */}
+              {/* 3. Símbolo de Filtros: Apenas ícone no mobile, com texto e badge no desktop */}
               <Button
                 type="button"
                 variant={showFiltros || temFiltroAtivo ? "default" : "outline"}
                 size="sm"
                 onClick={() => setShowFiltros((prev) => !prev)}
                 className={cn(
-                  "h-10 px-3 font-semibold shadow-xs shrink-0 gap-1.5 transition-all cursor-pointer relative",
+                  "h-10 w-10 sm:w-auto sm:px-3 p-0 font-semibold shadow-xs shrink-0 gap-1.5 transition-all cursor-pointer relative flex items-center justify-center",
                   (showFiltros || temFiltroAtivo)
                     ? "bg-slate-800 text-white hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 border-transparent"
                     : "border-border/80 text-foreground hover:bg-muted/60"
                 )}
                 title={showFiltros ? "Ocultar filtros" : "Filtrar pacientes por status, data, mês ou ano"}
+                aria-label="Filtros"
               >
-                <Filter className="h-4 w-4 text-blue-500" />
-                <span className="text-xs font-semibold hidden xs:inline sm:inline">Filtros</span>
+                <Filter className="h-4 w-4 text-blue-500 shrink-0" />
+                <span className="text-xs font-semibold hidden sm:inline">Filtros</span>
                 {totalFiltrosAtivos > 0 && (
-                  <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-bold bg-blue-500 text-white rounded-full">
+                  <Badge variant="secondary" className="absolute -top-1 -right-1 sm:static sm:top-auto sm:right-auto h-4 min-w-[16px] sm:h-5 px-1 sm:px-1.5 text-[9px] sm:text-[10px] font-bold bg-blue-500 text-white rounded-full flex items-center justify-center">
                     {totalFiltrosAtivos}
                   </Badge>
                 )}
               </Button>
 
-              {/* Botão de Ferramentas Ocultas (Menu Suspenso Discreto no Mobile e Desktop) */}
+              {/* 4. Menu Mais (Ferramentas): Apenas ícone no mobile */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="outline"
-                    className="h-10 px-3 font-semibold shadow-xs shrink-0 gap-1.5 border-border/80 text-foreground hover:bg-muted/60"
+                    className="h-10 w-10 sm:w-auto sm:px-3 p-0 font-semibold shadow-xs shrink-0 gap-1.5 border-border/80 text-foreground hover:bg-muted/60 flex items-center justify-center"
                     title="Mais ferramentas e ações"
+                    aria-label="Mais opções"
                   >
-                    <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-xs font-semibold">Mais</span>
+                    <MoreHorizontal className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span className="text-xs font-semibold hidden sm:inline">Mais</span>
                     <ChevronDown className="h-3 w-3 opacity-60 hidden sm:inline" />
                   </Button>
                 </DropdownMenuTrigger>
