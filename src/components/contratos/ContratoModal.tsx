@@ -80,6 +80,8 @@ import {
   identificarTipoDocumento,
   isMetodoCartao,
   temValorValido,
+  limparFormaPagamentoParaContrato,
+  gerarIdentificadorContrato,
 } from '@/utils/contratoEngine';
 import { downloadTcleLentesResinaPdf } from '@/utils/tcleLentesResina';
 import { downloadTermoUsoImagemPdf } from '@/utils/termoUsoImagem';
@@ -242,6 +244,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
 
       const configMaquinas = carregarConfiguracoesMaquinasSync(null);
       let totalTaxasCartao = 0;
+      let totalTaxasCartaoQuitadas = 0;
       let operadoraTaxasNome = '';
 
       for (const p of snapshotAtual.financeiro.parcelas) {
@@ -284,8 +287,6 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
         let taxaPercItem: number | undefined = undefined;
         let taxaValorItem: number | undefined = undefined;
         let liquidoItem: number | undefined = undefined;
-
-        let totalTaxasCartaoQuitadas = 0;
 
         if (isCartao) {
           const infoCartao = extrairDetalhesCartaoDeTexto(
@@ -2612,24 +2613,57 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                         key={doc.id}
                         className="p-4 bg-card rounded-lg border border-border hover:border-primary/50 transition-colors shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-foreground"
                       >
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <FileText className="h-4 w-4 text-primary" />
-                            <h4 className="font-semibold text-sm text-foreground">{doc.titulo}</h4>
-                            <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
-                              Imutável
-                            </Badge>
-                            {doc.assinaturaData && (
-                              <Badge variant="secondary" className="text-[10px] bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/30">
-                                ✓ Assinado
-                              </Badge>
-                            )}
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            Emitido em: {new Date(doc.criadoEm).toLocaleString('pt-BR')}
-                            {doc.dentista ? ` • Responsável: ${doc.dentista}` : ''}
-                          </p>
-                        </div>
+                        {(() => {
+                          const snapItens = (doc.itens || {}) as any;
+                          const hasAssinaturaPaciente = Boolean(doc.assinaturaData || doc.assinadoEm || snapItens.assinaturaPaciente?.assinaturaData);
+                          const hasAssinaturaProfissional = Boolean(snapItens.assinaturaDentista?.assinaturaData);
+                          const isFormalizado = hasAssinaturaPaciente && hasAssinaturaProfissional;
+
+                          return (
+                            <div className="space-y-1">
+                              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                                <FileText className="h-4 w-4 text-primary shrink-0" />
+                                <h4 className="font-semibold text-sm text-foreground">{doc.titulo}</h4>
+                                <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
+                                  Imutável
+                                </Badge>
+
+                                {isFormalizado ? (
+                                  <Badge className="text-[10px] bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center gap-1">
+                                    <CheckCircle2 className="h-3 w-3" /> Formalizado por ambas as partes
+                                  </Badge>
+                                ) : hasAssinaturaPaciente ? (
+                                  <Badge className="text-[10px] bg-blue-600 hover:bg-blue-700 text-white font-semibold flex items-center gap-1">
+                                    <Check className="h-3 w-3" /> Assinado pelo paciente
+                                  </Badge>
+                                ) : hasAssinaturaProfissional ? (
+                                  <Badge className="text-[10px] bg-purple-600 hover:bg-purple-700 text-white font-semibold flex items-center gap-1">
+                                    <Check className="h-3 w-3" /> Assinado pela profissional
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950/40 font-semibold flex items-center gap-1">
+                                    <Clock className="h-3 w-3" /> Pendente de assinatura
+                                  </Badge>
+                                )}
+                              </div>
+
+                              <p className="text-xs text-muted-foreground">
+                                Emitido em: {new Date(doc.criadoEm).toLocaleString('pt-BR')}
+                                {doc.dentista ? ` • Responsável: ${doc.dentista}` : ''}
+                                {hasAssinaturaPaciente && snapItens.assinaturaPaciente?.dataHora && (
+                                  <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                                    {' '}• Assinado pelo paciente em {new Date(snapItens.assinaturaPaciente.dataHora).toLocaleString('pt-BR')}
+                                  </span>
+                                )}
+                                {hasAssinaturaProfissional && snapItens.assinaturaDentista?.dataHora && (
+                                  <span className="text-purple-600 dark:text-purple-400 font-medium">
+                                    {' '}• Assinado pela profissional em {new Date(snapItens.assinaturaDentista.dataHora).toLocaleString('pt-BR')}
+                                  </span>
+                                )}
+                              </p>
+                            </div>
+                          );
+                        })()}
 
                         <div className="flex items-center gap-2 shrink-0">
                           <Button

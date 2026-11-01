@@ -24,7 +24,7 @@ import { supabase } from '@/integrations/supabase/client';
 const Agenda = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { updateConsulta, consultas } = useDentalSystem();
+  const { updateConsulta, consultas, pacientes } = useDentalSystem();
   const { bloqueios, addBloqueio, updateBloqueio, deleteBloqueio } = useBloqueios();
 
   const initialDate = useMemo(() => {

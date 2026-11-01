@@ -354,22 +354,43 @@ export const isContratoEndodontia = (snapshot?: ContratoSnapshot | null): boolea
  * Remove menções a operadoras/maquininhas de cartão (PagBank, InfinitePay, Stone, etc.) e taxas da máquina
  * de qualquer texto destinado ao contrato do paciente (cláusulas, resumo, parcelas, etc.).
  */
-export const limparFormaPagamentoParaContrato = (texto?: string): string => {
+export const limparFormaPagamentoParaContrato = (texto?: any): string => {
   if (!texto) return '';
-  let str = String(texto).trim();
+  let str = '';
+  if (typeof texto === 'object') {
+    try {
+      str = JSON.stringify(texto);
+    } catch (_) {
+      str = '';
+    }
+  } else {
+    str = String(texto).trim();
+  }
+  if (!str) return '';
+
+  // Desempacota stringified JSON com aspas externas se houver
+  if ((str.startsWith('"') && str.endsWith('"')) || (str.startsWith("'") && str.endsWith("'"))) {
+    try {
+      str = JSON.parse(str);
+    } catch (_) {
+      str = str.slice(1, -1).trim();
+    }
+  }
 
   // Se o texto contiver qualquer indício de JSON estruturado, converte para texto legível
   if (
-    str.includes('{') ||
-    str.includes('}') ||
-    str.includes('condicoes') ||
-    str.includes('versao') ||
-    str.includes('selecionadaId')
+    typeof str === 'string' && (
+      str.includes('{') ||
+      str.includes('}') ||
+      str.includes('condicoes') ||
+      str.includes('versao') ||
+      str.includes('selecionadaId')
+    )
   ) {
     str = obterTextoCondicaoParaContrato(str);
   }
 
-  const limpo = str
+  const limpo = String(str)
     // 1. Remove blocos de taxa como "(Taxa PagBank: 10.7% / R$ 267,50)", "(Taxa 10.7%: R$ 267,50)", "(Taxa: 10.7%)", etc.
     .replace(/\s*\(\s*Taxa[^)]*\)/gi, '')
     // 2. Remove padrões como " - Taxa 10.7%: R$ 267,50"
@@ -387,8 +408,15 @@ export const limparFormaPagamentoParaContrato = (texto?: string): string => {
     .replace(/\s+([,.:;])/g, '$1')
     .trim();
 
-  // Safeguard absoluto: se após a limpeza ainda houver JSON residual ({ ou }), retorna fallback seguro
-  if (limpo.includes('{') || limpo.includes('}') || limpo.includes('condicoes') || limpo.includes('versao":')) {
+  // Safeguard absoluto: se após a limpeza ainda houver JSON residual ({ ou }), retorna fallback legível
+  if (
+    limpo.includes('{') ||
+    limpo.includes('}') ||
+    limpo.includes('condicoes') ||
+    limpo.includes('versao') ||
+    limpo.includes('selecionadaId') ||
+    limpo.includes('[object')
+  ) {
     return 'Conforme acordado no orçamento';
   }
 

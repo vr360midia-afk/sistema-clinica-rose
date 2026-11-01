@@ -78,10 +78,14 @@ Deno.serve(async (req) => {
         const { data: ex2 } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", identificador).maybeSingle();
         if (ex2?.id) existingDoc = ex2;
       }
+      if (!existingDoc && identificador.toLowerCase().startsWith("ctr-")) {
+        const { data: ex3 } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", identificador.toUpperCase()).maybeSingle();
+        if (ex3?.id) existingDoc = ex3;
+      }
 
       if (existingDoc) {
-        // Se já está assinado, não permite sobrescrever os termos imutáveis
-        if (existingDoc.assinado_em || existingDoc.itens?.status === "assinado") {
+        // Se já está assinado pelo paciente, não permite sobrescrever os termos imutáveis
+        if (existingDoc.assinado_em || existingDoc.itens?.status === "assinado" || existingDoc.itens?.assinaturaPaciente) {
           return json({ ok: true, id: existingDoc.id, identificador, status: "assinado", jaAssinado: true });
         }
 
@@ -148,6 +152,10 @@ Deno.serve(async (req) => {
         const { data } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", targetId).maybeSingle();
         if (data) doc = data;
       }
+      if (!doc && targetId.toLowerCase().startsWith("ctr-")) {
+        const { data } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", targetId.toUpperCase()).maybeSingle();
+        if (data) doc = data;
+      }
 
       if (!doc) {
         return json({ error: "Contrato não encontrado" }, 404);
@@ -169,7 +177,14 @@ Deno.serve(async (req) => {
         } catch (_) {}
       }
 
-      const status = doc.itens?.status || (doc.assinado_em ? "assinado" : "pendente");
+      const isAssinadoPaciente = !!doc.assinado_em || !!doc.itens?.assinaturaPaciente;
+      const isAssinadoDentista = !!doc.itens?.assinaturaDentista;
+      const isFormalizadoTotal = isAssinadoPaciente && isAssinadoDentista;
+
+      let statusTexto = "pendente";
+      if (isFormalizadoTotal) statusTexto = "formalizado";
+      else if (isAssinadoPaciente) statusTexto = "assinado_paciente";
+      else if (isAssinadoDentista) statusTexto = "assinado_profissional";
 
       return json({
         ok: true,
@@ -178,7 +193,11 @@ Deno.serve(async (req) => {
         titulo: doc.titulo,
         conteudo: doc.conteudo,
         pacienteNome: doc.paciente_nome,
-        status,
+        pacienteId: doc.paciente_id,
+        status: statusTexto,
+        jaAssinadoPaciente: isAssinadoPaciente,
+        jaAssinadoDentista: isAssinadoDentista,
+        isFormalizadoTotal,
         assinadoEm: doc.assinado_em,
         assinanteNome: doc.assinante_nome,
         snapshot: doc.itens,
@@ -186,7 +205,7 @@ Deno.serve(async (req) => {
     }
 
     // =========================================================================
-    // 3. AÇÃO: SIGN (Assinatura digital pública segura)
+    // 3. AÇÃO: SIGN (Assinatura digital do paciente com bloqueio de reassinatura)
     // =========================================================================
     if (action === "sign") {
       const targetId = String(body.id || body.identificador || body.contratoId || "").trim();
@@ -212,6 +231,10 @@ Deno.serve(async (req) => {
         const { data } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", targetId).maybeSingle();
         if (data) doc = data;
       }
+      if (!doc && targetId.toLowerCase().startsWith("ctr-")) {
+        const { data } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", targetId.toUpperCase()).maybeSingle();
+        if (data) doc = data;
+      }
 
       if (!doc) {
         return json({ error: "Contrato não encontrado" }, 404);
@@ -223,9 +246,15 @@ Deno.serve(async (req) => {
         return json({ error: "Token de acesso inválido ou expirado" }, 403);
       }
 
-      // Previne re-assinatura ou alteração silenciosa
-      if (doc.assinado_em || doc.itens?.status === "assinado") {
-        return json({ error: "Este contrato já foi assinado digitalmente e sua versão é imutável." }, 400);
+      // BLOQUEIO DEFINITIVO DE REASSINATURA DO PACIENTE
+      if (doc.assinado_em || doc.itens?.status === "assinado" || doc.itens?.assinaturaPaciente) {
+        return json({
+          ok: false,
+          error: "Contrato já assinado! Sua assinatura digital foi registrada com sucesso anteriormente e não é permitido assinar novamente.",
+          jaAssinado: true,
+          assinadoEm: doc.assinado_em,
+          snapshot: doc.itens,
+        }, 400);
       }
 
       const dataHoraIso = new Date().toISOString();
@@ -242,7 +271,11 @@ Deno.serve(async (req) => {
       const rg = signerInfo.rg || updatedSnapshot.paciente?.rg || null;
       const email = signerInfo.email || updatedSnapshot.paciente?.email || null;
 
-      updatedSnapshot.status = "assinado";
+      const temDentista = !!updatedSnapshot.assinaturaDentista;
+
+      updatedSnapshot.status = temDentista ? "formalizado" : "assinado";
+      updatedSnapshot.statusAssinaturaPaciente = "assinado";
+      updatedSnapshot.isFormalizadoTotal = temDentista;
       updatedSnapshot.assinaturaPaciente = {
         assinaturaData: signature,
         nome: signerName || doc.paciente_nome || "Paciente",
@@ -273,10 +306,122 @@ Deno.serve(async (req) => {
 
       if (updateErr) throw updateErr;
 
+      // Grava na tabela assinaturas com registro separado
+      try {
+        await supabase.from("assinaturas").insert({
+          documento_id: String(doc.id),
+          documento_tipo: "contrato",
+          tipo: "paciente",
+          nome: signerName || doc.paciente_nome || "Paciente",
+          assinatura_data: signature,
+          paciente_id: doc.paciente_id || null,
+          user_id: doc.user_id || null,
+          evidencias: {
+            ip: clientIp,
+            userAgent,
+            cpf,
+            email,
+            documentHash,
+          },
+          criado_em: dataHoraIso,
+          atualizado_em: dataHoraIso,
+        });
+      } catch (_) {}
+
       return json({
         ok: true,
         mensagem: "Contrato assinado digitalmente com sucesso!",
         assinadoEm: dataHoraIso,
+        isFormalizadoTotal: temDentista,
+        snapshot: updatedSnapshot,
+      });
+    }
+
+    // =========================================================================
+    // 4. AÇÃO: SIGN_PROFESSIONAL (Assinatura digital da profissional / dentista)
+    // =========================================================================
+    if (action === "sign_professional") {
+      const targetId = String(body.id || body.identificador || body.contratoId || "").trim();
+      const signature = String(body.signature || "").trim();
+      const signerName = String(body.signerName || "").trim();
+      const cro = String(body.cro || "").trim();
+
+      if (!targetId) {
+        return json({ error: "Identificador do contrato é obrigatório" }, 400);
+      }
+      if (!signature) {
+        return json({ error: "Assinatura gráfica é obrigatória" }, 400);
+      }
+
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
+      let doc: Record<string, any> | null = null;
+
+      if (isUuid) {
+        const { data } = await supabase.from("documentos_clinicos").select("*").eq("id", targetId).maybeSingle();
+        if (data) doc = data;
+      }
+      if (!doc) {
+        const { data } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", targetId).maybeSingle();
+        if (data) doc = data;
+      }
+      if (!doc && targetId.toLowerCase().startsWith("ctr-")) {
+        const { data } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", targetId.toUpperCase()).maybeSingle();
+        if (data) doc = data;
+      }
+
+      if (!doc) {
+        return json({ error: "Contrato não encontrado" }, 404);
+      }
+
+      const dataHoraIso = new Date().toISOString();
+      const existingItens = typeof doc.itens === "object" && doc.itens ? doc.itens : {};
+      const updatedSnapshot = { ...existingItens };
+
+      const temPaciente = !!doc.assinado_em || !!updatedSnapshot.assinaturaPaciente;
+
+      updatedSnapshot.assinaturaDentista = {
+        assinaturaData: signature,
+        nome: signerName || doc.dentista || updatedSnapshot.clinica?.dentistaResponsavel || "Cirurgião(ã)-Dentista Responsável",
+        cro: cro || updatedSnapshot.clinica?.cro || "",
+        dataHora: dataHoraIso,
+      };
+      updatedSnapshot.statusAssinaturaDentista = "assinado";
+
+      if (temPaciente) {
+        updatedSnapshot.status = "formalizado";
+        updatedSnapshot.isFormalizadoTotal = true;
+      }
+
+      const { error: updErr } = await supabase
+        .from("documentos_clinicos")
+        .update({
+          itens: updatedSnapshot,
+          atualizado_em: dataHoraIso,
+        })
+        .eq("id", doc.id);
+
+      if (updErr) throw updErr;
+
+      // Registra na tabela assinaturas
+      try {
+        await supabase.from("assinaturas").insert({
+          documento_id: String(doc.id),
+          documento_tipo: "contrato",
+          tipo: "dentista",
+          nome: signerName || doc.dentista || "Cirurgião(ã)-Dentista Responsável",
+          assinatura_data: signature,
+          paciente_id: doc.paciente_id || null,
+          user_id: doc.user_id || null,
+          criado_em: dataHoraIso,
+          atualizado_em: dataHoraIso,
+        });
+      } catch (_) {}
+
+      return json({
+        ok: true,
+        mensagem: "Assinatura da profissional registrada com sucesso no banco de dados!",
+        assinadoEm: dataHoraIso,
+        isFormalizadoTotal: temPaciente,
         snapshot: updatedSnapshot,
       });
     }

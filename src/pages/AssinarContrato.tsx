@@ -55,6 +55,8 @@ import {
   mapearDadosContrato,
   gerarSnapshotDemonstracao,
   garantirContratoPersistido,
+  emitirContratoPersistido,
+  construirUrlPublicaContrato,
 } from '@/utils/contratoEngine';
 import { slugifyNome, unslugifyNome } from '@/utils/anamneseEngine';
 import {
@@ -491,12 +493,6 @@ export default function AssinarContrato() {
         },
       };
 
-      setSnapshot(updatedSnapshot);
-      setShowSignatureModal(false);
-
-      const contractId = docDbId || targetId || snapshot.contratoId;
-      const contractToken = token || snapshot.token;
-
       // 1. Persistência prioritária via Edge Function pública
       let persistiuRemoto = false;
       if (contractId && contractToken) {
@@ -524,7 +520,7 @@ export default function AssinarContrato() {
         }
       }
 
-      // 2. Fallback 1: RPC segura assinar_contrato_publico
+      // 2. Fallback 1: RPC segura assinar_contrato_publico (atômico com FOR UPDATE e bloqueio de reassinatura)
       if (!persistiuRemoto && contractId && contractToken) {
         try {
           const { data: rpcRes, error: rpcErr } = await (supabase.rpc as any)('assinar_contrato_publico', {
@@ -543,11 +539,18 @@ export default function AssinarContrato() {
             if (rpcRes.snapshot) {
               setSnapshot(sanitizarSnapshotContrato(rpcRes.snapshot));
             }
+          } else if (rpcRes && !rpcRes.ok && rpcRes.jaAssinado) {
+            toast.info('Este contrato já consta como assinado no banco de dados.');
+            setShowSignatureModal(false);
+            if (rpcRes.snapshot) {
+              setSnapshot(sanitizarSnapshotContrato(rpcRes.snapshot));
+            }
+            return;
           }
         } catch (_) {}
       }
 
-      // 3. Fallback 2: Persistência direta em documentos_clinicos
+      // 3. Fallback 2: Persistência direta em documentos_clinicos (garantindo que assinado_em ainda é NULL)
       if (!persistiuRemoto && contractId) {
         try {
           const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(contractId);
@@ -562,8 +565,8 @@ export default function AssinarContrato() {
           };
 
           const updQuery = isUuid
-            ? supabase.from('documentos_clinicos').update(updatePayload).eq('id', contractId)
-            : supabase.from('documentos_clinicos').update(updatePayload).or(`itens->>contratoId.eq.${idUpper},itens->>contratoId.eq.${idLower},itens->>contratoId.eq.${contractId}`);
+            ? supabase.from('documentos_clinicos').update(updatePayload).eq('id', contractId).is('assinado_em', null)
+            : supabase.from('documentos_clinicos').update(updatePayload).or(`itens->>contratoId.eq.${idUpper},itens->>contratoId.eq.${idLower},itens->>contratoId.eq.${contractId}`).is('assinado_em', null);
 
           const { data: updatedRows, error: directErr } = await updQuery.select('id');
           if (!directErr && updatedRows && updatedRows.length > 0) {
@@ -574,6 +577,12 @@ export default function AssinarContrato() {
         }
       }
 
+      if (!persistiuRemoto) {
+        throw new Error('Não foi possível persistir sua assinatura no servidor da clínica. Por favor, tente novamente ou entre em contato via WhatsApp.');
+      }
+
+      setSnapshot(sanitizarSnapshotContrato(updatedSnapshot));
+      setShowSignatureModal(false);
       toast.success('Contrato assinado digitalmente com sucesso!');
     } catch (err: any) {
       console.error(err);
@@ -583,6 +592,12 @@ export default function AssinarContrato() {
 
   const handleProfessionalSignatureComplete = async (sigData: SignatureData) => {
     if (!snapshot) return;
+
+    if (snapshot.assinaturaDentista?.assinaturaData) {
+      toast.info('A assinatura da profissional já se encontra registrada no contrato.');
+      setShowProfessionalSignatureModal(false);
+      return;
+    }
 
     try {
       const dataHoraIso = new Date().toISOString();
@@ -597,82 +612,84 @@ export default function AssinarContrato() {
         },
       };
 
-      setSnapshot(updatedSnapshot);
-      setShowProfessionalSignatureModal(false);
+      const finalDocId = docDbId || targetId || snapshot.contratoId;
 
-      // Salva no localStorage para persistência em múltiplos navegadores e acessos
-      const finalDocId = targetId || snapshot.contratoId;
-      localStorage.setItem(`contrato_assinado_${snapshot.contratoId}`, JSON.stringify(updatedSnapshot));
-      localStorage.setItem(`contrato_${snapshot.contratoId}`, JSON.stringify(updatedSnapshot));
-      if (finalDocId) {
-        localStorage.setItem(`contrato_assinado_${finalDocId}`, JSON.stringify(updatedSnapshot));
-        localStorage.setItem(`contrato_${finalDocId}`, JSON.stringify(updatedSnapshot));
-      }
-      if (rawSlug) {
-        localStorage.setItem(`contrato_slug_${rawSlug}`, JSON.stringify(updatedSnapshot));
-        localStorage.setItem(`contrato_slug_${rawSlug.replace(/^assinar-contrato-/, '')}`, JSON.stringify(updatedSnapshot));
-      }
-
-      // 1. Tenta persistir remotamente via Edge Function pública
+      // 1. Persistência prioritária via RPC atômica assinar_contrato_profissional
       let persistiuRemoto = false;
       if (finalDocId) {
         try {
+          const { data: rpcRes, error: rpcErr } = await (supabase.rpc as any)('assinar_contrato_profissional', {
+            p_identificador: finalDocId,
+            p_assinatura: sigData.signature,
+            p_assinante_nome: sigData.signerName || snapshot.clinica.dentistaResponsavel,
+            p_cro: snapshot.clinica.cro || '',
+          });
+          if (!rpcErr && rpcRes?.ok) {
+            persistiuRemoto = true;
+            if (rpcRes.snapshot) {
+              setSnapshot(sanitizarSnapshotContrato(rpcRes.snapshot));
+            }
+          }
+        } catch (_) {}
+      }
+
+      // 2. Persistência via Edge Function pública
+      if (!persistiuRemoto && finalDocId) {
+        try {
           const { data: signRes, error: signErr } = await supabase.functions.invoke('contrato-publico', {
             body: {
-              action: 'sign',
+              action: 'sign_professional',
               id: finalDocId,
-              signerRole: 'dentista',
               signature: sigData.signature,
               signerName: sigData.signerName || snapshot.clinica.dentistaResponsavel,
-              snapshot: updatedSnapshot,
+              cro: snapshot.clinica.cro,
             },
           });
           if (!signErr && signRes?.ok) {
             persistiuRemoto = true;
+            if (signRes.snapshot) {
+              setSnapshot(sanitizarSnapshotContrato(signRes.snapshot));
+            }
           }
         } catch (edgeErr) {
           console.warn('Erro ao assinar dentista via Edge function:', edgeErr);
         }
       }
 
-      // 2. Fallback: Tenta persistir direto no Supabase caso permitido
-      if (finalDocId && !persistiuRemoto) {
+      // 3. Fallback: Atualização direta em documentos_clinicos
+      if (!persistiuRemoto && finalDocId) {
         try {
           const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(finalDocId);
-          if (isUuid) {
-            await supabase
-              .from('documentos_clinicos')
-              .update({
-                itens: updatedSnapshot as any,
-              })
-              .eq('id', finalDocId);
-          } else {
-            const { data: matchedDocs } = await supabase
-              .from('documentos_clinicos')
-              .select('id, itens')
-              .eq('tipo', 'contrato')
-              .limit(20);
-            const foundDoc = (matchedDocs || []).find(
-              (d: any) => d.itens?.contratoId === finalDocId || d.itens?.contratoId === snapshot.contratoId
-            );
-            if (foundDoc?.id) {
-              await supabase
-                .from('documentos_clinicos')
-                .update({
-                  itens: updatedSnapshot as any,
-                })
-                .eq('id', foundDoc.id);
-            }
+          const idUpper = String(finalDocId).toUpperCase();
+          const idLower = String(finalDocId).toLowerCase();
+
+          const updatePayload = {
+            itens: updatedSnapshot as any,
+          };
+
+          const updQuery = isUuid
+            ? supabase.from('documentos_clinicos').update(updatePayload).eq('id', finalDocId)
+            : supabase.from('documentos_clinicos').update(updatePayload).or(`itens->>contratoId.eq.${idUpper},itens->>contratoId.eq.${idLower},itens->>contratoId.eq.${finalDocId}`);
+
+          const { data: updatedRows, error: directErr } = await updQuery.select('id');
+          if (!directErr && updatedRows && updatedRows.length > 0) {
+            persistiuRemoto = true;
           }
         } catch (dbErr) {
           console.warn('Persistência remota direta dentista:', dbErr);
         }
       }
 
-      toast.success('Assinatura do cirurgião(ã)-dentista registrada com sucesso!');
+      if (!persistiuRemoto) {
+        throw new Error('Não foi possível gravar a assinatura da profissional no servidor. Verifique sua conexão e tente novamente.');
+      }
+
+      setSnapshot(sanitizarSnapshotContrato(updatedSnapshot));
+      setShowProfessionalSignatureModal(false);
+      toast.success('Assinatura da profissional registrada com sucesso!');
     } catch (err: any) {
       console.error(err);
-      toast.error('Erro ao registrar assinatura do profissional: ' + (err?.message || 'Tente novamente'));
+      toast.error('Erro ao registrar assinatura profissional: ' + (err?.message || 'Tente novamente'));
     }
   };
 
@@ -1887,10 +1904,38 @@ export default function AssinarContrato() {
                   </div>
 
                   {isAssinado ? (
-                    <div className="space-y-2 pt-1">
+                    <div className="space-y-3 pt-1">
+                      {/* Box Oficial de Contrato Já Assinado */}
+                      <div className="p-4 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl border border-emerald-200 dark:border-emerald-800 text-center space-y-3 shadow-xs">
+                        <div className="inline-flex p-2 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300">
+                          <CheckCircle2 className="h-6 w-6" />
+                        </div>
+                        <div className="space-y-1">
+                          <h3 className="text-base font-bold text-emerald-950 dark:text-emerald-100">
+                            Contrato já assinado!
+                          </h3>
+                          <p className="text-xs text-emerald-800 dark:text-emerald-200 whitespace-pre-line leading-relaxed font-normal">
+                            Sua assinatura digital foi registrada com sucesso. Não é necessário assinar novamente.
+                            {"\n\n"}
+                            Em caso de dúvidas sobre o contrato, entre em contato com nossa clínica.
+                          </p>
+                        </div>
+                        <div className="pt-1">
+                          <Button
+                            type="button"
+                            onClick={() => openWhatsApp('5582974002213', `Olá! Gostaria de tirar dúvidas sobre o contrato de ${snapshot.paciente.nome}.`)}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs gap-1.5 shadow-xs w-full sm:w-auto"
+                          >
+                            <MessageCircle className="h-4 w-4" />
+                            Falar com a clínica
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Registro e Auditoria da Assinatura Persistida */}
                       <div className="p-3 bg-white dark:bg-slate-900 rounded-lg border border-emerald-100 dark:border-emerald-900/40 text-center space-y-1.5">
                         <div className="flex items-center justify-center gap-1.5 text-emerald-700 dark:text-emerald-300 text-xs font-semibold">
-                          <CheckCircle className="h-4 w-4" /> Assinatura Digital Registrada
+                          <CheckCircle className="h-4 w-4" /> Assinatura Digital Registrada no Servidor
                         </div>
                         <p className="text-[11px] text-muted-foreground">
                           Em {new Date(snapshot.assinaturaPaciente!.dataHora).toLocaleString('pt-BR')}
@@ -1961,20 +2006,6 @@ export default function AssinarContrato() {
                     </div>
                   )}
                 </div>
-
-                {isAssinado && (
-                  <div className="pt-2 border-t border-emerald-100 dark:border-emerald-900/40 mt-3 text-right">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setShowSignatureModal(true)}
-                      className="text-[11px] h-7 text-muted-foreground hover:text-foreground"
-                    >
-                      Alterar / Refazer Assinatura
-                    </Button>
-                  </div>
-                )}
               </div>
 
               {/* Card 2: CONTRATADA (Cirurgião-Dentista / Profissional Responsável) */}
@@ -2039,7 +2070,7 @@ export default function AssinarContrato() {
                       </div>
 
                       <p className="text-[11px] text-center text-muted-foreground">
-                        Responsável técnico(a) / Contratada formalmente autenticada.
+                        Responsável técnico(a) / Contratada formalmente autenticada no banco de dados.
                       </p>
                     </div>
                   ) : (
@@ -2059,20 +2090,6 @@ export default function AssinarContrato() {
                     </div>
                   )}
                 </div>
-
-                {isAssinadoDentista && (
-                  <div className="pt-2 border-t border-emerald-100 dark:border-emerald-900/40 mt-3 text-right">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setShowProfessionalSignatureModal(true)}
-                      className="text-[11px] h-7 text-muted-foreground hover:text-foreground"
-                    >
-                      Alterar / Refazer Assinatura
-                    </Button>
-                  </div>
-                )}
               </div>
             </div>
 

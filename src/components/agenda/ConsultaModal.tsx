@@ -23,6 +23,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { buildConsultaMessage, openWhatsApp } from '@/lib/whatsapp';
+import { supabase } from '@/integrations/supabase/client';
 import {
   calcularHoraFim,
   calcularDuracaoMinutos,

@@ -25,7 +25,7 @@ export const registrarAuditoria = async (params: {
     const user = sessionData.session?.user;
     if (!user) return;
     await supabase.from('audit_logs').insert({
-      user_id: clinicaId,
+      user_id: user.id,
       ator_email: user.email ?? null,
       acao: params.acao,
       entidade: params.entidade,
