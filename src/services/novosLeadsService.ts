@@ -133,10 +133,24 @@ export function parseRawMetaAdsString(text: string): {
   if (platformSplit[1]) {
     const rawTokens = platformSplit[1].trim().split(/\s+/);
     if (rawTokens.length > 0) {
-      // O último token antes de p: é o nome (ex: "Mar" ou "Fransuely")
-      nome = rawTokens[rawTokens.length - 1];
-      // Todos os tokens anteriores são respostas das perguntas do formulário
-      tokensRespostas.push(...rawTokens.slice(0, rawTokens.length - 1));
+      // Localiza a divisão entre respostas e o nome completo
+      // No Meta Ads as respostas (até 4) antecedem o nome e a última resposta geralmente é o investimento (contém r$, mil ou tem _)
+      let splitIndex = -1;
+      for (let i = 0; i < rawTokens.length; i++) {
+        const t = rawTokens[i].toLowerCase();
+        if (t.includes('mil') || t.includes('r$') || t.includes('investimento') || i === 3) {
+          splitIndex = i + 1;
+          break;
+        }
+      }
+
+      if (splitIndex > 0 && splitIndex < rawTokens.length) {
+        tokensRespostas.push(...rawTokens.slice(0, splitIndex));
+        nome = rawTokens.slice(splitIndex).join(' ');
+      } else {
+        nome = rawTokens[rawTokens.length - 1];
+        tokensRespostas.push(...rawTokens.slice(0, rawTokens.length - 1));
+      }
     }
   }
 
@@ -180,9 +194,9 @@ export function parseRawMetaAdsString(text: string): {
 }
 
 // Converte um registro bruto do Supabase crm_leads em objeto tipado NovoLead
-export function parseDbLeadParaNovoLead(raw: any): NovoLead {
-  let meta: any = {};
-  let obsTexto = raw.observacoes || '';
+export function parseDbLeadParaNovoLead(raw: Record<string, unknown>): NovoLead {
+  let meta: Record<string, unknown> = {};
+  let obsTexto = (raw.observacoes as string) || '';
 
   // Se o campo observações contém o bloco de metadados serializado
   if (obsTexto && obsTexto.includes(METADATA_PREFIX)) {
@@ -313,7 +327,7 @@ export function parseDbLeadParaNovoLead(raw: any): NovoLead {
 // Serializa metadados para persistência resiliente em crm_leads
 export function serializarObservacoesComMeta(
   observacoesTexto: string = '',
-  meta: Record<string, any>
+  meta: Record<string, unknown>
 ): string {
   const limpo = (observacoesTexto || '').split(METADATA_PREFIX)[0].trim();
   return `${limpo ? limpo + '\n\n' : ''}${METADATA_PREFIX}${JSON.stringify(meta)}`;
@@ -381,20 +395,20 @@ export const novosLeadsService = {
         .select('*')
         .limit(200);
 
-      const existenteTel = (todos || []).find((l: any) => {
-        const dig = (l.telefone || l.phone || '').replace(/\D/g, '');
+      const existenteTel = (todos || []).find((l: Record<string, unknown>) => {
+        const dig = ((l.telefone || l.phone || '') as string).replace(/\D/g, '');
         return dig.endsWith(sufixo);
       });
 
       if (existenteTel && !leadData.id) {
         // Se já existe um lead com esse telefone, preserva o status e apenas anexa os novos dados/respostas
-        const leadConvertido = parseDbLeadParaNovoLead(existenteTel);
+        const leadConvertido = parseDbLeadParaNovoLead(existenteTel as Record<string, unknown>);
         const respostasCombinadas = [
           ...(leadConvertido.respostas || []),
           ...(leadData.respostas || []),
         ];
 
-        return this.atualizarLead(existenteTel.id, {
+        return this.atualizarLead(existenteTel.id as string, {
           respostas: respostasCombinadas,
           campanha: leadData.campanha || leadConvertido.campanha,
           observacoes: leadData.observacoes
@@ -433,7 +447,7 @@ export const novosLeadsService = {
       metaPayload
     );
 
-    const dbRow: any = {
+    const dbRow: Record<string, unknown> = {
       nome: leadData.nome || 'Lead sem nome',
       telefone: telNormalizado || leadData.telefone || null,
       email: leadData.email || null,
@@ -524,7 +538,7 @@ export const novosLeadsService = {
       metaPayload
     );
 
-    const dbRow: any = {
+    const dbRow: Record<string, unknown> = {
       nome: leadMesclado.nome,
       telefone: normalizarTelefone(leadMesclado.telefone) || leadMesclado.telefone,
       email: leadMesclado.email,
@@ -678,11 +692,10 @@ export const novosLeadsService = {
       convenio?: string;
       observacoes?: string;
     };
-  }): Promise<{ paciente: any; lead: NovoLead }> {
+  }): Promise<{ paciente: Record<string, unknown>; lead: NovoLead }> {
     const telLimpo = dadosPaciente.telefone.replace(/\D/g, '');
 
     // 1. Verifica se já existe paciente com este telefone (últimos 8 dígitos) ou CPF
-    let query = supabase.from('pacientes').select('*');
     if (dadosPaciente.cpf) {
       const cpfLimpo = dadosPaciente.cpf.replace(/\D/g, '');
       const { data: comCpf } = await supabase
@@ -701,8 +714,8 @@ export const novosLeadsService = {
     if (telLimpo.length >= 8) {
       const sufixo = telLimpo.slice(-8);
       const { data: pacientes } = await supabase.from('pacientes').select('*').limit(300);
-      const existente = (pacientes || []).find((p: any) => {
-        const pTel = (p.telefone || '').replace(/\D/g, '');
+      const existente = (pacientes || []).find((p: Record<string, unknown>) => {
+        const pTel = ((p.telefone || '') as string).replace(/\D/g, '');
         return pTel.endsWith(sufixo);
       });
 

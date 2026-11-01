@@ -492,7 +492,10 @@ export default function NovosLeads() {
               </SelectContent>
             </Select>
 
-            <Select value={filtroRevisao} onValueChange={(v: any) => setFiltroRevisao(v)}>
+            <Select
+              value={filtroRevisao}
+              onValueChange={(v: 'todos' | 'revisados' | 'nao_revisados') => setFiltroRevisao(v)}
+            >
               <SelectTrigger className="h-9 text-xs w-[140px]">
                 <SelectValue placeholder="Revisão" />
               </SelectTrigger>
