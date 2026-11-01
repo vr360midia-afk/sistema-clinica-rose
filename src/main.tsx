@@ -2,6 +2,10 @@ import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 import ErrorBoundary from './components/common/ErrorBoundary.tsx';
+import { cn } from './lib/utils';
+
+if (typeof window !== 'undefined') { (window as any).cn = cn; }
+if (typeof globalThis !== 'undefined') { (globalThis as any).cn = cn; }
 
 // Lida com atualização de chunks após novos deploys do Vite
 window.addEventListener('vite:preloadError', (event) => {

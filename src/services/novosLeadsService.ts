@@ -97,44 +97,49 @@ export function parseRawMetaAdsString(text: string): {
     return { isMetaRaw: false, nome: '', telefone: '', respostas: [] };
   }
 
-  // Detecta se a string contém marcadores de exportação do Meta Ads
+  // Detecta se a string cont�m marcadores de exporta��o do Meta Ads
   const hasMetaMarkers =
-    /l:\d+/.test(text) ||
-    /p:\+?\d+/.test(text) ||
-    (/ag:\d+/.test(text) && /as:\d+/.test(text));
+    /[liI]:d+/i.test(text) ||
+    /p:+?d+/i.test(text) ||
+    (/ag:d+/i.test(text) && /as:d+/i.test(text)) ||
+    /c:d+/i.test(text) ||
+    /f:d+/i.test(text) ||
+    text.includes('Campanha Leads') ||
+    text.includes('SELE��O PRE VENDA') ||
+    text.includes('INVESTIMENTO-copy');
 
   if (!hasMetaMarkers) {
     return { isMetaRaw: false, nome: text, telefone: '', respostas: [] };
   }
 
   // 1. Telefone (Meta exporta como p:82988054849 ou p:+5582991835693)
-  const phoneMatch = text.match(/p:(\+?\d+)/);
+  const phoneMatch = text.match(/p:(+?d+)/i);
   const rawPhone = phoneMatch ? phoneMatch[1] : '';
 
-  // 2. Data de criação ISO
-  const dateMatch = text.match(/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2})/);
+  // 2. Data de cria��o ISO
+  const dateMatch = text.match(/(d{4}-d{2}-d{2}Td{2}:d{2}:d{2}[+-]d{2}:d{2})/);
   const data_criacao = dateMatch ? dateMatch[1] : undefined;
 
   // 3. Campanha
-  const campMatch = text.match(/c:\d+\s+(.*?)\s+Formulario/i);
-  const campanha = campMatch ? campMatch[1].trim() : 'Campanha Meta Leads';
+  const campMatch = text.match(/c:d+s+(.*?)s+(?:Formulario|f:d+)/i);
+  const campanha = campMatch ? campMatch[1].trim() : 'Campanha Leads';
 
-  // 4. Formulário
-  const formMatch = text.match(/f:\d+\s+(.*?)\s+(?:true|false)/i);
+  // 4. Formul�rio
+  const formMatch = text.match(/f:d+s+(.*?)s+(?:true|false)/i);
   const formNome = formMatch ? formMatch[1].trim() : undefined;
 
   // 5. Nome e Respostas
   let nome = '';
   const tokensRespostas: string[] = [];
 
-  const beforeP = text.split(/p:\+?\d+/)[0];
-  const platformSplit = beforeP.split(/\s+(?:ig|fb)\s+/i);
+  const beforeP = text.split(/p:+?d+/i)[0];
+  const platformSplit = beforeP.split(/s+(?:ig|fb|instagram|facebook)s+/i);
 
   if (platformSplit[1]) {
-    const rawTokens = platformSplit[1].trim().split(/\s+/);
+    const rawTokens = platformSplit[1].trim().split(/s+/);
     if (rawTokens.length > 0) {
-      // Localiza a divisão entre respostas e o nome completo
-      // No Meta Ads as respostas (até 4) antecedem o nome e a última resposta geralmente é o investimento (contém r$, mil ou tem _)
+      // Localiza a divis�o entre respostas e o nome completo
+      // No Meta Ads as respostas antecedem o nome e a �ltima resposta geralmente � o investimento (cont�m r$, mil ou tem _)
       let splitIndex = -1;
       for (let i = 0; i < rawTokens.length; i++) {
         const t = rawTokens[i].toLowerCase();
@@ -154,28 +159,43 @@ export function parseRawMetaAdsString(text: string): {
     }
   }
 
-  if (!nome || nome.startsWith('l:') || nome.startsWith('ag:') || nome.startsWith('c:')) {
+  // Sanitiza e capitaliza o nome do Lead
+  if (nome) {
+    nome = nome
+      .replace(/[liI]:d+/gi, '')
+      .replace(/complete$/i, '')
+      .trim();
+    if (nome) {
+      nome = nome
+        .split(' ')
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join(' ');
+    }
+  }
+
+  if (!nome || /^[liI]:/i.test(nome) || /^ag:/i.test(nome) || /^c:/i.test(nome)) {
     nome = 'Lead Meta Ads';
   }
 
-  // Perguntas padrão da clínica odontológica no Meta Ads
+  // Perguntas padr�o da cl�nica odontol�gica no Meta Ads
   const PERGUNTAS_PADRAO = [
-    'O que você gostaria de melhorar no seu sorriso?',
-    'Você já fez algum tratamento estético nos dentes?',
-    'Quando você pretende realizar o tratamento ou as lentes?',
-    'Qual investimento você imagina ou tem para seu novo sorriso?',
+    'O que voc� gostaria de melhorar no seu sorriso?',
+    'Voc� j� fez algum tratamento est�tico nos dentes?',
+    'Quando voc� pretende realizar o tratamento ou as lentes?',
+    'Qual investimento voc� imagina ou tem para seu novo sorriso?',
   ];
 
   const respostas: RespostaFormulario[] = [];
 
   tokensRespostas.forEach((tok, idx) => {
-    const pergunta = PERGUNTAS_PADRAO[idx] || `Pergunta ${idx + 1}`;
-    let resposta = tok.replace(/_/g, ' ').trim();
-    resposta = resposta.replace(/r\$\s*/gi, 'R$ ');
+    const pergunta = PERGUNTAS_PADRAO[idx] || ('Pergunta ' + (idx + 1));
+    let resposta = tok.replace(/_/g, ' ').replace(/\//g, ' / ').trim();
+    resposta = resposta.replace(/r\$\s*|r\$_/gi, 'R$ ');
+    resposta = resposta.replace(/\s+/g, ' ');
     resposta = resposta.charAt(0).toUpperCase() + resposta.slice(1);
 
     respostas.push({
-      campo: `pergunta_${idx + 1}`,
+      campo: 'pergunta_' + (idx + 1),
       pergunta,
       resposta,
     });
@@ -193,7 +213,6 @@ export function parseRawMetaAdsString(text: string): {
   };
 }
 
-// Converte um registro bruto do Supabase crm_leads em objeto tipado NovoLead
 export function parseDbLeadParaNovoLead(raw: Record<string, unknown>): NovoLead {
   let meta: Record<string, unknown> = {};
   let obsTexto = (raw.observacoes as string) || '';

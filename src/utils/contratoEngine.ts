@@ -875,7 +875,7 @@ export const mapearDadosContrato = ({
       };
     });
 
-    const parcelasSemEntradaLocal = parcelas.filter((p) => !p.descricao.toLowerCase().includes('entrada'));
+    const parcelasSemEntradaLocal = parcelas.filter((p) => !(p?.descricao || '').toLowerCase().includes('entrada'));
     parcelamentoQtdDetectada = parcelasSemEntradaLocal.length || parcelas.length;
     if (parcelasSemEntradaLocal.length > 0) {
       parcelamentoValorDetectado = parcelasSemEntradaLocal[0].valor;
@@ -1224,7 +1224,7 @@ export const mapearDadosContrato = ({
     }
   }
 
-  const parcelasSemEntrada = parcelas.filter((p) => !p.descricao.toLowerCase().includes('entrada'));
+  const parcelasSemEntrada = parcelas.filter((p) => !(p?.descricao || '').toLowerCase().includes('entrada'));
   const quantidadeParcelas = parcelamentoQtdDetectada > 0
     ? parcelamentoQtdDetectada
     : (parcelasSemEntrada.length || parcelas.length);
@@ -1357,7 +1357,7 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
   };
 
   const parcelasSemEntrada = financeiro.parcelas.filter(
-    (p) => !p.descricao.toLowerCase().includes('entrada')
+    (p) => !(p?.descricao || '').toLowerCase().includes('entrada')
   );
   const todasIguais =
     parcelasSemEntrada.length > 0 &&
@@ -2533,17 +2533,17 @@ export function gerarSnapshotDemonstracao(nome = 'Diego Duracenski'): ContratoSn
       totalExtenso: 'cinco mil e quinhentos reais',
       formaPagamento: 'Entrada via PIX + Saldo em até 10x no Cartão',
       entrada: 1500,
-      parcelas: [
-        { numero: 1, valor: 400, vencimento: '30 dias', metodo: 'Cartão de Crédito (10x)' },
-        { numero: 2, valor: 400, vencimento: '60 dias', metodo: 'Cartão de Crédito (10x)' },
-        { numero: 3, valor: 400, vencimento: '90 dias', metodo: 'Cartão de Crédito (10x)' },
-        { numero: 4, valor: 400, vencimento: '120 dias', metodo: 'Cartão de Crédito (10x)' },
-        { numero: 5, valor: 400, vencimento: '150 dias', metodo: 'Cartão de Crédito (10x)' },
-        { numero: 6, valor: 400, vencimento: '180 dias', metodo: 'Cartão de Crédito (10x)' },
-        { numero: 7, valor: 400, vencimento: '210 dias', metodo: 'Cartão de Crédito (10x)' },
-        { numero: 8, valor: 400, vencimento: '240 dias', metodo: 'Cartão de Crédito (10x)' },
-        { numero: 9, valor: 400, vencimento: '270 dias', metodo: 'Cartão de Crédito (10x)' },
-        { numero: 10, valor: 400, vencimento: '300 dias', metodo: 'Cartão de Crédito (10x)' },
+            parcelas: [
+        { numero: 1, valor: 400, vencimento: '30 dias', metodo: 'Cart�o de Cr�dito (10x)', descricao: 'Parcela 1 de 10' },
+        { numero: 2, valor: 400, vencimento: '60 dias', metodo: 'Cart�o de Cr�dito (10x)', descricao: 'Parcela 2 de 10' },
+        { numero: 3, valor: 400, vencimento: '90 dias', metodo: 'Cart�o de Cr�dito (10x)', descricao: 'Parcela 3 de 10' },
+        { numero: 4, valor: 400, vencimento: '120 dias', metodo: 'Cart�o de Cr�dito (10x)', descricao: 'Parcela 4 de 10' },
+        { numero: 5, valor: 400, vencimento: '150 dias', metodo: 'Cart�o de Cr�dito (10x)', descricao: 'Parcela 5 de 10' },
+        { numero: 6, valor: 400, vencimento: '180 dias', metodo: 'Cart�o de Cr�dito (10x)', descricao: 'Parcela 6 de 10' },
+        { numero: 7, valor: 400, vencimento: '210 dias', metodo: 'Cart�o de Cr�dito (10x)', descricao: 'Parcela 7 de 10' },
+        { numero: 8, valor: 400, vencimento: '240 dias', metodo: 'Cart�o de Cr�dito (10x)', descricao: 'Parcela 8 de 10' },
+        { numero: 9, valor: 400, vencimento: '270 dias', metodo: 'Cart�o de Cr�dito (10x)', descricao: 'Parcela 9 de 10' },
+        { numero: 10, valor: 400, vencimento: '300 dias', metodo: 'Cart�o de Cr�dito (10x)', descricao: 'Parcela 10 de 10' },
       ],
       quantidadeParcelas: 10,
       valorParcela: 400,

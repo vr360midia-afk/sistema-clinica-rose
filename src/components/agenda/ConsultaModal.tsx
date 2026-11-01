@@ -334,7 +334,20 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-lg sm:max-w-xl md:max-w-2xl w-[94vw] max-h-[92vh] overflow-y-auto overflow-x-hidden p-4 sm:p-5">
+        <DialogContent
+          className="max-w-lg sm:max-w-xl md:max-w-2xl w-[94vw] max-h-[92vh] overflow-y-auto overflow-x-hidden p-4 sm:p-5"
+          onInteractOutside={(e) => {
+            const target = e.target as HTMLElement;
+            if (isCalendarOpen || target?.closest?.('[data-radix-popper-content-wrapper]') || target?.closest?.('.rdp')) {
+              e.preventDefault();
+            }
+          }}
+          onPointerDownOutside={(e) => {
+            if (isCalendarOpen) {
+              e.preventDefault();
+            }
+          }}
+        >
           <DialogHeader className="pb-1">
             <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
               <CalendarIcon className="h-5 w-5 text-primary" />
@@ -451,6 +464,41 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
                           />
                         </div>
                       </div>
+
+                      {/* Calend�rio Visual Aberto Diretamente abaixo da Data */}
+                      {isCalendarOpen && (
+                        <div className="mt-2 p-3 border rounded-xl bg-card shadow-md flex flex-col items-center justify-center animate-in fade-in-50 zoom-in-95 border-primary/40 bg-muted/30 w-full z-10">
+                          <div className="flex items-center justify-between w-full pb-2 mb-1 border-b border-border/80 text-xs">
+                            <span className="font-semibold text-foreground flex items-center gap-1.5">
+                              <CalendarIcon className="h-4 w-4 text-primary" />
+                              Escolha o Dia no Calend�rio
+                            </span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setIsCalendarOpen(false)}
+                              className="h-6 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+                            >
+                              Fechar
+                            </Button>
+                          </div>
+                          <Calendar
+                            mode="single"
+                            selected={form.watch('data')}
+                            onSelect={(date) => {
+                              if (!date) return;
+                              form.setValue('data', new Date(date.getFullYear(), date.getMonth(), date.getDate(), 9, 0, 0), {
+                                shouldValidate: true,
+                                shouldDirty: true,
+                              });
+                              setIsCalendarOpen(false);
+                            }}
+                            locale={ptBR}
+                            className="p-1 pointer-events-auto"
+                          />
+                        </div>
+                      )}
 
                       <FormMessage />
                     </FormItem>

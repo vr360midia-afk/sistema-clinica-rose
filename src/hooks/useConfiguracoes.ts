@@ -163,10 +163,6 @@ export const useConfiguracoes = () => {
         lembrete_2h: values.lembrete2h,
         backup_automatico: values.backupAutomatico,
         frequencia_backup: values.frequenciaBackup,
-        gemini_api_key: values.geminiApiKey || null,
-        openai_api_key: values.openaiApiKey || null,
-        openai_model: values.openaiModel || 'gpt-4o-mini',
-        openai_system_prompt: values.openaiSystemPrompt || null,
       };
 
       let saveError: { message?: string } | null = null;

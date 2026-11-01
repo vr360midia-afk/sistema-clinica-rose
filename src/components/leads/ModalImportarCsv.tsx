@@ -134,31 +134,56 @@ export default function ModalImportarCsv({
         const row = rows[i];
         if (!row || row.length === 0 || row.every((c: unknown) => !c)) continue;
 
-        // Caso especial: linha contendo dump bruto do Meta Ads (ex: "l:300287529... p:82988054849")
-        const firstCell = String(row[0] || '');
-        if (row.length === 1 || (firstCell.includes('l:') && firstCell.includes('p:'))) {
-          const rawParsed = parseRawMetaAdsString(firstCell);
-          if (rawParsed.isMetaRaw) {
-            parsed.push({
-              idTemp: `meta_${i}_${Date.now()}`,
-              selecionado: Boolean(rawParsed.nome && rawParsed.telefone),
-              nome: rawParsed.nome || 'Lead Meta Ads',
-              telefone: rawParsed.telefone,
-              email: '',
-              campanha: rawParsed.campanha || 'Meta Ads Leads',
-              origem: rawParsed.origem || 'Meta Ads (Instagram)',
-              observacoes: rawParsed.formNome ? `Formulário: ${rawParsed.formNome}` : '',
-              respostas: rawParsed.respostas,
-              data_criacao: rawParsed.data_criacao,
-              invalido: !rawParsed.nome && !rawParsed.telefone,
-              motivoInvalido: (!rawParsed.nome && !rawParsed.telefone) ? 'Sem nome e telefone válidos' : undefined,
-            });
-            continue;
-          }
+        // Caso especial: linha contendo dump bruto do Meta Ads (ex: "I:300287529... p:82988054849")
+        const rowTexts = row.map((c) => String(c || '').trim()).filter(Boolean);
+        const fullRowText = rowTexts.join(' ');
+        const firstCell = rowTexts[0] || '';
+
+        let rawParsed = parseRawMetaAdsString(firstCell);
+        if (!rawParsed.isMetaRaw && fullRowText) {
+          rawParsed = parseRawMetaAdsString(fullRowText);
+        }
+
+        if (rawParsed.isMetaRaw) {
+          const invalido = !rawParsed.nome && !rawParsed.telefone;
+          parsed.push({
+            idTemp: 'meta_' + i + '_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+            selecionado: !invalido,
+            nome: rawParsed.nome || 'Lead Meta Ads',
+            telefone: rawParsed.telefone,
+            email: '',
+            campanha: rawParsed.campanha || 'Meta Ads Leads',
+            origem: rawParsed.origem || 'Meta Ads (Instagram)',
+            observacoes: rawParsed.formNome ? ('Formul�rio: ' + rawParsed.formNome) : '',
+            respostas: rawParsed.respostas,
+            data_criacao: rawParsed.data_criacao,
+            invalido,
+            motivoInvalido: invalido ? 'Sem nome e telefone v�lidos' : undefined,
+          });
+          continue;
         }
 
         // Caso normal: colunas separadas
         const nomeRaw = idxNome !== -1 ? String(row[idxNome] || '').trim() : '';
+        const parsedNomeMeta = parseRawMetaAdsString(nomeRaw);
+        if (parsedNomeMeta.isMetaRaw) {
+          const invalido = !parsedNomeMeta.nome && !parsedNomeMeta.telefone;
+          parsed.push({
+            idTemp: `meta_${i}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+            selecionado: !invalido,
+            nome: parsedNomeMeta.nome || 'Lead Meta Ads',
+            telefone: parsedNomeMeta.telefone,
+            email: emailRaw,
+            campanha: parsedNomeMeta.campanha || campRaw,
+            origem: parsedNomeMeta.origem || origRaw,
+            observacoes: parsedNomeMeta.formNome ? `Formul�rio: ${parsedNomeMeta.formNome}` : obsRaw,
+            respostas: parsedNomeMeta.respostas,
+            data_criacao: parsedNomeMeta.data_criacao || dataRaw,
+            invalido,
+            motivoInvalido: invalido ? 'Sem nome e telefone v�lidos' : undefined,
+          });
+          continue;
+        }
         let telRaw = idxTelefone !== -1 ? String(row[idxTelefone] || '').trim() : '';
         const emailRaw = idxEmail !== -1 ? String(row[idxEmail] || '').trim() : '';
         const campRaw = idxCampanha !== -1 ? String(row[idxCampanha] || '').trim() : 'Meta Ads';
