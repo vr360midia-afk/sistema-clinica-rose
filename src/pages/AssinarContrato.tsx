@@ -56,7 +56,7 @@ import {
   gerarSnapshotDemonstracao,
   garantirContratoPersistido,
 } from '@/utils/contratoEngine';
-import { slugifyNome } from '@/utils/anamneseEngine';
+import { slugifyNome, unslugifyNome } from '@/utils/anamneseEngine';
 import {
   Dialog,
   DialogContent,
@@ -549,17 +549,68 @@ export default function AssinarContrato() {
         } catch (_) {}
       }
 
-      // 6. Se ainda não encontrou e for o slug testado (diego-duracenski) ou teste/demo
+      // 6. Se ainda não encontrou e houver um slug de paciente na URL (funciona para Rosana e QUALQUER paciente)
       if (!foundSnapshot && cleanSlug) {
-        const isDiego = cleanSlug === 'diego-duracenski' || cleanSlug.includes('duracenski');
-        const isDemo = isDiego || cleanSlug.includes('teste') || cleanSlug.includes('demo');
-        if (isDemo) {
-          const nomeFormatado = cleanSlug
-            .split(/[-_]/)
-            .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
-            .join(' ');
-          foundSnapshot = gerarSnapshotDemonstracao(nomeFormatado || 'Diego Duracenski');
-        }
+        const nomeFormatado = unslugifyNome(cleanSlug);
+        foundSnapshot = gerarSnapshotDemonstracao(nomeFormatado);
+
+        // Se houver paciente cadastrado no localStorage (dental-system-pacientes), usa os dados reais do paciente
+        try {
+          const pacsRaw = localStorage.getItem('dental-system-pacientes');
+          if (pacsRaw) {
+            const pacs = JSON.parse(pacsRaw);
+            if (Array.isArray(pacs)) {
+              const pacMatch = pacs.find((p: any) => {
+                const pName = (p.nome || '').toLowerCase();
+                return slugifyNome(pName) === cleanSlug || pName.includes(cleanSlug);
+              });
+              if (pacMatch) {
+                foundSnapshot.paciente.nome = pacMatch.nome || nomeFormatado;
+                if (pacMatch.cpf) foundSnapshot.paciente.cpf = pacMatch.cpf;
+                if (pacMatch.rg) foundSnapshot.paciente.rg = pacMatch.rg;
+                if (pacMatch.telefone) foundSnapshot.paciente.telefone = pacMatch.telefone;
+                if (pacMatch.email) foundSnapshot.paciente.email = pacMatch.email;
+                if (pacMatch.endereco) foundSnapshot.paciente.endereco = pacMatch.endereco;
+                if (pacMatch.id) foundSnapshot.paciente.id = pacMatch.id;
+              }
+            }
+          }
+        } catch (_) {}
+
+        // Tenta enriquecer com configurações reais da clínica
+        try {
+          const cfgRaw = localStorage.getItem('dental-system-configuracoes');
+          const configuracoes = cfgRaw ? JSON.parse(cfgRaw) : null;
+          const cfgContratoRaw = localStorage.getItem('dental-system-configuracoes-contrato');
+          const configContrato = cfgContratoRaw ? JSON.parse(cfgContratoRaw) : null;
+
+          if (configuracoes || configContrato) {
+            if (configContrato?.chavePix || configuracoes?.chavePix) {
+              foundSnapshot.clinica.chavePix = configContrato?.chavePix || configuracoes?.chavePix;
+            }
+            if (configContrato?.favorecidoPix || configuracoes?.favorecidoPix) {
+              foundSnapshot.clinica.favorecidoPix = configContrato?.favorecidoPix || configuracoes?.favorecidoPix;
+            }
+            if (configContrato?.bancoPix || configuracoes?.bancoPix) {
+              foundSnapshot.clinica.bancoPix = configContrato?.bancoPix || configuracoes?.bancoPix;
+            }
+            if (configuracoes?.nomeClinica) {
+              foundSnapshot.clinica.nome = configuracoes.nomeClinica;
+            }
+            if (configuracoes?.cro) {
+              foundSnapshot.clinica.cro = configuracoes.cro;
+            }
+            if (configuracoes?.dentistaResponsavel) {
+              foundSnapshot.clinica.dentistaResponsavel = configuracoes.dentistaResponsavel;
+            }
+            if (configuracoes?.telefone) {
+              foundSnapshot.clinica.telefone = configuracoes.telefone;
+            }
+            if (configuracoes?.endereco) {
+              foundSnapshot.clinica.endereco = configuracoes.endereco;
+            }
+          }
+        } catch (_) {}
       }
 
       // Aplica o snapshot encontrado e atualiza o cache local

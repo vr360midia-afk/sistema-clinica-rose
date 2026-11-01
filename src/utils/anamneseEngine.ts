@@ -57,6 +57,15 @@ export function unslugifyNome(slug: string): string {
     .replace(/^anamnese-paciente-/, '')
     .replace(/^anamnese-/, '')
     .replace(/^ficha-/, '')
+    .replace(/\/assinaturadocontrato.*$/, '')
+    .replace(/-assinaturadocontrato.*$/, '')
+    .replace(/\/assinatura-do-contrato.*$/, '')
+    .replace(/-assinatura-do-contrato.*$/, '')
+    .replace(/\/assinatura-contrato.*$/, '')
+    .replace(/-assinatura-contrato.*$/, '')
+    .replace(/\/contrato.*$/, '')
+    .replace(/-contrato.*$/, '')
+    .replace(/\/.*$/, '')
     .replace(/-[a-f0-9]{4,10}$/i, ''); // remove eventual sufixo de hash
 
   const words = clean.split('-').filter(Boolean);

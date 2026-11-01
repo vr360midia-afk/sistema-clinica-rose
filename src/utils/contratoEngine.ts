@@ -2468,27 +2468,31 @@ export async function obterUserIdAtivo(): Promise<string | null> {
  * (Selfie biométrica, desenho de assinatura, visualização financeira e PDF).
  */
 export function gerarSnapshotDemonstracao(nome = 'Diego Duracenski'): ContratoSnapshot {
+  const isDiego = nome.toLowerCase().includes('diego') || nome.toLowerCase().includes('duracenski');
+  const slug = slugifyNome(nome);
+  const idSuffix = isDiego ? 'DEMO-DURACENSKI' : slug.toUpperCase().slice(0, 20);
+
   return {
-    contratoId: 'CTR-DEMO-DURACENSKI',
-    orcamentoId: 'ORC-DEMO-2026',
-    pacienteId: 'PAC-DEMO-DURACENSKI',
+    contratoId: `CTR-${idSuffix}`,
+    orcamentoId: `ORC-${idSuffix}`,
+    pacienteId: `PAC-${idSuffix}`,
     versao: '2.0',
     status: 'emitido',
     emitidoEm: new Date().toISOString(),
     tipoModeloContrato: 'lentes_resina',
     incluiLentesResina: true,
     paciente: {
-      id: 'PAC-DEMO-DURACENSKI',
+      id: `PAC-${idSuffix}`,
       nome: nome,
-      cpf: '123.456.789-00',
-      rg: '34.567.890-1',
-      dataNascimento: '15/05/1992',
-      idade: '34 anos',
+      cpf: isDiego ? '123.456.789-00' : '000.000.000-00',
+      rg: isDiego ? '34.567.890-1' : '',
+      dataNascimento: isDiego ? '15/05/1992' : '',
+      idade: isDiego ? '34 anos' : '',
       endereco: 'Maceió - AL',
-      telefone: '(82) 99740-0221',
-      email: 'diego@duracenskiodontologia.com.br',
-      profissao: 'Empresário',
-      estadoCivil: 'Casado(a)',
+      telefone: isDiego ? '(82) 99740-0221' : '',
+      email: isDiego ? 'diego@duracenskiodontologia.com.br' : '',
+      profissao: isDiego ? 'Empresário' : 'Paciente',
+      estadoCivil: 'Solteiro(a)',
     },
     clinica: {
       nome: 'Duracenski Odontologia',
