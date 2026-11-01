@@ -19,6 +19,10 @@ self.addEventListener('fetch', (event) => {
     fetch(request)
       .then((response) => {
         if (request.mode === 'navigate') {
+          // Se o servidor estático retornar 404 em rota de navegação SPA, entrega o shell index.html
+          if (response.status === 404) {
+            return caches.match('/').then((cached) => cached || fetch('/'));
+          }
           const copy = response.clone();
           caches.open(CACHE).then((cache) => cache.put('/', copy)).catch(() => undefined);
         }

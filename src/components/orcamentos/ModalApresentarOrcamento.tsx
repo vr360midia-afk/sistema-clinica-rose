@@ -50,7 +50,7 @@ import { gerarPayloadPix, gerarQrCodePixUrl } from '@/utils/pixPayload';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { useConfiguracoesContrato } from '@/hooks/useConfiguracoesContrato';
 import { Orcamento, OrcamentoItem } from '@/hooks/useOrcamentos';
-import { mapearDadosContrato, gerarLinkAssinaturaContrato } from '@/utils/contratoEngine';
+import { mapearDadosContrato, gerarLinkAssinaturaContrato, garantirContratoPersistido } from '@/utils/contratoEngine';
 import { openWhatsApp } from '@/lib/whatsapp';
 import {
   CondicaoPagamento,
@@ -449,6 +449,7 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
       return;
     }
     const link = gerarLinkAssinaturaContrato(snap, orcamento?.id);
+    garantirContratoPersistido(snap, orcamento?.id).catch(() => {});
     navigator.clipboard.writeText(link);
     setCopiouLinkContrato(true);
     toast.success('Link de assinatura do contrato copiado com sucesso!', {
@@ -462,6 +463,7 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
     if (!orcamento) return;
     const snap = obterSnapshotContratoAtual();
     const link = snap ? gerarLinkAssinaturaContrato(snap, orcamento.id) : '';
+    if (snap) { garantirContratoPersistido(snap, orcamento.id).catch(() => {}); }
 
     let tel = patient?.telefone?.trim() || '';
     if (!tel) {

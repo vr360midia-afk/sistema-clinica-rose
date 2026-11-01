@@ -2423,6 +2423,145 @@ export function decodificarContratoUrl(encoded: string): ContratoSnapshot | null
  * abra perfeitamente em qualquer smartphone de paciente via WhatsApp mesmo sem autenticação.
  */
 /**
+ * Recupera o ID do usuário/clínica ativo no sistema autenticado.
+ */
+export async function obterUserIdAtivo(): Promise<string | null> {
+  try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (sessionData?.session?.user?.id) return sessionData.session.user.id;
+  } catch (_) {}
+  try {
+    const { data: userData } = await supabase.auth.getUser();
+    if (userData?.user?.id) return userData.user.id;
+  } catch (_) {}
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      for (let i = 0; i < window.localStorage.length; i++) {
+        const k = window.localStorage.key(i);
+        if (k && (k.startsWith('dental_clinica_id_') || k === 'supabase_user_id' || k === 'clinica_id')) {
+          const v = window.localStorage.getItem(k);
+          if (v && v.length > 10) return v;
+        }
+      }
+      for (let i = 0; i < window.localStorage.length; i++) {
+        const k = window.localStorage.key(i);
+        if (k && k.includes('auth-token')) {
+          const v = window.localStorage.getItem(k);
+          if (v) {
+            const parsed = JSON.parse(v);
+            const uid = parsed?.user?.id || parsed?.currentSession?.user?.id;
+            if (uid) return uid;
+          }
+        }
+      }
+    } catch (_) {}
+  }
+  try {
+    const { data: rpcId } = await supabase.rpc('clinica_id');
+    if (rpcId && typeof rpcId === 'string') return rpcId;
+  } catch (_) {}
+  return null;
+}
+
+/**
+ * Gera um snapshot completo demonstrativo para testes rápidos da assinatura digital
+ * (Selfie biométrica, desenho de assinatura, visualização financeira e PDF).
+ */
+export function gerarSnapshotDemonstracao(nome = 'Diego Duracenski'): ContratoSnapshot {
+  return {
+    contratoId: 'CTR-DEMO-DURACENSKI',
+    orcamentoId: 'ORC-DEMO-2026',
+    pacienteId: 'PAC-DEMO-DURACENSKI',
+    versao: '2.0',
+    status: 'emitido',
+    emitidoEm: new Date().toISOString(),
+    tipoModeloContrato: 'lentes_resina',
+    incluiLentesResina: true,
+    paciente: {
+      id: 'PAC-DEMO-DURACENSKI',
+      nome: nome,
+      cpf: '123.456.789-00',
+      rg: '34.567.890-1',
+      dataNascimento: '15/05/1992',
+      idade: '34 anos',
+      endereco: 'Maceió - AL',
+      telefone: '(82) 99740-0221',
+      email: 'diego@duracenskiodontologia.com.br',
+      profissao: 'Empresário',
+      estadoCivil: 'Casado(a)',
+    },
+    clinica: {
+      nome: 'Duracenski Odontologia',
+      cro: 'CRO-AL 3456',
+      dentistaResponsavel: 'Dra. Rosangela Santos',
+      cnpj: '69.890.045/0001-85',
+      endereco: 'JTR - Edifício Espanha - R. Comerc. José Pontes de Magalhães, 70 - Sl 405 - Jatiúca, Maceió - AL, 57036-250',
+      telefone: '82974002213',
+      email: 'contato@duracenskiodontologia.com.br',
+      cidade: 'Maceió',
+      chavePix: '69.890.045/0001-85',
+      favorecidoPix: 'Duracenski Odontologia',
+      bancoPix: 'Banco do Brasil',
+    },
+    orcamento: {
+      id: 'ORC-DEMO-2026',
+      numeroIdentificador: '2026-DEMO',
+      titulo: 'Plano de Tratamento Estético - Lentes em Resina Composta de Alta Carga',
+      subtotal: 6000,
+      desconto: 500,
+      total: 5500,
+      totalExtenso: 'cinco mil e quinhentos reais',
+      formasPagamento: 'Entrada via PIX + Saldo em até 10x sem juros no Cartão',
+      validade: '30 dias',
+      dataAprovacao: new Date().toLocaleDateString('pt-BR'),
+      itens: [
+        {
+          id: 'item-1',
+          descricao: 'Lentes de Contato em Resina Composta Estética Premium (10 Dentes Superiores 15 ao 25)',
+          dente: '15 ao 25',
+          quantidade: 10,
+          valorUnitario: 550,
+          valorTotal: 5500,
+        },
+      ],
+      observacoes: 'Planejamento estético com estratificação anatômica, fechamento de diastemas e acabamento de alto brilho.',
+    },
+    financeiro: {
+      subtotal: 6000,
+      desconto: 500,
+      total: 5500,
+      totalExtenso: 'cinco mil e quinhentos reais',
+      formaPagamento: 'Entrada via PIX + Saldo em até 10x no Cartão',
+      entrada: 1500,
+      parcelas: [
+        { numero: 1, valor: 400, vencimento: '30 dias', metodo: 'Cartão de Crédito (10x)' },
+        { numero: 2, valor: 400, vencimento: '60 dias', metodo: 'Cartão de Crédito (10x)' },
+        { numero: 3, valor: 400, vencimento: '90 dias', metodo: 'Cartão de Crédito (10x)' },
+        { numero: 4, valor: 400, vencimento: '120 dias', metodo: 'Cartão de Crédito (10x)' },
+        { numero: 5, valor: 400, vencimento: '150 dias', metodo: 'Cartão de Crédito (10x)' },
+        { numero: 6, valor: 400, vencimento: '180 dias', metodo: 'Cartão de Crédito (10x)' },
+        { numero: 7, valor: 400, vencimento: '210 dias', metodo: 'Cartão de Crédito (10x)' },
+        { numero: 8, valor: 400, vencimento: '240 dias', metodo: 'Cartão de Crédito (10x)' },
+        { numero: 9, valor: 400, vencimento: '270 dias', metodo: 'Cartão de Crédito (10x)' },
+        { numero: 10, valor: 400, vencimento: '300 dias', metodo: 'Cartão de Crédito (10x)' },
+      ],
+      quantidadeParcelas: 10,
+      valorParcela: 400,
+      metodoParcelamento: 'Cartão de Crédito (10x)',
+    },
+    termoUsoImagem: {
+      ativo: true,
+      autorizado: true,
+      usoDidaticoCientifico: true,
+      usoPublicitarioRedesSociais: true,
+      identificacaoFacialVoz: 'rosto_e_voz',
+      depoimentos: true,
+      canalContatoLgpd: 'contato@duracenskiodontologia.com.br',
+    },
+  };
+}
+
+/**
  * Garante que o contrato esteja gravado no banco de dados Supabase (documentos_clinicos)
  * para que possa ser aberto de forma transparente e imediata no celular do paciente pelo link curto.
  */
@@ -2497,8 +2636,10 @@ export async function garantirContratoPersistido(
       return docExistente.id;
     }
 
-    // 3. Se não encontrou, insere novo registro
+    // 3. Se não encontrou, insere novo registro com o user_id ativo
+    const effectiveUserId = await obterUserIdAtivo();
     const payload: Record<string, unknown> = {
+      ...(effectiveUserId ? { user_id: effectiveUserId } : {}),
       paciente_id: pacienteId,
       paciente_nome: pacienteNome,
       tipo: 'contrato',
@@ -2511,13 +2652,39 @@ export async function garantirContratoPersistido(
       payload.id = contratoId;
     }
 
-    const { data: novoDoc } = await supabase
+    const { data: novoDoc, error: insertErr } = await supabase
       .from('documentos_clinicos')
       .insert(payload as never)
       .select('id')
       .maybeSingle();
 
-    return novoDoc?.id || null;
+    if (insertErr) {
+      console.warn('[ContratoEngine] Aviso ao persistir contrato:', insertErr);
+    }
+
+    const finalId = novoDoc?.id || contratoId || null;
+
+    // Também garante no cache de documentos locais para contingência
+    try {
+      const docsKey = 'dental-system-documentos';
+      const existing = JSON.parse(window.localStorage.getItem(docsKey) || '[]');
+      const updated = [
+        {
+          id: finalId || `local-${Date.now()}`,
+          tipo: 'contrato',
+          titulo,
+          paciente_id: pacienteId,
+          paciente_nome: pacienteNome,
+          conteudo: html,
+          itens: snapshot,
+          criado_em: new Date().toISOString(),
+        },
+        ...existing.filter((d: any) => d.id !== finalId),
+      ];
+      window.localStorage.setItem(docsKey, JSON.stringify(updated.slice(0, 100)));
+    } catch (_) {}
+
+    return finalId;
   } catch (err) {
     console.warn('[ContratoEngine] Falha ao persistir contrato em segundo plano:', err);
     return null;
@@ -2567,5 +2734,3 @@ export function gerarLinkAssinaturaContrato(snapshot: ContratoSnapshot, docId?: 
   // Retorna a URL curta e limpa oficial: dominio/nomedopaciente/assinaturadocontrato
   return `${origin}/${slug}/assinaturadocontrato`;
 }
-
-

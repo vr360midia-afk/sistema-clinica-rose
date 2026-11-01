@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html class="dark" lang="pt-BR">
   <head>
@@ -16,31 +15,41 @@
     <meta name="apple-mobile-web-app-title" content="Dra. Rosangela Santos">
     <link rel="apple-touch-icon" href="/icons/icon-192.png">
 
-    
-    
     <meta property="og:type" content="website" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <meta property="og:title" content="Dra. Rosangela Santos - Clínica Odontológica">
-  <meta name="twitter:title" content="Dra. Rosangela Santos - Clínica Odontológica">
-  <meta property="og:description" content="Sistema de gestão da clínica odontológica Dra. Rosangela Santos.">
-  <meta name="twitter:description" content="Sistema de gestão da clínica odontológica Dra. Rosangela Santos.">
-  <meta property="og:image" content="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/de3e7a9d-f3f8-4d27-aed0-fe599497ca71/id-preview-09ce9fcf--6220783b-4d9b-4a8c-b49e-4dcf96139176.lovable.app-1776644270789.png">
-  <meta name="twitter:image" content="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/de3e7a9d-f3f8-4d27-aed0-fe599497ca71/id-preview-09ce9fcf--6220783b-4d9b-4a8c-b49e-4dcf96139176.lovable.app-1776644270789.png">
-  <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Dra. Rosangela Santos - Clínica Odontológica">
+    <meta property="og:description" content="Sistema de gestão da clínica odontológica Dra. Rosangela Santos.">
+    <meta name="twitter:description" content="Sistema de gestão da clínica odontológica Dra. Rosangela Santos.">
+    <meta property="og:image" content="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/de3e7a9d-f3f8-4d27-aed0-fe599497ca71/id-preview-09ce9fcf--6220783b-4d9b-4a8c-b49e-4dcf96139176.lovable.app-1776644270789.png">
+    <meta name="twitter:image" content="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/de3e7a9d-f3f8-4d27-aed0-fe599497ca71/id-preview-09ce9fcf--6220783b-4d9b-4a8c-b49e-4dcf96139176.lovable.app-1776644270789.png">
+    <meta name="twitter:card" content="summary_large_image">
     <script>
+      // Restaura rota SPA após redirecionamento de 404 estático
+      (function() {
+        try {
+          var redirect = sessionStorage.getItem('spa_redirect');
+          if (redirect) {
+            sessionStorage.removeItem('spa_redirect');
+            if (window.location.pathname === '/' || window.location.pathname === '') {
+              window.history.replaceState(null, null, redirect);
+            }
+          }
+        } catch (e) {}
+      })();
+
       // Previne zoom indesejado por gestos multitoque e duplo toque em iOS Safari
       document.addEventListener('gesturestart', function (e) {
         e.preventDefault();
       });
     </script>
-</head>
+  </head>
 
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-

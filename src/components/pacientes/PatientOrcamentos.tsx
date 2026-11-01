@@ -21,7 +21,7 @@ import { formatMoney } from '@/utils/exportCsv';
 import { toast } from 'sonner';
 import ContratoModal from '@/components/contratos/ContratoModal';
 import { useDentalSystem } from '@/context/DentalSystemContext';
-import { mapearDadosContrato, gerarLinkAssinaturaContrato, parseBrMoney } from '@/utils/contratoEngine';
+import { mapearDadosContrato, gerarLinkAssinaturaContrato, parseBrMoney, garantirContratoPersistido } from '@/utils/contratoEngine';
 import { somarMesesSeguro } from '@/utils/documentoFormat';
 import { downloadTcleLentesResinaPdf } from '@/utils/tcleLentesResina';
 import { useMaquinasCartao, calcularTaxaCartao, extrairDetalhesCartaoDeTexto } from '@/hooks/useMaquinasCartao';
@@ -1926,6 +1926,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
       dadosRestauracoesPreexistentes: patient?.restauracoesPreexistentes,
     });
     const link = gerarLinkAssinaturaContrato(snap, o.id);
+    garantirContratoPersistido(snap, o.id).catch(() => {});
     linhas.push('');
     linhas.push(`✍️ *LINK PARA VISUALIZAR E ASSINAR O CONTRATO ONLINE:*`);
     linhas.push(`Clique no link abaixo pelo seu celular para ler o contrato e assinar digitalmente:`);
