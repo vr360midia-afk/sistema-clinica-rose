@@ -190,7 +190,7 @@ export const FinanceiroDRE: React.FC<FinanceiroDREProps> = ({ selectedMonth }) =
         t.categoria !== 'Taxas de Cartão' &&
         t.categoria !== 'parceria' &&
         !t.descricao?.toLowerCase().includes('taxa da máquina') &&
-        !t.descricao?.toLowerCase().includes('repasse parceiro')
+        !String(t?.descricao || '').toLowerCase().includes('repasse parceiro')
     );
 
     const totalCustosFixos = despesasFixas.reduce((acc, t) => acc + Number(t.valor || 0), 0);

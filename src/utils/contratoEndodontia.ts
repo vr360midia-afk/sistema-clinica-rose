@@ -62,7 +62,7 @@ export const gerarHtmlContratoEndodontia = (snapshot: ContratoSnapshot): string 
 
   // Tratamento de parcelas e datas de vencimento
   const parcelasSemEntrada = financeiro.parcelas.filter(
-    (p) => !p.descricao?.toLowerCase().includes('entrada')
+    (p) => !(p?.descricao || '').toLowerCase().includes('entrada')
   );
   const temParcelas = parcelasSemEntrada.length > 0;
   const primeiroVencimento = temParcelas

@@ -389,8 +389,8 @@ export const obterCardsResumoPagamento = (snapshot?: Partial<ContratoSnapshot> |
   // 1. Detectar Entrada
   const temEntradaNumerica = typeof financeiro.entrada === 'number' && financeiro.entrada > 0;
   const parcelaEntrada = parcelas.find((p) =>
-    (p.descricao || '').toLowerCase().includes('entrada') ||
-    (p.descricao || '').toLowerCase().includes('sinal')
+    (p?.descricao || '').toLowerCase().includes('entrada') ||
+    (p?.descricao || '').toLowerCase().includes('sinal')
   ) || (temEntradaNumerica && parcelas.length > 0 ? parcelas[0] : undefined);
 
   let entradaValor = temEntradaNumerica ? financeiro.entrada : (parcelaEntrada ? parcelaEntrada.valor : 0);
@@ -855,7 +855,7 @@ export const mapearDadosContrato = ({
 
     parcelas = ordenadas.map((t, idx) => {
       const valor = Number(t.valor || 0);
-      const isEntrada = t?.descricao?.toLowerCase().includes('entrada') || (idx === 0 && t?.status === 'pago');
+      const isEntrada = (t?.descricao || '').toLowerCase().includes('entrada') || (idx === 0 && t?.status === 'pago');
       if (isEntrada && entrada === 0) {
         entrada = valor;
       }
@@ -1366,7 +1366,7 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
     );
   const temAlgumPix =
     financeiro.parcelas.some((p) =>
-      (p.metodo || p.descricao || '').toLowerCase().includes('pix')
+      (p?.metodo || p?.descricao || '').toLowerCase().includes('pix')
     ) || /pix/i.test(financeiro.formaPagamento);
   const temAlgumCartao =
     financeiro.parcelas.some((p) => isMetodoCartao(p.metodo, p.descricao)) ||

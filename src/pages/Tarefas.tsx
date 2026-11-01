@@ -133,10 +133,10 @@ export default function Tarefas() {
       if (busca.trim()) {
         const termo = busca.toLowerCase();
         const matchTitulo = t.titulo.toLowerCase().includes(termo);
-        const matchDesc = t.descricao?.toLowerCase().includes(termo);
-        const matchLead = t.leadNome?.toLowerCase().includes(termo);
-        const matchPac = t.pacienteNome?.toLowerCase().includes(termo);
-        const matchResp = t.responsavel?.toLowerCase().includes(termo);
+        const matchDesc = String(t?.descricao || '').toLowerCase().includes(termo);
+        const matchLead = String(t?.leadNome || '').toLowerCase().includes(termo);
+        const matchPac = String(t?.pacienteNome || '').toLowerCase().includes(termo);
+        const matchResp = String(t?.responsavel || '').toLowerCase().includes(termo);
         if (!matchTitulo && !matchDesc && !matchLead && !matchPac && !matchResp) {
           return false;
         }

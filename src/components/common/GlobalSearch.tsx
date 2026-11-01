@@ -74,8 +74,8 @@ const GlobalSearch = ({ open, onOpenChange }: GlobalSearchProps) => {
             .filter(
               (c) =>
                 nomePaciente(c.pacienteId)?.toLowerCase().includes(termo) ||
-                c.procedimento?.toLowerCase().includes(termo) ||
-                c.dentista?.toLowerCase().includes(termo)
+                String(c?.procedimento || '').toLowerCase().includes(termo) ||
+                String(c?.dentista || '').toLowerCase().includes(termo)
             )
             .slice(0, 5)
         : [],
@@ -88,7 +88,7 @@ const GlobalSearch = ({ open, onOpenChange }: GlobalSearchProps) => {
         ? transacoes
             .filter(
               (t) =>
-                t.descricao?.toLowerCase().includes(termo) ||
+                String(t?.descricao || '').toLowerCase().includes(termo) ||
                 nomePaciente(t.pacienteId)?.toLowerCase().includes(termo)
             )
             .slice(0, 5)

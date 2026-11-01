@@ -67,8 +67,8 @@ export const RaioXMaquininhas: React.FC<RaioXMaquininhasProps> = ({
         (t.metodoPagamento === 'cartao' ||
           (t.taxaCartaoValor && t.taxaCartaoValor > 0) ||
           t.descricao?.toLowerCase().includes('cartão') ||
-          t.descricao?.toLowerCase().includes('credito') ||
-          t.descricao?.toLowerCase().includes('debito'))
+          String(t?.descricao || '').toLowerCase().includes('credito') ||
+          String(t?.descricao || '').toLowerCase().includes('debito'))
     );
 
     // 2. Despesas lançadas especificamente como taxas de maquininha
@@ -208,7 +208,7 @@ export const RaioXMaquininhas: React.FC<RaioXMaquininhasProps> = ({
             (d.pacienteId && t.pacienteId && d.pacienteId === t.pacienteId)
         );
         if (taxaCorrespDesc?.descricao) {
-          const dLower = taxaCorrespDesc.descricao.toLowerCase();
+          const dLower = String(taxaCorrespDesc?.descricao || '').toLowerCase();
           if (dLower.includes('pagbank') || dLower.includes('pagseguro') || dLower.includes('pag bank')) opId = 'pagbank';
           else if (dLower.includes('infinite') || dLower.includes('infinitepay')) opId = 'infinitepay';
         }
