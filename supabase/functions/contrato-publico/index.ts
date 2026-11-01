@@ -16,34 +16,72 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { action, id, signature, signerName, signerRole, snapshot: reqSnapshot } = await req.json();
-    if (!action || !id) return json({ error: "Parâmetros 'action' e 'id' são obrigatórios" }, 400);
+    const body = await req.json();
+    const { action, signature, signerName, signerRole, snapshot: reqSnapshot } = body;
+    const targetId = String(body.id || body.slug || "").trim();
+    if (!action || !targetId) return json({ error: "Parâmetros 'action' e 'id'/'slug' são obrigatórios" }, 400);
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    // 1. Tenta buscar pelo ID direto (UUID)
-    let query = supabase.from("documentos_clinicos").select("*").eq("id", id).maybeSingle();
-    let { data: doc, error } = await query;
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
+    let doc: any = null;
 
-    // Se não encontrou por UUID direto, tenta buscar por itens->>contratoId (ex: CTR-...)
-    if (!doc && !error) {
-      const { data: docByContratoId, error: err2 } = await supabase
+    // 1. Tenta buscar pelo ID direto (UUID) se for formato UUID válido
+    if (isUuid) {
+      const { data, error } = await supabase
         .from("documentos_clinicos")
         .select("*")
-        .filter("itens->>contratoId", "eq", id)
+        .eq("id", targetId)
         .maybeSingle();
 
-      if (!err2 && docByContratoId) {
+      if (!error && data) {
+        doc = data;
+      }
+    }
+
+    // 2. Se não encontrou por UUID direto, tenta buscar por itens->>contratoId (ex: CTR-...)
+    if (!doc) {
+      const { data: docByContratoId } = await supabase
+        .from("documentos_clinicos")
+        .select("*")
+        .filter("itens->>contratoId", "eq", targetId)
+        .maybeSingle();
+
+      if (docByContratoId) {
         doc = docByContratoId;
       }
     }
 
-    if (error) {
-      console.error("Erro ao consultar documentos_clinicos:", error);
-      throw error;
+    // 3. Se ainda não encontrou, busca por slug/nome do paciente nos contratos recentes
+    if (!doc) {
+      const { data: docs } = await supabase
+        .from("documentos_clinicos")
+        .select("*")
+        .eq("tipo", "contrato")
+        .order("criado_em", { ascending: false })
+        .limit(50);
+
+      if (docs && docs.length > 0) {
+        const cleanTarget = targetId
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[̀-ͯ]/g, "")
+          .replace(/[^a-z0-9]/g, "");
+
+        doc = docs.find((d: any) => {
+          const nomeDoc = (d.paciente_nome || d.itens?.pacienteNome || d.itens?.paciente?.nome || "")
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/[̀-ͯ]/g, "")
+            .replace(/[^a-z0-9]/g, "");
+
+          if (!nomeDoc || !cleanTarget) return false;
+          return nomeDoc === cleanTarget || nomeDoc.includes(cleanTarget) || cleanTarget.includes(nomeDoc);
+        });
+      }
     }
 
     if (!doc) {

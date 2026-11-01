@@ -52,7 +52,15 @@ const PublicLinkDispatcher = () => {
     return <AssinarAnamnese />;
   }
 
-  if (slug.startsWith('assinar-contrato') || slug.startsWith('contrato-') || slug.startsWith('contrato')) {
+  if (
+    slug.startsWith('assinar-contrato') ||
+    slug.startsWith('contrato-') ||
+    slug.startsWith('contrato') ||
+    slug.includes('assinaturadocontrato') ||
+    slug.includes('assinatura-do-contrato') ||
+    slug.includes('assinatura-contrato') ||
+    slug.endsWith('/contrato')
+  ) {
     return <AssinarContrato />;
   }
 
@@ -88,6 +96,11 @@ function App() {
               <Route path="/assinar-extrato/:id" element={<AssinarExtrato />} />
               <Route path="/assinar-extrato/:slug" element={<AssinarExtrato />} />
               <Route path="/assinar-extrato" element={<AssinarExtrato />} />
+              {/* Rotas Amigáveis de Contrato: /:pacienteSlug/assinaturadocontrato */}
+              <Route path="/:pacienteSlug/assinaturadocontrato" element={<AssinarContrato />} />
+              <Route path="/:pacienteSlug/assinatura-do-contrato" element={<AssinarContrato />} />
+              <Route path="/:pacienteSlug/assinatura-contrato" element={<AssinarContrato />} />
+              <Route path="/:pacienteSlug/contrato" element={<AssinarContrato />} />
               <Route path="/assinar-contrato/:id/:token" element={<AssinarContrato />} />
               <Route path="/assinar-contrato/:id" element={<AssinarContrato />} />
               <Route path="/assinar-contrato/:slug" element={<AssinarContrato />} />
@@ -118,6 +131,7 @@ function App() {
               <Route path="/admin" element={<ProtectedRoute><RoleRoute allow={['admin']}><Admin /></RoleRoute></ProtectedRoute>} />
               <Route path="/lixeira" element={<ProtectedRoute><RoleRoute allow={['admin']}><Lixeira /></RoleRoute></ProtectedRoute>} />
               {/* Rota coringa para links públicos compartilhados com o paciente */}
+              <Route path="/:pacienteSlug/:tipoDoc" element={<PublicLinkDispatcher />} />
               <Route path="/:publicSlug" element={<PublicLinkDispatcher />} />
               <Route path="*" element={<NotFound />} />
             </Routes>

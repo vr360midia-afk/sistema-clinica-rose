@@ -8,32 +8,48 @@ const NotFound = () => {
   const location = useLocation();
   const path = (location.pathname || '').toLowerCase();
 
-  // Se for um link de anamnese enviado ao paciente
-  if (
+  const isAnamnese =
     path.includes('preencher-anamnese') ||
     path.includes('assinar-anamnese') ||
     path.startsWith('/anamnese-') ||
-    path.startsWith('/anamnese')
-  ) {
+    path.startsWith('/anamnese');
+
+  const isContrato =
+    path.includes('assinar-contrato') ||
+    path.includes('contrato-') ||
+    path.includes('assinaturadocontrato') ||
+    path.includes('assinatura-do-contrato') ||
+    path.includes('contrato');
+
+  const isExtrato =
+    path.includes('assinar-extrato') ||
+    path.includes('extrato-');
+
+  const isCustomPublicLink = isAnamnese || isContrato || isExtrato;
+
+  useEffect(() => {
+    if (!isCustomPublicLink) {
+      console.error(
+        "404 Error: User attempted to access non-existent route:",
+        location.pathname
+      );
+    }
+  }, [location.pathname, isCustomPublicLink]);
+
+  // Se for um link de anamnese enviado ao paciente
+  if (isAnamnese) {
     return <AssinarAnamnese />;
   }
 
   // Se for um link de contrato
-  if (path.includes('assinar-contrato') || path.includes('contrato-')) {
+  if (isContrato) {
     return <AssinarContrato />;
   }
 
   // Se for um link de extrato
-  if (path.includes('assinar-extrato') || path.includes('extrato-')) {
+  if (isExtrato) {
     return <AssinarExtrato />;
   }
-
-  useEffect(() => {
-    console.error(
-      "404 Error: User attempted to access non-existent route:",
-      location.pathname
-    );
-  }, [location.pathname]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-muted p-4">

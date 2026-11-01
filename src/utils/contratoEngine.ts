@@ -1,3 +1,4 @@
+import { supabase } from '@/integrations/supabase/client';
 import { valorPorExtenso } from './recibo';
 import { formatMoney } from './exportCsv';
 import {
@@ -2421,14 +2422,121 @@ export function decodificarContratoUrl(encoded: string): ContratoSnapshot | null
  * Gera uma URL resiliente contendo o ID e o payload comprimido 'c', garantindo que o contrato
  * abra perfeitamente em qualquer smartphone de paciente via WhatsApp mesmo sem autenticação.
  */
+/**
+ * Garante que o contrato esteja gravado no banco de dados Supabase (documentos_clinicos)
+ * para que possa ser aberto de forma transparente e imediata no celular do paciente pelo link curto.
+ */
+export async function garantirContratoPersistido(
+  snapshot: ContratoSnapshot,
+  docId?: string
+): Promise<string | null> {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const pacienteNome = snapshot.pacienteNome || snapshot.paciente?.nome || 'Paciente';
+    const pacienteId = snapshot.pacienteId || snapshot.paciente?.id || null;
+    const contratoId = docId || snapshot.contratoId;
+    const titulo = `Contrato Odontológico - ${pacienteNome}`;
+    const html = gerarHtmlContrato(snapshot);
+
+    const isUuid = Boolean(
+      contratoId &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(contratoId)
+    );
+
+    // 1. Tenta verificar se já existe documento com este UUID
+    if (isUuid && contratoId) {
+      const { data: existente } = await supabase
+        .from('documentos_clinicos')
+        .select('id')
+        .eq('id', contratoId)
+        .maybeSingle();
+
+      if (existente?.id) {
+        await supabase
+          .from('documentos_clinicos')
+          .update({
+            paciente_nome: pacienteNome,
+            titulo,
+            conteudo: html,
+            itens: snapshot as never,
+          })
+          .eq('id', contratoId);
+        return contratoId;
+      }
+    }
+
+    // 2. Busca por itens->>contratoId ou paciente recente
+    let queryBusca = supabase
+      .from('documentos_clinicos')
+      .select('id')
+      .eq('tipo', 'contrato');
+
+    if (contratoId) {
+      queryBusca = queryBusca.filter('itens->>contratoId', 'eq', contratoId);
+    } else if (pacienteId) {
+      queryBusca = queryBusca.eq('paciente_id', pacienteId);
+    }
+
+    const { data: docsEncontrados } = await queryBusca
+      .order('criado_em', { ascending: false })
+      .limit(1);
+
+    const docExistente = docsEncontrados?.[0];
+
+    if (docExistente?.id) {
+      await supabase
+        .from('documentos_clinicos')
+        .update({
+          paciente_nome: pacienteNome,
+          titulo,
+          conteudo: html,
+          itens: snapshot as never,
+        })
+        .eq('id', docExistente.id);
+      return docExistente.id;
+    }
+
+    // 3. Se não encontrou, insere novo registro
+    const payload: Record<string, unknown> = {
+      paciente_id: pacienteId,
+      paciente_nome: pacienteNome,
+      tipo: 'contrato',
+      titulo,
+      conteudo: html,
+      itens: snapshot as never,
+      dentista: snapshot.clinica?.dentistaResponsavel || null,
+    };
+    if (isUuid && contratoId) {
+      payload.id = contratoId;
+    }
+
+    const { data: novoDoc } = await supabase
+      .from('documentos_clinicos')
+      .insert(payload as never)
+      .select('id')
+      .maybeSingle();
+
+    return novoDoc?.id || null;
+  } catch (err) {
+    console.warn('[ContratoEngine] Falha ao persistir contrato em segundo plano:', err);
+    return null;
+  }
+}
+
+/**
+ * Gera o link público oficial para visualização e assinatura digital do contrato pelo paciente.
+ * Gera uma URL limpa, encurtada e 100% amigável sem payload gigante:
+ * Formato padrão: https://meudominio/nomedopaciente/assinaturadocontrato
+ */
 export function gerarLinkAssinaturaContrato(snapshot: ContratoSnapshot, docId?: string): string {
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const id = docId || snapshot.contratoId;
   const slug = slugifyNome(snapshot.pacienteNome || snapshot.paciente?.nome || 'paciente');
+  const slugCompacto = slug.replace(/-/g, '');
   const slugCompleto = `assinar-contrato-${slug}`;
-  const encodedPayload = codificarContratoUrl(snapshot);
 
-  // Garante que o snapshot esteja salvo no localStorage para carregamento imediato
+  // Salva no localStorage para carregamento imediato caso o paciente abra no mesmo navegador
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
       const snapJson = JSON.stringify(snapshot);
@@ -2442,13 +2550,22 @@ export function gerarLinkAssinaturaContrato(snapshot: ContratoSnapshot, docId?: 
         window.localStorage.setItem(`contrato_${docId}`, snapJson);
       }
       window.localStorage.setItem(`contrato_slug_${slug}`, snapJson);
+      window.localStorage.setItem(`contrato_slug_${slugCompacto}`, snapJson);
       window.localStorage.setItem(`contrato_slug_${slugCompleto}`, snapJson);
-    } catch (_) {}
+    } catch (_) {
+      // ignorar indisponibilidade de localStorage
+    }
   }
 
-  // URL otimizada e 100% autônoma: https://meudominio/assinar-contrato-nome-do-paciente?id={id}&c={encoded}
-  const paramEncoded = encodedPayload ? `&c=${encodedPayload}` : '';
-  return `${origin}/${slugCompleto}?id=${encodeURIComponent(id)}${paramEncoded}`;
+  // Persiste no Supabase em segundo plano para garantir disponibilidade em qualquer celular de paciente
+  if (typeof window !== 'undefined') {
+    garantirContratoPersistido(snapshot, docId).catch((err) => {
+      console.warn('[ContratoEngine] Falha ao persistir contrato em segundo plano:', err);
+    });
+  }
+
+  // Retorna a URL curta e limpa oficial: dominio/nomedopaciente/assinaturadocontrato
+  return `${origin}/${slug}/assinaturadocontrato`;
 }
 
 

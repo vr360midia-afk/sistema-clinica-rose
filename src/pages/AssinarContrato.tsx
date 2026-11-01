@@ -73,17 +73,37 @@ const Shell = ({ children }: { children: React.ReactNode }) => (
 );
 
 export default function AssinarContrato() {
-  const { id, slug, publicSlug } = useParams<{ id?: string; slug?: string; publicSlug?: string }>();
+  const { id, slug, publicSlug, pacienteSlug, paciente } = useParams<{
+    id?: string;
+    slug?: string;
+    publicSlug?: string;
+    pacienteSlug?: string;
+    paciente?: string;
+  }>();
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token') || searchParams.get('t');
   const encodedData = searchParams.get('c') || searchParams.get('data');
   const idFromQuery = searchParams.get('id') || searchParams.get('contratoId');
   const currentPath = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '';
-  const rawSlug = slug || publicSlug || (currentPath ? currentPath.replace(/^\//, '') : '');
+
+  // Identifica o slug do paciente a partir dos parâmetros de rota ou do pathname
+  let candidateSlug = pacienteSlug || paciente || slug || publicSlug || '';
+  if (!candidateSlug && currentPath) {
+    const pathParts = currentPath.split('/').filter(Boolean);
+    // Ex: /geovanio-silva/assinaturadocontrato -> candidateSlug = geovanio-silva
+    if (pathParts.length >= 2 && (pathParts[1].includes('assinatura') || pathParts[1].includes('contrato'))) {
+      candidateSlug = pathParts[0];
+    } else if (pathParts.length === 1) {
+      candidateSlug = pathParts[0];
+    }
+  }
+
+  const rawSlug = candidateSlug;
   const targetId = idFromQuery || id || '';
 
   const [loading, setLoading] = useState(true);
   const [snapshot, setSnapshot] = useState<ContratoSnapshot | null>(null);
+  const [docDbId, setDocDbId] = useState<string | null>(null);
   const [showSignatureModal, setShowSignatureModal] = useState(false);
   const [showProfessionalSignatureModal, setShowProfessionalSignatureModal] = useState(false);
   const [concordouTermos, setConcordouTermos] = useState(false);
@@ -205,8 +225,16 @@ export default function AssinarContrato() {
       setLoading(true);
       let foundSnapshot: ContratoSnapshot | null = null;
       const cleanSlug = rawSlug
-        ? rawSlug.replace(/^assinar-contrato-/, '').replace(/^contrato-/, '').replace(/^contrato\//, '').trim()
+        ? rawSlug
+            .replace(/^assinar-contrato-/, '')
+            .replace(/^contrato-/, '')
+            .replace(/^contrato\//, '')
+            .replace(/\/assinaturadocontrato.*$/, '')
+            .replace(/-assinaturadocontrato.*$/, '')
+            .replace(/\/.*$/, '')
+            .trim()
         : '';
+      const cleanSlugCompact = cleanSlug.replace(/[-_]/g, '');
 
       // 1. Tenta decodificar da URL (?c= ou ?data=) - 100% autônomo e cross-device via WhatsApp
       if (encodedData) {
@@ -236,6 +264,8 @@ export default function AssinarContrato() {
           rawSlug ? `contrato_assinado_${rawSlug}` : '',
           rawSlug ? `contrato_slug_${rawSlug}` : '',
           cleanSlug ? `contrato_slug_${cleanSlug}` : '',
+          cleanSlugCompact ? `contrato_slug_${cleanSlugCompact}` : '',
+          cleanSlug ? `contrato_slug_assinar-contrato-${cleanSlug}` : '',
           cleanSlug ? `contrato_assinado_${cleanSlug}` : '',
         ].filter(Boolean);
 
@@ -358,14 +388,17 @@ export default function AssinarContrato() {
       }
 
       // 3. Tenta buscar via Edge Function pública 'contrato-publico' (se disponível)
-      if (!foundSnapshot && targetId) {
+      if (!foundSnapshot && (targetId || cleanSlug)) {
         try {
           const { data: funcData, error: funcErr } = await supabase.functions.invoke('contrato-publico', {
-            body: { action: 'get', id: targetId },
+            body: { action: 'get', id: targetId || cleanSlug, slug: cleanSlug },
           });
 
           if (!funcErr && funcData?.ok && funcData?.snapshot) {
             const snap = funcData.snapshot as ContratoSnapshot;
+            if (funcData.id) {
+              setDocDbId(funcData.id);
+            }
             if (funcData.assinadoEm && !snap.assinaturaPaciente) {
               snap.status = 'assinado';
               snap.assinaturaPaciente = {
@@ -421,13 +454,20 @@ export default function AssinarContrato() {
                 }
                 if (cleanSlug) {
                   const nomeP = (doc.paciente_nome || itens.pacienteNome || itens.paciente?.nome || '').toLowerCase();
-                  return slugifyNome(nomeP) === cleanSlug;
+                  const sNomeP = slugifyNome(nomeP);
+                  const sNomeCompact = sNomeP.replace(/[-_]/g, '');
+                  if (sNomeP === cleanSlug || sNomeCompact === cleanSlugCompact) return true;
+                  if (cleanSlugCompact.length >= 4 && (sNomeCompact.includes(cleanSlugCompact) || cleanSlugCompact.includes(sNomeCompact))) {
+                    return true;
+                  }
+                  return false;
                 }
                 return false;
               });
 
               if (matched && matched.itens) {
                 foundSnapshot = matched.itens as ContratoSnapshot;
+                setDocDbId(matched.id);
                 if (matched.assinado_em && !foundSnapshot.assinaturaPaciente) {
                   foundSnapshot.status = 'assinado';
                   foundSnapshot.assinaturaPaciente = {
@@ -527,20 +567,25 @@ export default function AssinarContrato() {
       setShowSignatureModal(false);
 
       // Salva no localStorage para persistência garantida no navegador do paciente
-      const finalDocId = targetId || snapshot.contratoId;
+      const finalDocId = docDbId || targetId || snapshot.contratoId;
       localStorage.setItem(`contrato_assinado_${snapshot.contratoId}`, JSON.stringify(updatedSnapshot));
       if (finalDocId) {
         localStorage.setItem(`contrato_assinado_${finalDocId}`, JSON.stringify(updatedSnapshot));
       }
+      if (cleanSlug) {
+        localStorage.setItem(`contrato_assinado_${cleanSlug}`, JSON.stringify(updatedSnapshot));
+        localStorage.setItem(`contrato_slug_${cleanSlug}`, JSON.stringify(updatedSnapshot));
+      }
 
       // 1. Tenta persistir remotamente via Edge Function pública (sem exigir login)
       let persistiuRemoto = false;
-      if (finalDocId) {
+      if (finalDocId || cleanSlug) {
         try {
           const { data: signRes, error: signErr } = await supabase.functions.invoke('contrato-publico', {
             body: {
               action: 'sign',
-              id: finalDocId,
+              id: finalDocId || cleanSlug,
+              slug: cleanSlug,
               signature: sigData.signature,
               signerName: sigData.signerName || snapshot.paciente.nome,
               selfie: sigData.selfie,
