@@ -103,12 +103,30 @@ const DigitalSignature = ({
   const shouldRequireFields = requireIdentificationFields ?? isContratoPaciente;
   const shouldRequireSelfie = requireSelfie ?? isContratoPaciente;
 
-  // Atualiza nome inicial se prop mudar
+  // Atualiza dados iniciais se props mudarem
   useEffect(() => {
     if (signerName && !nomeCompleto) {
       setNomeCompleto(signerName);
     }
   }, [signerName]);
+
+  useEffect(() => {
+    if (initialEmail && !signerEmail) {
+      setSignerEmail(initialEmail);
+    }
+  }, [initialEmail]);
+
+  useEffect(() => {
+    if (initialCpf && !signerCpf) {
+      setSignerCpf(formatCpf(initialCpf));
+    }
+  }, [initialCpf]);
+
+  useEffect(() => {
+    if (initialRg && !signerRg) {
+      setSignerRg(formatRg(initialRg));
+    }
+  }, [initialRg]);
 
   // Configuração do Canvas de Assinatura
   useEffect(() => {
@@ -172,10 +190,11 @@ const DigitalSignature = ({
         await videoRef.current.play().catch(() => {});
       }
       setIsCameraActive(true);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.warn('Erro ao abrir câmera:', err);
+      const msg = err instanceof Error ? err.message : String(err);
       setCameraError(
-        err?.message || 'Permissão de câmera não concedida. Você pode tirar a foto direto pelo botão do dispositivo abaixo.'
+        msg || 'Permissão de câmera não concedida. Você pode tirar a foto direto pelo botão do dispositivo abaixo.'
       );
     } finally {
       setCameraLoading(false);
@@ -185,6 +204,10 @@ const DigitalSignature = ({
   const takeSelfie = () => {
     if (!videoRef.current) return;
     const video = videoRef.current;
+    if (!video.videoWidth || video.readyState < 2) {
+      toast.info('Aguarde a imagem da câmera iniciar...');
+      return;
+    }
     const canvas = document.createElement('canvas');
     const width = video.videoWidth || 480;
     const height = video.videoHeight || 480;
@@ -265,6 +288,9 @@ const DigitalSignature = ({
   };
 
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    if ('touches' in e && e.cancelable) {
+      e.preventDefault();
+    }
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -279,7 +305,9 @@ const DigitalSignature = ({
 
   const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     if (!isDrawing) return;
-
+    if ('touches' in e && e.cancelable) {
+      e.preventDefault();
+    }
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -316,7 +344,7 @@ const DigitalSignature = ({
         return;
       }
 
-      if (!signerEmail.trim() || !/\S+@\S+\.\S+/.test(signerEmail)) {
+      if (signerEmail.trim() && !/\S+@\S+\.\S+/.test(signerEmail)) {
         toast.error('Por favor, informe um E-mail válido.');
         return;
       }

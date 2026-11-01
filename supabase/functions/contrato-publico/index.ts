@@ -27,7 +27,7 @@ Deno.serve(async (req) => {
     );
 
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
-    let doc: any = null;
+    let doc: Record<string, any> | null = null;
 
     // 1. Tenta buscar pelo ID direto (UUID) se for formato UUID válido
     if (isUuid) {
@@ -71,7 +71,7 @@ Deno.serve(async (req) => {
           .replace(/[̀-ͯ]/g, "")
           .replace(/[^a-z0-9]/g, "");
 
-        doc = docs.find((d: any) => {
+        doc = docs.find((d: Record<string, any>) => {
           const nomeDoc = (d.paciente_nome || d.itens?.pacienteNome || d.itens?.paciente?.nome || "")
             .toLowerCase()
             .normalize("NFD")
@@ -147,6 +147,11 @@ Deno.serve(async (req) => {
       }
 
       // Caso padrão: Assinatura do Paciente
+      const selfie = body.selfie || payloadSnapshot?.assinaturaPaciente?.selfie || null;
+      const cpf = body.signerInfo?.cpf || payloadSnapshot?.assinaturaPaciente?.cpf || null;
+      const email = body.signerInfo?.email || payloadSnapshot?.assinaturaPaciente?.email || null;
+      const rg = body.signerInfo?.rg || payloadSnapshot?.assinaturaPaciente?.rg || null;
+
       updatedSnapshot.status = "assinado";
       updatedSnapshot.assinaturaPaciente = {
         assinaturaData: signature,
@@ -154,6 +159,10 @@ Deno.serve(async (req) => {
         dataHora: dataHoraIso,
         ip: clientIp,
         userAgent,
+        selfie: selfie || undefined,
+        cpf: cpf || undefined,
+        email: email || undefined,
+        rg: rg || undefined,
       };
 
       const { error: updateErr } = await supabase
