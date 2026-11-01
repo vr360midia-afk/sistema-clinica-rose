@@ -97,6 +97,9 @@ function App() {
               <Route path="/assinar-extrato/:slug" element={<AssinarExtrato />} />
               <Route path="/assinar-extrato" element={<AssinarExtrato />} />
               {/* Rotas Amigáveis de Contrato: /:pacienteSlug/assinaturadocontrato */}
+              <Route path="/:pacienteSlug/contrato/:identificador/:token" element={<AssinarContrato />} />
+              <Route path="/:pacienteSlug/contrato/:identificador" element={<AssinarContrato />} />
+              <Route path="/contrato/:identificador" element={<AssinarContrato />} />
               <Route path="/:pacienteSlug/assinaturadocontrato" element={<AssinarContrato />} />
               <Route path="/:pacienteSlug/assinatura-do-contrato" element={<AssinarContrato />} />
               <Route path="/:pacienteSlug/assinatura-contrato" element={<AssinarContrato />} />

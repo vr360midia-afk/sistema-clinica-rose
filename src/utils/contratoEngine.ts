@@ -169,7 +169,9 @@ export interface ContratoSnapshot {
   orcamentoId: string;
   pacienteId: string;
   versao: string;
-  status: 'emitido' | 'assinado' | 'cancelado';
+  status: 'emitido' | 'assinado' | 'cancelado' | 'pendente';
+  token?: string;
+  tokenValidoAte?: string;
   emitidoEm: string;
   tipoModeloContrato?: TipoModeloContrato;
   paciente: ContratoDadosPaciente;
@@ -2566,198 +2568,307 @@ export function gerarSnapshotDemonstracao(nome = 'Diego Duracenski'): ContratoSn
 }
 
 /**
- * Garante que o contrato esteja gravado no banco de dados Supabase (documentos_clinicos)
- * para que possa ser aberto de forma transparente e imediata no celular do paciente pelo link curto.
+ * Gera um identificador de contrato humanamente legível e único (ex: CTR-B98666CE).
+ */
+export function gerarIdentificadorContrato(): string {
+  const chars = '0123456789ABCDEF';
+  let code = '';
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    const bytes = new Uint8Array(4);
+    crypto.getRandomValues(bytes);
+    for (let i = 0; i < 4; i++) {
+      code += chars[bytes[i] >> 4] + chars[bytes[i] & 0x0f];
+    }
+  } else {
+    code = Math.random().toString(16).substring(2, 10).toUpperCase();
+  }
+  return `CTR-${code}`;
+}
+
+/**
+ * Gera um token de acesso criptograficamente seguro e aleatório para assinatura pública.
+ */
+export function gerarTokenAcesso(): string {
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    const bytes = new Uint8Array(24);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  }
+  return Array.from({ length: 48 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+}
+
+/**
+ * Retorna a URL base oficial de produção ou o origin local em ambiente de desenvolvimento.
+ */
+export function obterBaseUrlOficial(): string {
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    if (host === 'localhost' || host === '127.0.0.1' || host.startsWith('192.168.')) {
+      return window.location.origin;
+    }
+  }
+  return 'https://app.lentesemresinamaceio.com.br';
+}
+
+/**
+ * Constrói a URL pública oficial do contrato:
+ * Formato padrão: https://app.lentesemresinamaceio.com.br/{slug-do-paciente}/contrato/{identificador}?token={token}
+ */
+export function construirUrlPublicaContrato(params: {
+  pacienteNome?: string;
+  identificador: string;
+  token?: string;
+}): string {
+  const base = obterBaseUrlOficial();
+  const slug = slugifyNome(params.pacienteNome || 'paciente');
+  const tokenQuery = params.token ? `?token=${encodeURIComponent(params.token)}` : '';
+  return `${base}/${slug}/contrato/${params.identificador}${tokenQuery}`;
+}
+
+/**
+ * Emite e persiste definitivamente o contrato no Supabase antes de gerar o link curto.
+ * Retorna o identificador, o token e a URL oficial para compartilhamento seguro.
+ */
+export async function emitirContratoPersistido(
+  snapshot: ContratoSnapshot,
+  docId?: string
+): Promise<{
+  ok: boolean;
+  link: string;
+  identificador: string;
+  token: string;
+  id?: string | null;
+  snapshot: ContratoSnapshot;
+  error?: string;
+}> {
+  try {
+    const pacienteNome = snapshot.pacienteNome || snapshot.paciente?.nome || 'Paciente';
+    const pacienteId = snapshot.pacienteId || snapshot.paciente?.id || null;
+
+    // 1. Gera ou preserva o identificador oficial do contrato (ex: CTR-B98666CE)
+    const isDocIdUuid = Boolean(
+      docId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(docId)
+    );
+    const identificador =
+      snapshot.contratoId && snapshot.contratoId.startsWith('CTR-')
+        ? snapshot.contratoId
+        : docId && !isDocIdUuid
+        ? docId
+        : gerarIdentificadorContrato();
+
+    // 2. Gera ou preserva o token criptográfico exclusivo de acesso
+    const token = snapshot.token && snapshot.token.length >= 16 ? snapshot.token : gerarTokenAcesso();
+
+    // 3. Define a validade do token (30 dias padrão)
+    const tokenValidoAte =
+      snapshot.tokenValidoAte || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+    // 4. Constrói o snapshot imutável com todos os termos, dados e valores
+    const snapshotFinal: ContratoSnapshot = {
+      ...snapshot,
+      contratoId: identificador,
+      token,
+      tokenValidoAte,
+      status: snapshot.status || 'pendente',
+      emitidoEm: snapshot.emitidoEm || new Date().toISOString(),
+    };
+
+    const titulo = `Contrato Odontológico - ${pacienteNome} (${identificador})`;
+    const html = gerarHtmlContrato(snapshotFinal);
+
+    let finalId: string | null = isDocIdUuid && docId ? docId : null;
+    let persistidoComSucesso = false;
+
+    // 5. Tentativa 1: Persistência prioritária via Edge Function (usa service_role)
+    try {
+      const { data: edgeData, error: edgeErr } = await supabase.functions.invoke('contrato-publico', {
+        body: {
+          action: 'save',
+          id: finalId || identificador,
+          identificador,
+          token,
+          pacienteNome,
+          pacienteId,
+          titulo,
+          html,
+          snapshot: snapshotFinal,
+        },
+      });
+
+      if (!edgeErr && edgeData?.ok) {
+        persistidoComSucesso = true;
+        if (edgeData.id) finalId = edgeData.id;
+      }
+    } catch (_) {}
+
+    // 6. Tentativa 2: Persistência direta no banco de dados Supabase (documentos_clinicos)
+    if (!persistidoComSucesso) {
+      try {
+        const effectiveUserId = await obterUserIdAtivo();
+
+        // Se tiver UUID prévio, atualiza
+        if (finalId) {
+          const { error: updErr } = await supabase
+            .from('documentos_clinicos')
+            .update({
+              paciente_nome: pacienteNome,
+              paciente_id: pacienteId,
+              titulo,
+              conteudo: html,
+              itens: snapshotFinal as never,
+              atualizado_em: new Date().toISOString(),
+            })
+            .eq('id', finalId);
+
+          if (!updErr) {
+            persistidoComSucesso = true;
+          }
+        }
+
+        // Se ainda não persistido, verifica se já existe registro com esse contratoId
+        if (!persistidoComSucesso) {
+          const { data: exist } = await supabase
+            .from('documentos_clinicos')
+            .select('id')
+            .filter('itens->>contratoId', 'eq', identificador)
+            .maybeSingle();
+
+          if (exist?.id) {
+            finalId = exist.id;
+            const { error: updErr } = await supabase
+              .from('documentos_clinicos')
+              .update({
+                paciente_nome: pacienteNome,
+                paciente_id: pacienteId,
+                titulo,
+                conteudo: html,
+                itens: snapshotFinal as never,
+                atualizado_em: new Date().toISOString(),
+              })
+              .eq('id', exist.id);
+
+            if (!updErr) {
+              persistidoComSucesso = true;
+            }
+          }
+        }
+
+        // Se ainda não existe, insere novo registro
+        if (!persistidoComSucesso) {
+          const insertPayload: Record<string, unknown> = {
+            paciente_id: pacienteId,
+            paciente_nome: pacienteNome,
+            tipo: 'contrato',
+            titulo,
+            conteudo: html,
+            itens: snapshotFinal as never,
+            dentista: snapshotFinal.clinica?.dentistaResponsavel || null,
+            ...(effectiveUserId ? { user_id: effectiveUserId } : {}),
+          };
+          if (finalId) {
+            insertPayload.id = finalId;
+          }
+
+          const { data: insData, error: insErr } = await supabase
+            .from('documentos_clinicos')
+            .insert(insertPayload as never)
+            .select('id')
+            .maybeSingle();
+
+          if (!insErr && insData?.id) {
+            finalId = insData.id;
+            persistidoComSucesso = true;
+          }
+        }
+      } catch (err) {
+        console.warn('[ContratoEngine] Erro na gravação direta:', err);
+      }
+    }
+
+    // 7. Salva no cache local para contingência offline imediata no dispositivo emissor
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        const snapJson = JSON.stringify(snapshotFinal);
+        window.localStorage.setItem(`contrato_${identificador}`, snapJson);
+        if (finalId) window.localStorage.setItem(`contrato_${finalId}`, snapJson);
+        const slug = slugifyNome(pacienteNome);
+        window.localStorage.setItem(`contrato_slug_${slug}`, snapJson);
+      } catch (_) {}
+    }
+
+    // 8. Constrói o link oficial curto e seguro
+    const link = construirUrlPublicaContrato({
+      pacienteNome,
+      identificador,
+      token,
+    });
+
+    return {
+      ok: true,
+      link,
+      identificador,
+      token,
+      id: finalId,
+      snapshot: snapshotFinal,
+    };
+  } catch (err) {
+    console.error('[ContratoEngine] Erro ao emitir contrato persistido:', err);
+    const pacienteNome = snapshot.pacienteNome || snapshot.paciente?.nome || 'paciente';
+    const identificador = snapshot.contratoId || gerarIdentificadorContrato();
+    const token = snapshot.token || gerarTokenAcesso();
+    const link = construirUrlPublicaContrato({ pacienteNome, identificador, token });
+
+    return {
+      ok: false,
+      link,
+      identificador,
+      token,
+      snapshot,
+      error: (err && err.message) || 'Erro inesperado',
+    };
+  }
+}
+
+/**
+ * Garante que o contrato esteja gravado no banco de dados Supabase (documentos_clinicos).
  */
 export async function garantirContratoPersistido(
   snapshot: ContratoSnapshot,
   docId?: string
 ): Promise<string | null> {
-  if (typeof window === 'undefined') return null;
-
-  try {
-    const pacienteNome = snapshot.pacienteNome || snapshot.paciente?.nome || 'Paciente';
-    const pacienteId = snapshot.pacienteId || snapshot.paciente?.id || null;
-    const contratoId = docId || snapshot.contratoId;
-    const titulo = `Contrato Odontológico - ${pacienteNome}`;
-    const html = gerarHtmlContrato(snapshot);
-
-    const isUuid = Boolean(
-      contratoId &&
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(contratoId)
-    );
-
-    // Tenta salvar prioritariamente via Edge Function 'contrato-publico' (usa service_role, contornando bloqueios de RLS)
-    try {
-      const { data: edgeData, error: edgeErr } = await supabase.functions.invoke('contrato-publico', {
-        body: {
-          action: 'save',
-          id: contratoId,
-          pacienteNome,
-          titulo,
-          html,
-          snapshot,
-        },
-      });
-      if (!edgeErr && edgeData?.ok && edgeData?.id) {
-        return edgeData.id;
-      }
-    } catch (_) {
-      // continua para persistência direta
-    }
-
-    // 1. Tenta verificar se já existe documento com este UUID
-    if (isUuid && contratoId) {
-      const { data: existente } = await supabase
-        .from('documentos_clinicos')
-        .select('id')
-        .eq('id', contratoId)
-        .maybeSingle();
-
-      if (existente?.id) {
-        await supabase
-          .from('documentos_clinicos')
-          .update({
-            paciente_nome: pacienteNome,
-            titulo,
-            conteudo: html,
-            itens: snapshot as never,
-          })
-          .eq('id', contratoId);
-        return contratoId;
-      }
-    }
-
-    // 2. Busca por itens->>contratoId ou paciente recente
-    let queryBusca = supabase
-      .from('documentos_clinicos')
-      .select('id')
-      .eq('tipo', 'contrato');
-
-    if (contratoId) {
-      queryBusca = queryBusca.filter('itens->>contratoId', 'eq', contratoId);
-    } else if (pacienteId) {
-      queryBusca = queryBusca.eq('paciente_id', pacienteId);
-    }
-
-    const { data: docsEncontrados } = await queryBusca
-      .order('criado_em', { ascending: false })
-      .limit(1);
-
-    const docExistente = docsEncontrados?.[0];
-
-    if (docExistente?.id) {
-      await supabase
-        .from('documentos_clinicos')
-        .update({
-          paciente_nome: pacienteNome,
-          titulo,
-          conteudo: html,
-          itens: snapshot as never,
-        })
-        .eq('id', docExistente.id);
-      return docExistente.id;
-    }
-
-    // 3. Se não encontrou, insere novo registro com o user_id ativo
-    const effectiveUserId = await obterUserIdAtivo();
-    const payload: Record<string, unknown> = {
-      ...(effectiveUserId ? { user_id: effectiveUserId } : {}),
-      paciente_id: pacienteId,
-      paciente_nome: pacienteNome,
-      tipo: 'contrato',
-      titulo,
-      conteudo: html,
-      itens: snapshot as never,
-      dentista: snapshot.clinica?.dentistaResponsavel || null,
-    };
-    if (isUuid && contratoId) {
-      payload.id = contratoId;
-    }
-
-    const { data: novoDoc, error: insertErr } = await supabase
-      .from('documentos_clinicos')
-      .insert(payload as never)
-      .select('id')
-      .maybeSingle();
-
-    if (insertErr) {
-      console.warn('[ContratoEngine] Aviso ao persistir contrato:', insertErr);
-    }
-
-    const finalId = novoDoc?.id || contratoId || null;
-
-    // Também garante no cache de documentos locais para contingência
-    try {
-      const docsKey = 'dental-system-documentos';
-      const existing = JSON.parse(window.localStorage.getItem(docsKey) || '[]');
-      const updated = [
-        {
-          id: finalId || `local-${Date.now()}`,
-          tipo: 'contrato',
-          titulo,
-          paciente_id: pacienteId,
-          paciente_nome: pacienteNome,
-          conteudo: html,
-          itens: snapshot,
-          criado_em: new Date().toISOString(),
-        },
-        ...existing.filter((d: any) => d.id !== finalId),
-      ];
-      window.localStorage.setItem(docsKey, JSON.stringify(updated.slice(0, 100)));
-    } catch (_) {}
-
-    return finalId;
-  } catch (err) {
-    console.warn('[ContratoEngine] Falha ao persistir contrato em segundo plano:', err);
-    return null;
-  }
+  const res = await emitirContratoPersistido(snapshot, docId);
+  return res.id || res.identificador;
 }
 
 /**
  * Gera o link público oficial para visualização e assinatura digital do contrato pelo paciente.
- * Gera uma URL limpa, encurtada e 100% amigável sem payload gigante:
- * Formato padrão: https://meudominio/nomedopaciente/assinaturadocontrato
+ * Gera uma URL curta, limpa e 100% amigável com token de acesso criptograficamente seguro:
+ * Formato padrão: https://app.lentesemresinamaceio.com.br/{slug-do-paciente}/contrato/{identificador}?token={token}
  */
 export function gerarLinkAssinaturaContrato(snapshot: ContratoSnapshot, docId?: string): string {
-  const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  const id = docId || snapshot.contratoId;
-  const slug = slugifyNome(snapshot.pacienteNome || snapshot.paciente?.nome || 'paciente');
-  const slugCompacto = slug.replace(/-/g, '');
-  const slugCompleto = `assinar-contrato-${slug}`;
+  const pacienteNome = snapshot.pacienteNome || snapshot.paciente?.nome || 'paciente';
 
-  // Salva no localStorage para carregamento imediato caso o paciente abra no mesmo navegador
-  if (typeof window !== 'undefined' && window.localStorage) {
-    try {
-      const snapJson = JSON.stringify(snapshot);
-      if (id) {
-        window.localStorage.setItem(`contrato_${id}`, snapJson);
-      }
-      if (snapshot.contratoId) {
-        window.localStorage.setItem(`contrato_${snapshot.contratoId}`, snapJson);
-      }
-      if (docId) {
-        window.localStorage.setItem(`contrato_${docId}`, snapJson);
-      }
-      window.localStorage.setItem(`contrato_slug_${slug}`, snapJson);
-      window.localStorage.setItem(`contrato_slug_${slugCompacto}`, snapJson);
-      window.localStorage.setItem(`contrato_slug_${slugCompleto}`, snapJson);
-    } catch (_) {
-      // ignorar indisponibilidade de localStorage
-    }
+  // Garante identificador e token presentes no snapshot
+  if (!snapshot.contratoId) {
+    snapshot.contratoId = docId && !docId.includes('-') ? docId : gerarIdentificadorContrato();
+  }
+  if (!snapshot.token) {
+    snapshot.token = gerarTokenAcesso();
+  }
+  if (!snapshot.tokenValidoAte) {
+    snapshot.tokenValidoAte = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
   }
 
-  // Persiste no Supabase em segundo plano para garantir disponibilidade em qualquer celular de paciente
+  // Dispara a persistência no Supabase para garantir disponibilidade imediata
   if (typeof window !== 'undefined') {
-    garantirContratoPersistido(snapshot, docId).catch((err) => {
-      console.warn('[ContratoEngine] Falha ao persistir contrato em segundo plano:', err);
+    emitirContratoPersistido(snapshot, docId).catch((err) => {
+      console.warn('[ContratoEngine] Persistência em segundo plano:', err);
     });
   }
 
-  // Codifica o snapshot em base64 URL-safe para garantir abertura instantânea cross-device via WhatsApp
-  const encoded = codificarContratoUrl(snapshot);
-  const param = encoded ? `?c=${encoded}` : '';
-
-  // Retorna a URL oficial amigável contendo o snapshot seguro
-  return `${origin}/${slug}/assinaturadocontrato${param}`;
+  return construirUrlPublicaContrato({
+    pacienteNome,
+    identificador: snapshot.contratoId,
+    token: snapshot.token,
+  });
 }

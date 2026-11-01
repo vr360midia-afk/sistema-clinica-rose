@@ -28,13 +28,23 @@
     <meta name="twitter:image" content="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/de3e7a9d-f3f8-4d27-aed0-fe599497ca71/id-preview-09ce9fcf--6220783b-4d9b-4a8c-b49e-4dcf96139176.lovable.app-1776644270789.png">
     <meta name="twitter:card" content="summary_large_image">
     <script>
-      // Restaura rota SPA após redirecionamento de 404 estático
+      // Restaura rota SPA após redirecionamento de 404 estático (compatível com aba anônima e mobile)
       (function() {
         try {
-          var redirect = sessionStorage.getItem('spa_redirect');
+          var url = new URL(window.location.href);
+          var spaParam = url.searchParams.get('_spa');
+          var redirect = spaParam ? decodeURIComponent(spaParam) : null;
+          if (!redirect) {
+            redirect = sessionStorage.getItem('spa_redirect');
+          }
           if (redirect) {
-            sessionStorage.removeItem('spa_redirect');
-            if (window.location.pathname === '/' || window.location.pathname === '') {
+            try { sessionStorage.removeItem('spa_redirect'); } catch (e) {}
+            if (spaParam) {
+              url.searchParams.delete('_spa');
+              var cleanSearch = url.searchParams.toString() ? '?' + url.searchParams.toString() : '';
+              var target = redirect.split('?')[0] + cleanSearch + url.hash;
+              window.history.replaceState(null, null, target);
+            } else if (window.location.pathname === '/' || window.location.pathname === '') {
               window.history.replaceState(null, null, redirect);
             }
           }

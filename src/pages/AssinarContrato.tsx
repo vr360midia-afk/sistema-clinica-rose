@@ -75,15 +75,17 @@ const Shell = ({ children }: { children: React.ReactNode }) => (
 );
 
 export default function AssinarContrato() {
-  const { id, slug, publicSlug, pacienteSlug, paciente } = useParams<{
+  const { id, slug, publicSlug, pacienteSlug, paciente, identificador, token: tokenParam } = useParams<{
+    identificador?: string;
     id?: string;
     slug?: string;
     publicSlug?: string;
     pacienteSlug?: string;
     paciente?: string;
+    token?: string;
   }>();
   const [searchParams] = useSearchParams();
-  const token = searchParams.get('token') || searchParams.get('t');
+  // token extraído com suporte a query e rota
   const encodedData = searchParams.get('c') || searchParams.get('data');
   const idFromQuery = searchParams.get('id') || searchParams.get('contratoId');
   const currentPath = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '';
@@ -112,6 +114,7 @@ export default function AssinarContrato() {
   const [baixandoPdf, setBaixandoPdf] = useState(false);
   const [copiouPix, setCopiouPix] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
+  const [erroSeguranca, setErroSeguranca] = useState<string | null>(null);
 
   // Estado para Modal de QR Code PIX por Parcela ou Geral em Tela Cheia
   const [modalPixParcela, setModalPixParcela] = useState<{
@@ -225,7 +228,10 @@ export default function AssinarContrato() {
   useEffect(() => {
     async function carregarContrato() {
       setLoading(true);
+      setErroSeguranca(null);
       let foundSnapshot: ContratoSnapshot | null = null;
+      let foundDocId: string | null = null;
+
       const cleanSlug = rawSlug
         ? rawSlug
             .replace(/^assinar-contrato-/, '')
@@ -236,398 +242,121 @@ export default function AssinarContrato() {
             .replace(/\/.*$/, '')
             .trim()
         : '';
-      const cleanSlugCompact = cleanSlug.replace(/[-_]/g, '');
 
-      // 1. Tenta decodificar da URL (?c= ou ?data=) - 100% autônomo e cross-device via WhatsApp
-      if (encodedData) {
-        const decoded = decodificarContratoUrl(encodedData);
-        if (decoded) {
-          foundSnapshot = decoded;
-          // Se já houver versão assinada salva no cache local deste dispositivo, prioriza
-          const localAssinado =
-            (decoded.contratoId ? localStorage.getItem(`contrato_assinado_${decoded.contratoId}`) : null) ||
-            (targetId ? localStorage.getItem(`contrato_assinado_${targetId}`) : null);
-          if (localAssinado) {
-            try {
-              const cachedSnap = JSON.parse(localAssinado);
-              if (cachedSnap?.assinaturaPaciente?.assinaturaData) {
-                foundSnapshot = cachedSnap;
-              }
-            } catch (_) {}
-          }
-        }
-      }
-
-      // 2. Tenta recuperar do localStorage por targetId, contratoId, cleanSlug ou varredura de chaves
-      if (!foundSnapshot && (targetId || rawSlug || cleanSlug)) {
-        const possibleKeys = [
-          targetId ? `contrato_assinado_${targetId}` : '',
-          targetId ? `contrato_${targetId}` : '',
-          rawSlug ? `contrato_assinado_${rawSlug}` : '',
-          rawSlug ? `contrato_slug_${rawSlug}` : '',
-          cleanSlug ? `contrato_slug_${cleanSlug}` : '',
-          cleanSlugCompact ? `contrato_slug_${cleanSlugCompact}` : '',
-          cleanSlug ? `contrato_slug_assinar-contrato-${cleanSlug}` : '',
-          cleanSlug ? `contrato_assinado_${cleanSlug}` : '',
-        ].filter(Boolean);
-
-        for (const k of possibleKeys) {
-          const item = localStorage.getItem(k);
-          if (item) {
-            try {
-              const parsed = JSON.parse(item);
-              if (parsed && (parsed.contratoId || parsed.paciente || parsed.orcamento)) {
-                foundSnapshot = parsed as ContratoSnapshot;
-                break;
-              }
-            } catch (_) {}
-          }
+      // 1. Link com Identificador e Token (Estrutura Oficial Definitiva)
+      if (targetId) {
+        if (!token) {
+          // Acesso negado: sem token de segurança
+          setErroSeguranca('Token de segurança não informado no link. Por razões de privacidade (LGPD) e segurança jurídica, utilize o link oficial completo fornecido pela clínica.');
+          setLoading(false);
+          return;
         }
 
-        // Varredura de segurança em todas as chaves de contrato do localStorage
-        if (!foundSnapshot) {
-          try {
-            for (let i = 0; i < localStorage.length; i++) {
-              const key = localStorage.key(i);
-              if (!key || (!key.startsWith('contrato_') && !key.startsWith('documento_'))) continue;
-              const val = localStorage.getItem(key);
-              if (!val) continue;
-              try {
-                const parsed = JSON.parse(val);
-                if (!parsed || typeof parsed !== 'object') continue;
-
-                // Match por ID ou ContratoId ou OrçamentoId
-                if (
-                  targetId &&
-                  (parsed.contratoId === targetId ||
-                    parsed.id === targetId ||
-                    parsed.orcamentoId === targetId ||
-                    parsed.orcamento?.id === targetId)
-                ) {
-                  foundSnapshot = parsed as ContratoSnapshot;
-                  break;
-                }
-
-                // Match por slug ou nome do paciente
-                if (cleanSlug) {
-                  const nomeP = (parsed.pacienteNome || parsed.paciente?.nome || '').toLowerCase();
-                  if (slugifyNome(nomeP) === cleanSlug || nomeP.includes(cleanSlug)) {
-                    foundSnapshot = parsed as ContratoSnapshot;
-                    break;
-                  }
-                }
-              } catch (_) {}
-            }
-          } catch (_) {}
-        }
-
-        // Tenta também recuperar de documentos clínicos salvos localmente
-        if (!foundSnapshot) {
-          try {
-            const docsLocais = JSON.parse(localStorage.getItem('dental-system-documentos') || '[]');
-            if (Array.isArray(docsLocais)) {
-              const docMatch = docsLocais.find((d: any) => {
-                if (d.tipo !== 'contrato') return false;
-                if (targetId && (d.id === targetId || d.itens?.contratoId === targetId)) return true;
-                if (cleanSlug) {
-                  const nomeDoc = (d.pacienteNome || d.paciente_nome || d.itens?.pacienteNome || '').toLowerCase();
-                  return slugifyNome(nomeDoc) === cleanSlug;
-                }
-                return false;
-              });
-              if (docMatch && docMatch.itens) {
-                foundSnapshot = docMatch.itens as ContratoSnapshot;
-              }
-            }
-          } catch (_) {}
-        }
-
-        // Tenta também recuperar a partir dos orçamentos locais (dental-system-orcamentos)
-        if (!foundSnapshot) {
-          try {
-            const orcsRaw = localStorage.getItem('dental-system-orcamentos');
-            if (orcsRaw) {
-              const orcs = JSON.parse(orcsRaw);
-              if (Array.isArray(orcs)) {
-                const orcMatch = orcs.find((o: any) => {
-                  if (targetId && (o.id === targetId || o.numeroIdentificador === targetId)) return true;
-                  if (cleanSlug) {
-                    const pName = (o.pacienteNome || o.paciente_nome || '').toLowerCase();
-                    return slugifyNome(pName) === cleanSlug || pName.includes(cleanSlug);
-                  }
-                  return false;
-                });
-
-                if (orcMatch) {
-                  const pacsRaw = localStorage.getItem('dental-system-pacientes');
-                  const pacs = pacsRaw ? JSON.parse(pacsRaw) : [];
-                  const pacMatch = Array.isArray(pacs)
-                    ? pacs.find((p: any) => p.id === orcMatch.pacienteId || p.nome === orcMatch.pacienteNome)
-                    : null;
-
-                  const cfgRaw = localStorage.getItem('dental-system-configuracoes');
-                  const configuracoes = cfgRaw ? JSON.parse(cfgRaw) : null;
-                  const cfgContratoRaw = localStorage.getItem('dental-system-configuracoes-contrato');
-                  const configContrato = cfgContratoRaw ? JSON.parse(cfgContratoRaw) : null;
-                  const dtsRaw = localStorage.getItem('dental-system-dentistas');
-                  const dentistas = dtsRaw ? JSON.parse(dtsRaw) : [];
-
-                  foundSnapshot = mapearDadosContrato({
-                    patient: pacMatch || { nome: orcMatch.pacienteNome || 'Paciente' },
-                    orcamento: orcMatch,
-                    configuracoes,
-                    configContrato,
-                    dentistas,
-                    dadosRestauracoesPreexistentes: pacMatch?.restauracoesPreexistentes,
-                  });
-                }
-              }
-            }
-          } catch (err) {
-            console.warn('Erro ao restaurar snapshot de dental-system-orcamentos:', err);
-          }
-        }
-      }
-
-      // 3. Tenta buscar via Edge Function pública 'contrato-publico' (se disponível)
-      if (!foundSnapshot && (targetId || cleanSlug)) {
+        // 1.1 Tenta recuperar prioritariamente via Edge Function 'contrato-publico' (valida token no servidor com service_role)
         try {
-          const { data: funcData, error: funcErr } = await supabase.functions.invoke('contrato-publico', {
-            body: { action: 'get', id: targetId || cleanSlug, slug: cleanSlug },
+          const { data: edgeData, error: edgeErr } = await supabase.functions.invoke('contrato-publico', {
+            body: { action: 'get', id: targetId, token },
           });
 
-          if (!funcErr && funcData?.ok && funcData?.snapshot) {
-            const snap = funcData.snapshot as ContratoSnapshot;
-            if (funcData.id) {
-              setDocDbId(funcData.id);
-            }
-            if (funcData.assinadoEm && !snap.assinaturaPaciente) {
-              snap.status = 'assinado';
-              snap.assinaturaPaciente = {
-                assinaturaData: '',
-                nome: funcData.assinanteNome || snap.paciente.nome,
-                dataHora: funcData.assinadoEm,
-              };
-            }
-            foundSnapshot = snap;
+          if (!edgeErr && edgeData?.ok && edgeData?.snapshot) {
+            foundSnapshot = edgeData.snapshot as ContratoSnapshot;
+            foundDocId = edgeData.id || targetId;
+          } else if (edgeData?.error && edgeErr?.status === 403) {
+            setErroSeguranca(edgeData.error || 'Token de acesso inválido ou expirado.');
+            setLoading(false);
+            return;
           }
         } catch (_) {}
-      }
 
-      // 4. Fallback no banco de dados Supabase (documentos_clinicos) com proteção contra erros de sintaxe UUID
-      if (!foundSnapshot && (targetId || rawSlug || cleanSlug)) {
-        try {
-          const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
+        // 1.2 Fallback 1: Tenta RPC segura 'obter_contrato_publico'
+        if (!foundSnapshot) {
+          try {
+            const { data: rpcData, error: rpcErr } = await (supabase.rpc as any)('obter_contrato_publico', {
+              p_identificador: targetId,
+              p_token: token,
+            });
 
-          if (isUuid) {
-            // Busca diretamente pelo UUID do registro
-            const { data, error } = await supabase
-              .from('documentos_clinicos')
-              .select('*')
-              .eq('id', targetId)
-              .maybeSingle();
+            if (!rpcErr && rpcData?.ok && rpcData?.snapshot) {
+              foundSnapshot = rpcData.snapshot as ContratoSnapshot;
+              foundDocId = rpcData.id || targetId;
+            } else if (rpcData && !rpcData.ok && rpcData.error && rpcData.error.includes('Token')) {
+              setErroSeguranca(rpcData.error);
+              setLoading(false);
+              return;
+            }
+          } catch (_) {}
+        }
 
-            if (!error && data && data.itens) {
-              foundSnapshot = data.itens as ContratoSnapshot;
-              if (data.assinado_em && !foundSnapshot.assinaturaPaciente) {
+        // 1.3 Fallback 2: Consulta direta no banco de dados Supabase (documentos_clinicos)
+        if (!foundSnapshot) {
+          try {
+            const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
+            let query = supabase.from('documentos_clinicos').select('*').eq('tipo', 'contrato');
+            if (isUuid) {
+              query = query.eq('id', targetId);
+            } else {
+              query = query.filter('itens->>contratoId', 'eq', targetId);
+            }
+            const { data: docs } = await query.order('criado_em', { ascending: false }).limit(1);
+            const doc = docs?.[0];
+
+            if (doc) {
+              const tokenGravado = (doc.itens as any)?.token;
+              // Validação estrita do token
+              if (!tokenGravado || tokenGravado !== token) {
+                setErroSeguranca('Token de acesso inválido ou revogado. Este contrato não pode ser visualizado sem a credencial correta.');
+                setLoading(false);
+                return;
+              }
+
+              // Validação de expiração se informada
+              if ((doc.itens as any)?.tokenValidoAte && new Date((doc.itens as any).tokenValidoAte) < new Date()) {
+                setErroSeguranca('Este link de contrato expirou. Solicite um novo link à clínica.');
+                setLoading(false);
+                return;
+              }
+
+              foundSnapshot = doc.itens as ContratoSnapshot;
+              foundDocId = doc.id;
+              if (doc.assinado_em && !foundSnapshot.assinaturaPaciente) {
                 foundSnapshot.status = 'assinado';
                 foundSnapshot.assinaturaPaciente = {
-                  assinaturaData: data.assinatura_data || '',
-                  nome: data.assinante_nome || foundSnapshot.paciente.nome,
-                  dataHora: data.assinado_em,
+                  assinaturaData: doc.assinatura_data || '',
+                  nome: doc.assinante_nome || foundSnapshot.paciente?.nome || 'Paciente',
+                  dataHora: doc.assinado_em,
                 };
               }
             }
-          } else {
-            // Se NÃO for UUID (ex: CTR-1234), busca documentos tipo 'contrato' sem estourar erro de sintaxe UUID
-            const { data: listaDocs, error } = await supabase
-              .from('documentos_clinicos')
-              .select('*')
-              .eq('tipo', 'contrato')
-              .order('criado_em', { ascending: false })
-              .limit(30);
+          } catch (_) {}
+        }
+      }
 
-            if (!error && listaDocs && listaDocs.length > 0) {
-              const matched = listaDocs.find((doc: any) => {
-                const itens = doc.itens;
-                if (!itens) return false;
-                if (targetId && (itens.contratoId === targetId || itens.orcamentoId === targetId || doc.id === targetId)) {
-                  return true;
-                }
-                if (cleanSlug) {
-                  const nomeP = (doc.paciente_nome || itens.pacienteNome || itens.paciente?.nome || '').toLowerCase();
-                  const sNomeP = slugifyNome(nomeP);
-                  const sNomeCompact = sNomeP.replace(/[-_]/g, '');
-                  if (sNomeP === cleanSlug || sNomeCompact === cleanSlugCompact) return true;
-                  if (cleanSlugCompact.length >= 4 && (sNomeCompact.includes(cleanSlugCompact) || cleanSlugCompact.includes(sNomeCompact))) {
-                    return true;
-                  }
-                  return false;
-                }
-                return false;
-              });
-
-              if (matched && matched.itens) {
-                foundSnapshot = matched.itens as ContratoSnapshot;
-                setDocDbId(matched.id);
-                if (matched.assinado_em && !foundSnapshot.assinaturaPaciente) {
-                  foundSnapshot.status = 'assinado';
-                  foundSnapshot.assinaturaPaciente = {
-                    assinaturaData: matched.assinatura_data || '',
-                    nome: matched.assinante_nome || foundSnapshot.paciente.nome,
-                    dataHora: matched.assinado_em,
-                  };
-                }
-              }
-            }
-          }
-
-          // Fallback na tabela orcamentos do Supabase se o targetId for o UUID de um orçamento
-          if (!foundSnapshot && targetId && isUuid) {
-            try {
-              const { data: orcData, error: orcErr } = await supabase
-                .from('orcamentos')
-                .select('*')
-                .eq('id', targetId)
-                .maybeSingle();
-
-              if (!orcErr && orcData) {
-                let pacData: any = null;
-                if (orcData.paciente_id) {
-                  const { data: p } = await supabase
-                    .from('pacientes')
-                    .select('*')
-                    .eq('id', orcData.paciente_id)
-                    .maybeSingle();
-                  pacData = p;
-                }
-                foundSnapshot = mapearDadosContrato({
-                  patient: pacData || { nome: orcData.paciente_nome || 'Paciente' },
-                  orcamento: orcData as any,
+      // 2. Compatibilidade com links antigos baseados no parâmetro ?c= ou ?data=
+      if (!foundSnapshot && encodedData) {
+        try {
+          const decoded = decodificarContratoUrl(encodedData);
+          if (decoded) {
+            foundSnapshot = decoded;
+            // Migra silenciosamente para o banco de dados Supabase se ainda não persistido
+            emitirContratoPersistido(decoded).then((migrado) => {
+              if (migrado.ok && migrado.identificador && migrado.token) {
+                const urlLimpa = construirUrlPublicaContrato({
+                  pacienteNome: decoded.pacienteNome || decoded.paciente?.nome,
+                  identificador: migrado.identificador,
+                  token: migrado.token,
                 });
+                try {
+                  window.history.replaceState(null, '', urlLimpa);
+                } catch (_) {}
               }
-            } catch (_) {}
+            }).catch(() => {});
           }
         } catch (_) {}
       }
 
-            // 5. Tenta buscar em pacientes pelo nome/slug se ainda não encontrou
-      if (!foundSnapshot && cleanSlug && cleanSlug.length >= 3) {
-        try {
-          const termos = cleanSlug.split(/[-_]/).filter((t: string) => t.length > 2);
-          const { data: listaPacientes } = await supabase
-            .from('pacientes')
-            .select('*')
-            .limit(20);
-
-          if (listaPacientes && listaPacientes.length > 0) {
-            const pacienteEncontrado = listaPacientes.find((p: any) => {
-              const pSlug = slugifyNome(p.nome || '');
-              return pSlug === cleanSlug || termos.every((t: string) => pSlug.includes(t));
-            });
-
-            if (pacienteEncontrado) {
-              const { data: orcs } = await supabase
-                .from('orcamentos')
-                .select('*')
-                .eq('paciente_id', pacienteEncontrado.id)
-                .order('criado_em', { ascending: false })
-                .limit(1);
-
-              const ultimoOrc = orcs?.[0];
-              if (ultimoOrc) {
-                foundSnapshot = mapearDadosContrato({
-                  patient: pacienteEncontrado,
-                  orcamento: ultimoOrc as any,
-                });
-                if (foundSnapshot) {
-                  garantirContratoPersistido(foundSnapshot).catch(() => {});
-                }
-              }
-            }
-          }
-        } catch (_) {}
-      }
-
-      // 6. Se ainda não encontrou e houver um slug de paciente na URL (funciona para Rosana e QUALQUER paciente)
-      if (!foundSnapshot && cleanSlug) {
-        const nomeFormatado = unslugifyNome(cleanSlug);
-        foundSnapshot = gerarSnapshotDemonstracao(nomeFormatado);
-
-        // Se houver paciente cadastrado no localStorage (dental-system-pacientes), usa os dados reais do paciente
-        try {
-          const pacsRaw = localStorage.getItem('dental-system-pacientes');
-          if (pacsRaw) {
-            const pacs = JSON.parse(pacsRaw);
-            if (Array.isArray(pacs)) {
-              const pacMatch = pacs.find((p: any) => {
-                const pName = (p.nome || '').toLowerCase();
-                return slugifyNome(pName) === cleanSlug || pName.includes(cleanSlug);
-              });
-              if (pacMatch) {
-                foundSnapshot.paciente.nome = pacMatch.nome || nomeFormatado;
-                if (pacMatch.cpf) foundSnapshot.paciente.cpf = pacMatch.cpf;
-                if (pacMatch.rg) foundSnapshot.paciente.rg = pacMatch.rg;
-                if (pacMatch.telefone) foundSnapshot.paciente.telefone = pacMatch.telefone;
-                if (pacMatch.email) foundSnapshot.paciente.email = pacMatch.email;
-                if (pacMatch.endereco) foundSnapshot.paciente.endereco = pacMatch.endereco;
-                if (pacMatch.id) foundSnapshot.paciente.id = pacMatch.id;
-              }
-            }
-          }
-        } catch (_) {}
-
-        // Tenta enriquecer com configurações reais da clínica
-        try {
-          const cfgRaw = localStorage.getItem('dental-system-configuracoes');
-          const configuracoes = cfgRaw ? JSON.parse(cfgRaw) : null;
-          const cfgContratoRaw = localStorage.getItem('dental-system-configuracoes-contrato');
-          const configContrato = cfgContratoRaw ? JSON.parse(cfgContratoRaw) : null;
-
-          if (configuracoes || configContrato) {
-            if (configContrato?.chavePix || configuracoes?.chavePix) {
-              foundSnapshot.clinica.chavePix = configContrato?.chavePix || configuracoes?.chavePix;
-            }
-            if (configContrato?.favorecidoPix || configuracoes?.favorecidoPix) {
-              foundSnapshot.clinica.favorecidoPix = configContrato?.favorecidoPix || configuracoes?.favorecidoPix;
-            }
-            if (configContrato?.bancoPix || configuracoes?.bancoPix) {
-              foundSnapshot.clinica.bancoPix = configContrato?.bancoPix || configuracoes?.bancoPix;
-            }
-            if (configuracoes?.nomeClinica) {
-              foundSnapshot.clinica.nome = configuracoes.nomeClinica;
-            }
-            if (configuracoes?.cro) {
-              foundSnapshot.clinica.cro = configuracoes.cro;
-            }
-            if (configuracoes?.dentistaResponsavel) {
-              foundSnapshot.clinica.dentistaResponsavel = configuracoes.dentistaResponsavel;
-            }
-            if (configuracoes?.telefone) {
-              foundSnapshot.clinica.telefone = configuracoes.telefone;
-            }
-            if (configuracoes?.endereco) {
-              foundSnapshot.clinica.endereco = configuracoes.endereco;
-            }
-          }
-        } catch (_) {}
-      }
-
-      // Aplica o snapshot encontrado e atualiza o cache local
       if (foundSnapshot) {
         setSnapshot(foundSnapshot);
-        try {
-          const snapStr = JSON.stringify(foundSnapshot);
-          if (foundSnapshot.contratoId) {
-            localStorage.setItem(`contrato_${foundSnapshot.contratoId}`, snapStr);
-          }
-          if (targetId) {
-            localStorage.setItem(`contrato_${targetId}`, snapStr);
-          }
-          if (cleanSlug) {
-            localStorage.setItem(`contrato_slug_${cleanSlug}`, snapStr);
-          }
-        } catch (_) {}
+        if (foundDocId) setDocDbId(foundDocId);
       } else {
         setSnapshot(null);
       }
@@ -636,11 +365,18 @@ export default function AssinarContrato() {
     }
 
     carregarContrato();
-  }, [targetId, rawSlug, encodedData]);
+  }, [targetId, rawSlug, encodedData, token]);
 
   // Registra a assinatura digital do paciente
   const handleSignatureComplete = async (sigData: SignatureData) => {
     if (!snapshot) return;
+
+    // Impede alteração ou re-assinatura se já estiver assinado
+    if (snapshot.status === 'assinado' || snapshot.assinaturaPaciente?.assinaturaData) {
+      toast.info('Este contrato já se encontra assinado digitalmente.');
+      setShowSignatureModal(false);
+      return;
+    }
 
     try {
       const dataHoraIso = new Date().toISOString();
@@ -654,7 +390,7 @@ export default function AssinarContrato() {
           usoPublicitarioRedesSociais: usoPublicitario,
           identificacaoFacialVoz: identificacao,
           depoimentos: depoimentos,
-          canalContatoLgpd: snapshot.clinica.email || snapshot.clinica.telefone,
+          canalContatoLgpd: snapshot.clinica?.email || snapshot.clinica?.telefone,
         },
         assinaturaPaciente: {
           assinaturaData: sigData.signature,
@@ -670,45 +406,63 @@ export default function AssinarContrato() {
       setSnapshot(updatedSnapshot);
       setShowSignatureModal(false);
 
-      // Salva no localStorage para persistência garantida no navegador do paciente
-      const finalDocId = docDbId || targetId || snapshot.contratoId;
-      localStorage.setItem(`contrato_assinado_${snapshot.contratoId}`, JSON.stringify(updatedSnapshot));
-      if (finalDocId) {
-        localStorage.setItem(`contrato_assinado_${finalDocId}`, JSON.stringify(updatedSnapshot));
-      }
-      if (cleanSlug) {
-        localStorage.setItem(`contrato_assinado_${cleanSlug}`, JSON.stringify(updatedSnapshot));
-        localStorage.setItem(`contrato_slug_${cleanSlug}`, JSON.stringify(updatedSnapshot));
-      }
+      const contractId = docDbId || targetId || snapshot.contratoId;
+      const contractToken = token || snapshot.token;
 
-      // 1. Tenta persistir remotamente via Edge Function pública (sem exigir login)
+      // 1. Persistência prioritária via Edge Function pública
       let persistiuRemoto = false;
-      if (finalDocId || cleanSlug) {
+      if (contractId && contractToken) {
         try {
           const { data: signRes, error: signErr } = await supabase.functions.invoke('contrato-publico', {
             body: {
               action: 'sign',
-              id: finalDocId || cleanSlug,
-              slug: cleanSlug,
+              id: contractId,
+              token: contractToken,
               signature: sigData.signature,
               signerName: sigData.signerName || snapshot.paciente.nome,
               selfie: sigData.selfie,
               signerInfo: sigData.signerInfo,
-              snapshot: updatedSnapshot,
+              termoUsoImagem: updatedSnapshot.termoUsoImagem,
             },
           });
           if (!signErr && signRes?.ok) {
             persistiuRemoto = true;
+            if (signRes.snapshot) {
+              setSnapshot(signRes.snapshot);
+            }
           }
         } catch (edgeErr) {
           console.warn('Erro ao assinar via Edge function:', edgeErr);
         }
       }
 
-      // 2. Fallback: Tenta persistir direto no Supabase caso a tabela permita
-      if (finalDocId && !persistiuRemoto) {
+      // 2. Fallback 1: RPC segura assinar_contrato_publico
+      if (!persistiuRemoto && contractId && contractToken) {
         try {
-          const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(finalDocId);
+          const { data: rpcRes, error: rpcErr } = await (supabase.rpc as any)('assinar_contrato_publico', {
+            p_identificador: contractId,
+            p_token: contractToken,
+            p_assinatura: sigData.signature,
+            p_assinante_nome: sigData.signerName || snapshot.paciente.nome,
+            p_evidencias: {
+              cpf: sigData.signerInfo?.cpf || snapshot.paciente.cpf,
+              email: sigData.signerInfo?.email || snapshot.paciente.email,
+              termoUsoImagem: updatedSnapshot.termoUsoImagem,
+            },
+          });
+          if (!rpcErr && rpcRes?.ok) {
+            persistiuRemoto = true;
+            if (rpcRes.snapshot) {
+              setSnapshot(rpcRes.snapshot);
+            }
+          }
+        } catch (_) {}
+      }
+
+      // 3. Fallback 2: Persistência direta em documentos_clinicos
+      if (!persistiuRemoto && contractId) {
+        try {
+          const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(contractId);
           if (isUuid) {
             await supabase
               .from('documentos_clinicos')
@@ -718,41 +472,30 @@ export default function AssinarContrato() {
                 assinado_em: dataHoraIso,
                 itens: updatedSnapshot as any,
               })
-              .eq('id', finalDocId);
+              .eq('id', contractId);
           } else {
-            const { data: matchedDocs } = await supabase
+            await supabase
               .from('documentos_clinicos')
-              .select('id, itens')
-              .eq('tipo', 'contrato')
-              .limit(20);
-            const foundDoc = (matchedDocs || []).find(
-              (d: any) => d.itens?.contratoId === finalDocId || d.itens?.contratoId === snapshot.contratoId
-            );
-            if (foundDoc?.id) {
-              await supabase
-                .from('documentos_clinicos')
-                .update({
-                  assinatura_data: sigData.signature,
-                  assinante_nome: sigData.signerName || snapshot.paciente.nome,
-                  assinado_em: dataHoraIso,
-                  itens: updatedSnapshot as any,
-                })
-                .eq('id', foundDoc.id);
-            }
+              .update({
+                assinatura_data: sigData.signature,
+                assinante_nome: sigData.signerName || snapshot.paciente.nome,
+                assinado_em: dataHoraIso,
+                itens: updatedSnapshot as any,
+              })
+              .filter('itens->>contratoId', 'eq', contractId);
           }
         } catch (dbErr) {
-          console.warn('Persistência remota direta silenciosa:', dbErr);
+          console.warn('Persistência remota direta:', dbErr);
         }
       }
 
-      toast.success('Contrato assinado com sucesso!');
+      toast.success('Contrato assinado digitalmente com sucesso!');
     } catch (err: any) {
       console.error(err);
       toast.error('Erro ao registrar assinatura: ' + (err?.message || 'Tente novamente'));
     }
   };
 
-  // Registra a assinatura digital do(a) Cirurgião(ã)-Dentista / Profissional Responsável
   const handleProfessionalSignatureComplete = async (sigData: SignatureData) => {
     if (!snapshot) return;
 
@@ -964,6 +707,40 @@ export default function AssinarContrato() {
           <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Carregando contrato...</h2>
           <p className="text-sm text-muted-foreground mt-1">
             Validando os dados e preparando o documento seguro para assinatura.
+          </p>
+        </Card>
+      </Shell>
+    );
+  }
+
+  if (erroSeguranca) {
+    return (
+      <Shell>
+        <Card className="p-8 text-center border-destructive/40 max-w-xl mx-auto shadow-md">
+          <ShieldCheck className="h-14 w-14 text-destructive mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">Acesso Restrito / Não Autorizado</h2>
+          <p className="text-sm text-muted-foreground mt-2 max-w-md mx-auto leading-relaxed">
+            {erroSeguranca}
+          </p>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => window.location.reload()}
+              className="gap-2"
+            >
+              <RefreshCw className="h-4 w-4" /> Tentar Novamente
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => (window.location.href = '/')}
+              className="gap-2 bg-primary text-primary-foreground"
+            >
+              <Home className="h-4 w-4" /> Página Inicial
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground mt-5">
+            Por favor, contate a clínica odontológica pelo WhatsApp para receber o seu link de assinatura exclusivo.
           </p>
         </Card>
       </Shell>

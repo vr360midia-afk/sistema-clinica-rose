@@ -5,3 +5,9 @@ verify_jwt = false
 
 [functions.crm-webhook]
 verify_jwt = false
+
+[functions.contrato-publico]
+verify_jwt = false
+
+[functions.assinatura-publica]
+verify_jwt = false

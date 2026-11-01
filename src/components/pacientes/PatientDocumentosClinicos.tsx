@@ -19,7 +19,7 @@ import { openWhatsApp } from '@/lib/whatsapp';
 import { toast } from 'sonner';
 import ContratoModal from '@/components/contratos/ContratoModal';
 import { slugifyNome } from '@/utils/anamneseEngine';
-import { gerarLinkAssinaturaContrato } from '@/utils/contratoEngine';
+import { gerarLinkAssinaturaContrato, emitirContratoPersistido } from '@/utils/contratoEngine';
 
 interface Props {
   patient: any;
@@ -151,7 +151,8 @@ const PatientDocumentosClinicos = ({ patient }: Props) => {
         conteudoHtmlPersonalizado: doc.conteudo,
       };
     }
-    const linkAssinatura = gerarLinkAssinaturaContrato(snap, doc.id);
+    const resEmissao = await emitirContratoPersistido(snap, doc.id);
+    const linkAssinatura = resEmissao.link;
 
     // Baixa o PDF do documento no computador para facilitar o anexo
     try {
@@ -327,7 +328,7 @@ const PatientDocumentosClinicos = ({ patient }: Props) => {
                     size="sm"
                     variant="outline"
                     className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/40"
-                    onClick={() => {
+                    onClick={async () => {
                       let snap: any = doc.itens && !Array.isArray(doc.itens) ? doc.itens : null;
                       if (!snap) {
                         snap = {
@@ -355,7 +356,8 @@ const PatientDocumentosClinicos = ({ patient }: Props) => {
                           conteudoHtmlPersonalizado: doc.conteudo,
                         };
                       }
-                      const link = gerarLinkAssinaturaContrato(snap, doc.id);
+                      const resEmissao = await emitirContratoPersistido(snap, doc.id);
+                      const link = resEmissao.link;
                       navigator.clipboard.writeText(link);
                       toast.success('Link de assinatura copiado com sucesso!', {
                         description: 'Envie o link para o paciente assinar pelo celular.',

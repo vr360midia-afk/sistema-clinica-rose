@@ -21,7 +21,7 @@ import { formatMoney } from '@/utils/exportCsv';
 import { toast } from 'sonner';
 import ContratoModal from '@/components/contratos/ContratoModal';
 import { useDentalSystem } from '@/context/DentalSystemContext';
-import { mapearDadosContrato, gerarLinkAssinaturaContrato, parseBrMoney, garantirContratoPersistido } from '@/utils/contratoEngine';
+import { mapearDadosContrato, gerarLinkAssinaturaContrato, parseBrMoney, garantirContratoPersistido, emitirContratoPersistido } from '@/utils/contratoEngine';
 import { somarMesesSeguro } from '@/utils/documentoFormat';
 import { downloadTcleLentesResinaPdf } from '@/utils/tcleLentesResina';
 import { useMaquinasCartao, calcularTaxaCartao, extrairDetalhesCartaoDeTexto } from '@/hooks/useMaquinasCartao';
@@ -1882,7 +1882,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
   };
 
 
-  const copiarLinkContrato = (o: (typeof orcamentos)[number]) => {
+  const copiarLinkContrato = async (o: (typeof orcamentos)[number]) => {
     const snap = mapearDadosContrato({
       patient,
       orcamento: o,
@@ -1890,14 +1890,15 @@ const PatientOrcamentos = ({ patient }: Props) => {
       dentistas,
       dadosRestauracoesPreexistentes: patient?.restauracoesPreexistentes,
     });
-    const link = gerarLinkAssinaturaContrato(snap);
+    const resEmissao = await emitirContratoPersistido(snap, o.id);
+    const link = resEmissao.link;
     navigator.clipboard.writeText(link);
     toast.success('Link de assinatura do contrato copiado com sucesso!', {
       description: 'Envie para o paciente assinar pelo celular.',
     });
   };
 
-  const enviarWhatsApp = (o: (typeof orcamentos)[number]) => {
+  const enviarWhatsApp = async (o: (typeof orcamentos)[number]) => {
     let tel = patient?.telefone?.trim() || '';
     if (!tel) {
       const inputTel = window.prompt('Informe o número de WhatsApp do paciente com DDD (ex: 82999998888):', '');
@@ -1925,8 +1926,9 @@ const PatientOrcamentos = ({ patient }: Props) => {
       dentistas,
       dadosRestauracoesPreexistentes: patient?.restauracoesPreexistentes,
     });
-    const link = gerarLinkAssinaturaContrato(snap, o.id);
-    garantirContratoPersistido(snap, o.id).catch(() => {});
+    const resEmissaoWhats = await emitirContratoPersistido(snap, o.id);
+    const link = resEmissaoWhats.link;
+
     linhas.push('');
     linhas.push(`✍️ *LINK PARA VISUALIZAR E ASSINAR O CONTRATO ONLINE:*`);
     linhas.push(`Clique no link abaixo pelo seu celular para ler o contrato e assinar digitalmente:`);

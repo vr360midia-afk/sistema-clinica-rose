@@ -72,6 +72,7 @@ import {
   gerarHtmlContrato,
   ContratoSnapshot,
   gerarLinkAssinaturaContrato,
+  emitirContratoPersistido,
   isContratoLenteResina,
   isContratoEndodontia,
   downloadContratoEndodontiaPdf,
@@ -759,7 +760,8 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
       }
     }
 
-    const link = gerarLinkAssinaturaContrato(snapshotAtual, docId || undefined);
+    const emissaoRes = await emitirContratoPersistido(snapshotAtual, docId || undefined);
+    const link = emissaoRes.link;
     navigator.clipboard.writeText(link);
     setCopiouLink(true);
     toast.success('Link de assinatura copiado com sucesso!', {
@@ -794,7 +796,8 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
       }
     }
 
-    const link = gerarLinkAssinaturaContrato(snapshotAtual, docId || undefined);
+    const emissaoRes = await emitirContratoPersistido(snapshotAtual, docId || undefined);
+    const link = emissaoRes.link;
     window.open(link, '_blank');
   };
 
@@ -837,7 +840,8 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     const clinicaPix = snapshotAtual?.clinica?.chavePix || configContrato?.chavePix || configuracoes?.telefone || configuracoes?.cnpj || '';
     const favorecidoPix = snapshotAtual?.clinica?.favorecidoPix || configContrato?.favorecidoPix || snapshotAtual?.clinica?.nome || configuracoes?.nomeClinica || 'Dra. Rosangela Santos';
     const bancoPix = snapshotAtual?.clinica?.bancoPix || configContrato?.bancoPix || '';
-    const linkAssinatura = gerarLinkAssinaturaContrato(snapshotAtual, docId || undefined);
+    const emissaoResWhats = await emitirContratoPersistido(snapshotAtual, docId || undefined);
+    const linkAssinatura = emissaoResWhats.link;
 
     // Baixa o PDF no computador para facilitar anexar caso a recepcionista deseje arrastar na conversa
     handleDownloadPdf();

@@ -50,7 +50,7 @@ import { gerarPayloadPix, gerarQrCodePixUrl } from '@/utils/pixPayload';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { useConfiguracoesContrato } from '@/hooks/useConfiguracoesContrato';
 import { Orcamento, OrcamentoItem } from '@/hooks/useOrcamentos';
-import { mapearDadosContrato, gerarLinkAssinaturaContrato, garantirContratoPersistido } from '@/utils/contratoEngine';
+import { mapearDadosContrato, gerarLinkAssinaturaContrato, garantirContratoPersistido, emitirContratoPersistido } from '@/utils/contratoEngine';
 import { openWhatsApp } from '@/lib/whatsapp';
 import {
   CondicaoPagamento,
@@ -442,14 +442,14 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
   };
 
   // Copia o link público e auto-contido de assinatura digital
-  const handleCopiarLinkContrato = () => {
+  const handleCopiarLinkContrato = async () => {
     const snap = obterSnapshotContratoAtual();
     if (!snap) {
       toast.error('Não foi possível gerar o link do contrato.');
       return;
     }
-    const link = gerarLinkAssinaturaContrato(snap, orcamento?.id);
-    garantirContratoPersistido(snap, orcamento?.id).catch(() => {});
+    const resEmissao = await emitirContratoPersistido(snap, orcamento?.id);
+    const link = resEmissao.link;
     navigator.clipboard.writeText(link);
     setCopiouLinkContrato(true);
     toast.success('Link de assinatura do contrato copiado com sucesso!', {
@@ -459,11 +459,12 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
   };
 
   // Envia proposta e link de assinatura digital direto pelo WhatsApp
-  const handleEnviarWhatsAppContrato = () => {
+  const handleEnviarWhatsAppContrato = async () => {
     if (!orcamento) return;
     const snap = obterSnapshotContratoAtual();
-    const link = snap ? gerarLinkAssinaturaContrato(snap, orcamento.id) : '';
-    if (snap) { garantirContratoPersistido(snap, orcamento.id).catch(() => {}); }
+    if (!snap) return;
+    const resEmissao = await emitirContratoPersistido(snap, orcamento.id);
+    const link = resEmissao.link;
 
     let tel = patient?.telefone?.trim() || '';
     if (!tel) {

@@ -9,15 +9,16 @@
         var path = window.location.pathname;
         var search = window.location.search;
         var hash = window.location.hash;
+        var full = path + search + hash;
         try {
-          sessionStorage.setItem('spa_redirect', path + search + hash);
+          sessionStorage.setItem('spa_redirect', full);
         } catch (e) {}
-        window.location.replace('/' + search + hash);
+        var sep = search ? '&' : '?';
+        window.location.replace('/' + search + sep + '_spa=' + encodeURIComponent(path) + hash);
       })();
     </script>
   </head>
   <body style="background:#020617;color:#94a3b8;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;font-family:sans-serif;">
-    <p>Carregando...</p>
+    <p>Carregando contrato...</p>
   </body>
 </html>
-
