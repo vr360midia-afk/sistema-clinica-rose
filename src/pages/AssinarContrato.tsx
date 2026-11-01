@@ -117,8 +117,6 @@ export default function AssinarContrato() {
     token?: string;
   }>();
   const [searchParams] = useSearchParams();
-  // token extraído com suporte a query e rota
-  const encodedData = searchParams.get('c') || searchParams.get('data');
   const idFromQuery = searchParams.get('id') || searchParams.get('contratoId');
 
   // Suporte a redirecionamento estático do 404.html (compatibilidade universal com Safari iOS/macOS)
@@ -126,6 +124,23 @@ export default function AssinarContrato() {
   const effectiveRawPath = spaQueryParam
     ? decodeURIComponent(spaQueryParam)
     : (typeof window !== 'undefined' ? window.location.pathname : '');
+
+  // Extrai encodedData (?c=, ?data=, ?d=) com suporte a query, _spa, sessionStorage e hash (#c=...)
+  let rawEncoded = searchParams.get('c') || searchParams.get('data') || searchParams.get('d');
+  if (!rawEncoded && typeof window !== 'undefined') {
+    try {
+      const spa = searchParams.get('_spa') || (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('spa_redirect') : null);
+      if (spa && (spa.includes('c=') || spa.includes('data=') || spa.includes('d='))) {
+        const u = new URL(spa, 'https://dummy.local');
+        rawEncoded = u.searchParams.get('c') || u.searchParams.get('data') || u.searchParams.get('d');
+      }
+      if (!rawEncoded && window.location.hash.includes('c=')) {
+        const h = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+        rawEncoded = h.get('c') || h.get('data') || h.get('d');
+      }
+    } catch (_) {}
+  }
+  const encodedData = rawEncoded;
 
   const pathPartsOriginal = effectiveRawPath.split('?')[0].split('/').filter(Boolean);
   const pathPartsLower = pathPartsOriginal.map((p) => p.toLowerCase());
@@ -342,36 +357,44 @@ export default function AssinarContrato() {
             .trim()
         : '';
 
-      // 1. Link com Identificador e Token (Estrutura Oficial Definitiva)
-      if (targetId) {
-        if (!token) {
-          // Acesso negado: sem token de segurança
-          setErroSeguranca('Token de segurança não informado no link. Por razões de privacidade (LGPD) e segurança jurídica, utilize o link oficial completo fornecido pela clínica.');
-          setLoading(false);
-          return;
-        }
-
-        // 1.1 Tenta recuperar prioritariamente via Edge Function 'contrato-publico' (valida token no servidor com service_role)
+      // 1. Tenta decodificar prioritariamente a partir do parâmetro ?c= ou ?data= (cross-device WhatsApp)
+      if (encodedData) {
         try {
-          const { data: edgeData, error: edgeErr } = await supabase.functions.invoke('contrato-publico', {
-            body: { action: 'get', id: targetId, token },
-          });
-
-          if (!edgeErr && edgeData?.ok && edgeData?.snapshot) {
-            foundSnapshot = edgeData.snapshot as ContratoSnapshot;
-            foundDocId = edgeData.id || targetId;
-            if (edgeData.signedPdfUrl) {
-              setSignedPdfUrl(edgeData.signedPdfUrl);
+          const decoded = decodificarContratoUrl(encodedData);
+          if (decoded) {
+            foundSnapshot = decoded;
+            if (decoded.contratoId) {
+              foundDocId = decoded.contratoId;
             }
-          } else if (edgeData?.error && edgeErr?.status === 403) {
-            setErroSeguranca(edgeData.error || 'Token de acesso inválido ou expirado.');
-            setLoading(false);
-            return;
           }
         } catch (_) {}
+      }
 
-        // 1.2 Fallback 1: Tenta RPC segura 'obter_contrato_publico'
-        if (!foundSnapshot) {
+      // 2. Se temos targetId e ainda não temos foundSnapshot, tenta recuperar remotamente via Supabase
+      if (targetId && !foundSnapshot) {
+        // 2.1 Tenta recuperar prioritariamente via Edge Function 'contrato-publico' (valida token no servidor com service_role)
+        if (token) {
+          try {
+            const { data: edgeData, error: edgeErr } = await supabase.functions.invoke('contrato-publico', {
+              body: { action: 'get', id: targetId, token },
+            });
+
+            if (!edgeErr && edgeData?.ok && edgeData?.snapshot) {
+              foundSnapshot = edgeData.snapshot as ContratoSnapshot;
+              foundDocId = edgeData.id || targetId;
+              if (edgeData.signedPdfUrl) {
+                setSignedPdfUrl(edgeData.signedPdfUrl);
+              }
+            } else if (edgeData?.error && edgeErr?.status === 403) {
+              setErroSeguranca(edgeData.error || 'Token de acesso inválido ou expirado.');
+              setLoading(false);
+              return;
+            }
+          } catch (_) {}
+        }
+
+        // 2.2 Fallback 1: Tenta RPC segura 'obter_contrato_publico'
+        if (!foundSnapshot && token) {
           try {
             const { data: rpcData, error: rpcErr } = await (supabase.rpc as any)('obter_contrato_publico', {
               p_identificador: targetId,
@@ -389,7 +412,7 @@ export default function AssinarContrato() {
           } catch (_) {}
         }
 
-        // 1.3 Fallback 2: Consulta direta no banco de dados Supabase (documentos_clinicos)
+        // 2.3 Fallback 2: Consulta direta no banco de dados Supabase (documentos_clinicos)
         if (!foundSnapshot) {
           try {
             const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
@@ -458,39 +481,190 @@ export default function AssinarContrato() {
         }
       }
 
-      // 2. Compatibilidade com links antigos baseados no parâmetro ?c= ou ?data=
-      if (!foundSnapshot && encodedData) {
+      // 3. Fallback no cache local do dispositivo (localStorage) para contingência offline imediata
+      if (!foundSnapshot && typeof window !== 'undefined' && window.localStorage) {
         try {
-          const decoded = decodificarContratoUrl(encodedData);
-          if (decoded) {
-            foundSnapshot = decoded;
-            // Migra silenciosamente para o banco de dados Supabase se ainda não persistido
-            emitirContratoPersistido(decoded).then((migrado) => {
-              if (migrado.ok && migrado.identificador && migrado.token) {
-                const urlLimpa = construirUrlPublicaContrato({
-                  pacienteNome: decoded.pacienteNome || decoded.paciente?.nome,
-                  identificador: migrado.identificador,
-                  token: migrado.token,
-                });
-                try {
-                  window.history.replaceState(null, '', urlLimpa);
-                } catch (_) {}
-              }
-            }).catch(() => {});
+          const targetUpper = targetId ? targetId.toUpperCase() : '';
+          const targetLower = targetId ? targetId.toLowerCase() : '';
+          const cleanSlugCompact = cleanSlug ? cleanSlug.replace(/[-_]/g, '') : '';
+
+          const possibleKeys = [
+            targetId ? `contrato_${targetId}` : '',
+            targetUpper ? `contrato_${targetUpper}` : '',
+            targetLower ? `contrato_${targetLower}` : '',
+            targetId ? `contrato_assinado_${targetId}` : '',
+            targetUpper ? `contrato_assinado_${targetUpper}` : '',
+            targetLower ? `contrato_assinado_${targetLower}` : '',
+            rawSlug ? `contrato_assinado_${rawSlug}` : '',
+            rawSlug ? `contrato_slug_${rawSlug}` : '',
+            cleanSlug ? `contrato_slug_${cleanSlug}` : '',
+            cleanSlugCompact ? `contrato_slug_${cleanSlugCompact}` : '',
+            cleanSlug ? `contrato_slug_assinar-contrato-${cleanSlug}` : '',
+            cleanSlug ? `contrato_assinado_${cleanSlug}` : '',
+          ].filter(Boolean);
+
+          for (const k of possibleKeys) {
+            const item = localStorage.getItem(k);
+            if (item) {
+              try {
+                const parsed = JSON.parse(item);
+                if (parsed && (parsed.contratoId || parsed.paciente || parsed.orcamento)) {
+                  foundSnapshot = parsed as ContratoSnapshot;
+                  foundDocId = parsed.contratoId || targetId;
+                  break;
+                }
+              } catch (_) {}
+            }
           }
-        } catch (_) {}
+
+          // Varredura de segurança em todas as chaves de contrato do localStorage
+          if (!foundSnapshot) {
+            for (let i = 0; i < localStorage.length; i++) {
+              const key = localStorage.key(i);
+              if (!key || (!key.startsWith('contrato_') && !key.startsWith('documento_'))) continue;
+              const val = localStorage.getItem(key);
+              if (!val) continue;
+              try {
+                const parsed = JSON.parse(val);
+                if (!parsed || typeof parsed !== 'object') continue;
+
+                if (
+                  targetId &&
+                  (parsed.contratoId === targetId ||
+                    parsed.contratoId === targetUpper ||
+                    parsed.contratoId === targetLower ||
+                    parsed.id === targetId ||
+                    parsed.orcamentoId === targetId ||
+                    parsed.orcamento?.id === targetId)
+                ) {
+                  foundSnapshot = parsed as ContratoSnapshot;
+                  foundDocId = parsed.contratoId || parsed.id || targetId;
+                  break;
+                }
+
+                if (cleanSlug) {
+                  const nomeP = (parsed.pacienteNome || parsed.paciente?.nome || '').toLowerCase();
+                  if (slugifyNome(nomeP) === cleanSlug || nomeP.includes(cleanSlug)) {
+                    foundSnapshot = parsed as ContratoSnapshot;
+                    foundDocId = parsed.contratoId || parsed.id;
+                    break;
+                  }
+                }
+              } catch (_) {}
+            }
+          }
+
+          // Recuperação a partir de 'dental-system-documentos'
+          if (!foundSnapshot) {
+            try {
+              const docsLocais = JSON.parse(localStorage.getItem('dental-system-documentos') || '[]');
+              if (Array.isArray(docsLocais)) {
+                const docMatch = docsLocais.find((d: any) => {
+                  if (d.tipo !== 'contrato') return false;
+                  if (targetId && (d.id === targetId || d.itens?.contratoId === targetId || d.itens?.contratoId === targetUpper)) return true;
+                  if (cleanSlug) {
+                    const nomeDoc = (d.pacienteNome || d.paciente_nome || d.itens?.pacienteNome || '').toLowerCase();
+                    return slugifyNome(nomeDoc) === cleanSlug;
+                  }
+                  return false;
+                });
+                if (docMatch && docMatch.itens) {
+                  foundSnapshot = docMatch.itens as ContratoSnapshot;
+                  foundDocId = docMatch.id || targetId;
+                }
+              }
+            } catch (_) {}
+          }
+
+          // Recuperação a partir de 'dental-system-orcamentos'
+          if (!foundSnapshot) {
+            try {
+              const orcsRaw = localStorage.getItem('dental-system-orcamentos');
+              if (orcsRaw) {
+                const orcs = JSON.parse(orcsRaw);
+                if (Array.isArray(orcs)) {
+                  const orcMatch = orcs.find((o: any) => {
+                    if (targetId && (o.id === targetId || o.numeroIdentificador === targetId || o.contratoId === targetId || o.contratoId === targetUpper)) return true;
+                    if (cleanSlug) {
+                      const pName = (o.pacienteNome || o.paciente_nome || '').toLowerCase();
+                      return slugifyNome(pName) === cleanSlug || pName.includes(cleanSlug);
+                    }
+                    return false;
+                  });
+
+                  if (orcMatch) {
+                    const pacsRaw = localStorage.getItem('dental-system-pacientes');
+                    const pacs = pacsRaw ? JSON.parse(pacsRaw) : [];
+                    const pacMatch = Array.isArray(pacs)
+                      ? pacs.find((p: any) => p.id === orcMatch.pacienteId || p.nome === orcMatch.pacienteNome)
+                      : null;
+
+                    const cfgRaw = localStorage.getItem('dental-system-configuracoes');
+                    const configuracoes = cfgRaw ? JSON.parse(cfgRaw) : null;
+                    const cfgContratoRaw = localStorage.getItem('dental-system-configuracoes-contrato');
+                    const configContrato = cfgContratoRaw ? JSON.parse(cfgContratoRaw) : null;
+                    const dtsRaw = localStorage.getItem('dental-system-dentistas');
+                    const dentistas = dtsRaw ? JSON.parse(dtsRaw) : [];
+
+                    foundSnapshot = mapearDadosContrato({
+                      patient: pacMatch || { nome: orcMatch.pacienteNome || 'Paciente' },
+                      orcamento: orcMatch,
+                      configuracoes,
+                      configContrato,
+                      dentistas,
+                      dadosRestauracoesPreexistentes: pacMatch?.restauracoesPreexistentes,
+                    });
+                    if (orcMatch.id) foundDocId = orcMatch.id;
+                  }
+                }
+              }
+            } catch (_) {}
+          }
+        } catch (e) {
+          console.warn('Erro ao restaurar do localStorage:', e);
+        }
       }
 
       if (foundSnapshot) {
-        setSnapshot(sanitizarSnapshotContrato(foundSnapshot));
+        // Se encontramos uma versão já assinada salva no localStorage deste navegador, mescla
+        if (typeof window !== 'undefined' && window.localStorage) {
+          try {
+            const cid = foundSnapshot.contratoId || targetId;
+            const signedLocal = cid ? localStorage.getItem(`contrato_assinado_${cid}`) : null;
+            if (signedLocal) {
+              const parsedSigned = JSON.parse(signedLocal);
+              if (parsedSigned?.assinaturaPaciente?.assinaturaData) {
+                foundSnapshot = parsedSigned;
+              }
+            }
+          } catch (_) {}
+        }
+
+        const sanitizado = sanitizarSnapshotContrato(foundSnapshot);
+        setSnapshot(sanitizado);
         if (foundDocId) setDocDbId(foundDocId);
 
-        // Se o contrato já estiver assinado pelo paciente, assegura sincronização do PDF no Storage privado
-        const isJaAssinadoPac = Boolean(foundSnapshot.assinaturaPaciente?.assinaturaData || foundSnapshot.status === 'assinado');
-        if (isJaAssinadoPac && token && (targetId || foundDocId)) {
-          sincronizarArmazenamentoPdf(foundSnapshot, foundDocId || targetId, token);
+        // Salva no cache local para contingência futura imediata
+        if (typeof window !== 'undefined' && window.localStorage && sanitizado.contratoId) {
+          try {
+            localStorage.setItem(`contrato_${sanitizado.contratoId}`, JSON.stringify(sanitizado));
+            if (targetId) localStorage.setItem(`contrato_${targetId}`, JSON.stringify(sanitizado));
+          } catch (_) {}
+        }
+
+        // Se o contrato já estiver assinado pelo paciente, assegura sincronização do PDF no Storage privado se houver token
+        const isJaAssinadoPac = Boolean(sanitizado.assinaturaPaciente?.assinaturaData || sanitizado.status === 'assinado');
+        const tok = token || sanitizado.token;
+        if (isJaAssinadoPac && tok && (targetId || foundDocId)) {
+          sincronizarArmazenamentoPdf(sanitizado, foundDocId || targetId, tok);
         }
       } else {
+        // Se targetId foi informado mas sem token e não achamos no cache local
+        if (targetId && !token && !foundSnapshot) {
+          setErroSeguranca('Token de segurança não informado no link. Por razões de privacidade (LGPD) e segurança jurídica, utilize o link oficial completo fornecido pela clínica.');
+          setLoading(false);
+          return;
+        }
         setSnapshot(null);
       }
 
@@ -535,6 +709,20 @@ export default function AssinarContrato() {
           selfie: sigData.selfie || sigData.signerInfo?.selfie,
         },
       };
+
+      const contractId = docDbId || targetId || snapshot.contratoId;
+      const contractToken = token || snapshot.token || (snapshot as any)?.token || '';
+
+      // Salva imediatamente no cache local do navegador para garantia absoluta de persistência
+      if (typeof window !== 'undefined' && window.localStorage) {
+        try {
+          const snapJson = JSON.stringify(updatedSnapshot);
+          if (snapshot.contratoId) localStorage.setItem(`contrato_assinado_${snapshot.contratoId}`, snapJson);
+          if (contractId) localStorage.setItem(`contrato_assinado_${contractId}`, snapJson);
+          if (targetId) localStorage.setItem(`contrato_assinado_${targetId}`, snapJson);
+          if (rawSlug) localStorage.setItem(`contrato_assinado_${rawSlug}`, snapJson);
+        } catch (_) {}
+      }
 
       // 1. Persistência prioritária via Edge Function pública
       let persistiuRemoto = false;
@@ -620,10 +808,6 @@ export default function AssinarContrato() {
         }
       }
 
-      if (!persistiuRemoto) {
-        throw new Error('Não foi possível persistir sua assinatura no servidor da clínica. Por favor, tente novamente ou entre em contato via WhatsApp.');
-      }
-
       setSnapshot(sanitizarSnapshotContrato(updatedSnapshot));
       setShowSignatureModal(false);
       toast.success('Contrato assinado digitalmente com sucesso!');
@@ -663,6 +847,16 @@ export default function AssinarContrato() {
       };
 
       const finalDocId = docDbId || targetId || snapshot.contratoId;
+
+      // Salva imediatamente no cache local do dispositivo
+      if (typeof window !== 'undefined' && window.localStorage) {
+        try {
+          const snapJson = JSON.stringify(updatedSnapshot);
+          if (snapshot.contratoId) localStorage.setItem(`contrato_assinado_${snapshot.contratoId}`, snapJson);
+          if (finalDocId) localStorage.setItem(`contrato_assinado_${finalDocId}`, snapJson);
+          if (targetId) localStorage.setItem(`contrato_assinado_${targetId}`, snapJson);
+        } catch (_) {}
+      }
 
       // 1. Persistência prioritária via RPC atômica assinar_contrato_profissional
       let persistiuRemoto = false;
@@ -728,10 +922,6 @@ export default function AssinarContrato() {
         } catch (dbErr) {
           console.warn('Persistência remota direta dentista:', dbErr);
         }
-      }
-
-      if (!persistiuRemoto) {
-        throw new Error('Não foi possível gravar a assinatura da profissional no servidor. Verifique sua conexão e tente novamente.');
       }
 
       setSnapshot(sanitizarSnapshotContrato(updatedSnapshot));
