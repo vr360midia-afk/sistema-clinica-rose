@@ -16,6 +16,37 @@ CREATE INDEX IF NOT EXISTS idx_doc_clinicos_token
 CREATE INDEX IF NOT EXISTS idx_doc_clinicos_tipo 
   ON public.documentos_clinicos (tipo);
 
+-- Políticas RLS para documentos_clinicos
+DROP POLICY IF EXISTS "Permitir leitura publica de contratos" ON public.documentos_clinicos;
+CREATE POLICY "Permitir leitura publica de contratos"
+  ON public.documentos_clinicos
+  FOR SELECT
+  TO anon, authenticated
+  USING (tipo = 'contrato');
+
+DROP POLICY IF EXISTS "Permitir assinatura publica de contratos" ON public.documentos_clinicos;
+CREATE POLICY "Permitir assinatura publica de contratos"
+  ON public.documentos_clinicos
+  FOR UPDATE
+  TO anon, authenticated
+  USING (tipo = 'contrato')
+  WITH CHECK (tipo = 'contrato');
+
+DROP POLICY IF EXISTS "Permitir insercao de contratos" ON public.documentos_clinicos;
+CREATE POLICY "Permitir insercao de contratos"
+  ON public.documentos_clinicos
+  FOR INSERT
+  TO anon, authenticated
+  WITH CHECK (tipo = 'contrato');
+
+DROP POLICY IF EXISTS "Permitir total para autenticados em documentos_clinicos" ON public.documentos_clinicos;
+CREATE POLICY "Permitir total para autenticados em documentos_clinicos"
+  ON public.documentos_clinicos
+  FOR ALL
+  TO authenticated
+  USING (true)
+  WITH CHECK (true);
+
 -- 3. Função RPC com SECURITY DEFINER para recuperar o contrato com validação segura de token
 CREATE OR REPLACE FUNCTION public.obter_contrato_publico(
   p_identificador text,

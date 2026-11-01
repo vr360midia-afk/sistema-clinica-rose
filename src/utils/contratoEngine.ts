@@ -2643,12 +2643,17 @@ export async function emitirContratoPersistido(
 }> {
   try {
     const pacienteNome = snapshot.pacienteNome || snapshot.paciente?.nome || 'Paciente';
-    const pacienteId = snapshot.pacienteId || snapshot.paciente?.id || null;
-
-    // 1. Gera ou preserva o identificador oficial do contrato (ex: CTR-B98666CE)
+    const rawPacienteId = snapshot.pacienteId || snapshot.paciente?.id || null;
     const isDocIdUuid = Boolean(
       docId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(docId)
     );
+    const safePacienteUuid = Boolean(
+      rawPacienteId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawPacienteId)
+    )
+      ? rawPacienteId
+      : null;
+
+    // 1. Gera ou preserva o identificador oficial do contrato (ex: CTR-B98666CE)
     const identificador =
       snapshot.contratoId && snapshot.contratoId.startsWith('CTR-')
         ? snapshot.contratoId
@@ -2667,6 +2672,7 @@ export async function emitirContratoPersistido(
     const snapshotFinal: ContratoSnapshot = {
       ...snapshot,
       contratoId: identificador,
+      pacienteId: rawPacienteId || undefined,
       token,
       tokenValidoAte,
       status: snapshot.status || 'pendente',
@@ -2688,7 +2694,7 @@ export async function emitirContratoPersistido(
           identificador,
           token,
           pacienteNome,
-          pacienteId,
+          pacienteId: safePacienteUuid,
           titulo,
           html,
           snapshot: snapshotFinal,
@@ -2712,7 +2718,7 @@ export async function emitirContratoPersistido(
             .from('documentos_clinicos')
             .update({
               paciente_nome: pacienteNome,
-              paciente_id: pacienteId,
+              paciente_id: safePacienteUuid,
               titulo,
               conteudo: html,
               itens: snapshotFinal as never,
@@ -2727,10 +2733,13 @@ export async function emitirContratoPersistido(
 
         // Se ainda não persistido, verifica se já existe registro com esse contratoId
         if (!persistidoComSucesso) {
+          const idUpper = identificador.toUpperCase();
+          const idLower = identificador.toLowerCase();
+
           const { data: exist } = await supabase
             .from('documentos_clinicos')
             .select('id')
-            .filter('itens->>contratoId', 'eq', identificador)
+            .or(`itens->>contratoId.eq.${idUpper},itens->>contratoId.eq.${idLower},itens->>contratoId.eq.${identificador}`)
             .maybeSingle();
 
           if (exist?.id) {
@@ -2739,7 +2748,7 @@ export async function emitirContratoPersistido(
               .from('documentos_clinicos')
               .update({
                 paciente_nome: pacienteNome,
-                paciente_id: pacienteId,
+                paciente_id: safePacienteUuid,
                 titulo,
                 conteudo: html,
                 itens: snapshotFinal as never,
@@ -2756,7 +2765,7 @@ export async function emitirContratoPersistido(
         // Se ainda não existe, insere novo registro
         if (!persistidoComSucesso) {
           const insertPayload: Record<string, unknown> = {
-            paciente_id: pacienteId,
+            paciente_id: safePacienteUuid,
             paciente_nome: pacienteNome,
             tipo: 'contrato',
             titulo,
@@ -2769,15 +2778,37 @@ export async function emitirContratoPersistido(
             insertPayload.id = finalId;
           }
 
-          const { data: insData, error: insErr } = await supabase
+          let { data: insData, error: insErr } = await supabase
             .from('documentos_clinicos')
             .insert(insertPayload as never)
             .select('id')
             .maybeSingle();
 
+          // Se falhou por violação de RLS (42501), tenta recuperar sessão direta e salvar com user.id
+          if (insErr && (insErr.code === '42501' || insErr.message?.includes('policy'))) {
+            try {
+              const sessionRes = await supabase.auth.getSession();
+              const sessionUid = sessionRes.data?.session?.user?.id;
+              if (sessionUid && sessionUid !== effectiveUserId) {
+                const retryPayload = { ...insertPayload, user_id: sessionUid };
+                const retry = await supabase
+                  .from('documentos_clinicos')
+                  .insert(retryPayload as never)
+                  .select('id')
+                  .maybeSingle();
+                if (!retry.error && retry.data?.id) {
+                  insData = retry.data;
+                  insErr = null;
+                }
+              }
+            } catch (_) {}
+          }
+
           if (!insErr && insData?.id) {
             finalId = insData.id;
             persistidoComSucesso = true;
+          } else if (insErr) {
+            console.error('[ContratoEngine] Falha ao persistir contrato no banco:', insErr);
           }
         }
       } catch (err) {
@@ -2804,12 +2835,15 @@ export async function emitirContratoPersistido(
     });
 
     return {
-      ok: true,
+      ok: persistidoComSucesso,
       link,
       identificador,
       token,
       id: finalId,
       snapshot: snapshotFinal,
+      ...(!persistidoComSucesso
+        ? { error: 'Contrato salvo no cache local, mas a confirmação no banco Supabase falhou.' }
+        : {}),
     };
   } catch (err) {
     console.error('[ContratoEngine] Erro ao emitir contrato persistido:', err);

@@ -54,6 +54,9 @@ const rowToDoc = (row: any): DocumentoClinico => ({
   criadoEm: new Date(row.criado_em),
 });
 
+const isUuid = (val: unknown): val is string =>
+  typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+
 export const useDocumentosClinicos = (pacienteId?: string) => {
   const { user, clinicaId } = useAuth();
   const [documentos, setDocumentos] = useState<DocumentoClinico[]>([]);
@@ -67,7 +70,15 @@ export const useDocumentosClinicos = (pacienteId?: string) => {
     }
     setLoading(true);
     let query = supabase.from('documentos_clinicos').select('*').order('criado_em', { ascending: false });
-    if (pacienteId) query = query.eq('paciente_id', pacienteId);
+    if (pacienteId) {
+      if (isUuid(pacienteId)) {
+        // Se for UUID, busca tanto pela chave relacional quanto pelo JSON de contingência
+        query = query.or(`paciente_id.eq.${pacienteId},itens->>pacienteId.eq.${pacienteId}`);
+      } else {
+        // Se for ID legado/texto, busca exclusivamente no JSON para evitar erro 22P02 do PostgreSQL
+        query = query.filter('itens->>pacienteId', 'eq', pacienteId);
+      }
+    }
     const { data, error } = await query;
     if (error) console.error('Erro ao carregar documentos clínicos:', error);
     setDocumentos((data || []).map(rowToDoc));
@@ -80,26 +91,45 @@ export const useDocumentosClinicos = (pacienteId?: string) => {
 
   const salvarDocumento = async (doc: Partial<DocumentoClinico>) => {
     if (!user) return null;
-    const payload = {
-      user_id: clinicaId,
-      paciente_id: doc.pacienteId ?? pacienteId ?? null,
+    const rawPacienteId = doc.pacienteId ?? pacienteId ?? null;
+    const safePacienteId = isUuid(rawPacienteId) ? rawPacienteId : null;
+    const effectiveUserId = clinicaId || user.id;
+
+    // Preserva pacienteId dentro do payload JSON de itens caso não seja UUID nativo
+    let safeItens: any = doc.itens || [];
+    if (rawPacienteId && !Array.isArray(safeItens) && typeof safeItens === 'object') {
+      safeItens = { ...safeItens, pacienteId: rawPacienteId };
+    }
+
+    const payload: any = {
+      user_id: effectiveUserId,
+      paciente_id: safePacienteId,
       paciente_nome: doc.pacienteNome ?? null,
       tipo: doc.tipo || 'prescricao',
       titulo: doc.titulo || (doc.tipo === 'atestado' ? 'Atestado odontológico' : doc.tipo === 'contrato' ? 'Contrato de prestação de serviços' : 'Prescrição odontológica'),
       conteudo: doc.conteudo || null,
-      itens: (doc.itens || []) as never,
+      itens: safeItens as never,
       dias_afastamento: doc.diasAfastamento ?? null,
       cid: doc.cid || null,
       dentista: doc.dentista || null,
     };
 
-    const { data, error } = doc.id
+    let { data, error } = doc.id
       ? await supabase.from('documentos_clinicos').update(payload).eq('id', doc.id).select().single()
       : await supabase.from('documentos_clinicos').insert(payload).select().single();
 
+    // Se falhou por violação de RLS (42501) com clinica_id, tenta novamente usando user.id direto da sessão
+    if (error && (error.code === '42501' || error.message?.includes('policy')) && effectiveUserId !== user.id) {
+      console.warn('[useDocumentosClinicos] RLS falhou com clinica_id, tentando com user.id da sessão...', error);
+      const retryPayload = { ...payload, user_id: user.id };
+      const retry = await supabase.from('documentos_clinicos').insert(retryPayload).select().single();
+      data = retry.data;
+      error = retry.error;
+    }
+
     if (error) {
-      console.error(error);
-      toast.error('Erro ao salvar documento');
+      console.error('[useDocumentosClinicos] Erro ao salvar documento:', error);
+      toast.error('Erro ao salvar documento: ' + (error.message || 'Verifique a conexão'));
       return null;
     }
     toast.success('Documento salvo');

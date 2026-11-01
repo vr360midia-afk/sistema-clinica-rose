@@ -1,5 +1,6 @@
 
-import { BrowserRouter as Router, Routes, Route, useParams, useLocation } from 'react-router-dom';
+import { useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, useParams, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Toaster } from '@/components/ui/sonner';
 import { DentalSystemProvider } from '@/context/DentalSystemContext';
 import { AuthProvider } from '@/context/AuthContext';
@@ -33,6 +34,40 @@ import AssinarExtrato from '@/pages/AssinarExtrato';
 import AssinarContrato from '@/pages/AssinarContrato';
 import VerificarRecibo from '@/pages/VerificarRecibo';
 import NotFound from '@/pages/NotFound';
+
+/**
+ * Recuperador inteligente de rotas profundas para compatibilidade total com
+ * Cloudflare Pages, GitHub Pages, Safari iOS/macOS e abas anônimas.
+ */
+const SpaRedirectHandler = () => {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const location = useLocation();
+
+  useEffect(() => {
+    // 1. Verifica parâmetro _spa na URL (gerado pelo 404.html)
+    const spaParam = searchParams.get('_spa');
+    if (spaParam) {
+      const decoded = decodeURIComponent(spaParam);
+      const cleanParams = new URLSearchParams(searchParams);
+      cleanParams.delete('_spa');
+      const searchStr = cleanParams.toString() ? `?${cleanParams.toString()}` : '';
+      navigate(`${decoded}${searchStr}`, { replace: true });
+      return;
+    }
+
+    // 2. Verifica contingência salva no sessionStorage
+    try {
+      const stored = sessionStorage.getItem('spa_redirect');
+      if (stored) {
+        sessionStorage.removeItem('spa_redirect');
+        navigate(stored, { replace: true });
+      }
+    } catch (_) {}
+  }, [searchParams, location.pathname, navigate]);
+
+  return null;
+};
 
 /**
  * Dispatcher inteligente para links públicos compartilhados com o paciente na raiz
@@ -77,6 +112,7 @@ function App() {
       <SecurityProvider>
       <DentalSystemProvider>
         <Router>
+          <SpaRedirectHandler />
           <div className="App">
             <Routes>
               {/* Rotas Públicas */}
@@ -96,9 +132,10 @@ function App() {
               <Route path="/assinar-extrato/:id" element={<AssinarExtrato />} />
               <Route path="/assinar-extrato/:slug" element={<AssinarExtrato />} />
               <Route path="/assinar-extrato" element={<AssinarExtrato />} />
-              {/* Rotas Amigáveis de Contrato: /:pacienteSlug/assinaturadocontrato */}
+              {/* Rotas Amigáveis de Contrato: /:pacienteSlug/contrato/:identificador?token=... */}
               <Route path="/:pacienteSlug/contrato/:identificador/:token" element={<AssinarContrato />} />
               <Route path="/:pacienteSlug/contrato/:identificador" element={<AssinarContrato />} />
+              <Route path="/contrato/:identificador/:token" element={<AssinarContrato />} />
               <Route path="/contrato/:identificador" element={<AssinarContrato />} />
               <Route path="/:pacienteSlug/assinaturadocontrato" element={<AssinarContrato />} />
               <Route path="/:pacienteSlug/assinatura-do-contrato" element={<AssinarContrato />} />

@@ -738,15 +738,18 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     if (!snapshotAtual) return;
     let docId = contratoVisualizacao?.id || documentoIdSendoEditado;
 
-    // Se ainda não foi emitido no banco, salva agora para gerar UUID permanente
-    if (!docId && orcamentoAtual) {
+    // Se ainda não foi emitido no banco, salva agora para gerar UUID permanente e listar no prontuário
+    if (!docId) {
       try {
+        const identificador = snapshotAtual.contratoId || gerarIdentificadorContrato();
         const htmlFinal = gerarHtmlContrato(snapshotAtual);
         const docCriado = await salvarDocumento({
           pacienteId: patient?.id,
           pacienteNome: patient?.nome,
           tipo: 'contrato',
-          titulo: `Contrato Odontológico - Orçamento #${snapshotAtual.orcamento.numeroIdentificador}`,
+          titulo: snapshotAtual.orcamento?.numeroIdentificador
+            ? `Contrato Odontológico - Orçamento #${snapshotAtual.orcamento.numeroIdentificador}`
+            : `Contrato Odontológico - ${patient?.nome || 'Paciente'} (${identificador})`,
           conteudo: htmlFinal,
           itens: snapshotAtual as any,
           dentista: snapshotAtual?.clinica?.dentistaResponsavel || selectedDentistaNome || null,
@@ -775,14 +778,17 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     if (!snapshotAtual) return;
     let docId = contratoVisualizacao?.id || documentoIdSendoEditado;
 
-    if (!docId && orcamentoAtual) {
+    if (!docId) {
       try {
+        const identificador = snapshotAtual.contratoId || gerarIdentificadorContrato();
         const htmlFinal = gerarHtmlContrato(snapshotAtual);
         const docCriado = await salvarDocumento({
           pacienteId: patient?.id,
           pacienteNome: patient?.nome,
           tipo: 'contrato',
-          titulo: `Contrato Odontológico - Orçamento #${snapshotAtual.orcamento.numeroIdentificador}`,
+          titulo: snapshotAtual.orcamento?.numeroIdentificador
+            ? `Contrato Odontológico - Orçamento #${snapshotAtual.orcamento.numeroIdentificador}`
+            : `Contrato Odontológico - ${patient?.nome || 'Paciente'} (${identificador})`,
           conteudo: htmlFinal,
           itens: snapshotAtual as any,
           dentista: snapshotAtual?.clinica?.dentistaResponsavel || selectedDentistaNome || null,
@@ -814,16 +820,19 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     }
     if (!snapshotAtual) return;
 
-    // Se ainda não foi emitido no banco, salva agora para gerar UUID permanente
+    // Se ainda não foi emitido no banco, salva agora para gerar UUID permanente e listar no prontuário
     let docId = contratoVisualizacao?.id || documentoIdSendoEditado;
-    if (!docId && orcamentoAtual) {
+    if (!docId) {
       try {
+        const identificador = snapshotAtual.contratoId || gerarIdentificadorContrato();
         const htmlFinal = gerarHtmlContrato(snapshotAtual);
         const docCriado = await salvarDocumento({
           pacienteId: patient?.id,
           pacienteNome: patient?.nome,
           tipo: 'contrato',
-          titulo: `Contrato Odontológico - Orçamento #${snapshotAtual.orcamento.numeroIdentificador}`,
+          titulo: snapshotAtual.orcamento?.numeroIdentificador
+            ? `Contrato Odontológico - Orçamento #${snapshotAtual.orcamento.numeroIdentificador}`
+            : `Contrato Odontológico - ${patient?.nome || 'Paciente'} (${identificador})`,
           conteudo: htmlFinal,
           itens: snapshotAtual as any,
           dentista: snapshotAtual?.clinica?.dentistaResponsavel || selectedDentistaNome || null,

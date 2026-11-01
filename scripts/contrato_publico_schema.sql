@@ -31,6 +31,21 @@ CREATE POLICY "Permitir assinatura publica de contratos"
   USING (tipo = 'contrato')
   WITH CHECK (tipo = 'contrato');
 
+DROP POLICY IF EXISTS "Permitir insercao de contratos" ON public.documentos_clinicos;
+CREATE POLICY "Permitir insercao de contratos"
+  ON public.documentos_clinicos
+  FOR INSERT
+  TO anon, authenticated
+  WITH CHECK (tipo = 'contrato');
+
+DROP POLICY IF EXISTS "Permitir total para autenticados em documentos_clinicos" ON public.documentos_clinicos;
+CREATE POLICY "Permitir total para autenticados em documentos_clinicos"
+  ON public.documentos_clinicos
+  FOR ALL
+  TO authenticated
+  USING (true)
+  WITH CHECK (true);
+
 -- Função RPC: Obter contrato com validação de token
 CREATE OR REPLACE FUNCTION public.obter_contrato_publico(
   p_identificador text,

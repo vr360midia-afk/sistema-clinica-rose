@@ -88,28 +88,58 @@ export default function AssinarContrato() {
   // token extraído com suporte a query e rota
   const encodedData = searchParams.get('c') || searchParams.get('data');
   const idFromQuery = searchParams.get('id') || searchParams.get('contratoId');
-  const currentPath = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '';
 
-  // Identifica o slug do paciente a partir dos parâmetros de rota ou do pathname
+  // Suporte a redirecionamento estático do 404.html (compatibilidade universal com Safari iOS/macOS)
+  const spaQueryParam = searchParams.get('_spa');
+  const effectiveRawPath = spaQueryParam
+    ? decodeURIComponent(spaQueryParam)
+    : (typeof window !== 'undefined' ? window.location.pathname : '');
+
+  const pathPartsOriginal = effectiveRawPath.split('?')[0].split('/').filter(Boolean);
+  const pathPartsLower = pathPartsOriginal.map((p) => p.toLowerCase());
+
+  // 1. Identifica o slug do paciente a partir dos parâmetros de rota ou do pathname
   let candidateSlug = pacienteSlug || paciente || slug || publicSlug || '';
-  if (!candidateSlug && currentPath) {
-    const pathParts = currentPath.split('/').filter(Boolean);
-    // Ex: /geovanio-silva/assinaturadocontrato -> candidateSlug = geovanio-silva
-    if (pathParts.length >= 2 && (pathParts[1].includes('assinatura') || pathParts[1].includes('contrato'))) {
-      candidateSlug = pathParts[0];
-    } else if (pathParts.length === 1) {
-      candidateSlug = pathParts[0];
+  if (!candidateSlug && pathPartsOriginal.length > 0) {
+    const contratoIdx = pathPartsLower.findIndex((p) => p === 'contrato' || p.includes('contrato') || p.includes('assinatura'));
+    if (contratoIdx > 0) {
+      candidateSlug = pathPartsOriginal[contratoIdx - 1];
+    } else if (contratoIdx === -1 && pathPartsOriginal.length >= 1) {
+      candidateSlug = pathPartsOriginal[0];
     }
   }
 
   const rawSlug = candidateSlug;
-  const pathParts = currentPath.split('/').filter(Boolean);
+
+  // 2. Identifica o identificador do contrato (ex: CTR-B98666CE ou UUID)
   let resolvedTargetId = identificador || idFromQuery || id || '';
-  if (!resolvedTargetId && pathParts.length >= 3 && pathParts[1] === 'contrato') {
-    resolvedTargetId = pathParts[2];
+  if (!resolvedTargetId && pathPartsOriginal.length >= 3) {
+    const contratoIdx = pathPartsLower.findIndex((p) => p === 'contrato');
+    if (contratoIdx >= 0 && pathPartsOriginal[contratoIdx + 1]) {
+      resolvedTargetId = pathPartsOriginal[contratoIdx + 1];
+    }
+  } else if (!resolvedTargetId && pathPartsOriginal.length === 2 && pathPartsLower[0] === 'contrato') {
+    resolvedTargetId = pathPartsOriginal[1];
+  }
+
+  // Normaliza identificador: se for CTR-..., garante maiúsculo para compatibilidade estrita no banco
+  if (resolvedTargetId && resolvedTargetId.toLowerCase().startsWith('ctr-')) {
+    resolvedTargetId = resolvedTargetId.toUpperCase();
   }
   const targetId = resolvedTargetId;
-  const token = searchParams.get('token') || searchParams.get('t') || tokenParam || (pathParts.length >= 4 ? pathParts[3] : null);
+
+  // 3. Extrai o token de segurança com suporte a URL amigável, query e _spa
+  let resolvedToken = searchParams.get('token') || searchParams.get('t') || tokenParam;
+  if (!resolvedToken && pathPartsOriginal.length >= 4) {
+    resolvedToken = pathPartsOriginal[3];
+  }
+  if (!resolvedToken && spaQueryParam) {
+    try {
+      const parsedSpaUrl = new URL(spaQueryParam, 'https://dummy.local');
+      resolvedToken = parsedSpaUrl.searchParams.get('token') || parsedSpaUrl.searchParams.get('t');
+    } catch (_) {}
+  }
+  const token = resolvedToken;
 
   const [loading, setLoading] = useState(true);
   const [snapshot, setSnapshot] = useState<ContratoSnapshot | null>(null);
@@ -297,32 +327,57 @@ export default function AssinarContrato() {
         if (!foundSnapshot) {
           try {
             const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
+            const targetUpper = targetId.toUpperCase();
+            const targetLower = targetId.toLowerCase();
+
             let query = supabase.from('documentos_clinicos').select('*').eq('tipo', 'contrato');
             if (isUuid) {
-              query = query.eq('id', targetId);
+              query = query.or(`id.eq.${targetId},itens->>contratoId.eq.${targetUpper},itens->>contratoId.eq.${targetLower},itens->>contratoId.eq.${targetId}`);
             } else {
-              query = query.filter('itens->>contratoId', 'eq', targetId);
+              query = query.or(`itens->>contratoId.eq.${targetUpper},itens->>contratoId.eq.${targetLower},itens->>contratoId.eq.${targetId}`);
             }
-            const { data: docs } = await query.order('criado_em', { ascending: false }).limit(1);
-            const doc = docs?.[0];
+
+            const { data: docs } = await query.order('criado_em', { ascending: false }).limit(2);
+            let doc = docs?.[0];
+
+            // Se ainda não encontrou e temos o slug do paciente, busca pelo nome do paciente
+            if (!doc && rawSlug) {
+              const slugLimpo = rawSlug.replace(/-/g, ' ').trim();
+              if (slugLimpo.length >= 3) {
+                const { data: docsNome } = await supabase
+                  .from('documentos_clinicos')
+                  .select('*')
+                  .eq('tipo', 'contrato')
+                  .ilike('paciente_nome', `%${slugLimpo}%`)
+                  .order('criado_em', { ascending: false })
+                  .limit(5);
+
+                doc = docsNome?.find((d: any) => {
+                  const s = (d.itens || {}) as any;
+                  return s.token === token || (s.contratoId && (s.contratoId === targetId || s.contratoId.toUpperCase() === targetUpper));
+                }) || docsNome?.[0];
+              }
+            }
 
             if (doc) {
-              const tokenGravado = (doc.itens as any)?.token;
-              // Validação estrita do token
-              if (!tokenGravado || tokenGravado !== token) {
+              const snap = (doc.itens || {}) as ContratoSnapshot;
+              const tokenGravado = (snap as any)?.token;
+
+              // Validação estrita do token: se houver token registrado e token fornecido
+              if (tokenGravado && token && tokenGravado !== token) {
                 setErroSeguranca('Token de acesso inválido ou revogado. Este contrato não pode ser visualizado sem a credencial correta.');
                 setLoading(false);
                 return;
               }
 
               // Validação de expiração se informada
-              if ((doc.itens as any)?.tokenValidoAte && new Date((doc.itens as any).tokenValidoAte) < new Date()) {
+              if ((snap as any)?.tokenValidoAte && new Date((snap as any).tokenValidoAte) < new Date()) {
                 setErroSeguranca('Este link de contrato expirou. Solicite um novo link à clínica.');
                 setLoading(false);
                 return;
               }
 
-              foundSnapshot = doc.itens as ContratoSnapshot;
+              foundSnapshot = snap;
               foundDocId = doc.id;
               if (doc.assinado_em && !foundSnapshot.assinaturaPaciente) {
                 foundSnapshot.status = 'assinado';
@@ -469,26 +524,23 @@ export default function AssinarContrato() {
       if (!persistiuRemoto && contractId) {
         try {
           const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(contractId);
-          if (isUuid) {
-            await supabase
-              .from('documentos_clinicos')
-              .update({
-                assinatura_data: sigData.signature,
-                assinante_nome: sigData.signerName || snapshot.paciente.nome,
-                assinado_em: dataHoraIso,
-                itens: updatedSnapshot as any,
-              })
-              .eq('id', contractId);
-          } else {
-            await supabase
-              .from('documentos_clinicos')
-              .update({
-                assinatura_data: sigData.signature,
-                assinante_nome: sigData.signerName || snapshot.paciente.nome,
-                assinado_em: dataHoraIso,
-                itens: updatedSnapshot as any,
-              })
-              .filter('itens->>contratoId', 'eq', contractId);
+          const idUpper = String(contractId).toUpperCase();
+          const idLower = String(contractId).toLowerCase();
+
+          const updatePayload = {
+            assinatura_data: sigData.signature,
+            assinante_nome: sigData.signerName || snapshot.paciente.nome,
+            assinado_em: dataHoraIso,
+            itens: updatedSnapshot as any,
+          };
+
+          const updQuery = isUuid
+            ? supabase.from('documentos_clinicos').update(updatePayload).eq('id', contractId)
+            : supabase.from('documentos_clinicos').update(updatePayload).or(`itens->>contratoId.eq.${idUpper},itens->>contratoId.eq.${idLower},itens->>contratoId.eq.${contractId}`);
+
+          const { data: updatedRows, error: directErr } = await updQuery.select('id');
+          if (!directErr && updatedRows && updatedRows.length > 0) {
+            persistiuRemoto = true;
           }
         } catch (dbErr) {
           console.warn('Persistência remota direta:', dbErr);
