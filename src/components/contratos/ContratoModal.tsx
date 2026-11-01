@@ -859,7 +859,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
       `Olá, ${patient.nome}! Tudo bem?\n\n` +
       `Aqui está o resumo oficial do seu *Contrato de Prestação de Serviços Odontológicos* referente ao plano de tratamento (*Orçamento #${snapshotAtual?.orcamento.numeroIdentificador}*):\n\n` +
       `• *Valor Total:* ${formatMoney(snapshotAtual?.financeiro.total || 0)}\n` +
-      `• *Forma de Pagamento:* ${snapshotAtual?.financeiro.formaPagamento}\n`;
+      `• *Forma de Pagamento:* ${limparFormaPagamentoParaContrato(snapshotAtual?.financeiro.formaPagamento)}\n`;
 
     if (snapshotAtual?.financeiro.entrada && snapshotAtual.financeiro.entrada > 0) {
       mensagem += `• *Entrada (PIX):* ${formatMoney(snapshotAtual.financeiro.entrada)}\n`;
@@ -1639,7 +1639,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                       {snapshotAtual?.financeiro?.formaPagamento && (
                         <span>
                           Pagamento:{' '}
-                          <span className="font-semibold text-primary">{snapshotAtual.financeiro.formaPagamento}</span>
+                          <span className="font-semibold text-primary">{limparFormaPagamentoParaContrato(snapshotAtual.financeiro.formaPagamento)}</span>
                         </span>
                       )}
                     </div>

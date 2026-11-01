@@ -356,7 +356,14 @@ export const isContratoEndodontia = (snapshot?: ContratoSnapshot | null): boolea
  */
 export const limparFormaPagamentoParaContrato = (texto?: string): string => {
   if (!texto) return '';
-  return texto
+  let str = String(texto).trim();
+
+  // Se o texto for um JSON de condições estruturadas (ex: {"versao":2,...}), converte para texto legível
+  if (str.startsWith('{') || str.includes('"condicoes"') || str.includes('"versao"')) {
+    str = obterTextoCondicaoParaContrato(str);
+  }
+
+  return str
     // 1. Remove blocos de taxa como "(Taxa PagBank: 10.7% / R$ 267,50)", "(Taxa 10.7%: R$ 267,50)", "(Taxa: 10.7%)", etc.
     .replace(/\s*\(\s*Taxa[^)]*\)/gi, '')
     // 2. Remove padrões como " - Taxa 10.7%: R$ 267,50"
@@ -1871,7 +1878,7 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
       ${financeiro.entrada > 0 ? `
         <p class="paragrafo">
           ${todasIguais ? `
-            O plano financeiro pactuado compreende o pagamento de uma <strong>Entrada inicial de ${formatMoney(financeiro.entrada)}</strong> e o saldo remanescente de <strong>${formatMoney(financeiro.total - financeiro.entrada)}</strong> dividido em <strong>${financeiro.quantidadeParcelas} (${financeiro.quantidadeParcelas === 1 ? 'uma única parcela' : `${financeiro.quantidadeParcelas} parcelas mensais sucessivas`})</strong> no valor de <strong>${formatMoney(financeiro.valorParcela)}</strong> cada, ${apenasCartao ? 'com lançamentos processados na fatura do cartão conforme cronograma oficial a seguir:' : 'com vencimentos discriminados no cronograma oficial a seguir:'}
+            O plano financeiro pactuado compreende o pagamento de uma <strong>Entrada inicial de ${formatMoney(financeiro.entrada)}</strong> e o saldo remanescente de <strong>${formatMoney(financeiro.total - financeiro.entrada)}</strong> dividido em <strong>${financeiro.quantidadeParcelas} (${financeiro.quantidadeParcelas === 1 ? 'uma única parcela' : `${financeiro.quantidadeParcelas} parcelas mensais sucessivas`})</strong> no valor de <strong>${formatMoney(financeiro.valorParcela)}</strong>${financeiro.quantidadeParcelas > 1 ? ' cada' : ''}, ${apenasCartao ? 'com lançamentos processados na fatura do cartão conforme cronograma oficial a seguir:' : 'com vencimentos discriminados no cronograma oficial a seguir:'}
           ` : `
             O plano financeiro pactuado compreende o pagamento de uma <strong>Entrada inicial de ${formatMoney(financeiro.entrada)}</strong> e o saldo remanescente de <strong>${formatMoney(financeiro.total - financeiro.entrada)}</strong>, distribuído nas etapas e formas discriminadas detalhadamente no cronograma oficial a seguir:
           `}
@@ -1879,7 +1886,7 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
       ` : `
         <p class="paragrafo">
           ${todasIguais ? `
-            O plano financeiro compreende a quitação em <strong>${financeiro.quantidadeParcelas} (${financeiro.quantidadeParcelas === 1 ? 'uma única' : `${financeiro.quantidadeParcelas} parcelas mensais sucessivas`})</strong>, no valor de <strong>${formatMoney(financeiro.valorParcela)}</strong> cada, ${apenasCartao ? 'com cobrança na fatura do cartão conforme discriminado no cronograma a seguir:' : 'com vencimentos conforme discriminado no cronograma a seguir:'}
+            O plano financeiro compreende a quitação em <strong>${financeiro.quantidadeParcelas} (${financeiro.quantidadeParcelas === 1 ? 'uma única parcela' : `${financeiro.quantidadeParcelas} parcelas mensais sucessivas`})</strong>, no valor de <strong>${formatMoney(financeiro.valorParcela)}</strong>${financeiro.quantidadeParcelas > 1 ? ' cada' : ''}, ${apenasCartao ? 'com cobrança na fatura do cartão conforme discriminado no cronograma a seguir:' : 'com vencimentos conforme discriminado no cronograma a seguir:'}
           ` : `
             O plano financeiro compreende as etapas e parcelas discriminadas detalhadamente com seus respectivos valores, vencimentos e formas no cronograma a seguir:
           `}

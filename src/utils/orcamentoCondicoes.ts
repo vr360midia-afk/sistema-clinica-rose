@@ -83,9 +83,21 @@ export function calcularDescricaoCondicao(
     case 'a_vista': {
       const perc = cond.descontoPercentual || 0;
       if (perc > 0) {
-        const descVal = cond.descontoValor ?? (totalBase * perc) / 100;
-        const valComDesc = typeof cond.valorTotal === 'number' && cond.valorTotal > 0 ? cond.valorTotal : Math.max(0, totalBase - descVal);
-        return `Pagamento à vista via PIX com ${perc}% de desconto especial: ${formatMoney(valComDesc)} (Economia de ${formatMoney(descVal)})${tagDataEnt}${tagSitEnt}`;
+        let descVal = typeof cond.descontoValor === 'number' && cond.descontoValor > 0 ? cond.descontoValor : 0;
+        let valComDesc = typeof cond.valorTotal === 'number' && cond.valorTotal > 0 ? cond.valorTotal : 0;
+
+        if (descVal === 0 && valComDesc > 0 && perc < 100) {
+          const baseEst = (valComDesc / (100 - perc)) * 100;
+          descVal = Number((baseEst - valComDesc).toFixed(2));
+        } else if (descVal === 0 && totalBase > 0) {
+          descVal = Number(((totalBase * perc) / 100).toFixed(2));
+          if (valComDesc === 0) valComDesc = Math.max(0, totalBase - descVal);
+        } else if (valComDesc === 0 && totalBase > 0) {
+          valComDesc = Math.max(0, totalBase - descVal);
+        }
+
+        const textoEconomia = descVal > 0 ? ` (Economia de ${formatMoney(descVal)})` : '';
+        return `Pagamento à vista via PIX com ${perc}% de desconto especial: ${formatMoney(valComDesc)}${textoEconomia}${tagDataEnt}${tagSitEnt}`;
       }
       if (total < totalBase) {
         const descVal = totalBase - total;
@@ -583,12 +595,44 @@ export function obterCondicaoAtiva(condicoes: CondicaoPagamento[]): CondicaoPaga
  */
 export function obterTextoCondicaoParaContrato(formasPagamento?: string | null): string {
   if (!formasPagamento) return 'A combinar';
-  const condicoes = parseCondicoesPagamento(formasPagamento);
+  const raw = String(formasPagamento).trim();
+  if (!raw) return 'A combinar';
+
+  // Se não contém JSON estruturado, retorna o próprio texto
+  if (!raw.includes('{') && !raw.includes('}')) {
+    return raw;
+  }
+
+  const condicoes = parseCondicoesPagamento(raw);
   const ativa = obterCondicaoAtiva(condicoes);
   if (ativa) {
-    return ativa.descricao || ativa.titulo;
+    // Se a descrição guardada contiver R$ 0,00 ou erro de cálculo, recalcula a descrição com base nos dados reais
+    if (ativa.descricao && (ativa.descricao.includes('R$ 0,00') || ativa.descricao.includes('Economia de R$ 0,00'))) {
+      const descRecalc = calcularDescricaoCondicao(ativa, ativa.valorTotal);
+      if (!descRecalc.includes('R$ 0,00')) {
+        return descRecalc;
+      }
+    }
+
+    if (ativa.descricao && !ativa.descricao.includes('R$ 0,00') && !ativa.descricao.includes('{')) {
+      return ativa.descricao;
+    }
+
+    if (ativa.titulo && !ativa.titulo.includes('{')) {
+      return ativa.valorTotal > 0 ? `${ativa.titulo}: ${formatMoney(ativa.valorTotal)}` : ativa.titulo;
+    }
   }
-  return formasPagamento;
+
+  // Fallback seguro caso seja um JSON com array de condições
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed.condicoes) && parsed.condicoes.length > 0) {
+      const c = parsed.condicoes.find((item: any) => item.selecionada) || parsed.condicoes[0];
+      return c.titulo || c.descricao || 'Conforme acordado no orçamento';
+    }
+  } catch (_) {}
+
+  return 'Conforme acordado no orçamento';
 }
 
 /**
