@@ -338,6 +338,29 @@ export default function AssinarContrato() {
     });
   };
 
+  // Função utilitária para higienizar a URL no navegador sem recarregar a página (remove c=, data= e hash)
+  const limparUrlNavegador = () => {
+    if (typeof window !== 'undefined' && window.location) {
+      try {
+        const urlObj = new URL(window.location.href);
+        let mudou = false;
+        ['c', 'data', 'd'].forEach((p) => {
+          if (urlObj.searchParams.has(p)) {
+            urlObj.searchParams.delete(p);
+            mudou = true;
+          }
+        });
+        if (urlObj.hash.includes('c=') || urlObj.hash.includes('data=') || urlObj.hash.includes('d=')) {
+          urlObj.hash = '';
+          mudou = true;
+        }
+        if (mudou) {
+          window.history.replaceState({}, document.title, urlObj.pathname + (urlObj.search ? urlObj.search : ''));
+        }
+      } catch (_) {}
+    }
+  };
+
   // Carrega os dados do contrato
   useEffect(() => {
     async function carregarContrato() {
@@ -357,22 +380,16 @@ export default function AssinarContrato() {
             .trim()
         : '';
 
-      // 1. Tenta decodificar prioritariamente a partir do parâmetro ?c= ou ?data= (cross-device WhatsApp)
-      if (encodedData) {
-        try {
-          const decoded = decodificarContratoUrl(encodedData);
-          if (decoded) {
-            foundSnapshot = decoded;
-            if (decoded.contratoId) {
-              foundDocId = decoded.contratoId;
-            }
-          }
-        } catch (_) {}
-      }
+      // 1. Fonte Primária Definitiva: SUPABASE (Edge Function -> RPC -> Consulta Direta no Banco)
+      if (targetId) {
+        // Validação preventiva de credencial de segurança
+        if (!token && !encodedData) {
+          setErroSeguranca('Token de segurança não informado no link. Por razões de privacidade (LGPD) e segurança jurídica, utilize o link oficial completo fornecido pela clínica.');
+          setLoading(false);
+          return;
+        }
 
-      // 2. Se temos targetId e ainda não temos foundSnapshot, tenta recuperar remotamente via Supabase
-      if (targetId && !foundSnapshot) {
-        // 2.1 Tenta recuperar prioritariamente via Edge Function 'contrato-publico' (valida token no servidor com service_role)
+        // 1.1 Tenta recuperar prioritariamente via Edge Function 'contrato-publico' (valida token no servidor com service_role)
         if (token) {
           try {
             const { data: edgeData, error: edgeErr } = await supabase.functions.invoke('contrato-publico', {
@@ -393,7 +410,7 @@ export default function AssinarContrato() {
           } catch (_) {}
         }
 
-        // 2.2 Fallback 1: Tenta RPC segura 'obter_contrato_publico'
+        // 1.2 Fallback 1: Tenta RPC segura 'obter_contrato_publico' (executa com SECURITY DEFINER)
         if (!foundSnapshot && token) {
           try {
             const { data: rpcData, error: rpcErr } = await (supabase.rpc as any)('obter_contrato_publico', {
@@ -412,7 +429,7 @@ export default function AssinarContrato() {
           } catch (_) {}
         }
 
-        // 2.3 Fallback 2: Consulta direta no banco de dados Supabase (documentos_clinicos)
+        // 1.3 Fallback 2: Consulta direta no banco de dados Supabase (documentos_clinicos)
         if (!foundSnapshot) {
           try {
             const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
@@ -479,9 +496,14 @@ export default function AssinarContrato() {
             }
           } catch (_) {}
         }
+
+        // Se encontrou no Supabase, limpa imediatamente qualquer resíduo de c= da URL
+        if (foundSnapshot) {
+          limparUrlNavegador();
+        }
       }
 
-      // 3. Fallback no cache local do dispositivo (localStorage) para contingência offline imediata
+      // 2. Fallback no cache local do dispositivo (localStorage) para contingência offline imediata
       if (!foundSnapshot && typeof window !== 'undefined' && window.localStorage) {
         try {
           const targetUpper = targetId ? targetId.toUpperCase() : '';
@@ -626,7 +648,29 @@ export default function AssinarContrato() {
         }
       }
 
+      // 3. Fallback estritamente de migração para LINKS ANTIGOS legados (apenas se não encontrado no Supabase nem no cache)
+      if (!foundSnapshot && encodedData) {
+        try {
+          const decoded = decodificarContratoUrl(encodedData);
+          if (decoded && (decoded.contratoId || decoded.paciente || decoded.orcamento)) {
+            // Valida correspondência de identificador quando presente
+            if (!targetId || (decoded.contratoId && (decoded.contratoId === targetId || decoded.contratoId.toUpperCase() === targetId.toUpperCase()))) {
+              foundSnapshot = decoded;
+              if (decoded.contratoId) foundDocId = decoded.contratoId;
+
+              // Persiste no Supabase em segundo plano para migrar o contrato definitivamente
+              emitirContratoPersistido(decoded, decoded.contratoId).catch(() => {});
+
+              // Limpa a URL imediatamente para que o usuário não continue propagando o link com c=
+              limparUrlNavegador();
+            }
+          }
+        } catch (_) {}
+      }
+
       if (foundSnapshot) {
+        // Se encontrou, garante que a URL exibida no navegador esteja limpa sem c=
+        limparUrlNavegador();
         // Se encontramos uma versão já assinada salva no localStorage deste navegador, mescla
         if (typeof window !== 'undefined' && window.localStorage) {
           try {

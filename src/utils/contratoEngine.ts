@@ -2664,28 +2664,19 @@ export function obterBaseUrlOficial(): string {
 }
 
 /**
- * Constrói a URL pública oficial do contrato:
- * Formato padrão: https://app.lentesemresinamaceio.com.br/{slug-do-paciente}/contrato/{identificador}?token={token}&c={encoded}
- * O parâmetro c contém o snapshot criptografado/comprimido que garante carregamento cross-device 100% autônomo via WhatsApp.
+ * Constrói a URL pública oficial do contrato (função única e centralizada para todo o sistema):
+ * Formato padrão: https://app.lentesemresinamaceio.com.br/{slug-do-paciente}/contrato/{identificador}?token={token}
+ * É expressamente proibido transportar payloads de contratos, dados pessoais, imagens ou base64 na URL.
  */
 export function construirUrlPublicaContrato(params: {
   pacienteNome?: string;
   identificador: string;
   token?: string;
-  snapshot?: ContratoSnapshot;
 }): string {
   const base = obterBaseUrlOficial();
   const slug = slugifyNome(params.pacienteNome || 'paciente');
   const tokenParam = params.token ? `token=${encodeURIComponent(params.token)}` : '';
-  let cParam = '';
-  if (params.snapshot) {
-    const encoded = codificarContratoUrl(params.snapshot);
-    if (encoded) {
-      cParam = `c=${encoded}`;
-    }
-  }
-  const queryParts = [tokenParam, cParam].filter(Boolean).join('&');
-  const queryStr = queryParts ? `?${queryParts}` : '';
+  const queryStr = tokenParam ? `?${tokenParam}` : '';
   return `${base}/${slug}/contrato/${params.identificador}${queryStr}`;
 }
 
@@ -2905,12 +2896,11 @@ export async function emitirContratoPersistido(
       } catch (_) {}
     }
 
-    // 8. Constrói o link oficial com token e snapshot embutido (?c=) para contingência cross-device 100% autônoma
+    // 8. Constrói o link oficial curto e seguro com token (sem payload base64 na URL)
     const link = construirUrlPublicaContrato({
       pacienteNome,
       identificador,
       token,
-      snapshot: snapshotFinal,
     });
 
     return {
@@ -2929,7 +2919,7 @@ export async function emitirContratoPersistido(
     const pacienteNome = snapshot.pacienteNome || snapshot.paciente?.nome || 'paciente';
     const identificador = snapshot.contratoId || gerarIdentificadorContrato();
     const token = snapshot.token || gerarTokenAcesso();
-    const link = construirUrlPublicaContrato({ pacienteNome, identificador, token, snapshot });
+    const link = construirUrlPublicaContrato({ pacienteNome, identificador, token });
 
     return {
       ok: false,
@@ -2983,6 +2973,5 @@ export function gerarLinkAssinaturaContrato(snapshot: ContratoSnapshot, docId?: 
     pacienteNome,
     identificador: snapshot.contratoId,
     token: snapshot.token,
-    snapshot,
   });
 }

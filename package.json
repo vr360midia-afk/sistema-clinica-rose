@@ -8,7 +8,8 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:contrato": "node scripts/test-contrato-links.cjs"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
