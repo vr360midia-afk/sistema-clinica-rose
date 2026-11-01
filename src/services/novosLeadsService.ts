@@ -89,6 +89,7 @@ export function parseRawMetaAdsString(text: string): {
   telefone: string;
   data_criacao?: string;
   campanha?: string;
+  criativo?: string;
   formNome?: string;
   origem?: string;
   respostas: RespostaFormulario[];
@@ -207,6 +208,7 @@ export function parseRawMetaAdsString(text: string): {
     telefone: normalizarTelefone(rawPhone),
     data_criacao,
     campanha,
+    criativo,
     formNome,
     origem: 'Meta Ads (Instagram)',
     respostas,
@@ -277,6 +279,8 @@ export function parseDbLeadParaNovoLead(raw: Record<string, unknown>): NovoLead 
   let telFinal = raw.telefone || raw.phone || '';
   let origemFinal = raw.origem || raw.origin || 'Meta Lead Ads';
   let campanhaFinal = raw.campanha || meta.campanha || null;
+  let criativoFinal = raw.criativo || meta.criativo || meta.creative || raw.ad_name || meta.ad_name || null;
+  let isNewFinal = typeof meta.isNew === 'boolean' ? meta.isNew : (raw.is_new ?? false);
   let dataCriacaoFinal = raw.data_criacao || raw.created_at || new Date().toISOString();
 
   // Verifica se o nome possui o dump bruto do Meta Ads
@@ -292,12 +296,20 @@ export function parseDbLeadParaNovoLead(raw: Record<string, unknown>): NovoLead 
     if (parsedMeta.campanha) {
       campanhaFinal = parsedMeta.campanha;
     }
+    if (parsedMeta.criativo && !criativoFinal) {
+      criativoFinal = parsedMeta.criativo;
+    }
     if (parsedMeta.origem) {
       origemFinal = parsedMeta.origem;
     }
     if (respostas.length === 0 && parsedMeta.respostas.length > 0) {
       respostas = parsedMeta.respostas;
     }
+  }
+
+  if (!criativoFinal && obsTexto.includes('Criativo:')) {
+    const crMatch = obsTexto.match(/Criativo:\s*([^\n•]+)/i);
+    if (crMatch) criativoFinal = crMatch[1].trim();
   }
 
   // Sanitiza telefone se estiver poluído com dump concatenado (> 15 dígitos)
@@ -320,6 +332,8 @@ export function parseDbLeadParaNovoLead(raw: Record<string, unknown>): NovoLead 
     email: raw.email || meta.email || null,
     origem: origemFinal,
     campanha: campanhaFinal,
+    criativo: criativoFinal,
+    isNew: isNewFinal,
     status,
     prioridade,
     respostas,
@@ -332,10 +346,14 @@ export function parseDbLeadParaNovoLead(raw: Record<string, unknown>): NovoLead 
     valor_estimado: raw.valor_estimado ? Number(raw.valor_estimado) : null,
     valor_venda: raw.valor_venda ? Number(raw.valor_venda) : meta.valor_venda ? Number(meta.valor_venda) : null,
     motivo_perda: raw.motivo_perda || meta.motivo_perda || null,
+    motivo_perda_data: raw.motivo_perda_data || meta.motivo_perda_data || null,
     arquivado: raw.arquivado ?? meta.arquivado ?? (status === 'Perdido'),
     agendado_para: raw.agendado_para || meta.agendado_para || null,
     alertas_agendamento,
+    lembretes_enviados: raw.lembretes_enviados || meta.lembretes_enviados || {},
     follow_ups,
+    follow_up_stage: raw.follow_up_stage || meta.follow_up_stage || null,
+    follow_up_updated_at: raw.follow_up_updated_at || meta.follow_up_updated_at || null,
     meta_lead_id: raw.meta_lead_id || meta.meta_lead_id || null,
     form_id: raw.form_id || meta.form_id || null,
     ad_id: raw.ad_id || meta.ad_id || null,
@@ -439,6 +457,9 @@ export const novosLeadsService = {
 
     // Monta o payload para salvar
     const metaPayload = {
+      campanha: leadData.campanha || null,
+      criativo: leadData.criativo || null,
+      isNew: leadData.isNew ?? false,
       respostas: leadData.respostas || [],
       prioridade: leadData.prioridade || 'media',
       revisado: leadData.revisado ?? false,
@@ -446,6 +467,7 @@ export const novosLeadsService = {
       revisado_por: leadData.revisado_por || null,
       valor_venda: leadData.valor_venda || null,
       motivo_perda: leadData.motivo_perda || null,
+      motivo_perda_data: leadData.motivo_perda_data || null,
       arquivado: leadData.arquivado ?? false,
       agendado_para: leadData.agendado_para || null,
       alertas_agendamento: leadData.alertas_agendamento || {
@@ -454,7 +476,10 @@ export const novosLeadsService = {
         h24: true,
         h3: true,
       },
+      lembretes_enviados: leadData.lembretes_enviados || {},
       follow_ups: leadData.follow_ups || gerarFollowUpsIniciais(),
+      follow_up_stage: leadData.follow_up_stage || null,
+      follow_up_updated_at: leadData.follow_up_updated_at || null,
       meta_lead_id: leadData.meta_lead_id || null,
       form_id: leadData.form_id || null,
       ad_id: leadData.ad_id || null,
@@ -535,6 +560,9 @@ export const novosLeadsService = {
     };
 
     const metaPayload = {
+      campanha: leadMesclado.campanha || null,
+      criativo: leadMesclado.criativo || null,
+      isNew: leadMesclado.isNew ?? false,
       respostas: leadMesclado.respostas,
       prioridade: leadMesclado.prioridade,
       revisado: leadMesclado.revisado,
@@ -542,10 +570,14 @@ export const novosLeadsService = {
       revisado_por: leadMesclado.revisado_por,
       valor_venda: leadMesclado.valor_venda,
       motivo_perda: leadMesclado.motivo_perda,
+      motivo_perda_data: leadMesclado.motivo_perda_data,
       arquivado: leadMesclado.arquivado,
       agendado_para: leadMesclado.agendado_para,
       alertas_agendamento: leadMesclado.alertas_agendamento,
+      lembretes_enviados: leadMesclado.lembretes_enviados || {},
       follow_ups: leadMesclado.follow_ups,
+      follow_up_stage: leadMesclado.follow_up_stage,
+      follow_up_updated_at: leadMesclado.follow_up_updated_at,
       meta_lead_id: leadMesclado.meta_lead_id,
       form_id: leadMesclado.form_id,
       ad_id: leadMesclado.ad_id,

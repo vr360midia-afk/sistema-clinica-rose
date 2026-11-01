@@ -167,6 +167,19 @@ export default function LeadDetalhesModal({
                   </span>
                   <span>Origem: <strong>{lead.origem}</strong></span>
                 </div>
+
+                <div className="flex flex-wrap items-center gap-1.5 pt-2">
+                  {lead.criativo && (
+                    <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 border-purple-200 text-xs font-bold">
+                      🎨 Criativo: {lead.criativo}
+                    </Badge>
+                  )}
+                  {lead.campanha && (
+                    <Badge variant="outline" className="text-xs bg-blue-50 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300 border-blue-200 font-semibold">
+                      📢 Campanha: {lead.campanha}
+                    </Badge>
+                  )}
+                </div>
               </div>
 
               {/* Botões de Ação Rápida */}

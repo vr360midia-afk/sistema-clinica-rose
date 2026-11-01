@@ -118,6 +118,7 @@ interface ItemPrevia {
   telefone: string;
   email: string;
   campanha: string;
+  criativo: string;
   origem: string;
   observacoes: string;
   respostas: RespostaFormulario[];
@@ -224,6 +225,7 @@ export default function ModalImportarCsv({
       const idxTelefone = getColIndex(['phone_number', 'telefone', 'número_de_telefone', 'numero_de_telefone', 'phone', 'celular', 'whatsapp', 'fone']);
       const idxEmail = getColIndex(['email', 'e-mail']);
       const idxCampanha = getColIndex(['campaign_name', 'campanha', 'campaign', 'anúncio', 'anuncio', 'ad_name']);
+      const idxCriativo = getColIndex(['ad_name', 'criativo', 'creative', 'anúncio', 'anuncio', 'ad']);
       const idxOrigem = getColIndex(['platform', 'plataforma', 'origem', 'source']);
       const idxData = getColIndex(['created_time', 'data_criacao', 'data', 'date']);
       const idxObs = getColIndex(['observacoes', 'obs', 'mensagem', 'message', 'comments']);
@@ -273,6 +275,7 @@ export default function ModalImportarCsv({
             telefone: rawParsed.telefone,
             email: '',
             campanha: rawParsed.campanha || 'Meta Ads Leads',
+            criativo: rawParsed.criativo || 'Meta Ads',
             origem: rawParsed.origem || 'Meta Ads (Instagram)',
             observacoes: rawParsed.formNome ? ('Formulário: ' + rawParsed.formNome) : '',
             respostas: rawParsed.respostas,
@@ -295,6 +298,7 @@ export default function ModalImportarCsv({
             telefone: parsedNomeMeta.telefone,
             email: emailRaw,
             campanha: parsedNomeMeta.campanha || campRaw,
+            criativo: parsedNomeMeta.criativo || criativoRaw || 'Meta Ads',
             origem: parsedNomeMeta.origem || origRaw,
             observacoes: parsedNomeMeta.formNome ? ('Formulário: ' + parsedNomeMeta.formNome) : obsRaw,
             respostas: parsedNomeMeta.respostas,
@@ -306,7 +310,8 @@ export default function ModalImportarCsv({
         }
         let telRaw = idxTelefone !== -1 ? String(row[idxTelefone] || '').trim() : '';
         const emailRaw = idxEmail !== -1 ? String(row[idxEmail] || '').trim() : '';
-        const campRaw = idxCampanha !== -1 ? String(row[idxCampanha] || '').trim() : 'Meta Ads';
+        const campRaw = idxCampanha !== -1 ? String(row[idxCampanha] || '').trim() : 'Meta Ads Leads';
+        const criativoRaw = idxCriativo !== -1 ? String(row[idxCriativo] || '').trim() : 'Meta Ads';
         let origRaw = idxOrigem !== -1 ? String(row[idxOrigem] || '').trim() : 'Meta Ads (Exportação)';
         if (origRaw.toLowerCase() === 'ig') origRaw = 'Meta Ads (Instagram)';
         if (origRaw.toLowerCase() === 'fb') origRaw = 'Meta Ads (Facebook)';
@@ -346,6 +351,7 @@ export default function ModalImportarCsv({
           telefone: telNormalizado || telRaw,
           email: emailRaw,
           campanha: campRaw,
+          criativo: criativoRaw || 'Meta Ads',
           origem: origRaw,
           observacoes: obsRaw,
           respostas,
@@ -392,7 +398,9 @@ export default function ModalImportarCsv({
           telefone: item.telefone,
           email: item.email || null,
           origem: item.origem || 'Meta Lead Ads',
-          campanha: item.campanha || null,
+          campanha: item.campanha || 'Meta Ads Leads',
+          criativo: item.criativo || 'Meta Ads',
+          isNew: true,
           status: 'Pendente',
           prioridade: 'media',
           respostas: item.respostas || [],
@@ -511,7 +519,7 @@ export default function ModalImportarCsv({
                     <th className="p-2.5">Nome</th>
                     <th className="p-2.5">Telefone</th>
                     <th className="p-2.5">Perguntas & Respostas</th>
-                    <th className="p-2.5">Campanha / Origem</th>
+                    <th className="p-2.5">Campanha & Criativo</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
@@ -576,8 +584,15 @@ export default function ModalImportarCsv({
                           <span className="text-[11px] text-muted-foreground italic">Sem perguntas</span>
                         )}
                       </td>
-                      <td className="p-2.5 text-muted-foreground truncate max-w-[150px]">
-                        {item.campanha || item.origem}
+                      <td className="p-2.5 space-y-1">
+                        <div className="flex flex-col gap-1 max-w-[180px]">
+                          <Badge variant="outline" className="text-[10px] bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border-purple-200 truncate">
+                            🎨 {item.criativo || 'Meta Ads'}
+                          </Badge>
+                          <span className="text-[11px] text-muted-foreground truncate" title={item.campanha}>
+                            📢 {item.campanha || item.origem}
+                          </span>
+                        </div>
                       </td>
                     </tr>
                   ))}

@@ -39,6 +39,7 @@ export default function ModalNovoLeadManual({
   const [email, setEmail] = useState('');
   const [origem, setOrigem] = useState('Meta Lead Ads');
   const [campanha, setCampanha] = useState('');
+  const [criativo, setCriativo] = useState('');
   const [status, setStatus] = useState<StatusNovoLead>('Pendente');
   const [prioridade, setPrioridade] = useState<PrioridadeNovoLead>('media');
   const [respostasTexto, setRespostasTexto] = useState('');
@@ -51,6 +52,7 @@ export default function ModalNovoLeadManual({
     setEmail('');
     setOrigem('Meta Lead Ads');
     setCampanha('');
+    setCriativo('');
     setStatus('Pendente');
     setPrioridade('media');
     setRespostasTexto('');
@@ -84,7 +86,9 @@ export default function ModalNovoLeadManual({
         telefone: normalizarTelefone(telefone) || telefone,
         email: email || null,
         origem,
-        campanha: campanha || null,
+        campanha: campanha || 'Meta Ads Leads',
+        criativo: criativo || 'Lead Manual',
+        isNew: true,
         status,
         prioridade,
         respostas,
@@ -172,12 +176,20 @@ export default function ModalNovoLeadManual({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="space-y-1 sm:col-span-2">
-              <Label className="text-xs font-semibold">Campanha / Anúncio</Label>
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Campanha</Label>
               <Input
-                placeholder="Ex: Campanha Lentes Resina Maio"
+                placeholder="Ex: OFICIAL SELEÇÃO PRE VENDA"
                 value={campanha}
                 onChange={(e) => setCampanha(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Criativo (Anúncio)</Label>
+              <Input
+                placeholder="Ex: Generico 1, Generico 4"
+                value={criativo}
+                onChange={(e) => setCriativo(e.target.value)}
               />
             </div>
             <div className="space-y-1">

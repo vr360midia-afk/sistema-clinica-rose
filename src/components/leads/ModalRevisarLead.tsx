@@ -219,9 +219,21 @@ export default function ModalRevisarLead({
               <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                 Dados Capturados da Meta
               </span>
-              <Badge variant="outline" className="text-xs">
-                {lead.origem} {lead.campanha ? `• ${lead.campanha}` : ''}
-              </Badge>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {lead.criativo && (
+                  <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 border-purple-200 text-xs font-bold">
+                    🎨 Criativo: {lead.criativo}
+                  </Badge>
+                )}
+                {lead.campanha && (
+                  <Badge variant="outline" className="text-xs bg-blue-50 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300 border-blue-200 font-semibold">
+                    📢 Campanha: {lead.campanha}
+                  </Badge>
+                )}
+                <Badge variant="secondary" className="text-xs">
+                  {lead.origem}
+                </Badge>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">

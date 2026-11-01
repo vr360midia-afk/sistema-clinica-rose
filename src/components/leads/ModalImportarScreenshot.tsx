@@ -42,7 +42,8 @@ export default function ModalImportarScreenshot({
   const [nome, setNome] = useState('');
   const [telefone, setTelefone] = useState('');
   const [email, setEmail] = useState('');
-  const [campanha, setCampanha] = useState('Captura de Tela Meta Ads');
+  const [campanha, setCampanha] = useState('Campanha Leads Meta Ads');
+  const [criativo, setCriativo] = useState('Criativo Print');
   const [respostasTexto, setRespostasTexto] = useState('');
   const [observacoes, setObservacoes] = useState('');
 
@@ -56,7 +57,8 @@ export default function ModalImportarScreenshot({
     setNome('');
     setTelefone('');
     setEmail('');
-    setCampanha('Captura de Tela Meta Ads');
+    setCampanha('Campanha Leads Meta Ads');
+    setCriativo('Criativo Print');
     setRespostasTexto('');
     setObservacoes('');
     setSalvando(false);
@@ -135,7 +137,9 @@ export default function ModalImportarScreenshot({
         telefone: normalizarTelefone(telefone) || telefone,
         email: email || null,
         origem: 'Captura de Tela Meta Ads',
-        campanha: campanha || 'Meta Ads',
+        campanha: campanha || 'Campanha Leads Meta Ads',
+        criativo: criativo || 'Criativo Print',
+        isNew: true,
         status: 'Pendente',
         prioridade: 'media',
         respostas: respostasArray,
@@ -256,7 +260,7 @@ export default function ModalImportarScreenshot({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                   <div className="space-y-1">
                     <Label className="text-xs">E-mail (opcional)</Label>
                     <Input
@@ -266,11 +270,19 @@ export default function ModalImportarScreenshot({
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Origem / Anúncio</Label>
+                    <Label className="text-xs">Campanha</Label>
                     <Input
                       value={campanha}
                       onChange={(e) => setCampanha(e.target.value)}
-                      placeholder="Ex: Anúncio Facetas Meta"
+                      placeholder="Ex: Campanha Lentes"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Criativo (Anúncio)</Label>
+                    <Input
+                      value={criativo}
+                      onChange={(e) => setCriativo(e.target.value)}
+                      placeholder="Ex: Generico 1, Print Vídeo"
                     />
                   </div>
                 </div>

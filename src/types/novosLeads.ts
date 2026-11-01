@@ -39,6 +39,8 @@ export interface NovoLead {
   email?: string | null;
   origem: string;
   campanha?: string | null;
+  criativo?: string | null;
+  isNew?: boolean;
   status: StatusNovoLead;
   prioridade: PrioridadeNovoLead;
   respostas: RespostaFormulario[];
@@ -51,10 +53,14 @@ export interface NovoLead {
   valor_estimado?: number | null;
   valor_venda?: number | null;
   motivo_perda?: string | null;
+  motivo_perda_data?: string | null;
   arquivado?: boolean;
   agendado_para?: string | null;
   alertas_agendamento?: AlertasAgendamento;
+  lembretes_enviados?: Record<string, string>;
   follow_ups: FollowUpItem[];
+  follow_up_stage?: string | null;
+  follow_up_updated_at?: string | null;
   meta_lead_id?: string | null;
   form_id?: string | null;
   ad_id?: string | null;
