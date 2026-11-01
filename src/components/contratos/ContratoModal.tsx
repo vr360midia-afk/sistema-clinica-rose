@@ -605,13 +605,24 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
   const handleCarregarContratoParaEdicao = (doc: DocumentoClinico) => {
     if (doc.itens && typeof doc.itens === 'object' && doc.itens.paciente) {
       const snap = { ...(doc.itens as ContratoSnapshot) };
-      if (snap.financeiro?.parcelas) {
-        snap.financeiro.parcelas = snap.financeiro.parcelas.map((p) => {
-          if (isMetodoCartao(p.metodo, p.descricao)) {
-            return { ...p, vencimento: 'Fatura do Cartão' };
-          }
-          return p;
-        });
+      if (snap.financeiro) {
+        snap.financeiro = {
+          ...snap.financeiro,
+          formaPagamento: limparFormaPagamentoParaContrato(snap.financeiro.formaPagamento),
+          metodoParcelamento: snap.financeiro.metodoParcelamento ? limparFormaPagamentoParaContrato(snap.financeiro.metodoParcelamento) : undefined,
+          parcelas: (snap.financeiro.parcelas || []).map((p) => {
+            if (isMetodoCartao(p.metodo, p.descricao)) {
+              return { ...p, vencimento: 'Fatura do Cartão', descricao: limparFormaPagamentoParaContrato(p.descricao), metodo: p.metodo ? limparFormaPagamentoParaContrato(p.metodo) : p.metodo };
+            }
+            return { ...p, descricao: limparFormaPagamentoParaContrato(p.descricao), metodo: p.metodo ? limparFormaPagamentoParaContrato(p.metodo) : p.metodo };
+          }),
+        };
+      }
+      if (snap.orcamento) {
+        snap.orcamento = {
+          ...snap.orcamento,
+          formasPagamento: limparFormaPagamentoParaContrato(snap.orcamento.formasPagamento),
+        };
       }
       setSnapshotAtual(snap);
       setDocumentoIdSendoEditado(doc.id);

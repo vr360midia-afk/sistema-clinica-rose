@@ -456,44 +456,64 @@ export function parseCondicoesPagamento(
     return [];
   }
 
-  const str = formasPagamentoStr.trim();
+  let str = formasPagamentoStr.trim();
 
-  // 1. Tentar parse como JSON estruturado
-  if (str.startsWith('{') && str.endsWith('}')) {
+  // 0. Remove aspas externas se houver (ex: stringified JSON ou JSON armazenado como string com aspas)
+  if ((str.startsWith('"') && str.endsWith('"')) || (str.startsWith("'") && str.endsWith("'"))) {
     try {
-      const parsed = JSON.parse(str);
-      if (Array.isArray(parsed.condicoes) && parsed.condicoes.length > 0) {
-        return parsed.condicoes.map((c: any, index: number) => ({
-          id: c.id || String(index + 1),
-          titulo: c.titulo || `Opção ${index + 1}`,
-          tipo: c.tipo || 'personalizado',
-          descontoPercentual: c.descontoPercentual,
-          descontoValor: c.descontoValor,
-          valorTotal: typeof c.valorTotal === 'number' ? c.valorTotal : totalBase,
-          parcelas: c.parcelas,
-          valorParcela: c.valorParcela,
-          operadoraCartaoId: c.operadoraCartaoId,
-          tipoCartao: c.tipoCartao,
-          valorEntrada: c.valorEntrada,
-          metodoEntrada: c.metodoEntrada,
-          saldoTipoPrazo: c.saldoTipoPrazo,
-          saldoPrazoDias: c.saldoPrazoDias,
-          saldoParcelas: c.saldoParcelas,
-          saldoMetodo: c.saldoMetodo,
-          saldoValorParcela: c.saldoValorParcela,
-          dataEntrada: c.dataEntrada,
-          situacaoEntrada: c.situacaoEntrada,
-          dataPrimeiroVencimento: c.dataPrimeiroVencimento,
-          situacaoSaldo: c.situacaoSaldo,
-          diaVencimento: c.diaVencimento,
-          formasCompostas: Array.isArray(c.formasCompostas) ? c.formasCompostas : undefined,
-          descricao: c.descricao || calcularDescricaoCondicao(c, totalBase),
-          selecionada: Boolean(parsed.selecionadaId && String(c.id) === String(parsed.selecionadaId)),
-          destaque: c.destaque,
-        }));
-      }
+      str = JSON.parse(str);
     } catch (_) {
-      // Falhou o parse JSON, prossegue para análise de texto
+      str = str.slice(1, -1).trim();
+    }
+  }
+
+  // Desescapa aspas com barra invertida e entidades HTML
+  if (typeof str === 'string') {
+    if (str.includes('\\"')) str = str.replace(/\\"/g, '"');
+    if (str.includes('&quot;')) str = str.replace(/&quot;/g, '"');
+  }
+
+  // 1. Tentar parse como JSON estruturado (mesmo que haja texto antes ou depois)
+  if (typeof str === 'string' && (str.includes('{') || str.includes('condicoes') || str.includes('versao'))) {
+    const startIdx = str.indexOf('{');
+    const endIdx = str.lastIndexOf('}');
+    if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+      const jsonCandidate = str.substring(startIdx, endIdx + 1);
+      try {
+        const parsed = JSON.parse(jsonCandidate);
+        if (Array.isArray(parsed.condicoes) && parsed.condicoes.length > 0) {
+          return parsed.condicoes.map((c: any, index: number) => ({
+            id: c.id || String(index + 1),
+            titulo: c.titulo || `Opção ${index + 1}`,
+            tipo: c.tipo || 'personalizado',
+            descontoPercentual: c.descontoPercentual,
+            descontoValor: c.descontoValor,
+            valorTotal: typeof c.valorTotal === 'number' ? c.valorTotal : totalBase,
+            parcelas: c.parcelas,
+            valorParcela: c.valorParcela,
+            operadoraCartaoId: c.operadoraCartaoId,
+            tipoCartao: c.tipoCartao,
+            valorEntrada: c.valorEntrada,
+            metodoEntrada: c.metodoEntrada,
+            saldoTipoPrazo: c.saldoTipoPrazo,
+            saldoPrazoDias: c.saldoPrazoDias,
+            saldoParcelas: c.saldoParcelas,
+            saldoMetodo: c.saldoMetodo,
+            saldoValorParcela: c.saldoValorParcela,
+            dataEntrada: c.dataEntrada,
+            situacaoEntrada: c.situacaoEntrada,
+            dataPrimeiroVencimento: c.dataPrimeiroVencimento,
+            situacaoSaldo: c.situacaoSaldo,
+            diaVencimento: c.diaVencimento,
+            formasCompostas: Array.isArray(c.formasCompostas) ? c.formasCompostas : undefined,
+            descricao: c.descricao || calcularDescricaoCondicao(c, totalBase),
+            selecionada: Boolean(parsed.selecionadaId && String(c.id) === String(parsed.selecionadaId)),
+            destaque: c.destaque,
+          }));
+        }
+      } catch (_) {
+        // Falhou o parse JSON, prossegue para análise de texto
+      }
     }
   }
 
@@ -598,37 +618,44 @@ export function obterTextoCondicaoParaContrato(formasPagamento?: string | null):
   const raw = String(formasPagamento).trim();
   if (!raw) return 'A combinar';
 
-  // Se não contém JSON estruturado, retorna o próprio texto
-  if (!raw.includes('{') && !raw.includes('}')) {
+  // Se não contém qualquer vestígio de JSON estruturado, retorna o próprio texto
+  if (!raw.includes('{') && !raw.includes('}') && !raw.includes('condicoes') && !raw.includes('versao') && !raw.includes('selecionadaId')) {
     return raw;
   }
 
   const condicoes = parseCondicoesPagamento(raw);
   const ativa = obterCondicaoAtiva(condicoes);
   if (ativa) {
-    // Se a descrição guardada contiver R$ 0,00 ou erro de cálculo, recalcula a descrição com base nos dados reais
-    if (ativa.descricao && (ativa.descricao.includes('R$ 0,00') || ativa.descricao.includes('Economia de R$ 0,00'))) {
+    // Se a descrição guardada contiver R$ 0,00, erro de cálculo ou resíduos de JSON, recalcula com base nos dados reais
+    if (ativa.descricao && (ativa.descricao.includes('R$ 0,00') || ativa.descricao.includes('Economia de R$ 0,00') || ativa.descricao.includes('{') || ativa.descricao.includes('}'))) {
       const descRecalc = calcularDescricaoCondicao(ativa, ativa.valorTotal);
-      if (!descRecalc.includes('R$ 0,00')) {
+      if (!descRecalc.includes('R$ 0,00') && !descRecalc.includes('{')) {
         return descRecalc;
       }
     }
 
-    if (ativa.descricao && !ativa.descricao.includes('R$ 0,00') && !ativa.descricao.includes('{')) {
+    if (ativa.descricao && !ativa.descricao.includes('R$ 0,00') && !ativa.descricao.includes('{') && !ativa.descricao.includes('}')) {
       return ativa.descricao;
     }
 
-    if (ativa.titulo && !ativa.titulo.includes('{')) {
+    if (ativa.titulo && !ativa.titulo.includes('{') && !ativa.titulo.includes('}')) {
       return ativa.valorTotal > 0 ? `${ativa.titulo}: ${formatMoney(ativa.valorTotal)}` : ativa.titulo;
     }
   }
 
   // Fallback seguro caso seja um JSON com array de condições
   try {
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed.condicoes) && parsed.condicoes.length > 0) {
-      const c = parsed.condicoes.find((item: any) => item.selecionada) || parsed.condicoes[0];
-      return c.titulo || c.descricao || 'Conforme acordado no orçamento';
+    let unescaped = raw;
+    if (unescaped.includes('\\"')) unescaped = unescaped.replace(/\\"/g, '"');
+    const sIdx = unescaped.indexOf('{');
+    const eIdx = unescaped.lastIndexOf('}');
+    if (sIdx !== -1 && eIdx !== -1 && eIdx > sIdx) {
+      const parsed = JSON.parse(unescaped.substring(sIdx, eIdx + 1));
+      if (Array.isArray(parsed.condicoes) && parsed.condicoes.length > 0) {
+        const c = parsed.condicoes.find((item: any) => item.selecionada) || parsed.condicoes[0];
+        const res = c.titulo || c.descricao;
+        if (res && !res.includes('{') && !res.includes('}')) return res;
+      }
     }
   } catch (_) {}
 

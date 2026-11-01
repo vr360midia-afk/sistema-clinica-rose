@@ -74,6 +74,33 @@ const Shell = ({ children }: { children: React.ReactNode }) => (
   </div>
 );
 
+function sanitizarSnapshotContrato(snap: ContratoSnapshot): ContratoSnapshot {
+  if (!snap) return snap;
+  return {
+    ...snap,
+    financeiro: snap.financeiro
+      ? {
+          ...snap.financeiro,
+          formaPagamento: limparFormaPagamentoParaContrato(snap.financeiro.formaPagamento),
+          metodoParcelamento: snap.financeiro.metodoParcelamento
+            ? limparFormaPagamentoParaContrato(snap.financeiro.metodoParcelamento)
+            : undefined,
+          parcelas: (snap.financeiro.parcelas || []).map((p) => ({
+            ...p,
+            descricao: limparFormaPagamentoParaContrato(p.descricao),
+            metodo: p.metodo ? limparFormaPagamentoParaContrato(p.metodo) : p.metodo,
+          })),
+        }
+      : snap.financeiro,
+    orcamento: snap.orcamento
+      ? {
+          ...snap.orcamento,
+          formasPagamento: limparFormaPagamentoParaContrato(snap.orcamento.formasPagamento),
+        }
+      : snap.orcamento,
+  };
+}
+
 export default function AssinarContrato() {
   const { id, slug, publicSlug, pacienteSlug, paciente, identificador, token: tokenParam } = useParams<{
     identificador?: string;
@@ -416,7 +443,7 @@ export default function AssinarContrato() {
       }
 
       if (foundSnapshot) {
-        setSnapshot(foundSnapshot);
+        setSnapshot(sanitizarSnapshotContrato(foundSnapshot));
         if (foundDocId) setDocDbId(foundDocId);
       } else {
         setSnapshot(null);
@@ -489,7 +516,7 @@ export default function AssinarContrato() {
           if (!signErr && signRes?.ok) {
             persistiuRemoto = true;
             if (signRes.snapshot) {
-              setSnapshot(signRes.snapshot);
+              setSnapshot(sanitizarSnapshotContrato(signRes.snapshot));
             }
           }
         } catch (edgeErr) {
@@ -514,7 +541,7 @@ export default function AssinarContrato() {
           if (!rpcErr && rpcRes?.ok) {
             persistiuRemoto = true;
             if (rpcRes.snapshot) {
-              setSnapshot(rpcRes.snapshot);
+              setSnapshot(sanitizarSnapshotContrato(rpcRes.snapshot));
             }
           }
         } catch (_) {}
