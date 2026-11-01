@@ -175,6 +175,36 @@ class SupabaseService {
       analiseStatus: data.analise_status,
       confirmacaoStatus: data.confirmacao_status,
       confirmadoEm: data.confirmado_em ? new Date(data.confirmado_em) : undefined,
+      // Recupera dados estendidos e assinatura salvos com seguranÃ§a em exame_extra_bucal
+      ...((): any => {
+        if (typeof data.exame_extra_bucal === 'string' && data.exame_extra_bucal.startsWith('{')) {
+          try {
+            const parsed = JSON.parse(data.exame_extra_bucal);
+            if (parsed && (parsed.__isExtraPayload || parsed.assinaturaPaciente || parsed.respostas)) {
+              return {
+                assinaturaPaciente: parsed.assinaturaPaciente || data.assinatura_paciente || data.assinatura,
+                assinaturaDoutor: parsed.assinaturaDoutor || data.assinatura_doutor,
+                dataAssinatura: parsed.dataAssinatura ? new Date(parsed.dataAssinatura) : (data.data_assinatura ? new Date(data.data_assinatura) : undefined),
+                respostas: parsed.respostas || data.respostas,
+                observacoes: parsed.observacoes || data.observacoes,
+                historiaAtual: parsed.historiaAtual || data.historia_atual,
+                historiaFamiliar: parsed.historiaFamiliar || data.historia_familiar,
+                habitosViciosPositivos: parsed.habitosViciosPositivos || data.habitos_vicios_positivos,
+                habitosViciosNegativos: parsed.habitosViciosNegativos || data.habitos_vicios_negativos,
+                linkAssinatura: parsed.linkAssinatura || data.link_assinatura,
+                tokenAssinatura: parsed.tokenAssinatura || data.token_assinatura,
+                exameExtraBucal: parsed.__isExtraPayload ? (parsed.exameExtraBucal || '') : data.exame_extra_bucal,
+              };
+            }
+          } catch (_) {}
+        }
+        return {
+          assinaturaPaciente: data.assinatura_paciente || data.assinatura,
+          assinaturaDoutor: data.assinatura_doutor,
+          dataAssinatura: data.data_assinatura ? new Date(data.data_assinatura) : undefined,
+          respostas: data.respostas,
+        };
+      })(),
       odontograma: (() => {
         if (typeof data.odontograma === 'string') {
           try { return JSON.parse(data.odontograma); } catch (_) { return data.odontograma; }
@@ -285,6 +315,32 @@ class SupabaseService {
     const dateOnly = table ? (this.dateOnlyColumns[table] || []) : [];
 
     const clonedData: any = { ...data };
+    if (table === 'anamneses') {
+      const extraPayload: any = {};
+      if (clonedData.assinaturaPaciente !== undefined) extraPayload.assinaturaPaciente = clonedData.assinaturaPaciente;
+      if (clonedData.assinaturaDoutor !== undefined) extraPayload.assinaturaDoutor = clonedData.assinaturaDoutor;
+      if (clonedData.dataAssinatura !== undefined) extraPayload.dataAssinatura = clonedData.dataAssinatura;
+      if (clonedData.respostas !== undefined) extraPayload.respostas = clonedData.respostas;
+      if (clonedData.observacoes !== undefined) extraPayload.observacoes = clonedData.observacoes;
+      if (clonedData.historiaAtual !== undefined) extraPayload.historiaAtual = clonedData.historiaAtual;
+      if (clonedData.historiaFamiliar !== undefined) extraPayload.historiaFamiliar = clonedData.historiaFamiliar;
+      if (clonedData.habitosViciosPositivos !== undefined) extraPayload.habitosViciosPositivos = clonedData.habitosViciosPositivos;
+      if (clonedData.habitosViciosNegativos !== undefined) extraPayload.habitosViciosNegativos = clonedData.habitosViciosNegativos;
+      if (clonedData.linkAssinatura !== undefined) extraPayload.linkAssinatura = clonedData.linkAssinatura;
+      if (clonedData.tokenAssinatura !== undefined) extraPayload.tokenAssinatura = clonedData.tokenAssinatura;
+
+      if (Object.keys(extraPayload).length > 0) {
+        let currentExtra: any = {};
+        if (typeof clonedData.exameExtraBucal === 'string' && clonedData.exameExtraBucal.startsWith('{')) {
+          try { currentExtra = JSON.parse(clonedData.exameExtraBucal); } catch (_) {}
+        }
+        clonedData.exameExtraBucal = JSON.stringify({
+          ...currentExtra,
+          ...extraPayload,
+          __isExtraPayload: true,
+        });
+      }
+    }
     if (table === 'prontuarios' && clonedData.restauracoesPreexistentes) {
       let baseOdonto: any = {};
       if (typeof clonedData.odontograma === 'string') {

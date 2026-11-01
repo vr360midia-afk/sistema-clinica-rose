@@ -92,9 +92,15 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
         respostas: anamnese.respostas || {},
       },
       assinatura: anamnese.assinaturaPaciente ? {
-        signature: anamnese.assinaturaPaciente.signature,
-        signerName: anamnese.assinaturaPaciente.signerName || patient?.nome,
-        timestamp: anamnese.assinaturaPaciente.timestamp,
+        signature: typeof anamnese.assinaturaPaciente === 'string'
+          ? anamnese.assinaturaPaciente
+          : (anamnese.assinaturaPaciente.signature || anamnese.assinaturaPaciente.assinaturaData),
+        signerName: typeof anamnese.assinaturaPaciente === 'object'
+          ? (anamnese.assinaturaPaciente.signerName || patient?.nome)
+          : (patient?.nome || 'Paciente'),
+        timestamp: typeof anamnese.assinaturaPaciente === 'object'
+          ? anamnese.assinaturaPaciente.timestamp
+          : new Date().toISOString(),
       } : undefined,
     };
   };
@@ -546,12 +552,12 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
                   </div>
                 )}
 
-                {anamnese.assinaturaPaciente?.signerName && (
+                {Boolean(anamnese.assinaturaPaciente) && (
                   <div className="pt-2 border-t border-border flex items-center gap-2 text-xs text-emerald-700 dark:text-emerald-400 font-medium">
                     <FileCheck className="h-4 w-4" />
                     <span>
-                      Assinatura confirmada por {anamnese.assinaturaPaciente.signerName}
-                      {anamnese.assinaturaPaciente.timestamp && (
+                      Assinatura confirmada {typeof anamnese.assinaturaPaciente === 'object' && anamnese.assinaturaPaciente.signerName ? `por ${anamnese.assinaturaPaciente.signerName}` : ''}
+                      {typeof anamnese.assinaturaPaciente === 'object' && anamnese.assinaturaPaciente.timestamp && (
                         <> em {new Date(anamnese.assinaturaPaciente.timestamp).toLocaleString('pt-BR')}</>
                       )}
                     </span>
@@ -739,18 +745,23 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
                         </div>
                       </div>
 
-                      {assinatura.signature && (
-                        <div className="pt-2">
-                          <span className="text-[11px] text-muted-foreground block mb-1">Traço Digital:</span>
-                          <div className="p-2 border rounded-md bg-white max-w-sm">
-                            <img
-                              src={assinatura.signature}
-                              alt="Assinatura Digital"
-                              className="h-20 w-auto object-contain mx-auto"
-                            />
+                      {(() => {
+                        const sigImg = typeof assinatura === 'string'
+                          ? assinatura
+                          : (assinatura.signature || (assinatura as any).assinaturaData || (assinatura as any).dataUrl);
+                        return sigImg ? (
+                          <div className="pt-2">
+                            <span className="text-[11px] text-muted-foreground block mb-1">Traço Digital:</span>
+                            <div className="p-2 border rounded-md bg-white max-w-sm">
+                              <img
+                                src={sigImg}
+                                alt="Assinatura Digital"
+                                className="h-20 w-auto object-contain mx-auto"
+                              />
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        ) : null;
+                      })()}
                     </div>
                   ) : (
                     <div className="py-2 text-xs text-muted-foreground flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-amber-50/60 dark:bg-amber-950/20 p-2.5 rounded-lg border border-amber-200/70 dark:border-amber-900/40">

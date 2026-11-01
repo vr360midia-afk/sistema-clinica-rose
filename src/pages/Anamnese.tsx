@@ -115,9 +115,15 @@ const Anamnese = () => {
         respostas: a.respostas || {},
       },
       assinatura: a.assinaturaPaciente ? {
-        signature: a.assinaturaPaciente.signature,
-        signerName: a.assinaturaPaciente.signerName || pac?.nome,
-        timestamp: a.assinaturaPaciente.timestamp,
+        signature: typeof a.assinaturaPaciente === 'string'
+          ? a.assinaturaPaciente
+          : (a.assinaturaPaciente.signature || a.assinaturaPaciente.assinaturaData),
+        signerName: typeof a.assinaturaPaciente === 'object'
+          ? (a.assinaturaPaciente.signerName || pac?.nome)
+          : (pac?.nome || 'Paciente'),
+        timestamp: typeof a.assinaturaPaciente === 'object'
+          ? a.assinaturaPaciente.timestamp
+          : new Date().toISOString(),
       } : undefined,
     };
   };
@@ -875,18 +881,23 @@ const Anamnese = () => {
                         </div>
 
                         {/* Imagem do Traço de Assinatura */}
-                        {assinatura.signature && (
-                          <div className="pt-2">
-                            <span className="text-[11px] text-muted-foreground block mb-1">Traço Digital:</span>
-                            <div className="p-2 border rounded-md bg-white max-w-sm">
-                              <img
-                                src={assinatura.signature}
-                                alt="Assinatura Digital"
-                                className="h-20 w-auto object-contain mx-auto"
-                              />
+                        {(() => {
+                          const sigImg = typeof assinatura === 'string'
+                            ? assinatura
+                            : (assinatura.signature || (assinatura as any).assinaturaData || (assinatura as any).dataUrl);
+                          return sigImg ? (
+                            <div className="pt-2">
+                              <span className="text-[11px] text-muted-foreground block mb-1">Traço Digital:</span>
+                              <div className="p-2 border rounded-md bg-white max-w-sm">
+                                <img
+                                  src={sigImg}
+                                  alt="Assinatura Digital"
+                                  className="h-20 w-auto object-contain mx-auto"
+                                />
+                              </div>
                             </div>
-                          </div>
-                        )}
+                          ) : null;
+                        })()}
 
                         {/* Foto Selfie (se houver) */}
                         {(assinatura as any).selfie && (

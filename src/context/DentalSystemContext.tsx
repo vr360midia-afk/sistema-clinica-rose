@@ -365,7 +365,19 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
       setAnamneses(prev => prev.map(a => (a.id === id ? { ...a, ...updates } : a)));
       const anamneseAtualizada = await supabaseService.updateAnamnese(id, updates);
       if (anamneseAtualizada) {
-        setAnamneses(prev => prev.map(a => (a.id === id ? anamneseAtualizada : a)));
+        setAnamneses(prev => prev.map(a => {
+          if (a.id === id) {
+            return {
+              ...a,
+              ...anamneseAtualizada,
+              assinaturaPaciente: updates.assinaturaPaciente || anamneseAtualizada.assinaturaPaciente || a.assinaturaPaciente,
+              assinaturaDoutor: updates.assinaturaDoutor || anamneseAtualizada.assinaturaDoutor || a.assinaturaDoutor,
+              dataAssinatura: updates.dataAssinatura || anamneseAtualizada.dataAssinatura || a.dataAssinatura,
+              respostas: updates.respostas || anamneseAtualizada.respostas || a.respostas,
+            };
+          }
+          return a;
+        }));
       }
     } catch (error) {
       console.warn('Aviso ao sincronizar atualização de anamnese no Supabase:', error);

@@ -344,22 +344,34 @@ const AssinarAnamnese = () => {
           throw new Error('Anamnese não encontrada');
         }
 
+        let parsedExtra: any = {};
+        if (typeof anamneseDb.exame_extra_bucal === 'string' && anamneseDb.exame_extra_bucal.startsWith('{')) {
+          try {
+            const p = JSON.parse(anamneseDb.exame_extra_bucal);
+            if (p && (p.__isExtraPayload || p.assinaturaPaciente || p.respostas)) {
+              parsedExtra = p;
+            }
+          } catch (_) {}
+        }
+
+        const finalAssinatura = parsedExtra.assinaturaPaciente || (anamneseDb as any).assinatura_paciente || (anamneseDb as any).assinatura;
+
         return {
           anamnese: {
             id: anamneseDb.id,
             data: anamneseDb.data,
             queixaPrincipal: anamneseDb.queixa_principal,
-            historiaAtual: anamneseDb.historia_atual,
-            historiaFamiliar: anamneseDb.historia_familiar,
+            historiaAtual: parsedExtra.historiaAtual || (anamneseDb as any).historia_atual,
+            historiaFamiliar: parsedExtra.historiaFamiliar || (anamneseDb as any).historia_familiar,
             historiaMedica: anamneseDb.historia_medica,
             alergias: anamneseDb.alergias,
             medicamentos: anamneseDb.medicamentos,
-            habitosViciosPositivos: anamneseDb.habitos_vicios_positivos,
-            habitosViciosNegativos: anamneseDb.habitos_vicios_negativos,
-            observacoes: anamneseDb.observacoes,
-            respostas: anamneseDb.respostas,
-            jaAssinado: anamneseDb.status_assinatura === 'paciente_assinado' || anamneseDb.status_assinatura === 'completo' || !!anamneseDb.assinatura_paciente,
-            assinaturaPaciente: anamneseDb.assinatura_paciente,
+            habitosViciosPositivos: parsedExtra.habitosViciosPositivos || (anamneseDb as any).habitos_vicios_positivos,
+            habitosViciosNegativos: parsedExtra.habitosViciosNegativos || (anamneseDb as any).habitos_vicios_negativos,
+            observacoes: parsedExtra.observacoes || (anamneseDb as any).observacoes,
+            respostas: parsedExtra.respostas || (anamneseDb as any).respostas,
+            jaAssinado: anamneseDb.status_assinatura === 'paciente_assinado' || anamneseDb.status_assinatura === 'completo' || !!finalAssinatura,
+            assinaturaPaciente: finalAssinatura,
           },
           paciente: {
             nome: (anamneseDb as any).paciente?.nome || anamneseDb.paciente_nome || 'Paciente',
@@ -398,27 +410,57 @@ const AssinarAnamnese = () => {
           if (r.respostas !== undefined) updatePayload.respostas = r.respostas;
         }
 
-        // Tenta atualizar no Supabase com todas as colunas suportadas
-        try {
-          const supabasePayload: any = {
-            status_assinatura: 'paciente_assinado',
-            data_assinatura: new Date().toISOString(),
-            assinatura_paciente: assinaturaData,
-          };
-          if (updatePayload.queixa_principal !== undefined) supabasePayload.queixa_principal = updatePayload.queixa_principal;
-          if (updatePayload.historia_atual !== undefined) supabasePayload.historia_atual = updatePayload.historia_atual;
-          if (updatePayload.historia_familiar !== undefined) supabasePayload.historia_familiar = updatePayload.historia_familiar;
-          if (updatePayload.historia_medica !== undefined) supabasePayload.historia_medica = updatePayload.historia_medica;
-          if (updatePayload.alergias !== undefined) supabasePayload.alergias = updatePayload.alergias;
-          if (updatePayload.medicamentos !== undefined) supabasePayload.medicamentos = updatePayload.medicamentos;
-          if (updatePayload.habitos_vicios_positivos !== undefined) supabasePayload.habitos_vicios_positivos = updatePayload.habitos_vicios_positivos;
-          if (updatePayload.habitos_vicios_negativos !== undefined) supabasePayload.habitos_vicios_negativos = updatePayload.habitos_vicios_negativos;
-          if (updatePayload.observacoes !== undefined) supabasePayload.observacoes = updatePayload.observacoes;
-          if (updatePayload.respostas !== undefined) supabasePayload.respostas = updatePayload.respostas;
+        // Prepara payload estendido empacotado com segurança no campo texto exame_extra_bucal
+        const extraPayload = {
+          __isExtraPayload: true,
+          assinaturaPaciente: assinaturaData,
+          dataAssinatura: new Date().toISOString(),
+          respostas: updatePayload.respostas,
+          historiaAtual: updatePayload.historia_atual,
+          historiaFamiliar: updatePayload.historia_familiar,
+          habitosViciosPositivos: updatePayload.habitos_vicios_positivos,
+          habitosViciosNegativos: updatePayload.habitos_vicios_negativos,
+          observacoes: updatePayload.observacoes,
+        };
 
-          await supabase.from('anamneses').update(supabasePayload).eq('id', targetId);
+        const safeSupabasePayload: any = {
+          status_assinatura: 'paciente_assinado',
+          exame_extra_bucal: JSON.stringify(extraPayload),
+        };
+        if (updatePayload.queixa_principal !== undefined) safeSupabasePayload.queixa_principal = updatePayload.queixa_principal;
+        if (updatePayload.historia_medica !== undefined) safeSupabasePayload.historia_medica = updatePayload.historia_medica;
+        if (updatePayload.alergias !== undefined) safeSupabasePayload.alergias = updatePayload.alergias;
+        if (updatePayload.medicamentos !== undefined) safeSupabasePayload.medicamentos = updatePayload.medicamentos;
+
+        try {
+          await supabase.from('anamneses').update(safeSupabasePayload).eq('id', targetId);
         } catch (dbUpErr) {
-          console.warn('Erro na atualização direta:', dbUpErr);
+          console.warn('Erro na atualização direta de anamneses:', dbUpErr);
+        }
+
+        // Salva simultaneamente em documentos_clinicos para contingência legal completa
+        try {
+          const sig = assinaturaData;
+          const sigImg = typeof sig === 'string' ? sig : sig.signature;
+          const sigName = typeof sig === 'object' ? (sig.signerName || paciente?.nome) : 'Paciente';
+          await supabase.from('documentos_clinicos').insert({
+            paciente_id: targetId,
+            paciente_nome: sigName,
+            tipo: 'anamnese',
+            titulo: `Ficha de Anamnese - ${sigName}`,
+            conteudo: updatePayload.queixa_principal || 'Anamnese Odontológica',
+            itens: {
+              anamneseId: targetId,
+              assinaturaPaciente: assinaturaData,
+              respostas: updatePayload.respostas,
+              queixaPrincipal: updatePayload.queixa_principal,
+            } as never,
+            assinatura_data: sigImg || null,
+            assinante_nome: sigName,
+            assinado_em: new Date().toISOString(),
+          });
+        } catch (docErr) {
+          console.warn('Registro em documentos_clinicos:', docErr);
         }
 
         // Sincroniza também no localStorage
@@ -969,15 +1011,20 @@ const AssinarAnamnese = () => {
 
             {/* Bloco de Assinatura no Final */}
             <div className="mt-8 pt-2 text-center break-inside-avoid">
-              {assinaturaData?.signature && (
-                <div className="h-16 flex items-center justify-center mb-1">
-                  <img
-                    src={assinaturaData.signature}
-                    alt="Assinatura do Paciente"
-                    className="max-h-16 w-auto object-contain mx-auto"
-                  />
-                </div>
-              )}
+              {(() => {
+                const sigUrl = typeof assinaturaData === 'string'
+                  ? assinaturaData
+                  : (assinaturaData?.signature || assinaturaData?.assinaturaData || '');
+                return sigUrl ? (
+                  <div className="h-16 flex items-center justify-center mb-1">
+                    <img
+                      src={sigUrl}
+                      alt="Assinatura do Paciente"
+                      className="max-h-16 w-auto object-contain mx-auto"
+                    />
+                  </div>
+                ) : null;
+              })()}
               <div className="w-72 mx-auto border-t-2 border-slate-900 mb-1.5"></div>
               <p className="text-sm font-bold text-slate-900 m-0">
                 {assinaturaData?.signerName || paciente?.nome || 'Paciente'}
