@@ -99,11 +99,11 @@ export function parseRawMetaAdsString(text: string): {
 
   // Detecta se a string cont�m marcadores de exporta��o do Meta Ads
   const hasMetaMarkers =
-    /[liI]:\\d+/i.test(text) ||
-    /p:\\+?\\d+/i.test(text) ||
-    (/ag:\\d+/i.test(text) && /as:\\d+/i.test(text)) ||
-    /c:\\d+/i.test(text) ||
-    /f:\\d+/i.test(text) ||
+    /[liI]:\d+/i.test(text) ||
+    /p:\+?\d+/i.test(text) ||
+    (/ag:\d+/i.test(text) && /as:\d+/i.test(text)) ||
+    /c:\d+/i.test(text) ||
+    /f:\d+/i.test(text) ||
     text.includes('Campanha Leads') ||
     text.includes('SELE��O PRE VENDA') ||
     text.includes('INVESTIMENTO-copy');
@@ -121,11 +121,11 @@ export function parseRawMetaAdsString(text: string): {
   const data_criacao = dateMatch ? dateMatch[1] : undefined;
 
   // 3. Campanha
-  const campMatch = text.match(/c:\\d+\\s+(.*?)\\s+(?:Formulario|f:\\d+)/i);
+  const campMatch = text.match(/c:\d+\s+(.*?)\s+(?:Formulario|f:\d+)/i);
   const campanha = campMatch ? campMatch[1].trim() : 'Campanha Leads';
 
   // 4. Formul�rio
-  const formMatch = text.match(/f:\\d+\\s+(.*?)\\s+(?:true|false)/i);
+  const formMatch = text.match(/f:\d+\s+(.*?)\s+(?:true|false)/i);
   const formNome = formMatch ? formMatch[1].trim() : undefined;
 
   // 5. Nome e Respostas

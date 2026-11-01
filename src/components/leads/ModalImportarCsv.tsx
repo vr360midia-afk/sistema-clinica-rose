@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import * as XLSX from 'xlsx';
+import { read as xlsxRead, utils as xlsxUtils } from 'xlsx';
 import {
   Dialog,
   DialogContent,
@@ -30,6 +31,79 @@ import {
   parseRawMetaAdsString,
 } from '@/services/novosLeadsService';
 import { toast } from 'sonner';
+
+// Utilitário para resolver com segurança as funções da biblioteca SheetJS
+// independente de ambientes CJS, ESM ou minificação do Vite/Rollup
+const getSheetJs = () => {
+  const mod = XLSX as any;
+  const readFn = xlsxRead || mod?.read || mod?.default?.read;
+  const utilsObj = xlsxUtils || mod?.utils || mod?.default?.utils;
+  return { read: readFn, utils: utilsObj };
+};
+
+// Parser nativo e resiliente para arquivos CSV / TSV / delimitados por ponto-e-vírgula
+function parseDelimitedText(text: string): string[][] {
+  if (!text || typeof text !== 'string') return [];
+
+  // Remove marca d'água BOM do UTF-8 se presente
+  const cleanText = text.replace(/^\uFEFF/, '');
+
+  // Detecta automaticamente o delimitador analisando as primeiras linhas
+  const sample = cleanText.split(/\r?\n/).slice(0, 5).join('\n');
+  const countComma = (sample.match(/,/g) || []).length;
+  const countSemi = (sample.match(/;/g) || []).length;
+  const countTab = (sample.match(/\t/g) || []).length;
+
+  let delimiter = ',';
+  if (countSemi > countComma && countSemi > countTab) {
+    delimiter = ';';
+  } else if (countTab > countComma && countTab > countSemi) {
+    delimiter = '\t';
+  }
+
+  const rows: string[][] = [];
+  let currentRow: string[] = [];
+  let currentCell = '';
+  let insideQuotes = false;
+
+  for (let i = 0; i < cleanText.length; i++) {
+    const char = cleanText[i];
+    const nextChar = cleanText[i + 1];
+
+    if (char === '"') {
+      if (insideQuotes && nextChar === '"') {
+        currentCell += '"';
+        i++;
+      } else {
+        insideQuotes = !insideQuotes;
+      }
+    } else if (char === delimiter && !insideQuotes) {
+      currentRow.push(currentCell.trim());
+      currentCell = '';
+    } else if ((char === '\r' || char === '\n') && !insideQuotes) {
+      if (char === '\r' && nextChar === '\n') {
+        i++;
+      }
+      currentRow.push(currentCell.trim());
+      if (currentRow.some((c) => c.length > 0)) {
+        rows.push(currentRow);
+      }
+      currentRow = [];
+      currentCell = '';
+    } else {
+      currentCell += char;
+    }
+  }
+
+  if (currentCell.length > 0 || currentRow.length > 0) {
+    currentRow.push(currentCell.trim());
+    if (currentRow.some((c) => c.length > 0)) {
+      rows.push(currentRow);
+    }
+  }
+
+  return rows;
+}
 
 interface ModalImportarCsvProps {
   isOpen: boolean;
@@ -76,20 +150,66 @@ export default function ModalImportarCsv({
 
   const processarArquivoPlanilha = async (file: File) => {
     try {
-      const buffer = await file.arrayBuffer();
-      // Lê qualquer planilha Excel (.xlsx, .xls) ou texto (.csv, .tsv) com SheetJS
-      const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
-      const sheetName = workbook.SheetNames[0];
-      if (!sheetName) {
-        toast.error('Nenhuma planilha encontrada no arquivo.');
-        return;
+      let rows: unknown[][] = [];
+      const fileNameLower = file.name.toLowerCase();
+      const isExcelFile = fileNameLower.endsWith('.xlsx') || fileNameLower.endsWith('.xls');
+
+      // 1. Se for Excel (.xlsx, .xls), tenta prioritariamente SheetJS com leitura binária segura
+      if (isExcelFile) {
+        try {
+          const { read, utils } = getSheetJs();
+          if (typeof read === 'function' && utils && typeof utils.sheet_to_json === 'function') {
+            const buffer = await file.arrayBuffer();
+            const workbook = read(buffer, { type: 'array', cellDates: true });
+            const sheetName = workbook.SheetNames?.[0];
+            if (sheetName && workbook.Sheets?.[sheetName]) {
+              rows = utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, raw: false });
+            }
+          }
+        } catch (excelErr) {
+          console.warn('SheetJS falhou ao ler arquivo Excel, tentando fallback de texto:', excelErr);
+        }
       }
 
-      const worksheet = workbook.Sheets[sheetName];
-      const rows: unknown[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false });
+      // 2. Se for CSV/TSV/TXT ou se o SheetJS não tiver extraído linhas
+      if (rows.length === 0) {
+        let text = '';
+        try {
+          text = await file.text();
+        } catch {
+          const buf = await file.arrayBuffer();
+          try {
+            text = new TextDecoder('utf-8').decode(buf);
+          } catch {
+            text = new TextDecoder('iso-8859-1').decode(buf);
+          }
+        }
+
+        // Se tiver texto, usa o parser nativo de texto delimitado
+        if (text && text.trim().length > 0) {
+          rows = parseDelimitedText(text);
+        }
+
+        // Se ainda não tiver linhas (e for arquivo que não é puro texto), tenta SheetJS com array buffer
+        if (rows.length === 0) {
+          try {
+            const { read, utils } = getSheetJs();
+            if (typeof read === 'function' && utils && typeof utils.sheet_to_json === 'function') {
+              const buffer = await file.arrayBuffer();
+              const workbook = read(buffer, { type: 'array', cellDates: true });
+              const sheetName = workbook.SheetNames?.[0];
+              if (sheetName && workbook.Sheets?.[sheetName]) {
+                rows = utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, raw: false });
+              }
+            }
+          } catch (fallbackSheetErr) {
+            console.error('Falha no parser SheetJS:', fallbackSheetErr);
+          }
+        }
+      }
 
       if (rows.length < 1) {
-        toast.error('O arquivo parece estar vazio.');
+        toast.error('O arquivo parece estar vazio ou não pôde ser lido.');
         return;
       }
 
@@ -121,7 +241,7 @@ export default function ModalImportarCsv({
         if (!h) return;
         const isSystem = SYSTEM_COLUMNS.some((sc) => h === sc || h.startsWith('id_') || h.endsWith('_id'));
         if (!isSystem && colIdx !== idxNome && colIdx !== idxTelefone && colIdx !== idxEmail) {
-          let perguntaFormatada = headers[colIdx] || `Pergunta ${questionColIndices.length + 1}`;
+          let perguntaFormatada = headers[colIdx] || ('Pergunta ' + (questionColIndices.length + 1));
           perguntaFormatada = perguntaFormatada.replace(/_/g, ' ').trim();
           perguntaFormatada = perguntaFormatada.charAt(0).toUpperCase() + perguntaFormatada.slice(1);
           questionColIndices.push({ index: colIdx, pergunta: perguntaFormatada });
@@ -134,7 +254,7 @@ export default function ModalImportarCsv({
         const row = rows[i];
         if (!row || row.length === 0 || row.every((c: unknown) => !c)) continue;
 
-        // Caso especial: linha contendo dump bruto do Meta Ads (ex: "I:300287529... p:82988054849")
+        // Caso especial: linha contendo dump bruto do Meta Ads (ex: 'I:300287529... p:82988054849')
         const rowTexts = row.map((c) => String(c || '').trim()).filter(Boolean);
         const fullRowText = rowTexts.join(' ');
         const firstCell = rowTexts[0] || '';
@@ -154,11 +274,11 @@ export default function ModalImportarCsv({
             email: '',
             campanha: rawParsed.campanha || 'Meta Ads Leads',
             origem: rawParsed.origem || 'Meta Ads (Instagram)',
-            observacoes: rawParsed.formNome ? ('Formul�rio: ' + rawParsed.formNome) : '',
+            observacoes: rawParsed.formNome ? ('Formulário: ' + rawParsed.formNome) : '',
             respostas: rawParsed.respostas,
             data_criacao: rawParsed.data_criacao,
             invalido,
-            motivoInvalido: invalido ? 'Sem nome e telefone v�lidos' : undefined,
+            motivoInvalido: invalido ? 'Sem nome e telefone válidos' : undefined,
           });
           continue;
         }
@@ -169,18 +289,18 @@ export default function ModalImportarCsv({
         if (parsedNomeMeta.isMetaRaw) {
           const invalido = !parsedNomeMeta.nome && !parsedNomeMeta.telefone;
           parsed.push({
-            idTemp: `meta_${i}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+            idTemp: 'meta_' + i + '_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
             selecionado: !invalido,
             nome: parsedNomeMeta.nome || 'Lead Meta Ads',
             telefone: parsedNomeMeta.telefone,
             email: emailRaw,
             campanha: parsedNomeMeta.campanha || campRaw,
             origem: parsedNomeMeta.origem || origRaw,
-            observacoes: parsedNomeMeta.formNome ? `Formul�rio: ${parsedNomeMeta.formNome}` : obsRaw,
+            observacoes: parsedNomeMeta.formNome ? ('Formulário: ' + parsedNomeMeta.formNome) : obsRaw,
             respostas: parsedNomeMeta.respostas,
             data_criacao: parsedNomeMeta.data_criacao || dataRaw,
             invalido,
-            motivoInvalido: invalido ? 'Sem nome e telefone v�lidos' : undefined,
+            motivoInvalido: invalido ? 'Sem nome e telefone válidos' : undefined,
           });
           continue;
         }
