@@ -101,7 +101,7 @@ const DigitalSignature = ({
   // Por padrão, contratos assinados por pacientes exigem identificação completa e selfie
   const isContratoPaciente = documentType === 'contrato' && signerRole === 'paciente';
   const shouldRequireFields = requireIdentificationFields ?? isContratoPaciente;
-  const shouldRequireSelfie = requireSelfie ?? isContratoPaciente;
+  const shouldRequireSelfie = Boolean(requireSelfie);
 
   // Atualiza dados iniciais se props mudarem
   useEffect(() => {

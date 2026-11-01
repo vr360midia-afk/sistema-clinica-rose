@@ -2901,7 +2901,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
         signerRole={signerRole}
         documentType="contrato"
         requireIdentificationFields={signerRole === 'paciente'}
-        requireSelfie={signerRole === 'paciente'}
+        requireSelfie={false}
         initialEmail={signerRole === 'paciente' ? patient?.email : snapshotAtual?.clinica?.email}
         initialCpf={signerRole === 'paciente' ? patient?.cpf : snapshotAtual?.clinica?.cnpj}
         initialRg={signerRole === 'paciente' ? (temValorValido(patient?.rg) ? patient.rg : '') : snapshotAtual?.clinica?.cro}

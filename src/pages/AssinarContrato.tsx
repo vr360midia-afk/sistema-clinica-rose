@@ -2211,7 +2211,7 @@ export default function AssinarContrato() {
               signerRole="paciente"
               documentType="contrato"
               requireIdentificationFields={true}
-              requireSelfie={true}
+              requireSelfie={false}
               initialEmail={snapshot.paciente.email}
               initialCpf={snapshot.paciente.cpf}
               initialRg={temValorValido(snapshot.paciente.rg) ? snapshot.paciente.rg : ''}
