@@ -35,6 +35,9 @@ import {
   PenTool,
   RefreshCw,
   Home,
+  Eye,
+  Printer,
+  ExternalLink,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -66,7 +69,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
-import { downloadHtmlAsPdf } from '@/utils/pdfDownload';
+import { downloadHtmlAsPdf, generateHtmlPdfBase64 } from '@/utils/pdfDownload';
 import { openWhatsApp } from '@/lib/whatsapp';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -180,6 +183,37 @@ export default function AssinarContrato() {
   const [copiouPix, setCopiouPix] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [erroSeguranca, setErroSeguranca] = useState<string | null>(null);
+
+  // Estados para Visualização e Download do PDF Assinado
+  const [modalVisualizarAssinado, setModalVisualizarAssinado] = useState(false);
+  const [signedPdfUrl, setSignedPdfUrl] = useState<string | null>(null);
+  const [gerandoPdfVisualizacao, setGerandoPdfVisualizacao] = useState(false);
+
+  // Sincroniza em segundo plano a geração e o upload do PDF assinado para o Supabase Storage privado
+  const sincronizarArmazenamentoPdf = async (snap: ContratoSnapshot, docId: string, tok: string) => {
+    try {
+      const isFormalizadoTotal = Boolean(snap.assinaturaPaciente?.assinaturaData && snap.assinaturaDentista?.assinaturaData);
+      const html = gerarHtmlContrato(snap);
+      const base64 = await generateHtmlPdfBase64(html);
+      if (!base64) return;
+
+      const { data: uploadRes } = await supabase.functions.invoke('contrato-publico', {
+        body: {
+          action: 'upload_signed_pdf',
+          id: docId || snap.contratoId,
+          token: tok,
+          pdfBase64: base64,
+          isFormalizado: isFormalizadoTotal,
+        },
+      });
+
+      if (uploadRes?.signedUrl) {
+        setSignedPdfUrl(uploadRes.signedUrl);
+      }
+    } catch (e) {
+      console.warn('Sincronização de PDF no Supabase Storage em segundo plano:', e);
+    }
+  };
 
   // Estado para Modal de QR Code PIX por Parcela ou Geral em Tela Cheia
   const [modalPixParcela, setModalPixParcela] = useState<{
@@ -326,6 +360,9 @@ export default function AssinarContrato() {
           if (!edgeErr && edgeData?.ok && edgeData?.snapshot) {
             foundSnapshot = edgeData.snapshot as ContratoSnapshot;
             foundDocId = edgeData.id || targetId;
+            if (edgeData.signedPdfUrl) {
+              setSignedPdfUrl(edgeData.signedPdfUrl);
+            }
           } else if (edgeData?.error && edgeErr?.status === 403) {
             setErroSeguranca(edgeData.error || 'Token de acesso inválido ou expirado.');
             setLoading(false);
@@ -447,6 +484,12 @@ export default function AssinarContrato() {
       if (foundSnapshot) {
         setSnapshot(sanitizarSnapshotContrato(foundSnapshot));
         if (foundDocId) setDocDbId(foundDocId);
+
+        // Se o contrato já estiver assinado pelo paciente, assegura sincronização do PDF no Storage privado
+        const isJaAssinadoPac = Boolean(foundSnapshot.assinaturaPaciente?.assinaturaData || foundSnapshot.status === 'assinado');
+        if (isJaAssinadoPac && token && (targetId || foundDocId)) {
+          sincronizarArmazenamentoPdf(foundSnapshot, foundDocId || targetId, token);
+        }
       } else {
         setSnapshot(null);
       }
@@ -584,6 +627,13 @@ export default function AssinarContrato() {
       setSnapshot(sanitizarSnapshotContrato(updatedSnapshot));
       setShowSignatureModal(false);
       toast.success('Contrato assinado digitalmente com sucesso!');
+
+      // Sincroniza em segundo plano a geração e o upload do PDF assinado para o Supabase Storage
+      const activeToken = token || contractToken;
+      const activeId = contractId || docDbId || targetId || updatedSnapshot.contratoId;
+      if (activeToken && activeId) {
+        sincronizarArmazenamentoPdf(updatedSnapshot, activeId, activeToken);
+      }
     } catch (err: any) {
       console.error(err);
       toast.error('Erro ao registrar assinatura: ' + (err?.message || 'Tente novamente'));
@@ -687,6 +737,12 @@ export default function AssinarContrato() {
       setSnapshot(sanitizarSnapshotContrato(updatedSnapshot));
       setShowProfessionalSignatureModal(false);
       toast.success('Assinatura da profissional registrada com sucesso!');
+
+      // Sincroniza em segundo plano a versão final do PDF formalizado com as duas assinaturas
+      const activeToken = token || contractToken;
+      if (activeToken && finalDocId) {
+        sincronizarArmazenamentoPdf(updatedSnapshot, finalDocId, activeToken);
+      }
     } catch (err: any) {
       console.error(err);
       toast.error('Erro ao registrar assinatura profissional: ' + (err?.message || 'Tente novamente'));
@@ -1906,25 +1962,58 @@ export default function AssinarContrato() {
                   {isAssinado ? (
                     <div className="space-y-3 pt-1">
                       {/* Box Oficial de Contrato Já Assinado */}
-                      <div className="p-4 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl border border-emerald-200 dark:border-emerald-800 text-center space-y-3 shadow-xs">
-                        <div className="inline-flex p-2 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300">
-                          <CheckCircle2 className="h-6 w-6" />
+                      <div className="p-4 sm:p-5 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl border border-emerald-200 dark:border-emerald-800 text-center space-y-3 shadow-xs">
+                        <div className="inline-flex p-2.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300">
+                          <CheckCircle2 className="h-7 w-7" />
                         </div>
-                        <div className="space-y-1">
-                          <h3 className="text-base font-bold text-emerald-950 dark:text-emerald-100">
+                        <div className="space-y-1.5">
+                          <h3 className="text-base sm:text-lg font-bold text-emerald-950 dark:text-emerald-100">
                             Contrato já assinado!
                           </h3>
-                          <p className="text-xs text-emerald-800 dark:text-emerald-200 whitespace-pre-line leading-relaxed font-normal">
-                            Sua assinatura digital foi registrada com sucesso. Não é necessário assinar novamente.
-                            {"\n\n"}
-                            Em caso de dúvidas sobre o contrato, entre em contato com nossa clínica.
+                          <p className="text-xs sm:text-sm text-emerald-800 dark:text-emerald-200 leading-relaxed font-normal max-w-md mx-auto">
+                            Sua assinatura digital foi registrada com sucesso. Você pode visualizar ou baixar sua via do contrato.
                           </p>
+
+                          {/* Status Dinâmico */}
+                          <div className="pt-1 flex items-center justify-center">
+                            {isTotalmenteAssinado ? (
+                              <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white text-[11px] font-semibold flex items-center gap-1.5 px-2.5 py-0.5 shadow-2xs">
+                                <CheckCircle2 className="h-3.5 w-3.5" /> Contrato formalizado por ambas as partes
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/50 text-[11px] font-semibold flex items-center gap-1.5 px-2.5 py-0.5">
+                                <Clock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" /> Assinado pelo paciente — aguardando assinatura da clínica
+                              </Badge>
+                            )}
+                          </div>
                         </div>
-                        <div className="pt-1">
+
+                        {/* 3 Botões Principais */}
+                        <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-2 w-full">
                           <Button
                             type="button"
-                            onClick={() => openWhatsApp('5582974002213', `Olá! Gostaria de tirar dúvidas sobre o contrato de ${snapshot.paciente.nome}.`)}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs gap-1.5 shadow-xs w-full sm:w-auto"
+                            onClick={() => setModalVisualizarAssinado(true)}
+                            className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs gap-1.5 shadow-xs w-full sm:w-auto h-9 px-3"
+                          >
+                            <Eye className="h-4 w-4" />
+                            Visualizar contrato assinado
+                          </Button>
+
+                          <Button
+                            type="button"
+                            onClick={handleBaixarPdf}
+                            disabled={baixandoPdf}
+                            variant="outline"
+                            className="border-emerald-300 dark:border-emerald-700 hover:bg-emerald-100/50 text-emerald-900 dark:text-emerald-100 font-medium text-xs gap-1.5 shadow-xs w-full sm:w-auto h-9 px-3"
+                          >
+                            {baixandoPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4 text-emerald-700 dark:text-emerald-400" />}
+                            Baixar contrato em PDF
+                          </Button>
+
+                          <Button
+                            type="button"
+                            onClick={() => openWhatsApp('5582974002213', `Olá! Gostaria de falar sobre o meu contrato de ${snapshot.paciente.nome} (#${snapshot.contratoId}).`)}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs gap-1.5 shadow-xs w-full sm:w-auto h-9 px-3"
                           >
                             <MessageCircle className="h-4 w-4" />
                             Falar com a clínica
@@ -2333,6 +2422,111 @@ export default function AssinarContrato() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Visualizar Contrato Assinado */}
+      <Dialog open={modalVisualizarAssinado} onOpenChange={setModalVisualizarAssinado}>
+        <DialogContent className="max-w-4xl sm:max-w-4xl w-[96vw] h-[92vh] max-h-[92vh] flex flex-col p-4 sm:p-6 bg-slate-900 border-slate-800 text-slate-100">
+          <DialogHeader className="flex flex-row items-start justify-between gap-4 pb-2 border-b border-slate-800">
+            <div>
+              <div className="flex items-center gap-2">
+                <FileText className="h-5 w-5 text-blue-400" />
+                <DialogTitle className="text-lg font-bold text-white">
+                  Visualizar Contrato Assinado
+                </DialogTitle>
+              </div>
+              <DialogDescription className="text-xs text-slate-400 mt-1">
+                {snapshot?.paciente?.nome} • Contrato #{snapshot?.contratoId}
+              </DialogDescription>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {isTotalmenteAssinado ? (
+                <Badge className="bg-emerald-600 text-white border-0 text-xs font-semibold flex items-center gap-1">
+                  <CheckCircle2 className="h-3.5 w-3.5" /> 100% Formalizado
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-amber-300 border-amber-600/60 bg-amber-950/60 text-xs font-semibold flex items-center gap-1">
+                  <Clock className="h-3.5 w-3.5" /> Assinado pelo paciente — aguardando clínica
+                </Badge>
+              )}
+            </div>
+          </DialogHeader>
+
+          {/* Área de Visualização do Documento Completo */}
+          <div className="flex-1 min-h-0 bg-slate-950 rounded-lg border border-slate-800 overflow-hidden relative flex flex-col">
+            {signedPdfUrl ? (
+              <iframe
+                src={`${signedPdfUrl}#toolbar=1&navpanes=0`}
+                className="w-full h-full border-0 bg-white"
+                title={`Contrato Assinado - ${snapshot?.paciente?.nome}`}
+              />
+            ) : (
+              <iframe
+                srcDoc={htmlContrato}
+                className="w-full h-full border-0 bg-white"
+                title={`Contrato - ${snapshot?.paciente?.nome}`}
+              />
+            )}
+          </div>
+
+          {/* Rodapé com Ações */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-800">
+            <div className="text-[11px] text-slate-400 text-center sm:text-left flex items-center gap-1.5">
+              <ShieldCheck className="h-4 w-4 text-emerald-400" />
+              Documento assinado digitalmente com autenticação inviolável e hash SHA-256.
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+              <Button
+                type="button"
+                onClick={handleBaixarPdf}
+                disabled={baixandoPdf}
+                className="bg-blue-600 hover:bg-blue-700 text-white text-xs gap-1.5 h-9"
+              >
+                {baixandoPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                Baixar em PDF
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  const printIframe = document.createElement('iframe');
+                  printIframe.style.position = 'fixed';
+                  printIframe.style.right = '0';
+                  printIframe.style.bottom = '0';
+                  printIframe.style.width = '0';
+                  printIframe.style.height = '0';
+                  printIframe.style.border = '0';
+                  document.body.appendChild(printIframe);
+                  const doc = printIframe.contentDocument;
+                  if (doc) {
+                    doc.open();
+                    doc.write(htmlContrato);
+                    doc.close();
+                    printIframe.contentWindow?.focus();
+                    printIframe.contentWindow?.print();
+                  }
+                  setTimeout(() => printIframe.remove(), 1000);
+                }}
+                className="border-slate-700 text-slate-200 hover:bg-slate-800 text-xs gap-1.5 h-9"
+              >
+                <Printer className="h-4 w-4" />
+                Imprimir
+              </Button>
+
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setModalVisualizarAssinado(false)}
+                className="text-slate-400 hover:text-white text-xs h-9"
+              >
+                Fechar
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </Shell>

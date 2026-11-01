@@ -29,7 +29,7 @@ const waitForImages = async (doc: Document) => {
  * Renderiza um HTML completo em um iframe oculto e baixa como PDF (A4).
  * Não depende de window.open (bloqueado em iframes/preview e por popup blockers).
  */
-export const downloadHtmlAsPdf = async (html: string, filename: string): Promise<boolean> => {
+export const renderHtmlToPdf = async (html: string): Promise<jsPDF | null> => {
   const iframe = document.createElement('iframe');
   iframe.setAttribute('aria-hidden', 'true');
   iframe.style.cssText =
@@ -320,12 +320,57 @@ export const downloadHtmlAsPdf = async (html: string, filename: string): Promise
       }
     }
 
+    return pdf;
+  } catch (e) {
+    console.error('Falha ao renderizar PDF', e);
+    return null;
+  } finally {
+    setTimeout(() => iframe.remove(), 300);
+  }
+};
+
+
+/**
+ * Renderiza um HTML completo em um iframe oculto e baixa como PDF (A4).
+ */
+export const downloadHtmlAsPdf = async (html: string, filename: string): Promise<boolean> => {
+  try {
+    const pdf = await renderHtmlToPdf(html);
+    if (!pdf) return false;
     pdf.save(`${sanitizeFilename(filename)}.pdf`);
     return true;
   } catch (e) {
-    console.error('Falha ao gerar PDF', e);
+    console.error('Falha ao baixar PDF', e);
     return false;
-  } finally {
-    setTimeout(() => iframe.remove(), 300);
+  }
+};
+
+/**
+ * Gera um Blob do documento PDF A4 a partir de uma string HTML.
+ */
+export const generateHtmlPdfBlob = async (html: string): Promise<Blob | null> => {
+  try {
+    const pdf = await renderHtmlToPdf(html);
+    if (!pdf) return null;
+    return pdf.output('blob');
+  } catch (e) {
+    console.error('Falha ao gerar Blob do PDF', e);
+    return null;
+  }
+};
+
+/**
+ * Gera uma string Base64 do PDF A4 a partir de uma string HTML.
+ */
+export const generateHtmlPdfBase64 = async (html: string): Promise<string | null> => {
+  try {
+    const pdf = await renderHtmlToPdf(html);
+    if (!pdf) return null;
+    const dataUri = pdf.output('datauristring');
+    const base64 = dataUri.split(',')[1] || null;
+    return base64;
+  } catch (e) {
+    console.error('Falha ao gerar Base64 do PDF', e);
+    return null;
   }
 };

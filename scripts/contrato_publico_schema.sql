@@ -6,6 +6,14 @@
 -- 1. Habilita RLS nas tabelas principais
 ALTER TABLE public.documentos_clinicos ENABLE ROW LEVEL SECURITY;
 
+-- Garante que a coluna pdf_path exista para vincular o documento final no Supabase Storage
+ALTER TABLE public.documentos_clinicos ADD COLUMN IF NOT EXISTS pdf_path text;
+
+-- Garante que o bucket privado de documentos exista
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('documentos-pacientes', 'documentos-pacientes', false)
+ON CONFLICT (id) DO UPDATE SET public = false;
+
 -- Garante que a tabela assinaturas exista para trilha isolada e inviolável de auditoria
 CREATE TABLE IF NOT EXISTS public.assinaturas (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -176,6 +184,8 @@ BEGIN
     'isFormalizadoTotal', v_formalizado,
     'assinadoEm', v_doc.assinado_em,
     'assinanteNome', v_doc.assinante_nome,
+    'pdf_path', v_doc.pdf_path,
+    'pdfPath', COALESCE(v_doc.pdf_path, v_doc.itens->>'pdfPath'),
     'snapshot', v_doc.itens
   );
 END;

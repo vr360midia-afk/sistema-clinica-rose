@@ -186,6 +186,20 @@ Deno.serve(async (req) => {
       else if (isAssinadoPaciente) statusTexto = "assinado_paciente";
       else if (isAssinadoDentista) statusTexto = "assinado_profissional";
 
+      const pdfPath = doc.pdf_path || doc.itens?.pdfPath || null;
+      let signedPdfUrl = null;
+
+      if (pdfPath) {
+        try {
+          const { data: signUrlData } = await supabase.storage
+            .from("documentos-pacientes")
+            .createSignedUrl(pdfPath, 300);
+          if (signUrlData?.signedUrl) {
+            signedPdfUrl = signUrlData.signedUrl;
+          }
+        } catch (_) {}
+      }
+
       return json({
         ok: true,
         id: doc.id,
@@ -198,6 +212,8 @@ Deno.serve(async (req) => {
         jaAssinadoPaciente: isAssinadoPaciente,
         jaAssinadoDentista: isAssinadoDentista,
         isFormalizadoTotal,
+        pdfPath,
+        signedPdfUrl,
         assinadoEm: doc.assinado_em,
         assinanteNome: doc.assinante_nome,
         snapshot: doc.itens,
@@ -423,6 +439,172 @@ Deno.serve(async (req) => {
         assinadoEm: dataHoraIso,
         isFormalizadoTotal: temPaciente,
         snapshot: updatedSnapshot,
+      });
+    }
+
+    // =========================================================================
+    // 5. AÇÃO: GET_PDF_SIGNED_URL (Obtém URL assinada do PDF privado com validação de token)
+    // =========================================================================
+    if (action === "get_pdf_signed_url") {
+      const targetId = String(body.id || body.identificador || body.contratoId || "").trim();
+      const token = String(body.token || body.t || "").trim();
+
+      if (!targetId) {
+        return json({ error: "Identificador do contrato ausente" }, 400);
+      }
+      if (!token) {
+        return json({ error: "Token de acesso não informado. Acesso não autorizado." }, 403);
+      }
+
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
+      let doc: Record<string, any> | null = null;
+
+      if (isUuid) {
+        const { data } = await supabase.from("documentos_clinicos").select("*").eq("id", targetId).maybeSingle();
+        if (data) doc = data;
+      }
+      if (!doc) {
+        const { data } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", targetId).maybeSingle();
+        if (data) doc = data;
+      }
+      if (!doc && targetId.toLowerCase().startsWith("ctr-")) {
+        const { data } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", targetId.toUpperCase()).maybeSingle();
+        if (data) doc = data;
+      }
+
+      if (!doc) {
+        return json({ error: "Contrato não encontrado" }, 404);
+      }
+
+      // Validação estrita de Token
+      const tokenArmazenado = doc.itens?.token;
+      if (!tokenArmazenado || tokenArmazenado !== token) {
+        return json({ error: "Token de acesso inválido ou expirado" }, 403);
+      }
+
+      const isAssinadoPaciente = !!doc.assinado_em || !!doc.itens?.assinaturaPaciente;
+      const isAssinadoDentista = !!doc.itens?.assinaturaDentista;
+      const isFormalizadoTotal = isAssinadoPaciente && isAssinadoDentista;
+
+      const pdfPath = doc.pdf_path || doc.itens?.pdfPath || null;
+      let signedUrl: string | null = null;
+
+      if (pdfPath) {
+        try {
+          const { data: signUrlData } = await supabase.storage
+            .from("documentos-pacientes")
+            .createSignedUrl(pdfPath, 300); // 300s = 5 minutos
+          if (signUrlData?.signedUrl) {
+            signedUrl = signUrlData.signedUrl;
+          }
+        } catch (e) {
+          console.warn("Erro ao gerar URL assinada:", e);
+        }
+      }
+
+      return json({
+        ok: true,
+        pdfPath,
+        signedUrl,
+        isAssinadoPaciente,
+        isAssinadoDentista,
+        isFormalizadoTotal,
+        snapshot: doc.itens,
+      });
+    }
+
+    // =========================================================================
+    // 6. AÇÃO: UPLOAD_SIGNED_PDF (Armazena versão final em PDF no bucket privado)
+    // =========================================================================
+    if (action === "upload_signed_pdf") {
+      const targetId = String(body.id || body.identificador || body.contratoId || "").trim();
+      const token = String(body.token || body.t || "").trim();
+      const pdfBase64 = String(body.pdfBase64 || "").trim();
+      const isFormalizado = Boolean(body.isFormalizado);
+
+      if (!targetId || !token) {
+        return json({ error: "Identificador e token são obrigatórios" }, 400);
+      }
+      if (!pdfBase64) {
+        return json({ error: "Conteúdo do PDF em Base64 é obrigatório" }, 400);
+      }
+
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
+      let doc: Record<string, any> | null = null;
+
+      if (isUuid) {
+        const { data } = await supabase.from("documentos_clinicos").select("*").eq("id", targetId).maybeSingle();
+        if (data) doc = data;
+      }
+      if (!doc) {
+        const { data } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", targetId).maybeSingle();
+        if (data) doc = data;
+      }
+      if (!doc && targetId.toLowerCase().startsWith("ctr-")) {
+        const { data } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", targetId.toUpperCase()).maybeSingle();
+        if (data) doc = data;
+      }
+
+      if (!doc) {
+        return json({ error: "Contrato não encontrado" }, 404);
+      }
+
+      // Validação estrita de Token
+      const tokenArmazenado = doc.itens?.token;
+      if (!tokenArmazenado || tokenArmazenado !== token) {
+        return json({ error: "Token de acesso inválido ou expirado" }, 403);
+      }
+
+      // Decodifica base64 para Uint8Array
+      const cleanBase64 = pdfBase64.replace(/^data:[^;]+;base64,/, "");
+      const binaryStr = atob(cleanBase64);
+      const pdfBytes = new Uint8Array(binaryStr.length);
+      for (let i = 0; i < binaryStr.length; i++) {
+        pdfBytes[i] = binaryStr.charCodeAt(i);
+      }
+
+      const identificador = doc.itens?.contratoId || doc.id;
+      const tipoSufixo = isFormalizado ? "formalizado" : "paciente";
+      const filePath = `contratos/${identificador}/contrato_${tipoSufixo}.pdf`;
+
+      // Garante que o bucket privado exista
+      try {
+        await supabase.storage.createBucket("documentos-pacientes", { public: false });
+      } catch (_) {}
+
+      // Upload do arquivo para o bucket privado
+      const { error: uploadErr } = await supabase.storage
+        .from("documentos-pacientes")
+        .upload(filePath, pdfBytes, {
+          contentType: "application/pdf",
+          upsert: true,
+        });
+
+      if (uploadErr) {
+        throw uploadErr;
+      }
+
+      // Gera URL assinada de curta duração (300 segundos = 5 minutos)
+      const { data: signedData } = await supabase.storage
+        .from("documentos-pacientes")
+        .createSignedUrl(filePath, 300);
+
+      // Atualiza o documento clínico com o caminho do PDF
+      const updatedItens = { ...(doc.itens || {}), pdfPath: filePath };
+      await supabase
+        .from("documentos_clinicos")
+        .update({
+          pdf_path: filePath,
+          itens: updatedItens,
+          atualizado_em: new Date().toISOString(),
+        })
+        .eq("id", doc.id);
+
+      return json({
+        ok: true,
+        pdfPath: filePath,
+        signedUrl: signedData?.signedUrl || null,
+        mensagem: "PDF assinado armazenado com sucesso no Supabase Storage privado",
       });
     }
 
