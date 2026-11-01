@@ -2583,6 +2583,25 @@ export async function garantirContratoPersistido(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(contratoId)
     );
 
+    // Tenta salvar prioritariamente via Edge Function 'contrato-publico' (usa service_role, contornando bloqueios de RLS)
+    try {
+      const { data: edgeData, error: edgeErr } = await supabase.functions.invoke('contrato-publico', {
+        body: {
+          action: 'save',
+          id: contratoId,
+          pacienteNome,
+          titulo,
+          html,
+          snapshot,
+        },
+      });
+      if (!edgeErr && edgeData?.ok && edgeData?.id) {
+        return edgeData.id;
+      }
+    } catch (_) {
+      // continua para persistência direta
+    }
+
     // 1. Tenta verificar se já existe documento com este UUID
     if (isUuid && contratoId) {
       const { data: existente } = await supabase
@@ -2731,6 +2750,10 @@ export function gerarLinkAssinaturaContrato(snapshot: ContratoSnapshot, docId?: 
     });
   }
 
-  // Retorna a URL curta e limpa oficial: dominio/nomedopaciente/assinaturadocontrato
-  return `${origin}/${slug}/assinaturadocontrato`;
+  // Codifica o snapshot em base64 URL-safe para garantir abertura instantânea cross-device via WhatsApp
+  const encoded = codificarContratoUrl(snapshot);
+  const param = encoded ? `?c=${encoded}` : '';
+
+  // Retorna a URL oficial amigável contendo o snapshot seguro
+  return `${origin}/${slug}/assinaturadocontrato${param}`;
 }

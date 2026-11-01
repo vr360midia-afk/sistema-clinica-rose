@@ -380,13 +380,13 @@ export const novosLeadsService = {
         .order('data_criacao', { ascending: false });
 
       if (error) {
-        // Tenta ordenar por created_at se data_criacao não existir
+        // Fallback seguro sem cláusula order de banco
         const fallback = await supabase
           .from('crm_leads')
-          .select('*')
-          .order('created_at', { ascending: false });
+          .select('*');
         if (fallback.error) throw fallback.error;
-        return (fallback.data || []).map(parseDbLeadParaNovoLead);
+        const parsed = (fallback.data || []).map(parseDbLeadParaNovoLead);
+        return parsed.sort((a, b) => new Date(b.data_criacao).getTime() - new Date(a.data_criacao).getTime());
       }
 
       return (data || []).map(parseDbLeadParaNovoLead);

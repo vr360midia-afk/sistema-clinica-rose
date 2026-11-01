@@ -131,25 +131,47 @@ export default function CRM() {
     else setRefreshing(true);
 
     try {
-      const { data: rawLeads, error } = await supabase
+      let rawLeads: any[] = [];
+      const res = await supabase
         .from('crm_leads')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('data_criacao', { ascending: false });
 
-      if (error) throw error;
-
-      // Busca últimas mensagens para prévia dinâmica nos cards
-      const { data: messagesData } = await supabase
-        .from('crm_messages')
-        .select('lead_id, body, direction, created_at')
-        .order('created_at', { ascending: false });
-
-      const latestMsgMap = new Map();
-      (messagesData || []).forEach((m: any) => {
-        if (!latestMsgMap.has(m.lead_id)) {
-          latestMsgMap.set(m.lead_id, m);
+      if (res.error) {
+        // Fallback resiliente caso data_criacao não seja a coluna de ordenação
+        const fallback = await supabase.from('crm_leads').select('*');
+        if (fallback.error) {
+          console.warn('[CRM] Fallback select crm_leads erro:', fallback.error);
         }
+        rawLeads = fallback.data || [];
+      } else {
+        rawLeads = res.data || [];
+      }
+
+      // Ordena de forma resiliente em JavaScript por qualquer timestamp disponível
+      rawLeads.sort((a: any, b: any) => {
+        const dateA = new Date(a.data_criacao || a.created_at || a.created_time || 0).getTime();
+        const dateB = new Date(b.data_criacao || b.created_at || b.created_time || 0).getTime();
+        return dateB - dateA;
       });
+
+      // Busca últimas mensagens de forma segura (sem quebrar caso crm_messages não exista)
+      const latestMsgMap = new Map();
+      try {
+        const { data: messagesData, error: msgErr } = await supabase
+          .from('crm_messages')
+          .select('lead_id, body, direction, created_at');
+
+        if (!msgErr && messagesData) {
+          messagesData.forEach((m: any) => {
+            if (!latestMsgMap.has(m.lead_id)) {
+              latestMsgMap.set(m.lead_id, m);
+            }
+          });
+        }
+      } catch (msgErr) {
+        console.warn('[CRM] Tabela crm_messages indisponível:', msgErr);
+      }
 
       const leadsComPreview = (rawLeads || []).map((l: any) => {
         const lastMsg = latestMsgMap.get(l.id);

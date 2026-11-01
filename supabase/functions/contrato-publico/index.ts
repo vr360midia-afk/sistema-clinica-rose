@@ -18,13 +18,57 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json();
     const { action, signature, signerName, signerRole, snapshot: reqSnapshot } = body;
-    const targetId = String(body.id || body.slug || "").trim();
-    if (!action || !targetId) return json({ error: "Parâmetros 'action' e 'id'/'slug' são obrigatórios" }, 400);
+    const targetId = String(body.id || body.slug || body.contratoId || reqSnapshot?.contratoId || "").trim();
+    if (!action) return json({ error: "Parâmetro 'action' é obrigatório" }, 400);
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
+
+    // Salvar ou atualizar contrato diretamente pelo service_role (sem bloqueio de RLS)
+    if (action === "save" || action === "upsert") {
+      const snap = reqSnapshot || body.snapshot || {};
+      const pacienteNome = String(body.pacienteNome || snap.pacienteNome || snap.paciente?.nome || "Paciente").trim();
+      const titulo = String(body.titulo || `Contrato Odontológico - ${pacienteNome}`);
+      const conteudo = String(body.conteudo || body.html || "");
+      const contratoId = String(body.id || body.contratoId || snap.contratoId || targetId || "").trim();
+      const isContratoUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(contratoId);
+
+      let existingId: string | null = null;
+      if (isContratoUuid && contratoId) {
+        const { data: ex } = await supabase.from("documentos_clinicos").select("id").eq("id", contratoId).maybeSingle();
+        if (ex?.id) existingId = ex.id;
+      }
+      if (!existingId && contratoId) {
+        const { data: ex2 } = await supabase.from("documentos_clinicos").select("id").filter("itens->>contratoId", "eq", contratoId).maybeSingle();
+        if (ex2?.id) existingId = ex2.id;
+      }
+
+      if (existingId) {
+        const { data: upd, error: updErr } = await supabase.from("documentos_clinicos").update({
+          paciente_nome: pacienteNome,
+          titulo,
+          conteudo,
+          itens: snap,
+        }).eq("id", existingId).select().maybeSingle();
+        if (updErr) throw updErr;
+        return json({ ok: true, id: existingId, action: "updated" });
+      } else {
+        const insertPayload: Record<string, any> = {
+          paciente_nome: pacienteNome,
+          tipo: "contrato",
+          titulo,
+          conteudo,
+          itens: snap,
+          dentista: snap.clinica?.dentistaResponsavel || null,
+        };
+        if (isContratoUuid && contratoId) insertPayload.id = contratoId;
+        const { data: ins, error: insErr } = await supabase.from("documentos_clinicos").insert(insertPayload).select().maybeSingle();
+        if (insErr) throw insErr;
+        return json({ ok: true, id: ins?.id || contratoId, action: "inserted" });
+      }
+    }
 
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
     let doc: Record<string, any> | null = null;
@@ -85,6 +129,55 @@ Deno.serve(async (req) => {
     }
 
     if (!doc) {
+      if (action === "sign") {
+        const payloadSnapshot = typeof reqSnapshot === "object" && reqSnapshot ? reqSnapshot : {};
+        const pacienteNome = signerName || payloadSnapshot.pacienteNome || payloadSnapshot.paciente?.nome || "Paciente";
+        const dataHoraIso = new Date().toISOString();
+        const clientIp = req.headers.get("x-forwarded-for") || req.headers.get("cf-connecting-ip") || "web";
+        const userAgent = req.headers.get("user-agent") || "";
+        const selfie = body.selfie || payloadSnapshot?.assinaturaPaciente?.selfie || null;
+        const cpf = body.signerInfo?.cpf || payloadSnapshot?.assinaturaPaciente?.cpf || null;
+
+        payloadSnapshot.status = "assinado";
+        payloadSnapshot.assinaturaPaciente = {
+          assinaturaData: signature,
+          nome: signerName || pacienteNome,
+          dataHora: dataHoraIso,
+          ip: clientIp,
+          userAgent,
+          selfie: selfie || undefined,
+          cpf: cpf || undefined,
+        };
+
+        const insertPayload: Record<string, any> = {
+          paciente_nome: pacienteNome,
+          tipo: "contrato",
+          titulo: `Contrato Odontológico - ${pacienteNome}`,
+          conteudo: "",
+          itens: payloadSnapshot,
+          assinatura_data: signature,
+          assinante_nome: signerName || pacienteNome,
+          assinado_em: dataHoraIso,
+        };
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
+        if (isUuid) insertPayload.id = targetId;
+
+        const { data: newDoc, error: insErr } = await supabase
+          .from("documentos_clinicos")
+          .insert(insertPayload)
+          .select()
+          .maybeSingle();
+
+        if (insErr) throw insErr;
+        return json({
+          ok: true,
+          mensagem: "Contrato assinado e registrado com sucesso!",
+          assinadoEm: dataHoraIso,
+          snapshot: payloadSnapshot,
+          id: newDoc?.id,
+        });
+      }
+
       return json({ error: "Contrato não encontrado" }, 404);
     }
 
