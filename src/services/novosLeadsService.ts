@@ -82,6 +82,103 @@ export function mapearStatusParaNovoLead(st?: string | null): StatusNovoLead {
   return 'Pendente';
 }
 
+// Parser inteligente para linhas brutas de exportação do Meta Ads (Facebook/Instagram)
+export function parseRawMetaAdsString(text: string): {
+  isMetaRaw: boolean;
+  nome: string;
+  telefone: string;
+  data_criacao?: string;
+  campanha?: string;
+  formNome?: string;
+  origem?: string;
+  respostas: RespostaFormulario[];
+} {
+  if (!text || typeof text !== 'string') {
+    return { isMetaRaw: false, nome: '', telefone: '', respostas: [] };
+  }
+
+  // Detecta se a string contém marcadores de exportação do Meta Ads
+  const hasMetaMarkers =
+    /l:\d+/.test(text) ||
+    /p:\+?\d+/.test(text) ||
+    (/ag:\d+/.test(text) && /as:\d+/.test(text));
+
+  if (!hasMetaMarkers) {
+    return { isMetaRaw: false, nome: text, telefone: '', respostas: [] };
+  }
+
+  // 1. Telefone (Meta exporta como p:82988054849 ou p:+5582991835693)
+  const phoneMatch = text.match(/p:(\+?\d+)/);
+  const rawPhone = phoneMatch ? phoneMatch[1] : '';
+
+  // 2. Data de criação ISO
+  const dateMatch = text.match(/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2})/);
+  const data_criacao = dateMatch ? dateMatch[1] : undefined;
+
+  // 3. Campanha
+  const campMatch = text.match(/c:\d+\s+(.*?)\s+Formulario/i);
+  const campanha = campMatch ? campMatch[1].trim() : 'Campanha Meta Leads';
+
+  // 4. Formulário
+  const formMatch = text.match(/f:\d+\s+(.*?)\s+(?:true|false)/i);
+  const formNome = formMatch ? formMatch[1].trim() : undefined;
+
+  // 5. Nome e Respostas
+  let nome = '';
+  const tokensRespostas: string[] = [];
+
+  const beforeP = text.split(/p:\+?\d+/)[0];
+  const platformSplit = beforeP.split(/\s+(?:ig|fb)\s+/i);
+
+  if (platformSplit[1]) {
+    const rawTokens = platformSplit[1].trim().split(/\s+/);
+    if (rawTokens.length > 0) {
+      // O último token antes de p: é o nome (ex: "Mar" ou "Fransuely")
+      nome = rawTokens[rawTokens.length - 1];
+      // Todos os tokens anteriores são respostas das perguntas do formulário
+      tokensRespostas.push(...rawTokens.slice(0, rawTokens.length - 1));
+    }
+  }
+
+  if (!nome || nome.startsWith('l:') || nome.startsWith('ag:') || nome.startsWith('c:')) {
+    nome = 'Lead Meta Ads';
+  }
+
+  // Perguntas padrão da clínica odontológica no Meta Ads
+  const PERGUNTAS_PADRAO = [
+    'O que você gostaria de melhorar no seu sorriso?',
+    'Você já fez algum tratamento estético nos dentes?',
+    'Quando você pretende realizar o tratamento ou as lentes?',
+    'Qual investimento você imagina ou tem para seu novo sorriso?',
+  ];
+
+  const respostas: RespostaFormulario[] = [];
+
+  tokensRespostas.forEach((tok, idx) => {
+    const pergunta = PERGUNTAS_PADRAO[idx] || `Pergunta ${idx + 1}`;
+    let resposta = tok.replace(/_/g, ' ').trim();
+    resposta = resposta.replace(/r\$\s*/gi, 'R$ ');
+    resposta = resposta.charAt(0).toUpperCase() + resposta.slice(1);
+
+    respostas.push({
+      campo: `pergunta_${idx + 1}`,
+      pergunta,
+      resposta,
+    });
+  });
+
+  return {
+    isMetaRaw: true,
+    nome,
+    telefone: normalizarTelefone(rawPhone),
+    data_criacao,
+    campanha,
+    formNome,
+    origem: 'Meta Ads (Instagram)',
+    respostas,
+  };
+}
+
 // Converte um registro bruto do Supabase crm_leads em objeto tipado NovoLead
 export function parseDbLeadParaNovoLead(raw: any): NovoLead {
   let meta: any = {};
@@ -143,20 +240,60 @@ export function parseDbLeadParaNovoLead(raw: any): NovoLead {
       h3: true,
     };
 
+    let nomeFinal = raw.nome || raw.name || 'Lead sem nome';
+  let telFinal = raw.telefone || raw.phone || '';
+  let origemFinal = raw.origem || raw.origin || 'Meta Lead Ads';
+  let campanhaFinal = raw.campanha || meta.campanha || null;
+  let dataCriacaoFinal = raw.data_criacao || raw.created_at || new Date().toISOString();
+
+  // Verifica se o nome possui o dump bruto do Meta Ads
+  const parsedMeta = parseRawMetaAdsString(nomeFinal);
+  if (parsedMeta.isMetaRaw) {
+    nomeFinal = parsedMeta.nome || nomeFinal;
+    if (parsedMeta.telefone) {
+      telFinal = parsedMeta.telefone;
+    }
+    if (parsedMeta.data_criacao) {
+      dataCriacaoFinal = parsedMeta.data_criacao;
+    }
+    if (parsedMeta.campanha) {
+      campanhaFinal = parsedMeta.campanha;
+    }
+    if (parsedMeta.origem) {
+      origemFinal = parsedMeta.origem;
+    }
+    if (respostas.length === 0 && parsedMeta.respostas.length > 0) {
+      respostas = parsedMeta.respostas;
+    }
+  }
+
+  // Sanitiza telefone se estiver poluído com dump concatenado (> 15 dígitos)
+  if (telFinal && telFinal.replace(/\D/g, '').length > 15) {
+    if (parsedMeta.telefone) {
+      telFinal = parsedMeta.telefone;
+    } else {
+      const allDigits = telFinal.replace(/\D/g, '');
+      const mobileDigits = allDigits.slice(-11);
+      if (mobileDigits.length === 11 && mobileDigits[2] === '9') {
+        telFinal = normalizarTelefone(mobileDigits);
+      }
+    }
+  }
+
   return {
     id: raw.id,
-    nome: raw.nome || raw.name || 'Lead sem nome',
-    telefone: raw.telefone || raw.phone || '',
+    nome: nomeFinal,
+    telefone: telFinal,
     email: raw.email || meta.email || null,
-    origem: raw.origem || raw.origin || 'Meta Lead Ads',
-    campanha: raw.campanha || meta.campanha || null,
+    origem: origemFinal,
+    campanha: campanhaFinal,
     status,
     prioridade,
     respostas,
     revisado,
     revisado_em: raw.revisado_em || meta.revisado_em || null,
     revisado_por: raw.revisado_por || meta.revisado_por || null,
-    data_criacao: raw.data_criacao || raw.created_at || new Date().toISOString(),
+    data_criacao: dataCriacaoFinal,
     data_atualizacao: raw.data_atualizacao || raw.updated_at || null,
     observacoes: obsTexto,
     valor_estimado: raw.valor_estimado ? Number(raw.valor_estimado) : null,

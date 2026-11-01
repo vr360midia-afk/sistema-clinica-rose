@@ -36,6 +36,7 @@ import {
   Filter,
   CheckCircle2,
   ChevronRight,
+  ChevronDown,
   HelpCircle,
   ExternalLink,
   Archive,
@@ -74,6 +75,107 @@ export default function NovosLeads() {
   const [leadParaConverter, setLeadParaConverter] = useState<NovoLead | null>(null);
   const [leadParaPerder, setLeadParaPerder] = useState<NovoLead | null>(null);
   const [leadParaRevisar, setLeadParaRevisar] = useState<NovoLead | null>(null);
+
+  // Controle de perguntas e respostas visíveis/ocultas por lead (ocultas por padrão)
+  const [perguntasAbertas, setPerguntasAbertas] = useState<Record<string, boolean>>({});
+
+  const togglePerguntas = (leadId: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setPerguntasAbertas((prev) => ({
+      ...prev,
+      [leadId]: !prev[leadId],
+    }));
+  };
+
+  const formatarDataLead = (iso?: string | null): string => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return String(iso);
+    const dataStr = d.toLocaleDateString('pt-BR');
+    const horaStr = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    return `${dataStr} · ${horaStr}`;
+  };
+
+  const getTagInteresse = (lead: NovoLead) => {
+    // 1. Procura se tem resposta sobre prazo / urgência
+    const respPrazo = lead.respostas?.find((r) =>
+      r.pergunta.toLowerCase().includes('quando') ||
+      r.pergunta.toLowerCase().includes('pretende')
+    )?.resposta?.toLowerCase() || '';
+
+    if (
+      respPrazo.includes('quanto antes') ||
+      respPrazo.includes('15 dias') ||
+      respPrazo.includes('próximos') ||
+      respPrazo.includes('imediato') ||
+      respPrazo.includes('urgente')
+    ) {
+      return (
+        <Badge className="bg-rose-100/80 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200/80 dark:border-rose-900/40 text-[11px] font-semibold px-2.5 py-0.5 rounded-md">
+          Interesse em curto prazo
+        </Badge>
+      );
+    }
+
+    if (
+      respPrazo.includes('informações') ||
+      respPrazo.includes('enquanto') ||
+      respPrazo.includes('pesquisando')
+    ) {
+      return (
+        <Badge className="bg-amber-100/80 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200/80 dark:border-amber-900/40 text-[11px] font-semibold px-2.5 py-0.5 rounded-md">
+          Pesquisando informações
+        </Badge>
+      );
+    }
+
+    // 2. Se tem investimento
+    const respInvestimento = lead.respostas?.find((r) =>
+      r.pergunta.toLowerCase().includes('investimento') ||
+      r.pergunta.toLowerCase().includes('valor')
+    )?.resposta;
+
+    if (respInvestimento && respInvestimento.toLowerCase() !== 'não informado') {
+      return (
+        <Badge className="bg-blue-100/80 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200/80 dark:border-blue-900/40 text-[11px] font-semibold px-2.5 py-0.5 rounded-md">
+          Investimento: {respInvestimento}
+        </Badge>
+      );
+    }
+
+    return (
+      <Badge variant="outline" className="text-muted-foreground text-[11px] font-medium px-2 py-0.5">
+        {lead.origem || 'Meta Lead Ads'}
+      </Badge>
+    );
+  };
+
+  const getEtapaFollowUpAtual = (lead: NovoLead): string => {
+    const concluidos = lead.follow_ups?.filter((f) => f.concluido) || [];
+    if (concluidos.length === 0) return 'nao_iniciado';
+    return concluidos[concluidos.length - 1].etapa;
+  };
+
+  const handleMudarEtapaFollowUp = async (lead: NovoLead, etapa: string) => {
+    if (etapa === 'nao_iniciado') {
+      const resetados = lead.follow_ups.map((f) => ({ ...f, concluido: false }));
+      await novosLeadsService.atualizarLead(lead.id, { follow_ups: resetados });
+      refreshLeads();
+      toast.info('Etapa de follow-up reiniciada.');
+      return;
+    }
+
+    try {
+      await registrarFollowUp(lead.id, etapa as import('@/types/novosLeads').FollowUpItem['etapa'], {
+        canal: 'whatsapp',
+        data_contato: new Date().toISOString(),
+      });
+      toast.success('Etapa de follow-up atualizada.');
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      toast.error('Erro ao atualizar follow-up: ' + errMsg);
+    }
+  };
 
   // Filtros
   const [busca, setBusca] = useState('');
@@ -444,135 +546,160 @@ export default function NovosLeads() {
           </div>
         ) : (
           <div className="space-y-3">
-            {leadsFiltrados.map((lead) => {
+            {leadsFiltrados.map((lead, index) => {
               const followUpsConcluidos = lead.follow_ups.filter((f) => f.concluido).length;
+              const etapaAtual = getEtapaFollowUpAtual(lead);
+              const isPerguntasAberta = Boolean(perguntasAbertas[lead.id]);
 
               return (
                 <div
                   key={lead.id}
-                  onClick={() => setLeadSelecionado(lead)}
-                  className={`p-4 rounded-2xl border bg-card hover:bg-muted/30 transition-all cursor-pointer shadow-sm relative group ${
-                    !lead.revisado ? 'border-l-4 border-l-blue-600' : 'border-border'
-                  }`}
+                  className="p-5 rounded-2xl border border-border bg-card shadow-xs hover:shadow-md transition-all space-y-4 relative"
                 >
-                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                    {/* Informações Principais do Lead */}
-                    <div className="flex-1 min-w-0 space-y-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-extrabold text-base text-foreground group-hover:text-blue-600 transition-colors">
-                          {lead.nome}
-                        </span>
-
-                        {!lead.revisado ? (
-                          <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 text-[10px] px-2 py-0.5">
+                  {/* Topo do Lead: Número + Nome + Data + Telefone + Tag + Botão WhatsApp */}
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <h3
+                          onClick={() => setLeadSelecionado(lead)}
+                          className="text-lg font-bold text-foreground hover:text-blue-600 transition-colors cursor-pointer"
+                        >
+                          {index + 1}. {lead.nome}
+                        </h3>
+                        {!lead.revisado && (
+                          <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 text-[10px] px-2 py-0.5 font-semibold">
                             Não Revisado
                           </Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-emerald-700 dark:text-emerald-400 text-[10px] px-2 py-0.5 border-emerald-200">
-                            Revisado
-                          </Badge>
                         )}
-
-                        {getPrioridadeBadge(lead.prioridade)}
-
-                        <span className="text-xs text-muted-foreground flex items-center gap-1 ml-auto lg:ml-0">
-                          <Clock className="w-3.5 h-3.5" />
-                          {new Date(lead.data_criacao).toLocaleString('pt-BR', {
-                            dateStyle: 'short',
-                            timeStyle: 'short',
-                          })}
-                        </span>
                       </div>
 
-                      {/* Contato e Origem */}
-                      <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                        <span className="font-semibold text-foreground flex items-center gap-1 font-mono">
-                          <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                      <div className="text-xs text-muted-foreground flex flex-wrap items-center gap-2">
+                        <span>{formatarDataLead(lead.data_criacao)}</span>
+                        <span>·</span>
+                        <span className="font-mono text-foreground font-medium">
                           {formatarTelefoneExibicao(lead.telefone)}
                         </span>
-
-                        <span className="truncate max-w-[200px] text-muted-foreground">
-                          Origem: <strong className="text-foreground">{lead.origem}</strong>
-                        </span>
-
-                        {lead.campanha && (
-                          <span className="truncate max-w-[220px] bg-muted/60 px-2 py-0.5 rounded-md border border-border/50 text-[11px]">
-                            {lead.campanha}
-                          </span>
-                        )}
-
-                        <span className="text-[11px] font-medium text-blue-700 dark:text-blue-400">
-                          F-up: {followUpsConcluidos} de 9
-                        </span>
                       </div>
 
-                      {/* Respostas Completas do Formulário */}
-                      {lead.respostas && lead.respostas.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 pt-1">
-                          {lead.respostas.map((r, i) => (
-                            <span
-                              key={i}
-                              className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-lg bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200/60 dark:border-blue-800 text-blue-800 dark:text-blue-200 font-medium"
-                            >
-                              <span className="text-muted-foreground font-normal">{r.pergunta}:</span>{' '}
-                              <strong>{r.resposta}</strong>
-                            </span>
-                          ))}
-                        </div>
-                      )}
+                      <div className="pt-1">
+                        {getTagInteresse(lead)}
+                      </div>
                     </div>
 
-                    {/* Lado Direito: Status e Ações */}
-                    <div
-                      className="flex flex-wrap items-center gap-2.5 shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-border/60"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {/* Seletor de Status Direto */}
-                      <div className="flex items-center gap-1.5">
-                        <select
-                          value={lead.status}
-                          onChange={(e) =>
-                            handleStatusChange(lead, e.target.value as StatusNovoLead)
-                          }
-                          className="text-xs font-semibold rounded-lg border border-border bg-background px-2.5 py-1.5 text-foreground focus:ring-1 focus:ring-blue-600 cursor-pointer shadow-sm"
-                        >
-                          <option value="Pendente">Pendente</option>
-                          <option value="Interessado">Interessado</option>
-                          <option value="Agendado">Agendado</option>
-                          <option value="Começou mas não deu andamento">Começou mas não deu andamento</option>
-                          <option value="Convertido">Convertido</option>
-                          <option value="Perdido">Perdido</option>
-                        </select>
-                        {getStatusBadge(lead.status)}
-                      </div>
-
-                      {/* Botão WhatsApp 1-Click */}
+                    {/* Botões de Ação Topo Direito: WhatsApp + Revisar */}
+                    <div className="flex items-center gap-2 shrink-0">
                       <Button
                         size="sm"
                         onClick={(e) => handleAbrirWhatsApp(e, lead)}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-8 px-3 shadow-sm"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-9 px-4 rounded-lg shadow-xs shrink-0 gap-1.5"
                       >
-                        <MessageCircle className="w-3.5 h-3.5 mr-1.5 fill-current" />
-                        WhatsApp
+                        <span>WhatsApp</span>
+                        <ExternalLink className="w-3.5 h-3.5" />
                       </Button>
 
-                      {/* Botão de Revisão */}
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={() => setLeadParaRevisar(lead)}
-                        className={`text-xs h-8 px-2.5 ${
-                          !lead.revisado
-                            ? 'border-blue-400 text-blue-700 bg-blue-50/50 hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-950/40 dark:text-blue-300'
-                            : 'border-border text-muted-foreground'
-                        }`}
+                        className="text-xs h-9 px-2.5 border-border text-muted-foreground hover:text-foreground"
+                        title="Ver e editar cadastro completo do lead"
                       >
                         <UserCheck className="w-3.5 h-3.5 mr-1" />
-                        {lead.revisado ? 'Ver Cadastro' : 'Revisar'}
+                        Revisar
                       </Button>
-
-                      <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-blue-600 transition-colors" />
                     </div>
+                  </div>
+
+                  {/* Linha dos Selects: Estado do Lead & Etapa de Follow-up */}
+                  <div className="space-y-3 pt-1">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <span className="text-[11px] font-bold tracking-wider text-muted-foreground uppercase">
+                        ESTADO DO LEAD
+                      </span>
+                      <Select
+                        value={lead.status}
+                        onValueChange={(val) => handleStatusChange(lead, val as StatusNovoLead)}
+                      >
+                        <SelectTrigger className="w-full sm:w-[260px] h-9 text-xs font-semibold bg-background">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Pendente">Pendente</SelectItem>
+                          <SelectItem value="Interessado">Interessado</SelectItem>
+                          <SelectItem value="Agendado">Agendado</SelectItem>
+                          <SelectItem value="Começou mas não deu andamento">Começou mas não deu andamento</SelectItem>
+                          <SelectItem value="Convertido">Convertido</SelectItem>
+                          <SelectItem value="Perdido">Perdido</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <span className="text-[11px] font-bold tracking-wider text-muted-foreground uppercase">
+                        ETAPA DE FOLLOW-UP
+                      </span>
+                      <Select
+                        value={etapaAtual}
+                        onValueChange={(etapa) => handleMudarEtapaFollowUp(lead, etapa)}
+                      >
+                        <SelectTrigger className="w-full sm:w-[260px] h-9 text-xs font-semibold bg-background">
+                          <SelectValue placeholder="Não iniciado" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="nao_iniciado">Não iniciado</SelectItem>
+                          <SelectItem value="3h">1º Contato (3 horas)</SelectItem>
+                          <SelectItem value="15h">2º Contato (15 horas)</SelectItem>
+                          <SelectItem value="24h">3º Contato (24 horas / 1 dia)</SelectItem>
+                          <SelectItem value="3d">4º Contato (3º dia)</SelectItem>
+                          <SelectItem value="4d">5º Contato (4º dia)</SelectItem>
+                          <SelectItem value="6d">6º Contato (6º dia)</SelectItem>
+                          <SelectItem value="8d">7º Contato (8º dia)</SelectItem>
+                          <SelectItem value="15d">8º Contato (15º dia)</SelectItem>
+                          <SelectItem value="30d">9º Contato (30º dia)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <p className="text-[11px] text-muted-foreground">
+                      Selecione uma etapa para iniciar o acompanhamento.
+                    </p>
+                  </div>
+
+                  {/* Seção Oculta de Perguntas e Respostas com Seta */}
+                  <div className="pt-2 border-t border-border/60">
+                    <button
+                      type="button"
+                      onClick={(e) => togglePerguntas(lead.id, e)}
+                      className="text-xs font-bold text-rose-950 dark:text-rose-200 hover:opacity-80 flex items-center gap-1.5 transition-opacity cursor-pointer py-1"
+                    >
+                      <span className="text-[10px]">{isPerguntasAberta ? '▲' : '▼'}</span>
+                      <span>
+                        {isPerguntasAberta
+                          ? 'Ocultar perguntas e respostas'
+                          : 'Ver perguntas e respostas'}
+                      </span>
+                    </button>
+
+                    {isPerguntasAberta && (
+                      <div className="pt-3 pb-1 space-y-3 animate-in fade-in-50 duration-200">
+                        {lead.respostas && lead.respostas.length > 0 ? (
+                          lead.respostas.map((r, i) => (
+                            <div key={i} className="text-xs space-y-0.5">
+                              <p className="text-muted-foreground font-normal">
+                                {i + 1}. {r.pergunta}
+                              </p>
+                              <p className="font-bold text-foreground">
+                                {r.resposta || 'Não informado'}
+                              </p>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-xs text-muted-foreground italic">
+                            Nenhuma resposta de formulário registrada para este lead.
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
