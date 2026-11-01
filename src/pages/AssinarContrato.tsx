@@ -103,7 +103,13 @@ export default function AssinarContrato() {
   }
 
   const rawSlug = candidateSlug;
-  const targetId = idFromQuery || id || '';
+  const pathParts = currentPath.split('/').filter(Boolean);
+  let resolvedTargetId = identificador || idFromQuery || id || '';
+  if (!resolvedTargetId && pathParts.length >= 3 && pathParts[1] === 'contrato') {
+    resolvedTargetId = pathParts[2];
+  }
+  const targetId = resolvedTargetId;
+  const token = searchParams.get('token') || searchParams.get('t') || tokenParam || (pathParts.length >= 4 ? pathParts[3] : null);
 
   const [loading, setLoading] = useState(true);
   const [snapshot, setSnapshot] = useState<ContratoSnapshot | null>(null);

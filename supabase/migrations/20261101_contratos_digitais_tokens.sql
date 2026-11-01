@@ -183,3 +183,4 @@ $$;
 -- 5. Concede permissão pública para execução das funções RPC pelo anon e authenticated
 GRANT EXECUTE ON FUNCTION public.obter_contrato_publico(text, text) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.assinar_contrato_publico(text, text, text, text, jsonb) TO anon, authenticated;
+
