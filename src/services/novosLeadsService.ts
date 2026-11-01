@@ -279,7 +279,7 @@ export function parseDbLeadParaNovoLead(raw: Record<string, unknown>): NovoLead 
   let telFinal = raw.telefone || raw.phone || '';
   let origemFinal = raw.origem || raw.origin || 'Meta Lead Ads';
   let campanhaFinal = raw.campanha || meta.campanha || null;
-  let criativoFinal = raw.criativo || meta.criativo || meta.creative || raw.ad_name || meta.ad_name || null;
+  let criativoFinal = raw.ad_name || meta.ad_name || raw.criativo || meta.criativo || meta.creative || null;
   let isNewFinal = typeof meta.isNew === 'boolean' ? meta.isNew : (raw.is_new ?? false);
   let dataCriacaoFinal = raw.data_criacao || raw.created_at || new Date().toISOString();
 

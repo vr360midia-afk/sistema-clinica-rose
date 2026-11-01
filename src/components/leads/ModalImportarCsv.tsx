@@ -224,8 +224,8 @@ export default function ModalImportarCsv({
       const idxNome = getColIndex(['full_name', 'nome_completo', 'nome', 'name', 'first_name', 'lead_name', 'paciente']);
       const idxTelefone = getColIndex(['phone_number', 'telefone', 'número_de_telefone', 'numero_de_telefone', 'phone', 'celular', 'whatsapp', 'fone']);
       const idxEmail = getColIndex(['email', 'e-mail']);
-      const idxCampanha = getColIndex(['campaign_name', 'campanha', 'campaign', 'anúncio', 'anuncio', 'ad_name']);
-      const idxCriativo = getColIndex(['ad_name', 'criativo', 'creative', 'anúncio', 'anuncio', 'ad']);
+      const idxCampanha = getColIndex(['campaign_name', 'nome_da_campanha', 'campanha', 'campaign']);
+      const idxCriativo = getColIndex(['ad_name', 'nome_do_anuncio', 'nome_do_anúncio', 'criativo', 'creative', 'anúncio', 'anuncio', 'ad']);
       const idxOrigem = getColIndex(['platform', 'plataforma', 'origem', 'source']);
       const idxData = getColIndex(['created_time', 'data_criacao', 'data', 'date']);
       const idxObs = getColIndex(['observacoes', 'obs', 'mensagem', 'message', 'comments']);
@@ -400,6 +400,7 @@ export default function ModalImportarCsv({
           origem: item.origem || 'Meta Lead Ads',
           campanha: item.campanha || 'Meta Ads Leads',
           criativo: item.criativo || 'Meta Ads',
+          ad_name: item.criativo || 'Meta Ads',
           isNew: true,
           status: 'Pendente',
           prioridade: 'media',

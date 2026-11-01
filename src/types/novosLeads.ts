@@ -40,6 +40,7 @@ export interface NovoLead {
   origem: string;
   campanha?: string | null;
   criativo?: string | null;
+  ad_name?: string | null;
   isNew?: boolean;
   status: StatusNovoLead;
   prioridade: PrioridadeNovoLead;

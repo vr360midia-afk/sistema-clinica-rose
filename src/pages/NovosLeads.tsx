@@ -448,7 +448,7 @@ export default function NovosLeads() {
         l.status || 'Pendente',
         l.valor_venda ?? '',
         l.campanha || '',
-        l.criativo || '',
+        l.ad_name || l.criativo || '',
         resp1,
         resp2,
         resp3,
@@ -489,7 +489,7 @@ export default function NovosLeads() {
         const nomeMatch = (l.nome || '').toLowerCase().includes(q);
         const telMatch = (l.telefone || '').includes(q.replace(/\D/g, ''));
         const campMatch = (l.campanha || '').toLowerCase().includes(q);
-        const criatMatch = (l.criativo || '').toLowerCase().includes(q);
+        const criatMatch = (l.ad_name || l.criativo || '').toLowerCase().includes(q);
         const respMatch = (l.respostas || []).some(
           (r) => r.pergunta.toLowerCase().includes(q) || r.resposta.toLowerCase().includes(q)
         );
@@ -885,11 +885,11 @@ export default function NovosLeads() {
                       <div className="flex flex-wrap items-center gap-1.5 pt-1">
                         {lead.isNew ? (
                           <span className="inline-flex items-center gap-1 bg-[#fff0c8] text-[#875400] dark:bg-[#4a3407] dark:text-[#ffd880] rounded-lg px-2.5 py-0.5 text-xs font-extrabold shadow-2xs">
-                            ★ NOVO · {lead.criativo || 'Meta Ads'}
+                            ★ NOVO · {lead.ad_name || lead.criativo || 'Meta Ads'}
                           </span>
-                        ) : lead.criativo ? (
+                        ) : (lead.ad_name || lead.criativo) ? (
                           <span className="inline-flex items-center gap-1 bg-purple-50 dark:bg-purple-950/60 text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60 rounded-md px-2 py-0.5 text-[11px] font-bold">
-                            🎨 Criativo: {lead.criativo}
+                            🎨 Criativo: {lead.ad_name || lead.criativo}
                           </span>
                         ) : null}
 
