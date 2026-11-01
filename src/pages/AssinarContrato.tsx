@@ -449,7 +449,7 @@ export default function AssinarContrato() {
             }
 
             if (doc) {
-              const snap = (doc.itens || {}) as ContratoSnapshot;
+              const snap = (doc.itens || {}) as unknown as ContratoSnapshot;
               const tokenGravado = (snap as any)?.token;
 
               // Validação estrita do token: se houver token registrado e token fornecido
@@ -610,8 +610,9 @@ export default function AssinarContrato() {
                       patient: pacMatch || { nome: orcMatch.pacienteNome || 'Paciente' },
                       orcamento: orcMatch,
                       configuracoes,
-                      configContrato,
-                      dentistas,
+                      configuracoesContrato: configContrato,
+                      dentistaNome: dentistas?.[0]?.nome,
+                      dentistaCro: dentistas?.[0]?.cro,
                       dadosRestauracoesPreexistentes: pacMatch?.restauracoesPreexistentes,
                     });
                     if (orcMatch.id) foundDocId = orcMatch.id;
@@ -847,6 +848,7 @@ export default function AssinarContrato() {
       };
 
       const finalDocId = docDbId || targetId || snapshot.contratoId;
+      const contractToken = token || snapshot.token || (snapshot as any)?.token || '';
 
       // Salva imediatamente no cache local do dispositivo
       if (typeof window !== 'undefined' && window.localStorage) {

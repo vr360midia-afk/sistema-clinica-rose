@@ -59,11 +59,14 @@ export interface ContratoDadosEndodontia {
 }
 
 export interface ContratoItem {
-  nome: string;
+  id?: string;
+  nome?: string;
+  descricao?: string;
   quantidade: number;
   valorUnitario: number;
   valorTotal: number;
   denteOuRegiao?: string;
+  dente?: string;
 }
 
 export interface ContratoParcela {
@@ -173,6 +176,8 @@ export interface ContratoSnapshot {
   token?: string;
   tokenValidoAte?: string;
   emitidoEm: string;
+  pacienteNome?: string;
+  numero?: string;
   tipoModeloContrato?: TipoModeloContrato;
   paciente: ContratoDadosPaciente;
   clinica: ContratoDadosClinica;
@@ -2507,7 +2512,7 @@ export async function obterUserIdAtivo(): Promise<string | null> {
     } catch (_) {}
   }
   try {
-    const { data: rpcId } = await supabase.rpc('clinica_id');
+    const { data: rpcId } = await (supabase.rpc as any)('clinica_id');
     if (rpcId && typeof rpcId === 'string') return rpcId;
   } catch (_) {}
   return null;
