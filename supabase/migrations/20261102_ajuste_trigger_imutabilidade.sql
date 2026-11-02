@@ -5,7 +5,8 @@
 -- 1. Garante que clinica_id e valor_total existam em documentos_clinicos
 -- 2. Atualiza o trigger garantir_imutabilidade_contrato_v3 permitindo a
 --    transição legítima de contrato pré-assinado pela profissional para assinado pelo paciente
--- 3. Blinda estritamente imutabilidade de clausulas, termos financeiros e assinaturas formalizadas
+--    (distinguindo corretamente o valor primitivo JSON null do objeto de assinatura)
+-- 3. Blinda estritamente imutabilidade de cláusulas, termos financeiros e assinaturas formalizadas
 -- ==============================================================================
 
 -- 1. Garante colunas de integridade em documentos_clinicos (não destrutivo, preserva dados legados)
@@ -14,6 +15,9 @@ ALTER TABLE public.documentos_clinicos
 
 ALTER TABLE public.documentos_clinicos 
   ADD COLUMN IF NOT EXISTS valor_total numeric;
+
+ALTER TABLE public.documentos_clinicos 
+  ADD COLUMN IF NOT EXISTS identificador text;
 
 -- 2. Atualização idempotente do Trigger de Imutabilidade
 CREATE OR REPLACE FUNCTION public.garantir_imutabilidade_contrato_v3()
@@ -31,12 +35,14 @@ BEGIN
   END IF;
 
   -- Reconhecimento de todos os campos de assinatura utilizados pelo sistema
+  -- Importante: no PostgreSQL JSONB, '{"campo": null}'::jsonb -> 'campo' IS NOT NULL é TRUE,
+  -- portanto verificamos expressamente jsonb_typeof != 'null' para não bloquear contratos pré-assinados
   v_ja_assinado := (
     OLD.assinado_em IS NOT NULL
     OR OLD.assinatura_data IS NOT NULL
-    OR (OLD.itens IS NOT NULL AND OLD.itens->'assinaturaPaciente' IS NOT NULL)
-    OR (OLD.itens IS NOT NULL AND OLD.itens->'assinaturaDentista' IS NOT NULL)
-    OR (OLD.itens IS NOT NULL AND OLD.itens->'assinaturaDra' IS NOT NULL)
+    OR (OLD.itens IS NOT NULL AND OLD.itens->'assinaturaPaciente' IS NOT NULL AND jsonb_typeof(OLD.itens->'assinaturaPaciente') != 'null')
+    OR (OLD.itens IS NOT NULL AND OLD.itens->'assinaturaDentista' IS NOT NULL AND jsonb_typeof(OLD.itens->'assinaturaDentista') != 'null')
+    OR (OLD.itens IS NOT NULL AND OLD.itens->'assinaturaDra' IS NOT NULL AND jsonb_typeof(OLD.itens->'assinaturaDra') != 'null')
     OR (OLD.itens IS NOT NULL AND OLD.itens->>'assinaturaDra' IS NOT NULL)
     OR (OLD.itens IS NOT NULL AND OLD.itens->>'statusAssinaturaPaciente' = 'assinado')
     OR (OLD.itens IS NOT NULL AND OLD.itens->>'isFormalizadoTotal' = 'true')
@@ -46,7 +52,8 @@ BEGIN
   -- Se já estiver assinado (ou pré-assinado pela profissional), blinda integralmente a versão contratual aceita
   IF v_ja_assinado THEN
     -- Proíbe alteração de identificador, paciente, criador ou tipo
-    IF NEW.identificador IS DISTINCT FROM OLD.identificador THEN
+    IF (NEW.identificador IS DISTINCT FROM OLD.identificador)
+       OR ((NEW.itens->>'contratoId') IS DISTINCT FROM (OLD.itens->>'contratoId')) THEN
       RAISE EXCEPTION 'Não é permitido alterar o identificador de um contrato já assinado.';
     END IF;
 
@@ -110,19 +117,22 @@ BEGIN
         RAISE EXCEPTION 'Violação de integridade: As cláusulas de um contrato assinado são estritamente imutáveis.';
       END IF;
 
-      -- Permite que o paciente assine pela primeira vez (quando OLD.itens->'assinaturaPaciente' era NULL).
+      -- Permite que o paciente assine pela primeira vez (quando OLD.itens->'assinaturaPaciente' era NULL ou JSON null).
       -- Se já assinado pelo paciente, proíbe modificação da assinatura do paciente.
-      IF (OLD.itens->'assinaturaPaciente' IS NOT NULL) AND (NEW.itens->'assinaturaPaciente') IS DISTINCT FROM (OLD.itens->'assinaturaPaciente') THEN
+      IF (OLD.itens->'assinaturaPaciente' IS NOT NULL AND jsonb_typeof(OLD.itens->'assinaturaPaciente') != 'null') 
+         AND (NEW.itens->'assinaturaPaciente') IS DISTINCT FROM (OLD.itens->'assinaturaPaciente') THEN
         RAISE EXCEPTION 'Violação de integridade: A assinatura do paciente já formalizada não pode ser modificada.';
       END IF;
 
       -- Proíbe modificação da assinatura prévia da Dra.
-      IF (OLD.itens->'assinaturaDentista' IS NOT NULL) AND (NEW.itens->'assinaturaDentista') IS DISTINCT FROM (OLD.itens->'assinaturaDentista') THEN
+      IF (OLD.itens->'assinaturaDentista' IS NOT NULL AND jsonb_typeof(OLD.itens->'assinaturaDentista') != 'null') 
+         AND (NEW.itens->'assinaturaDentista') IS DISTINCT FROM (OLD.itens->'assinaturaDentista') THEN
         RAISE EXCEPTION 'Violação de integridade: A assinatura da profissional já vinculada não pode ser modificada.';
       END IF;
 
       -- Proteção específica e integral da assinatura histórica da titular (assinaturaDra)
-      IF (OLD.itens->'assinaturaDra' IS NOT NULL) AND (NEW.itens->'assinaturaDra') IS DISTINCT FROM (OLD.itens->'assinaturaDra') THEN
+      IF (OLD.itens->'assinaturaDra' IS NOT NULL AND jsonb_typeof(OLD.itens->'assinaturaDra') != 'null') 
+         AND (NEW.itens->'assinaturaDra') IS DISTINCT FROM (OLD.itens->'assinaturaDra') THEN
         RAISE EXCEPTION 'Violação de integridade: A assinatura da profissional titular (assinaturaDra) já vinculada não pode ser modificada.';
       END IF;
     END IF;
@@ -131,3 +141,10 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+-- 3. Vinculação idempotente do trigger na tabela documentos_clinicos
+DROP TRIGGER IF EXISTS trg_garantir_imutabilidade_contrato_v3 ON public.documentos_clinicos;
+CREATE TRIGGER trg_garantir_imutabilidade_contrato_v3
+  BEFORE UPDATE ON public.documentos_clinicos
+  FOR EACH ROW
+  EXECUTE FUNCTION public.garantir_imutabilidade_contrato_v3();

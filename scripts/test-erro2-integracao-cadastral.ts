@@ -461,6 +461,39 @@ async function runTestSuite() {
   assert(prontuarioDocs.rows.length === 1, 'Contrato localizado e arquivado no prontuário do paciente');
   assert((prontuarioDocs.rows[0] as any).assinado_em !== null, 'Status de arquivamento confirma formalização completa');
 
+  // 14. Teste de Imutabilidade Pós-Assinatura (Tentativa de Adulteração)
+  console.log('\n--- ETAPA 14: TESTE DE IMUTABILIDADE PÓS-ASSINATURA ---');
+  let tamperBlockPaciente = false;
+  try {
+    const adulterated = { ...snapRecarregado, assinaturaPaciente: { ...snapRecarregado.assinaturaPaciente, nome: 'Adulterador' } };
+    await db.query(`UPDATE public.documentos_clinicos SET itens = $1 WHERE id = $2;`, [JSON.stringify(adulterated), docClinicoDb.id]);
+  } catch (err: any) {
+    if (err.message.includes('A assinatura do paciente já formalizada não pode ser modificada')) {
+      tamperBlockPaciente = true;
+    }
+  }
+  assert(tamperBlockPaciente, 'Trigger bloqueia estritamente tentativa de alterar a assinatura do paciente após formalizada');
+
+  let tamperBlockConteudo = false;
+  try {
+    await db.query(`UPDATE public.documentos_clinicos SET conteudo = 'Conteúdo alterado indevidamente' WHERE id = $1;`, [docClinicoDb.id]);
+  } catch (err: any) {
+    if (err.message.includes('O conteúdo textual de um contrato assinado é estritamente imutável')) {
+      tamperBlockConteudo = true;
+    }
+  }
+  assert(tamperBlockConteudo, 'Trigger bloqueia estritamente alteração do conteúdo textual pós-assinatura');
+
+  let tamperBlockData = false;
+  try {
+    await db.query(`UPDATE public.documentos_clinicos SET assinado_em = now() - interval '1 day' WHERE id = $1;`, [docClinicoDb.id]);
+  } catch (err: any) {
+    if (err.message.includes('O carimbo de formalização de um contrato assinado não pode ser alterado')) {
+      tamperBlockData = true;
+    }
+  }
+  assert(tamperBlockData, 'Trigger bloqueia alteração do carimbo de data da formalização');
+
   console.log('\n======================================================================');
   console.log(`📊 RESULTADO FINAL DA HOMOLOGAÇÃO:`);
   console.log(`   Total de Testes: ${passes + fails}`);
@@ -477,3 +510,4 @@ runTestSuite().catch((err) => {
   console.error('Erro na execução da suíte de testes:', err);
   process.exit(1);
 });
+
