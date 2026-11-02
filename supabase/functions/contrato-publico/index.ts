@@ -1947,6 +1947,13 @@ Deno.serve(async (req) => {
           }
 
           const snap = (typeof docRow.itens === "object" && docRow.itens) ? docRow.itens : {};
+          // Proteção contra concorrência: marca imediatamente como processando e incrementa tentativas
+          await supabase.from("fila_arquivamento_pdf").update({
+            status: "processando",
+            tentativas: (item.tentativas || 0) + 1,
+            atualizado_em: nowIso,
+          }).eq("id", item.id);
+
           const res = await executarArquivamentoPdfServidor(supabase, docRow, snap, nowIso);
           resultados.push({ contratoId: item.contrato_id, ...res });
         } catch (itemErr: any) {
