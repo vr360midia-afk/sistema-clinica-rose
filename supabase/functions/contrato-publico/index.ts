@@ -1869,18 +1869,41 @@ Deno.serve(async (req) => {
         return json({ error: "Tokens públicos de contrato não possuem permissão para reprocessamento em lote." }, 403);
       }
 
+      // Resolução de vínculo entre auth.uid() e clinica_id para titulares e funcionários
+      const authorizedClinicaIds: string[] = [];
+      if (authenticatedUserId) {
+        authorizedClinicaIds.push(authenticatedUserId);
+        try {
+          const { data: roleRecords } = await supabase
+            .from("user_roles")
+            .select("clinica_id")
+            .eq("user_id", authenticatedUserId);
+          if (roleRecords && roleRecords.length > 0) {
+            for (const r of roleRecords) {
+              if (r.clinica_id && !authorizedClinicaIds.includes(r.clinica_id)) {
+                authorizedClinicaIds.push(r.clinica_id);
+              }
+            }
+          }
+        } catch (_) {}
+      }
+
+      const clinicaFilter = authorizedClinicaIds.length > 0
+        ? authorizedClinicaIds.map((cId) => `clinica_id.eq.${cId}`).concat("clinica_id.is.null").join(",")
+        : null;
+
       let query = supabase.from("fila_arquivamento_pdf").select("*");
 
       if (targetContratoId) {
         query = query.eq("contrato_id", targetContratoId);
         // Se usuário autenticado da clínica (não-service_role) chamou com contratoId, restringe à sua própria clínica
-        if (!isServiceRole && !contratoAutorizadoPorToken && authenticatedUserId) {
-          query = query.or(`clinica_id.eq.${authenticatedUserId},clinica_id.is.null`);
+        if (!isServiceRole && !contratoAutorizadoPorToken && clinicaFilter) {
+          query = query.or(clinicaFilter);
         }
       } else {
         // REGRA DE SEGURANÇA 2: Usuários autenticados processam em lote estritamente tarefas da sua própria clínica
-        if (!isServiceRole && authenticatedUserId) {
-          query = query.or(`clinica_id.eq.${authenticatedUserId},clinica_id.is.null`);
+        if (!isServiceRole && clinicaFilter) {
+          query = query.or(clinicaFilter);
         }
         query = query
           .in("status", ["pendente", "falha"])

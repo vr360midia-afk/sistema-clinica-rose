@@ -67,7 +67,8 @@ async function run() {
   assert(cpContent.includes('localizarContratoCompativel'), 'Edge Function implementa localizarContratoCompativel determinística');
   assert(cpContent.includes('matchToken = rows.find'), 'Desambiguação cruza o token criptográfico quando há duplicidades históricas');
   assert(cpContent.includes('Tokens públicos de contrato não possuem permissão para reprocessamento em lote'), 'Tokens públicos bloqueados de executar processar_fila_pdf em lote');
-  assert(cpContent.includes('clinica_id.eq.${authenticatedUserId}'), 'Usuários autenticados filtram estritamente tarefas da sua própria clínica');
+  assert(cpContent.includes('authorizedClinicaIds'), 'Edge Function mapeia vínculo real entre auth.uid() e clinica_id para titulares e funcionários');
+  assert(cpContent.includes('clinica_id.eq'), 'Usuários autenticados filtram estritamente tarefas da sua própria clínica');
 
   // Simulação de banco de dados em memória para teste do algoritmo de desambiguação
   const mockHistorico = [
@@ -109,3 +110,4 @@ run().catch((e) => {
   console.error(e);
   process.exit(1);
 });
+
