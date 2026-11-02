@@ -2671,6 +2671,18 @@ const PatientOrcamentos = ({ patient }: Props) => {
                       variant="outline"
                       className="border-emerald-500/50 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 gap-1"
                       onClick={async () => {
+                        const pdfPath = contObj?.pdfPath || (contObj?.itens as any)?.pdfPath || (o.assinaturaPaciente as any)?.pdfPath;
+                        if (pdfPath) {
+                          try {
+                            const { data: sData } = await supabase.storage
+                              .from('documentos-pacientes')
+                              .createSignedUrl(pdfPath, 300, { download: `Contrato_Assinado_${idContratoExibicao}.pdf` });
+                            if (sData?.signedUrl) {
+                              window.open(sData.signedUrl, '_blank');
+                              return;
+                            }
+                          } catch (_) {}
+                        }
                         if (contObj?.itens) {
                           const html = gerarHtmlContrato(contObj.itens);
                           await downloadHtmlAsPdf(html, `Contrato_Assinado_${idContratoExibicao}.pdf`);

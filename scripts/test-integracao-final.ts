@@ -95,6 +95,9 @@ async function run() {
   assert(!cpContent.includes('const targetUserId = doc.user_id || "clinica"'), 'contrato-publico NÃO usa string "clinica" como fallback');
   assert(cpContent.includes('isUuid(doc.user_id)'), 'contrato-publico valida UUID real para documentos_paciente');
   assert(cpContent.includes('documentos-pacientes'), 'Bucket documentos-pacientes utilizado para armazenamento');
+  assert(cpContent.includes('function gerarPdfServidorContrato'), 'Gerador server-side de PDF autônomo implementado na Edge Function');
+  assert(cpContent.includes('async function executarArquivamentoPdfServidor'), 'Pipeline autônomo de arquivamento no servidor implementado');
+  assert(cpContent.includes('action === "processar_fila_pdf"'), 'Ação de reprocessamento autônomo da fila persistida implementada');
 
   const ssPath = path.resolve('src/services/supabaseService.ts');
   const ssContent = fs.readFileSync(ssPath, 'utf8');
