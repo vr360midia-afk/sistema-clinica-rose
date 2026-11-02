@@ -19,14 +19,8 @@ ALTER TABLE public.documentos_clinicos
 ALTER TABLE public.documentos_clinicos 
   ADD COLUMN IF NOT EXISTS hash_integridade text;
 
--- Resolução segura e determinística da titularidade de contratos legados sem clinica_id
-UPDATE public.documentos_clinicos dc
-SET clinica_id = COALESCE(
-  dc.clinica_id,
-  dc.user_id,
-  (SELECT p.clinica_id FROM public.pacientes p WHERE p.id = dc.paciente_id AND p.clinica_id IS NOT NULL LIMIT 1)
-)
-WHERE dc.clinica_id IS NULL AND dc.tipo = 'contrato';
+-- Preservação integral de contratos históricos: Não executa UPDATE automático de clinica_id
+-- Preserva os documentos legados intactos até vinculação individual comprovada.
 
 -- Preenche identificador de forma segura e não colidente para registros legados que estejam nulos
 DO $$
@@ -290,7 +284,7 @@ CREATE OR REPLACE FUNCTION public.conceder_autorizacao_assinatura(
   p_escopo text DEFAULT 'contrato_odontologico',
   p_modelos jsonb DEFAULT '["padrao", "procedimentos", "ortodontia", "cirurgia"]'::jsonb,
   p_clinica_id uuid DEFAULT NULL,
-  p_consentimento_expresso boolean DEFAULT true
+  p_consentimento_expresso boolean DEFAULT false
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -299,9 +293,12 @@ SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_user_id uuid;
+  v_real_clinica_id uuid;
   v_clinica_id uuid;
   v_auth_id uuid;
   v_hash text;
+  v_cro_digits text;
+  v_nome_norm text;
 BEGIN
   v_user_id := auth.uid();
   IF v_user_id IS NULL THEN
@@ -312,16 +309,32 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'error', 'Nome, CRO e assinatura gráfica são obrigatórios', 'code', 'INVALID_PARAM');
   END IF;
 
-  -- Exige consentimento formal expresso
+  -- 1. Exige aceite e consentimento formal expresso (default false)
   IF p_consentimento_expresso IS NOT TRUE THEN
     RETURN jsonb_build_object('ok', false, 'error', 'Consentimento formal expresso da profissional titular é obrigatório', 'code', 'CONSENT_REQUIRED');
   END IF;
 
-  -- Determina a clínica do usuário autenticado
-  v_clinica_id := COALESCE(p_clinica_id, public.contrato_obter_clinica_id(), v_user_id);
+  -- 2. Determina e valida o vínculo real da clínica do usuário autenticado
+  v_real_clinica_id := public.contrato_obter_clinica_id();
+  IF v_real_clinica_id IS NULL THEN
+    v_real_clinica_id := v_user_id;
+  END IF;
 
-  -- Validação Estrita de Identidade: Apenas a própria titular da assinatura pode autorizar seu uso.
-  -- Administradores ou outros dentistas NÃO podem autorizar em nome da profissional titular.
+  -- Validação estrita do parâmetro p_clinica_id contra o vínculo real do usuário
+  IF p_clinica_id IS NOT NULL THEN
+    IF p_clinica_id <> v_real_clinica_id AND NOT EXISTS (
+      SELECT 1 FROM public.user_roles ur
+      WHERE ur.user_id = v_user_id AND ur.clinica_id = p_clinica_id
+    ) THEN
+      RETURN jsonb_build_object('ok', false, 'error', 'Parâmetro clinica_id incompatível com o vínculo real do usuário', 'code', 'FORBIDDEN');
+    END IF;
+    v_clinica_id := p_clinica_id;
+  ELSE
+    v_clinica_id := v_real_clinica_id;
+  END IF;
+
+  -- 3. Validação Estrita de Identidade da Titular:
+  -- Apenas a própria titular autenticada (proprietária da clínica ou titular comprovada em user_roles)
   IF v_user_id <> v_clinica_id THEN
     IF NOT EXISTS (
       SELECT 1 FROM public.user_roles ur
@@ -337,9 +350,26 @@ BEGIN
     END IF;
   END IF;
 
-  -- Impede delegação forjada para outra clínica
-  IF p_clinica_id IS NOT NULL AND p_clinica_id <> v_clinica_id THEN
-    RETURN jsonb_build_object('ok', false, 'error', 'Não é permitido conceder autorização para outra clínica', 'code', 'FORBIDDEN');
+  -- 4. Vinculação ao cadastro verificado da profissional titular (impede nome e CRO arbitrários)
+  v_cro_digits := regexp_replace(upper(p_cro), '[^0-9]', '', 'g');
+  v_nome_norm := translate(lower(trim(p_nome_profissional)), 'áàâãäéèêëíìîïóòôõöúùûüç', 'aaaaaeeeeiiiiooooouuuuc');
+
+  -- Valida se o CRO corresponde ao cadastro oficial da titular (06267-AL)
+  IF v_cro_digits <> '06267' THEN
+    RETURN jsonb_build_object(
+      'ok', false,
+      'error', 'CRO divergente do cadastro oficial verificado da profissional titular (esperado: 06267-AL)',
+      'code', 'TITULAR_CADASTRO_DIVERGENTE'
+    );
+  END IF;
+
+  -- Valida se o nome corresponde à titular verificada Dra. Rosângela Santos Pereira
+  IF NOT (v_nome_norm LIKE '%rosangela%' AND v_nome_norm LIKE '%santos%') THEN
+    RETURN jsonb_build_object(
+      'ok', false,
+      'error', 'Nome divergente do cadastro oficial verificado da profissional titular (esperado: Dra. Rosângela Santos Pereira)',
+      'code', 'TITULAR_CADASTRO_DIVERGENTE'
+    );
   END IF;
 
   -- Desativa qualquer autorização anterior ativa para o mesmo profissional e escopo
@@ -485,6 +515,8 @@ BEGIN
     OR OLD.assinatura_data IS NOT NULL
     OR (OLD.itens IS NOT NULL AND OLD.itens->'assinaturaPaciente' IS NOT NULL)
     OR (OLD.itens IS NOT NULL AND OLD.itens->'assinaturaDentista' IS NOT NULL)
+    OR (OLD.itens IS NOT NULL AND OLD.itens->'assinaturaDra' IS NOT NULL)
+    OR (OLD.itens IS NOT NULL AND OLD.itens->>'assinaturaDra' IS NOT NULL)
     OR (OLD.itens IS NOT NULL AND OLD.itens->>'statusAssinaturaPaciente' = 'assinado')
     OR (OLD.itens IS NOT NULL AND OLD.itens->>'isFormalizadoTotal' = 'true')
     OR (OLD.itens IS NOT NULL AND OLD.itens->>'status' IN ('formalizado', 'assinado'))
@@ -525,6 +557,7 @@ BEGIN
     OR OLD.assinatura_data IS NOT NULL
     OR (OLD.itens IS NOT NULL AND OLD.itens->'assinaturaPaciente' IS NOT NULL)
     OR (OLD.itens IS NOT NULL AND OLD.itens->'assinaturaDentista' IS NOT NULL)
+    OR (OLD.itens IS NOT NULL AND OLD.itens->'assinaturaDra' IS NOT NULL)
     OR (OLD.itens IS NOT NULL AND OLD.itens->>'assinaturaDra' IS NOT NULL)
     OR (OLD.itens IS NOT NULL AND OLD.itens->>'statusAssinaturaPaciente' = 'assinado')
     OR (OLD.itens IS NOT NULL AND OLD.itens->>'isFormalizadoTotal' = 'true')
@@ -703,7 +736,7 @@ BEGIN
   -- Determina a clínica legítima da chamada
   IF v_caller_role = 'service_role' THEN
     v_clinica_id := COALESCE(p_clinica_id, (
-      SELECT COALESCE(clinica_id, user_id) FROM public.documentos_clinicos 
+      SELECT clinica_id FROM public.documentos_clinicos 
       WHERE identificador = p_contrato_id OR id = p_documento_id LIMIT 1
     ));
   ELSE
@@ -715,7 +748,7 @@ BEGIN
   END IF;
 
   -- Validação estrita de existência do contrato no acervo da PRÓPRIA clínica
-  -- Sem permissão para (clinica_id IS NULL AND user_id IS NULL)
+  -- Não presume que user_id corresponde à clínica; exige clinica_id comprovada
   SELECT id, paciente_id, clinica_id, user_id INTO v_doc_record
   FROM public.documentos_clinicos
   WHERE (identificador = p_contrato_id OR id = p_documento_id)
@@ -723,7 +756,6 @@ BEGIN
     AND (
       v_caller_role = 'service_role'
       OR (clinica_id IS NOT NULL AND clinica_id = v_clinica_id)
-      OR (user_id IS NOT NULL AND user_id = v_clinica_id)
       OR (clinica_id IS NOT NULL AND public.usuario_possui_perfil_clinica(v_user_id, clinica_id, 'admin'))
     )
   LIMIT 1;

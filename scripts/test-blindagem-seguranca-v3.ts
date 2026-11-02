@@ -163,8 +163,8 @@ async function runTests() {
   await db.exec(migrationSql);
   assert(true, 'Migration 20261102_blindagem_seguranca_v3.sql aplicada com sucesso');
 
-  // 3. Validação do Ponto 3: Resolução Segura de Contratos Legados (Sem clinica_id nulo genérico)
-  console.log(`\n${STEP} 3. Validação da Resolução Determinística de Titularidade em Contratos Legados`);
+  // 3. Validação do Ponto 3: Preservação de Contratos Históricos sem UPDATE automático de clinica_id
+  console.log(`\n${STEP} 3. Validação da Preservação de Contratos Históricos (Sem UPDATE automático de clinica_id)`);
   const resDocs = await db.query<any>(`
     SELECT id, identificador, clinica_id FROM public.documentos_clinicos ORDER BY criado_em ASC;
   `);
@@ -172,11 +172,19 @@ async function runTests() {
   const c2 = resDocs.rows.find(r => r.id === '22222222-2222-2222-2222-222222222222');
   const c3 = resDocs.rows.find(r => r.id === '33333333-3333-3333-3333-333333333333');
 
-  assert(c1.clinica_id === ID_CLINICA_A, 'Contrato legado 1 resolvido deterministicamente para a Clínica A do paciente');
-  assert(c2.clinica_id === ID_CLINICA_A, 'Contrato legado 2 resolvido deterministicamente para a Clínica A do paciente');
+  assert(c1.clinica_id === null, 'Contrato legado 1 PRESERVADO intacto sem UPDATE automático (clinica_id IS NULL)');
+  assert(c2.clinica_id === null, 'Contrato legado 2 PRESERVADO intacto sem UPDATE automático (clinica_id IS NULL)');
   assert(c1.identificador === 'CTR-DUPLICADO', 'Primeiro contrato legado manteve identificador original');
   assert(c2.identificador === 'CTR-DUPLICADO-LEG2', 'Segundo contrato legado recebeu sufixo não-colidente -LEG2');
   assert(c3.identificador.startsWith('CTR-33333333'), 'Contrato sem identificador recebeu código canônico CTR-');
+
+  // Inserção de contrato regular com clinica_id comprovada para testes de fluxo da Clínica A
+  const resDocClinicaA = await db.query<any>(`
+    INSERT INTO public.documentos_clinicos (id, paciente_id, tipo, titulo, itens, identificador, clinica_id)
+    VALUES ('55555555-5555-5555-5555-555555555555', '${pacAId}', 'contrato', 'Contrato Regular Clínica A', '{"contratoId": "CTR-REGULAR-A"}'::jsonb, 'CTR-REGULAR-A', '${ID_CLINICA_A}')
+    RETURNING id;
+  `);
+  const docRegularAId = resDocClinicaA.rows[0].id;
 
   // 4. Validação do Ponto 2: Exigência da Identidade da Profissional Titular
   console.log(`\n${STEP} 4. Testes Estritos em conceder_autorizacao_assinatura (Identidade da Titular)`);
@@ -245,8 +253,23 @@ async function runTests() {
   assert(resClinicaExterna.rows[0].result.ok === false, 'Tentativa de conceder autorização para outra clínica foi BLOQUEADA');
   assert(resClinicaExterna.rows[0].result.code === 'FORBIDDEN', 'Retornou código FORBIDDEN para clínica externa');
 
-  // 4.3 Tentativa sem consentimento expresso
+  // 4.3.a Validação do Ajuste 1: Omissão de p_consentimento_expresso (deve assumir DEFAULT false)
   await db.exec(`SET request.jwt.claims = '{"sub": "${ID_DRA_ROSANGELA}", "role": "authenticated"}';`);
+  const resDefaultFalse = await db.query<any>(`
+    SELECT public.conceder_autorizacao_assinatura(
+      'Dra. Rosângela Santos Pereira',
+      '06267-AL',
+      'data:image/png;base64,assinatura_ok',
+      'contrato_odontologico',
+      '["geral"]'::jsonb,
+      '${ID_CLINICA_A}'
+      -- p_consentimento_expresso OMITIDO propositalmente
+    ) as result;
+  `);
+  assert(resDefaultFalse.rows[0].result.ok === false, 'Chamada com parâmetro omitido foi BLOQUEADA (DEFAULT false confirmado)');
+  assert(resDefaultFalse.rows[0].result.code === 'CONSENT_REQUIRED', 'Retornou código CONSENT_REQUIRED por DEFAULT false');
+
+  // 4.3.b Tentativa com consentimento falso explícito
   const resSemConsentimento = await db.query<any>(`
     SELECT public.conceder_autorizacao_assinatura(
       'Dra. Rosângela Santos Pereira',
@@ -258,10 +281,55 @@ async function runTests() {
       false
     ) as result;
   `);
-  assert(resSemConsentimento.rows[0].result.ok === false, 'Tentativa sem consentimento expresso foi BLOQUEADA');
+  assert(resSemConsentimento.rows[0].result.ok === false, 'Tentativa com consentimento false explícito foi BLOQUEADA');
   assert(resSemConsentimento.rows[0].result.code === 'CONSENT_REQUIRED', 'Retornou código CONSENT_REQUIRED');
 
-  // 4.4 Titular legítima Dra. Rosângela com consentimento formal
+  // 4.3.c Validação do Ajuste 2: Bloqueio de Nome Arbitrário (Não aceita nome aleatório)
+  const resNomeArbitrario = await db.query<any>(`
+    SELECT public.conceder_autorizacao_assinatura(
+      'Dr. João da Silva Arbitrário',
+      '06267-AL',
+      'data:image/png;base64,assinatura_ok',
+      'contrato_odontologico',
+      '["geral"]'::jsonb,
+      '${ID_CLINICA_A}',
+      true
+    ) as result;
+  `);
+  assert(resNomeArbitrario.rows[0].result.ok === false, 'Tentativa com Nome arbitrário divergente da titular foi BLOQUEADA');
+  assert(resNomeArbitrario.rows[0].result.code === 'TITULAR_CADASTRO_DIVERGENTE', 'Retornou código TITULAR_CADASTRO_DIVERGENTE para nome');
+
+  // 4.3.d Validação do Ajuste 2: Bloqueio de CRO Arbitrário (Não aceita CRO aleatório)
+  const resCroArbitrario = await db.query<any>(`
+    SELECT public.conceder_autorizacao_assinatura(
+      'Dra. Rosângela Santos Pereira',
+      '99999-SP',
+      'data:image/png;base64,assinatura_ok',
+      'contrato_odontologico',
+      '["geral"]'::jsonb,
+      '${ID_CLINICA_A}',
+      true
+    ) as result;
+  `);
+  assert(resCroArbitrario.rows[0].result.ok === false, 'Tentativa com CRO arbitrário divergente da titular foi BLOQUEADA');
+  assert(resCroArbitrario.rows[0].result.code === 'TITULAR_CADASTRO_DIVERGENTE', 'Retornou código TITULAR_CADASTRO_DIVERGENTE para CRO');
+
+  // 4.3.e Validação do Ajuste 2: Validação de p_clinica_id contra vínculo real do usuário
+  const resClinicaInvalida = await db.query<any>(`
+    SELECT public.conceder_autorizacao_assinatura(
+      'Dra. Rosângela Santos Pereira',
+      '06267-AL',
+      'data:image/png;base64,assinatura_ok',
+      'contrato_odontologico',
+      '["geral"]'::jsonb,
+      '99999999-9999-9999-9999-999999999999',
+      true
+    ) as result;
+  `);
+  assert(resClinicaInvalida.rows[0].result.ok === false, 'Tentativa com clinica_id arbitrário sem vínculo foi BLOQUEADA');
+  assert(resClinicaInvalida.rows[0].result.code === 'FORBIDDEN', 'Retornou código FORBIDDEN para clínica sem vínculo');
+
+  // 4.4 Titular legítima Dra. Rosângela com cadastro conferido e consentimento formal explícito (true)
   const resTitularLegitima = await db.query<any>(`
     SELECT public.conceder_autorizacao_assinatura(
       'Dra. Rosângela Santos Pereira',
@@ -273,17 +341,17 @@ async function runTests() {
       true
     ) as result;
   `);
-  assert(resTitularLegitima.rows[0].result.ok === true, 'Própria titular (Dra. Rosângela) concedeu autorização com sucesso');
+  assert(resTitularLegitima.rows[0].result.ok === true, 'Própria titular (Dra. Rosângela) com dados verificados concedeu autorização com sucesso');
   const authId = resTitularLegitima.rows[0].result.autorizacao_id;
   assert(Boolean(authId), 'UUID da autorização gerado');
 
   // 5. Validação do Ponto 1: RLS da Fila de PDFs Sem clinica_id IS NULL e Restrita por Clínica
   console.log(`\n${STEP} 5. Testes em Fila de PDFs (Isolamento Estrito de Leitura e Sem clinica_id IS NULL)`);
 
-  // Insere tarefa na fila para a Clínica A
+  // Insere tarefa na fila para a Clínica A associada ao contrato regular da própria clínica
   await db.exec(`
     INSERT INTO public.fila_arquivamento_pdf (contrato_id, documento_id, clinica_id, status)
-    VALUES ('CTR-FILA-TESTE-A', '${c1.id}', '${ID_CLINICA_A}', 'pendente');
+    VALUES ('CTR-FILA-TESTE-A', '${docRegularAId}', '${ID_CLINICA_A}', 'pendente');
   `);
 
   // 5.1 Usuário da Clínica B tenta ler a fila da Clínica A
@@ -310,10 +378,24 @@ async function runTests() {
   // Retorna para role postgres para operações subsequentes de teste
   await db.exec(`SET ROLE postgres;`);
 
-  // 5.3 Tentativa de manipulação de contratos entre clínicas em enfileirar_ou_processar_pdf
+  // 5.3 Validação do Ajuste 3: Preservação de contrato legado e bloqueio de enfileiramento sem vínculo comprovado
+  await db.exec(`SET request.jwt.claims = '{"sub": "${ID_DRA_ROSANGELA}", "role": "authenticated"}';`);
+  const resLegacyFilaA = await db.query<any>(`
+    SELECT public.enfileirar_ou_processar_pdf('CTR-DUPLICADO') as result;
+  `);
+  assert(resLegacyFilaA.rows[0].result.ok === false, 'Contrato legado com clinica_id IS NULL é protegido contra enfileiramento sem vínculo comprovado');
+  assert(resLegacyFilaA.rows[0].result.code === 'NOT_FOUND', 'Retornou NOT_FOUND preservando documento legado');
+
+  // 5.3.b Enfileiramento de contrato regular da própria clínica pelo titular
+  const resRegularFilaA = await db.query<any>(`
+    SELECT public.enfileirar_ou_processar_pdf('CTR-REGULAR-A') as result;
+  `);
+  assert(resRegularFilaA.rows[0].result.ok === true, 'Contrato regular da própria clínica enfileirado com sucesso pelo titular');
+
+  // 5.3.c Tentativa de manipulação de contratos entre clínicas em enfileirar_ou_processar_pdf
   await db.exec(`SET request.jwt.claims = '{"sub": "${ID_DR_OUTRO_CLINICA_B}", "role": "authenticated"}';`);
   const resCrossFila = await db.query<any>(`
-    SELECT public.enfileirar_ou_processar_pdf('CTR-DUPLICADO') as result;
+    SELECT public.enfileirar_ou_processar_pdf('CTR-REGULAR-A') as result;
   `);
   assert(resCrossFila.rows[0].result.ok === false, 'Tentativa de manipular contrato da Clínica A por usuário da Clínica B foi BLOQUEADA');
   assert(resCrossFila.rows[0].result.code === 'NOT_FOUND', 'Contrato alheio não é localizado no acervo da clínica');
@@ -358,6 +440,47 @@ async function runTests() {
 
   // 6. Validação do Ponto 4: Imutabilidade Total e Proibição de Exclusão de Contratos Assinados
   console.log(`\n${STEP} 6. Testes de Imutabilidade Total e Bloqueio de DELETE`);
+
+  // 6.0 Validação do Ajuste 4: Contrato contendo assinaturaDra antes da assinatura do paciente
+  const resDocDra = await db.query<any>(`
+    INSERT INTO public.documentos_clinicos (
+      tipo, titulo, conteudo, valor_total, identificador, clinica_id, user_id, itens
+    ) VALUES (
+      'contrato', 'Contrato com Pré-Assinatura Dra', 'Texto integral do contrato...', 5000.00,
+      'CTR-DRA-PRE-001', '${ID_CLINICA_A}', '${ID_DRA_ROSANGELA}',
+      '{
+        "status": "aguardando_paciente",
+        "assinaturaDra": {
+          "nome": "Dra. Rosângela Santos Pereira",
+          "cro": "06267-AL",
+          "dataHora": "2026-11-02T10:00:00Z",
+          "assinaturaData": "base64_assinatura_dra"
+        }
+      }'::jsonb
+    ) RETURNING id;
+  `);
+  const docDraId = resDocDra.rows[0].id;
+
+  // 6.0.a Tentativa de DELETE em contrato contendo assinaturaDra (Ajuste 4)
+  let bloqueouDeleteDra = false;
+  let erroDeleteDraMsg = '';
+  try {
+    await db.exec(`DELETE FROM public.documentos_clinicos WHERE id = '${docDraId}';`);
+  } catch (err: any) {
+    bloqueouDeleteDra = true;
+    erroDeleteDraMsg = err.message || '';
+  }
+  assert(bloqueouDeleteDra, 'Trigger bloqueou tentativa de DELETE em contrato contendo assinaturaDra (Ajuste 4)');
+  assert(erroDeleteDraMsg.includes('não podem ser excluídos'), 'Mensagem jurídica de proibição confirmada para assinaturaDra');
+
+  // 6.0.b Consistência: Trigger de UPDATE também bloqueia adulteração de contrato com assinaturaDra
+  let bloqueouUpdateDra = false;
+  try {
+    await db.exec(`UPDATE public.documentos_clinicos SET conteudo = 'Texto adulterado' WHERE id = '${docDraId}';`);
+  } catch (err) {
+    bloqueouUpdateDra = true;
+  }
+  assert(bloqueouUpdateDra, 'Trigger de UPDATE bloqueou alteração de conteúdo em contrato com assinaturaDra (consistência total)');
 
   const resNovoDoc = await db.query<any>(`
     INSERT INTO public.documentos_clinicos (
