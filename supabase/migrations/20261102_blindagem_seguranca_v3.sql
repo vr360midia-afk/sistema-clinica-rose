@@ -8,7 +8,7 @@
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- ------------------------------------------------------------------------------
--- 1. IDENTIFICADORES DETERMINÍSTICOS E UNICIDADE DE CONTRATOS (SEM PREFIXO AMBÍGUO)
+-- 1. IDENTIFICADORES DETERMINÍSTICOS E MAPEAMENTO SEGURO DE CONTRATOS HISTÓRICOS
 -- ------------------------------------------------------------------------------
 
 -- Garante a coluna identificador em documentos_clinicos
@@ -19,27 +19,22 @@ ALTER TABLE public.documentos_clinicos
 ALTER TABLE public.documentos_clinicos 
   ADD COLUMN IF NOT EXISTS hash_integridade text;
 
--- Preenche identificador para registros legados que ainda estejam nulos
+-- Preenche identificador APENAS para registros legados que estejam nulos (preservando 100% dos existentes)
 UPDATE public.documentos_clinicos
 SET identificador = COALESCE(itens->>'contratoId', 'CTR-' || upper(substring(id::text from 1 for 8)))
 WHERE identificador IS NULL AND tipo = 'contrato';
 
--- Desambigua identificadores duplicados preexistentes para garantir que o índice único nunca colida
-WITH duplicados AS (
-  SELECT id,
-         ROW_NUMBER() OVER (PARTITION BY identificador ORDER BY criado_em ASC, id ASC) AS rn
-  FROM public.documentos_clinicos
-  WHERE identificador IS NOT NULL AND tipo = 'contrato'
-)
-UPDATE public.documentos_clinicos d
-SET identificador = d.identificador || '-DUP' || dup.rn
-FROM duplicados dup
-WHERE d.id = dup.id AND dup.rn > 1;
+-- Índices de alta performance para resolução rápida de contratos sem renomear códigos históricos
+CREATE INDEX IF NOT EXISTS idx_doc_clinicos_identificador
+  ON public.documentos_clinicos (identificador);
 
--- Índice único condicional para contratos: garante que nenhum CTR seja duplicado
-CREATE UNIQUE INDEX IF NOT EXISTS idx_doc_clinicos_identificador_unique
-  ON public.documentos_clinicos (identificador)
-  WHERE identificador IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_doc_clinicos_token_busca
+  ON public.documentos_clinicos ((itens->>'token'))
+  WHERE tipo = 'contrato';
+
+CREATE INDEX IF NOT EXISTS idx_doc_clinicos_contratoid_busca
+  ON public.documentos_clinicos ((itens->>'contratoId'))
+  WHERE tipo = 'contrato';
 
 CREATE INDEX IF NOT EXISTS idx_doc_clinicos_paciente_tipo
   ON public.documentos_clinicos (paciente_id, tipo);
@@ -48,18 +43,37 @@ CREATE INDEX IF NOT EXISTS idx_doc_clinicos_paciente_tipo
 -- 2. ISOLAMENTO MULTI-TENANT E CONTROLE DE PERFIS POR CLÍNICA
 -- ------------------------------------------------------------------------------
 
--- Função auxiliar segura para obtenção do clinica_id (idempotente)
-CREATE OR REPLACE FUNCTION public.clinica_id()
+-- Função auxiliar dedicada para resolução de clínica em contratos (preserva 100% a public.clinica_id() pré-existente)
+CREATE OR REPLACE FUNCTION public.contrato_obter_clinica_id()
 RETURNS uuid
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
-  SELECT coalesce(
-    nullif(current_setting('request.jwt.claims', true)::jsonb -> 'app_metadata' ->> 'clinica_id', '')::uuid,
-    auth.uid()
-  );
+DECLARE
+  v_cid uuid := NULL;
+BEGIN
+  -- 1. Tenta consultar a função existente public.clinica_id() sem alterá-la
+  BEGIN
+    SELECT public.clinica_id() INTO v_cid;
+  EXCEPTION WHEN OTHERS THEN
+    v_cid := NULL;
+  END;
+
+  IF v_cid IS NOT NULL THEN
+    RETURN v_cid;
+  END IF;
+
+  -- 2. Fallback seguro para claims da sessão JWT
+  BEGIN
+    v_cid := nullif(current_setting('request.jwt.claims', true)::jsonb -> 'app_metadata' ->> 'clinica_id', '')::uuid;
+  EXCEPTION WHEN OTHERS THEN
+    v_cid := NULL;
+  END;
+
+  RETURN coalesce(v_cid, auth.uid());
+END;
 $$;
 
 -- Adiciona clinica_id na tabela user_roles se ainda não existir
@@ -108,7 +122,7 @@ BEGIN
 END;
 $$;
 
--- Versão simplificada retrocompatível que utiliza o contexto atual de autenticação
+-- Versão simplificada retrocompatível que utiliza a função auxiliar de sessão
 CREATE OR REPLACE FUNCTION public.usuario_possui_perfil(p_role text)
 RETURNS boolean
 LANGUAGE plpgsql
@@ -118,13 +132,7 @@ AS $$
 DECLARE
   v_clinica_id uuid;
 BEGIN
-  -- Obtém clinica_id da sessão ou perfil
-  BEGIN
-    SELECT public.clinica_id() INTO v_clinica_id;
-  EXCEPTION WHEN OTHERS THEN
-    v_clinica_id := auth.uid();
-  END;
-
+  v_clinica_id := public.contrato_obter_clinica_id();
   RETURN public.usuario_possui_perfil_clinica(auth.uid(), v_clinica_id, p_role);
 END;
 $$;

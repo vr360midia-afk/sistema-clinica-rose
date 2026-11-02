@@ -26,6 +26,74 @@ async function gerarHashConteudo(texto: string): Promise<string> {
   }
 }
 
+// RESOLUÇÃO DE CONTRATOS HISTÓRICOS NÃO-AMBÍGUA E DETERMINÍSTICA
+// Preserva 100% dos códigos CTR existentes sem renomear nenhum contrato.
+// Em caso de duplicidade histórica, localiza exatamente o contrato correspondente ao token informado.
+async function localizarContratoCompativel(
+  supabase: any,
+  targetId: string,
+  token?: string
+): Promise<Record<string, any> | null> {
+  const cleanId = String(targetId || "").trim();
+  if (!cleanId) return null;
+
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanId);
+  const code8Match = cleanId.match(/^(?:CTR-)?([0-9a-f]{8})$/i);
+  const code8 = code8Match ? code8Match[1].toUpperCase() : null;
+
+  // 1. Busca direta por UUID primário
+  if (isUuid) {
+    const { data } = await supabase.from("documentos_clinicos").select("*").eq("id", cleanId).maybeSingle();
+    if (data) return data;
+  }
+
+  // 2. Busca abrangente de todos os candidatos correspondentes a este CTR
+  const orFilters = [
+    `identificador.eq.${cleanId}`,
+    `itens->>contratoId.eq.${cleanId}`,
+    `identificador.eq.${cleanId.toUpperCase()}`,
+    `itens->>contratoId.eq.${cleanId.toUpperCase()}`,
+  ];
+  if (code8) {
+    orFilters.push(`identificador.eq.CTR-${code8}`);
+    orFilters.push(`itens->>contratoId.eq.CTR-${code8}`);
+    orFilters.push(`itens->>contratoId.eq.${code8}`);
+  }
+
+  const { data: rows } = await supabase
+    .from("documentos_clinicos")
+    .select("*")
+    .or(orFilters.join(","))
+    .order("criado_em", { ascending: false });
+
+  if (rows && rows.length > 0) {
+    // Se o token foi informado, localiza exatamente o documento que possui este token
+    if (token) {
+      const matchToken = rows.find((r: any) => r.itens?.token === token);
+      if (matchToken) return matchToken;
+    }
+    return rows[0];
+  }
+
+  // 3. Fallback por prefixo de UUID se fornecido código de 8 dígitos
+  if (code8) {
+    const { data: rowsLike } = await supabase
+      .from("documentos_clinicos")
+      .select("*")
+      .ilike("id", `${code8.toLowerCase()}-%`)
+      .order("criado_em", { ascending: false });
+    if (rowsLike && rowsLike.length > 0) {
+      if (token) {
+        const matchToken = rowsLike.find((r: any) => r.itens?.token === token);
+        if (matchToken) return matchToken;
+      }
+      return rowsLike[0];
+    }
+  }
+
+  return null;
+}
+
 // GERADOR DE PDF SERVER-SIDE NATIVO E DETERMINÍSTICO (Deno / jsPDF)
 function gerarPdfServidorContrato(snap: any, docClinico?: any): Uint8Array {
   const pdf = new jsPDF({ unit: "pt", format: "a4" });
@@ -710,32 +778,7 @@ Deno.serve(async (req) => {
         return json({ error: "Token de acesso não informado. Acesso não autorizado." }, 403);
       }
 
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
-      const code8Match = targetId.match(/^(?:CTR-)?([0-9a-f]{8})$/i);
-      const code8 = code8Match ? code8Match[1].toUpperCase() : null;
-      let doc: Record<string, any> | null = null;
-
-      if (isUuid) {
-        const { data } = await supabase.from("documentos_clinicos").select("*").eq("id", targetId).maybeSingle();
-        if (data) doc = data;
-      }
-      if (!doc && code8) {
-        const { data: rowsLike } = await supabase.from("documentos_clinicos").select("*").ilike("id", `${code8.toLowerCase()}-%`).order("criado_em", { ascending: false }).limit(1);
-        if (rowsLike && rowsLike.length > 0) doc = rowsLike[0];
-      }
-      if (!doc) {
-        const { data } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", targetId).maybeSingle();
-        if (data) doc = data;
-      }
-      if (!doc && targetId.toLowerCase().startsWith("ctr-")) {
-        const { data } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", targetId.toUpperCase()).maybeSingle();
-        if (data) doc = data;
-      }
-      if (!doc && code8) {
-        const { data } = await supabase.from("documentos_clinicos").select("*").or(`itens->>contratoId.eq.CTR-${code8},itens->>contratoId.eq.${code8}`).maybeSingle();
-        if (data) doc = data;
-      }
-
+      const doc = await localizarContratoCompativel(supabase, targetId, token);
       if (!doc) {
         return json({ error: "Contrato não encontrado" }, 404);
       }
@@ -815,32 +858,7 @@ Deno.serve(async (req) => {
         return json({ error: "Traço de assinatura gráfica é obrigatório" }, 400);
       }
 
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
-      const code8Match = targetId.match(/^(?:CTR-)?([0-9a-f]{8})$/i);
-      const code8 = code8Match ? code8Match[1].toUpperCase() : null;
-      let doc: Record<string, any> | null = null;
-
-      if (isUuid) {
-        const { data } = await supabase.from("documentos_clinicos").select("*").eq("id", targetId).maybeSingle();
-        if (data) doc = data;
-      }
-      if (!doc && code8) {
-        const { data: rowsLike } = await supabase.from("documentos_clinicos").select("*").ilike("id", `${code8.toLowerCase()}-%`).order("criado_em", { ascending: false }).limit(1);
-        if (rowsLike && rowsLike.length > 0) doc = rowsLike[0];
-      }
-      if (!doc) {
-        const { data } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", targetId).maybeSingle();
-        if (data) doc = data;
-      }
-      if (!doc && targetId.toLowerCase().startsWith("ctr-")) {
-        const { data } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", targetId.toUpperCase()).maybeSingle();
-        if (data) doc = data;
-      }
-      if (!doc && code8) {
-        const { data } = await supabase.from("documentos_clinicos").select("*").or(`itens->>contratoId.eq.CTR-${code8},itens->>contratoId.eq.${code8}`).maybeSingle();
-        if (data) doc = data;
-      }
-
+      const doc = await localizarContratoCompativel(supabase, targetId, token);
       if (!doc) {
         return json({ error: "Contrato não encontrado" }, 404);
       }
@@ -1010,32 +1028,7 @@ Deno.serve(async (req) => {
         return json({ error: "Assinatura gráfica é obrigatória" }, 400);
       }
 
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
-      const code8Match = targetId.match(/^(?:CTR-)?([0-9a-f]{8})$/i);
-      const code8 = code8Match ? code8Match[1].toUpperCase() : null;
-      let doc: Record<string, any> | null = null;
-
-      if (isUuid) {
-        const { data } = await supabase.from("documentos_clinicos").select("*").eq("id", targetId).maybeSingle();
-        if (data) doc = data;
-      }
-      if (!doc && code8) {
-        const { data: rowsLike } = await supabase.from("documentos_clinicos").select("*").ilike("id", `${code8.toLowerCase()}-%`).order("criado_em", { ascending: false }).limit(1);
-        if (rowsLike && rowsLike.length > 0) doc = rowsLike[0];
-      }
-      if (!doc) {
-        const { data } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", targetId).maybeSingle();
-        if (data) doc = data;
-      }
-      if (!doc && targetId.toLowerCase().startsWith("ctr-")) {
-        const { data } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", targetId.toUpperCase()).maybeSingle();
-        if (data) doc = data;
-      }
-      if (!doc && code8) {
-        const { data } = await supabase.from("documentos_clinicos").select("*").or(`itens->>contratoId.eq.CTR-${code8},itens->>contratoId.eq.${code8}`).maybeSingle();
-        if (data) doc = data;
-      }
-
+      const doc = await localizarContratoCompativel(supabase, targetId, token);
       if (!doc) {
         return json({ error: "Contrato não encontrado" }, 404);
       }
@@ -1157,32 +1150,7 @@ Deno.serve(async (req) => {
         return json({ error: "Token de acesso não informado. Acesso não autorizado." }, 403);
       }
 
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
-      const code8Match = targetId.match(/^(?:CTR-)?([0-9a-f]{8})$/i);
-      const code8 = code8Match ? code8Match[1].toUpperCase() : null;
-      let doc: Record<string, any> | null = null;
-
-      if (isUuid) {
-        const { data } = await supabase.from("documentos_clinicos").select("*").eq("id", targetId).maybeSingle();
-        if (data) doc = data;
-      }
-      if (!doc && code8) {
-        const { data: rowsLike } = await supabase.from("documentos_clinicos").select("*").ilike("id", `${code8.toLowerCase()}-%`).order("criado_em", { ascending: false }).limit(1);
-        if (rowsLike && rowsLike.length > 0) doc = rowsLike[0];
-      }
-      if (!doc) {
-        const { data } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", targetId).maybeSingle();
-        if (data) doc = data;
-      }
-      if (!doc && targetId.toLowerCase().startsWith("ctr-")) {
-        const { data } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", targetId.toUpperCase()).maybeSingle();
-        if (data) doc = data;
-      }
-      if (!doc && code8) {
-        const { data } = await supabase.from("documentos_clinicos").select("*").or(`itens->>contratoId.eq.CTR-${code8},itens->>contratoId.eq.${code8}`).maybeSingle();
-        if (data) doc = data;
-      }
-
+      const doc = await localizarContratoCompativel(supabase, targetId, token);
       if (!doc) {
         return json({ error: "Contrato não encontrado" }, 404);
       }
@@ -1240,32 +1208,7 @@ Deno.serve(async (req) => {
         return json({ error: "Conteúdo do PDF em Base64 é obrigatório" }, 400);
       }
 
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
-      const code8Match = targetId.match(/^(?:CTR-)?([0-9a-f]{8})$/i);
-      const code8 = code8Match ? code8Match[1].toUpperCase() : null;
-      let doc: Record<string, any> | null = null;
-
-      if (isUuid) {
-        const { data } = await supabase.from("documentos_clinicos").select("*").eq("id", targetId).maybeSingle();
-        if (data) doc = data;
-      }
-      if (!doc && code8) {
-        const { data: rowsLike } = await supabase.from("documentos_clinicos").select("*").ilike("id", `${code8.toLowerCase()}-%`).order("criado_em", { ascending: false }).limit(1);
-        if (rowsLike && rowsLike.length > 0) doc = rowsLike[0];
-      }
-      if (!doc) {
-        const { data } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", targetId).maybeSingle();
-        if (data) doc = data;
-      }
-      if (!doc && targetId.toLowerCase().startsWith("ctr-")) {
-        const { data } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", targetId.toUpperCase()).maybeSingle();
-        if (data) doc = data;
-      }
-      if (!doc && code8) {
-        const { data } = await supabase.from("documentos_clinicos").select("*").or(`itens->>contratoId.eq.CTR-${code8},itens->>contratoId.eq.${code8}`).maybeSingle();
-        if (data) doc = data;
-      }
-
+      const doc = await localizarContratoCompativel(supabase, targetId, token);
       if (!doc) {
         return json({ error: "Contrato não encontrado" }, 404);
       }

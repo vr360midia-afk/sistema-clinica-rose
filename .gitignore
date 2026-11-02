@@ -26,3 +26,6 @@ dist-ssr
 supabase/.temp/
 .temp/
 
+backups/db/
+backups/storage/
+*.sql.dump
