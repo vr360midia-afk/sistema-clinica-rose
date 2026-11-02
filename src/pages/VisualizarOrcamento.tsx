@@ -82,7 +82,7 @@ export default function VisualizarOrcamento() {
 
   const [searchParams] = useSearchParams();
   const queryToken = searchParams.get('token') || searchParams.get('t') || tokenParam;
-  const targetId = paramIdentificador || searchParams.get('id') || searchParams.get('orcamentoId');
+  const targetId = paramIdentificador || searchParams.get('id') || searchParams.get('orcamentoId') || searchParams.get('ctr') || searchParams.get('ref');
 
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);

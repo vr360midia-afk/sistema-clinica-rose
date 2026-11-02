@@ -142,11 +142,17 @@ Deno.serve(async (req) => {
       }
 
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
+      const code8Match = targetId.match(/^(?:CTR-)?([0-9a-f]{8})$/i);
+      const code8 = code8Match ? code8Match[1].toUpperCase() : null;
       let doc: Record<string, any> | null = null;
 
       if (isUuid) {
         const { data } = await supabase.from("documentos_clinicos").select("*").eq("id", targetId).maybeSingle();
         if (data) doc = data;
+      }
+      if (!doc && code8) {
+        const { data: rowsLike } = await supabase.from("documentos_clinicos").select("*").ilike("id", `${code8.toLowerCase()}-%`).order("criado_em", { ascending: false }).limit(1);
+        if (rowsLike && rowsLike.length > 0) doc = rowsLike[0];
       }
       if (!doc) {
         const { data } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", targetId).maybeSingle();
@@ -154,6 +160,10 @@ Deno.serve(async (req) => {
       }
       if (!doc && targetId.toLowerCase().startsWith("ctr-")) {
         const { data } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", targetId.toUpperCase()).maybeSingle();
+        if (data) doc = data;
+      }
+      if (!doc && code8) {
+        const { data } = await supabase.from("documentos_clinicos").select("*").or(`itens->>contratoId.eq.CTR-${code8},itens->>contratoId.eq.${code8}`).maybeSingle();
         if (data) doc = data;
       }
 
@@ -237,11 +247,17 @@ Deno.serve(async (req) => {
       }
 
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
+      const code8Match = targetId.match(/^(?:CTR-)?([0-9a-f]{8})$/i);
+      const code8 = code8Match ? code8Match[1].toUpperCase() : null;
       let doc: Record<string, any> | null = null;
 
       if (isUuid) {
         const { data } = await supabase.from("documentos_clinicos").select("*").eq("id", targetId).maybeSingle();
         if (data) doc = data;
+      }
+      if (!doc && code8) {
+        const { data: rowsLike } = await supabase.from("documentos_clinicos").select("*").ilike("id", `${code8.toLowerCase()}-%`).order("criado_em", { ascending: false }).limit(1);
+        if (rowsLike && rowsLike.length > 0) doc = rowsLike[0];
       }
       if (!doc) {
         const { data } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", targetId).maybeSingle();
@@ -249,6 +265,10 @@ Deno.serve(async (req) => {
       }
       if (!doc && targetId.toLowerCase().startsWith("ctr-")) {
         const { data } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", targetId.toUpperCase()).maybeSingle();
+        if (data) doc = data;
+      }
+      if (!doc && code8) {
+        const { data } = await supabase.from("documentos_clinicos").select("*").or(`itens->>contratoId.eq.CTR-${code8},itens->>contratoId.eq.${code8}`).maybeSingle();
         if (data) doc = data;
       }
 
@@ -370,11 +390,17 @@ Deno.serve(async (req) => {
       }
 
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
+      const code8Match = targetId.match(/^(?:CTR-)?([0-9a-f]{8})$/i);
+      const code8 = code8Match ? code8Match[1].toUpperCase() : null;
       let doc: Record<string, any> | null = null;
 
       if (isUuid) {
         const { data } = await supabase.from("documentos_clinicos").select("*").eq("id", targetId).maybeSingle();
         if (data) doc = data;
+      }
+      if (!doc && code8) {
+        const { data: rowsLike } = await supabase.from("documentos_clinicos").select("*").ilike("id", `${code8.toLowerCase()}-%`).order("criado_em", { ascending: false }).limit(1);
+        if (rowsLike && rowsLike.length > 0) doc = rowsLike[0];
       }
       if (!doc) {
         const { data } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", targetId).maybeSingle();
@@ -382,6 +408,10 @@ Deno.serve(async (req) => {
       }
       if (!doc && targetId.toLowerCase().startsWith("ctr-")) {
         const { data } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", targetId.toUpperCase()).maybeSingle();
+        if (data) doc = data;
+      }
+      if (!doc && code8) {
+        const { data } = await supabase.from("documentos_clinicos").select("*").or(`itens->>contratoId.eq.CTR-${code8},itens->>contratoId.eq.${code8}`).maybeSingle();
         if (data) doc = data;
       }
 
@@ -457,11 +487,17 @@ Deno.serve(async (req) => {
       }
 
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
+      const code8Match = targetId.match(/^(?:CTR-)?([0-9a-f]{8})$/i);
+      const code8 = code8Match ? code8Match[1].toUpperCase() : null;
       let doc: Record<string, any> | null = null;
 
       if (isUuid) {
         const { data } = await supabase.from("documentos_clinicos").select("*").eq("id", targetId).maybeSingle();
         if (data) doc = data;
+      }
+      if (!doc && code8) {
+        const { data: rowsLike } = await supabase.from("documentos_clinicos").select("*").ilike("id", `${code8.toLowerCase()}-%`).order("criado_em", { ascending: false }).limit(1);
+        if (rowsLike && rowsLike.length > 0) doc = rowsLike[0];
       }
       if (!doc) {
         const { data } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", targetId).maybeSingle();
@@ -469,6 +505,10 @@ Deno.serve(async (req) => {
       }
       if (!doc && targetId.toLowerCase().startsWith("ctr-")) {
         const { data } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", targetId.toUpperCase()).maybeSingle();
+        if (data) doc = data;
+      }
+      if (!doc && code8) {
+        const { data } = await supabase.from("documentos_clinicos").select("*").or(`itens->>contratoId.eq.CTR-${code8},itens->>contratoId.eq.${code8}`).maybeSingle();
         if (data) doc = data;
       }
 
@@ -530,11 +570,17 @@ Deno.serve(async (req) => {
       }
 
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
+      const code8Match = targetId.match(/^(?:CTR-)?([0-9a-f]{8})$/i);
+      const code8 = code8Match ? code8Match[1].toUpperCase() : null;
       let doc: Record<string, any> | null = null;
 
       if (isUuid) {
         const { data } = await supabase.from("documentos_clinicos").select("*").eq("id", targetId).maybeSingle();
         if (data) doc = data;
+      }
+      if (!doc && code8) {
+        const { data: rowsLike } = await supabase.from("documentos_clinicos").select("*").ilike("id", `${code8.toLowerCase()}-%`).order("criado_em", { ascending: false }).limit(1);
+        if (rowsLike && rowsLike.length > 0) doc = rowsLike[0];
       }
       if (!doc) {
         const { data } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", targetId).maybeSingle();
@@ -542,6 +588,10 @@ Deno.serve(async (req) => {
       }
       if (!doc && targetId.toLowerCase().startsWith("ctr-")) {
         const { data } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", targetId.toUpperCase()).maybeSingle();
+        if (data) doc = data;
+      }
+      if (!doc && code8) {
+        const { data } = await supabase.from("documentos_clinicos").select("*").or(`itens->>contratoId.eq.CTR-${code8},itens->>contratoId.eq.${code8}`).maybeSingle();
         if (data) doc = data;
       }
 

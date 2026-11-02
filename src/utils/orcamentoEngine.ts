@@ -117,6 +117,37 @@ export function gerarTokenAcessoOrcamento(): string {
 }
 
 /**
+ * Normaliza qualquer código de identificação pública:
+ * Suporta CTR-XXXX, ORC-XXXX, códigos de 8 caracteres e UUIDs completos
+ */
+export function normalizarIdentificadorPublico(input?: string | null): {
+  raw: string;
+  upper: string;
+  code8: string | null;
+  isUuid: boolean;
+  withOrc: string;
+  withCtr: string;
+} {
+  const raw = String(input || '').trim();
+  const upper = raw.toUpperCase();
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(raw);
+
+  let code8: string | null = null;
+  if (isUuid) {
+    code8 = raw.slice(0, 8).toUpperCase();
+  } else if (/^(ORC|CTR)-[0-9A-F]{8}$/i.test(raw)) {
+    code8 = raw.slice(4, 12).toUpperCase();
+  } else if (/^[0-9A-F]{8}$/i.test(raw)) {
+    code8 = upper;
+  }
+
+  const withOrc = code8 ? `ORC-${code8}` : upper.startsWith('ORC-') ? upper : `ORC-${upper}`;
+  const withCtr = code8 ? `CTR-${code8}` : upper.startsWith('CTR-') ? upper : `CTR-${upper}`;
+
+  return { raw, upper, code8, isUuid, withOrc, withCtr };
+}
+
+/**
  * Constrói o link oficial público curto, limpo e seguro do orçamento:
  * Formato padrão: /{slug-paciente}/orcamento/{identificador}?token={token}
  */
@@ -152,9 +183,10 @@ export async function garantirOrcamentoPersistidoComToken(
     const pacienteId = paciente?.id || orcamento.pacienteId || null;
 
     let identificador = (orcamento as any).identificador;
-    if (!identificador || !identificador.startsWith('ORC-')) {
-      if (orcamento.id && !orcamento.id.includes('-')) {
-        identificador = `ORC-${orcamento.id}`;
+    if (!identificador || (!identificador.startsWith('ORC-') && !identificador.startsWith('CTR-'))) {
+      if (orcamento.id) {
+        const normId = normalizarIdentificadorPublico(orcamento.id);
+        identificador = normId.code8 ? `ORC-${normId.code8}` : gerarIdentificadorOrcamento();
       } else {
         identificador = gerarIdentificadorOrcamento();
       }
@@ -212,32 +244,53 @@ export async function garantirOrcamentoPersistidoComToken(
     let finalId = orcamento.id;
     const isUuid = finalId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(finalId);
 
-    if (isUuid) {
-      const { error: updErr } = await supabase
-        .from('orcamentos')
-        .update(payloadDb)
-        .eq('id', finalId);
-
-      if (updErr) {
-        console.warn('[OrcamentoEngine] Aviso ao atualizar orcamento no banco:', updErr);
+    // Tenta persistir via Edge Function orcamento-publico com service_role
+    let persistidoViaEdge = false;
+    try {
+      const { data: edgeSave, error: edgeErr } = await supabase.functions.invoke('orcamento-publico', {
+        body: {
+          action: 'save',
+          orcamento: {
+            ...payloadDb,
+            ...(finalId ? { id: finalId } : {}),
+            status: orcamento.status || 'enviado',
+          },
+        },
+      });
+      if (!edgeErr && edgeSave?.ok) {
+        persistidoViaEdge = true;
+        if (edgeSave.id) finalId = edgeSave.id;
       }
-    } else {
-      const activeUserId = (await obterUserIdAtivo()) || paciente?.user_id || undefined;
-      const { data: insData, error: insErr } = await supabase
-        .from('orcamentos')
-        .insert({
-          ...payloadDb,
-          user_id: activeUserId,
-          status: orcamento.status || 'enviado',
-          criado_em: new Date().toISOString(),
-        })
-        .select('id')
-        .maybeSingle();
+    } catch (_) {}
 
-      if (!insErr && insData?.id) {
-        finalId = insData.id;
-      } else if (insErr) {
-        console.warn('[OrcamentoEngine] Aviso ao inserir novo orcamento no banco:', insErr);
+    if (!persistidoViaEdge) {
+      if (isUuid) {
+        const { error: updErr } = await supabase
+          .from('orcamentos')
+          .update(payloadDb)
+          .eq('id', finalId);
+
+        if (updErr) {
+          console.warn('[OrcamentoEngine] Aviso ao atualizar orcamento no banco:', updErr);
+        }
+      } else {
+        const activeUserId = (await obterUserIdAtivo()) || paciente?.user_id || undefined;
+        const { data: insData, error: insErr } = await supabase
+          .from('orcamentos')
+          .insert({
+            ...payloadDb,
+            user_id: activeUserId,
+            status: orcamento.status || 'enviado',
+            criado_em: new Date().toISOString(),
+          })
+          .select('id')
+          .maybeSingle();
+
+        if (!insErr && insData?.id) {
+          finalId = insData.id;
+        } else if (insErr) {
+          console.warn('[OrcamentoEngine] Aviso ao inserir novo orcamento no banco:', insErr);
+        }
       }
     }
 
@@ -297,10 +350,12 @@ export async function garantirOrcamentoPersistidoComToken(
 /**
  * Localizador e validador centralizado para ações públicas de orçamento.
  * Resolve de forma segura e resiliente:
- * - Por UUID interno do Supabase (id)
- * - Por identificador público amigável (assinatura_paciente->>identificador)
+ * - Edge Function 'orcamento-publico' (com service_role no servidor)
+ * - RPC 'obter_orcamento_publico' (com SECURITY DEFINER)
+ * - Por UUID interno do Supabase (id) e por prefixo de 8 chars (id ILIKE 'XXXXXXXX-%')
+ * - Por identificador público amigável (assinatura_paciente->>identificador) com ou sem prefixo CTR-/ORC-
  * - Por token criptográfico (token_assinatura / assinatura_paciente->>token)
- * - Por contingência local (localStorage) para permitir visualização e testes
+ * - Por contingência local (localStorage)
  * Valida autorização de token, integridade de dados e expiração.
  */
 export async function localizarRegistroOrcamento(
@@ -315,21 +370,77 @@ export async function localizarRegistroOrcamento(
   versao?: number;
   status?: StatusOrcamento;
   error?: string;
+  code?: string;
   isExpirado?: boolean;
 }> {
   const cleanId = String(identificadorOuId || '').trim();
   const cleanToken = String(token || '').trim();
   const cleanUuid = String(orcamentoId || '').trim();
 
-  const isExplicitUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanUuid);
-  const isTargetUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanId);
+  if (!cleanId && !cleanUuid && !cleanToken) {
+    return { ok: false, error: 'Identificador ou token de acesso ausente', code: 'INVALID_PARAM' };
+  }
+
+  const targetId = cleanId || cleanUuid;
+  const norm = normalizarIdentificadorPublico(targetId);
+  const normUuid = cleanUuid ? normalizarIdentificadorPublico(cleanUuid) : null;
 
   let row: any = null;
 
-  // 1. Tenta RPC do backend se disponível (com SECURITY DEFINER)
+  // 1. Tenta Edge Function 'orcamento-publico' prioritariamente (service_role com validação segura de token)
+  if (cleanToken) {
+    try {
+      const { data: edgeData, error: edgeErr } = await supabase.functions.invoke('orcamento-publico', {
+        body: { action: 'get', identificador: targetId, token: cleanToken },
+      });
+      if (!edgeErr && edgeData?.ok && edgeData?.orcamento) {
+        const o = edgeData.orcamento;
+        return {
+          ok: true,
+          row: {
+            id: o.id,
+            titulo: o.titulo,
+            itens: o.itens,
+            desconto: o.desconto,
+            total: o.total,
+            status: o.status,
+            versao: o.versao,
+            validade: o.validade,
+            observacoes: o.observacoes,
+            formas_pagamento: o.formasPagamentoRaw,
+            token_assinatura: cleanToken,
+            paciente_id: o.pacienteId,
+            paciente_nome: o.pacienteNome,
+            assinatura_paciente: {
+              identificador: o.identificador,
+              token: cleanToken,
+              versao: o.versao,
+              solicitacoesAjuste: o.solicitacoesAjuste || [],
+              historicoVersoes: o.historicoVersoes || [],
+              condicaoEscolhida: o.condicaoEscolhida,
+              aprovadoEm: o.aprovadoEm,
+              fotosPlanejamento: o.fotosPlanejamento || [],
+              contratoId: o.contratoId,
+              contratoToken: o.contratoToken,
+            },
+          },
+          uuid: o.id,
+          identificador: o.identificador,
+          versao: Number(o.versao || 1),
+          status: o.status,
+        };
+      } else if (edgeData && !edgeData.ok && edgeData.code === 'EXPIRED_TOKEN') {
+        return { ok: false, error: edgeData.error || 'Esta proposta de orçamento expirou.', code: 'EXPIRED_TOKEN', isExpirado: true };
+      } else if (edgeData && !edgeData.ok && edgeData.code === 'INVALID_TOKEN') {
+        return { ok: false, error: edgeData.error || 'Token de segurança inválido.', code: 'INVALID_TOKEN' };
+      }
+    } catch (_) {}
+  }
+
+  // 2. Tenta RPC do backend (SECURITY DEFINER)
   try {
     const { data: rpcData, error: rpcErr } = await (supabase.rpc as any)('obter_orcamento_publico', {
-      p_identificador: cleanId || cleanUuid,
+      p_identificador: targetId,
       p_token: cleanToken,
     });
     if (!rpcErr && rpcData?.ok) {
@@ -342,64 +453,68 @@ export async function localizarRegistroOrcamento(
         status: rpcData.status,
       };
     } else if (rpcData && !rpcData.ok && rpcData.error && rpcData.error.includes('expirou')) {
-      return { ok: false, error: rpcData.error, isExpirado: true };
+      return { ok: false, error: rpcData.error, code: 'EXPIRED_TOKEN', isExpirado: true };
     }
   } catch (_) {}
 
-  // 2. Consulta direta no Supabase: por UUID explícito se fornecido
-  if (isExplicitUuid) {
+  // 3. Consulta direta no Supabase: por UUID exato
+  if (norm.isUuid) {
     try {
-      const { data: rows, error: qErr } = await supabase
-        .from('orcamentos')
-        .select('*')
-        .eq('id', cleanUuid)
-        .limit(1);
-      if (!qErr && rows && rows.length > 0) {
-        row = rows[0];
-      }
-    } catch (_) {}
-  }
-
-  // 3. Consulta direta no Supabase: se cleanId for UUID e ainda não achou
-  if (!row && isTargetUuid) {
-    try {
-      const { data: rows, error: qErr } = await supabase
-        .from('orcamentos')
-        .select('*')
-        .eq('id', cleanId)
-        .limit(1);
-      if (!qErr && rows && rows.length > 0) {
-        row = rows[0];
-      }
-    } catch (_) {}
-  }
-
-  // 4. Consulta direta no Supabase: por identificador amigável dentro do JSONB assinatura_paciente
-  if (!row && cleanId) {
-    try {
-      const idUpper = cleanId.toUpperCase();
-      const withPrefix = idUpper.startsWith('ORC-') ? idUpper : `ORC-${idUpper}`;
-      const withoutPrefix = idUpper.startsWith('ORC-') ? idUpper.replace(/^ORC-/, '') : idUpper;
-
       const { data: rows } = await supabase
         .from('orcamentos')
         .select('*')
-        .or(
-          `assinatura_paciente->>identificador.eq.${idUpper},` +
-          `assinatura_paciente->>identificador.eq.${cleanId},` +
-          `assinatura_paciente->>identificador.eq.${withPrefix},` +
-          `assinatura_paciente->>identificador.eq.${withoutPrefix}`
-        )
+        .eq('id', norm.raw)
+        .limit(1);
+      if (rows && rows.length > 0) row = rows[0];
+    } catch (_) {}
+  }
+  if (!row && normUuid?.isUuid) {
+    try {
+      const { data: rows } = await supabase
+        .from('orcamentos')
+        .select('*')
+        .eq('id', normUuid.raw)
+        .limit(1);
+      if (rows && rows.length > 0) row = rows[0];
+    } catch (_) {}
+  }
+
+  // 4. Consulta direta no Supabase: por prefixo de 8 caracteres do UUID (ex: 3327cc94 -> id ILIKE '3327cc94-%')
+  if (!row && (norm.code8 || normUuid?.code8)) {
+    const code = (norm.code8 || normUuid?.code8)!.toLowerCase();
+    try {
+      const { data: rows } = await supabase
+        .from('orcamentos')
+        .select('*')
+        .ilike('id', `${code}-%`)
         .order('criado_em', { ascending: false })
         .limit(1);
+      if (rows && rows.length > 0) row = rows[0];
+    } catch (_) {}
+  }
 
-      if (rows && rows.length > 0) {
-        row = rows[0];
+  // 5. Consulta direta no Supabase: por identificador amigável dentro do JSONB assinatura_paciente
+  if (!row) {
+    try {
+      const queries = [norm.upper, norm.withOrc, norm.withCtr];
+      if (norm.code8) queries.push(norm.code8);
+
+      for (const q of queries) {
+        const { data: rows } = await supabase
+          .from('orcamentos')
+          .select('*')
+          .filter('assinatura_paciente->>identificador', 'eq', q)
+          .order('criado_em', { ascending: false })
+          .limit(1);
+        if (rows && rows.length > 0) {
+          row = rows[0];
+          break;
+        }
       }
     } catch (_) {}
   }
 
-  // 5. Consulta direta no Supabase: por token criptográfico único
+  // 6. Consulta direta no Supabase: por token criptográfico único
   if (!row && cleanToken) {
     try {
       const { data: rows } = await supabase
@@ -425,16 +540,16 @@ export async function localizarRegistroOrcamento(
     } catch (_) {}
   }
 
-  // 6. Fallback: Cache local (localStorage) para contingência instantânea / modo offline
+  // 7. Fallback: Cache local (localStorage) para contingência instantânea / modo offline
   if (!row && typeof window !== 'undefined' && window.localStorage) {
     try {
-      const idUpper = cleanId.toUpperCase();
-      const withPrefix = idUpper.startsWith('ORC-') ? idUpper : `ORC-${idUpper}`;
       const possibleKeys = [
-        cleanId ? `orcamento_${cleanId}` : '',
-        idUpper ? `orcamento_${idUpper}` : '',
-        withPrefix ? `orcamento_${withPrefix}` : '',
-        cleanUuid ? `orcamento_${cleanUuid}` : '',
+        targetId ? `orcamento_${targetId}` : '',
+        norm.upper ? `orcamento_${norm.upper}` : '',
+        norm.withOrc ? `orcamento_${norm.withOrc}` : '',
+        norm.withCtr ? `orcamento_${norm.withCtr}` : '',
+        norm.code8 ? `orcamento_${norm.code8}` : '',
+        norm.raw ? `orcamento_${norm.raw}` : '',
       ].filter(Boolean);
 
       for (const k of possibleKeys) {
@@ -444,7 +559,7 @@ export async function localizarRegistroOrcamento(
             const parsed = JSON.parse(str);
             if (parsed) {
               row = {
-                id: parsed.id || cleanUuid || cleanId,
+                id: parsed.id || targetId,
                 titulo: parsed.titulo || 'Plano de tratamento',
                 itens: parsed.itens || [],
                 desconto: Number(parsed.desconto || 0),
@@ -459,7 +574,7 @@ export async function localizarRegistroOrcamento(
                 paciente_id: parsed.pacienteId || parsed.paciente_id,
                 paciente_nome: parsed.pacienteNome || parsed.paciente_nome,
                 assinatura_paciente: {
-                  identificador: parsed.identificador || idUpper,
+                  identificador: parsed.identificador || norm.withOrc,
                   token: parsed.tokenAssinatura || cleanToken,
                   versao: parsed.versao || 1,
                   solicitacoesAjuste: parsed.solicitacoesAjuste || [],
@@ -486,7 +601,7 @@ export async function localizarRegistroOrcamento(
               const val = JSON.parse(window.localStorage.getItem(k) || '{}');
               if (val.tokenAssinatura === cleanToken || val.token_assinatura === cleanToken || val.token === cleanToken) {
                 row = {
-                  id: val.id || cleanId,
+                  id: val.id || targetId,
                   titulo: val.titulo,
                   itens: val.itens || [],
                   desconto: val.desconto || 0,
@@ -499,7 +614,7 @@ export async function localizarRegistroOrcamento(
                   paciente_id: val.pacienteId || val.paciente_id,
                   paciente_nome: val.pacienteNome || val.paciente_nome,
                   assinatura_paciente: {
-                    identificador: val.identificador,
+                    identificador: val.identificador || norm.withOrc,
                     token: cleanToken,
                     versao: val.versao || 1,
                     solicitacoesAjuste: val.solicitacoesAjuste || [],
@@ -522,6 +637,7 @@ export async function localizarRegistroOrcamento(
     return {
       ok: false,
       error: 'Orçamento não encontrado. Verifique o link ou solicite um novo à clínica.',
+      code: 'NOT_FOUND',
     };
   }
 
@@ -533,6 +649,7 @@ export async function localizarRegistroOrcamento(
     return {
       ok: false,
       error: 'Token de segurança inválido. Acesso não autorizado.',
+      code: 'INVALID_TOKEN',
     };
   }
 
@@ -542,11 +659,12 @@ export async function localizarRegistroOrcamento(
     return {
       ok: false,
       error: 'Esta proposta de orçamento expirou.',
+      code: 'EXPIRED_TOKEN',
       isExpirado: true,
     };
   }
 
-  const identificador = snap.identificador || (row.id ? `ORC-${String(row.id).slice(0, 8).toUpperCase()}` : cleanId);
+  const identificador = snap.identificador || norm.withOrc || (row.id ? `ORC-${String(row.id).slice(0, 8).toUpperCase()}` : targetId);
   const versao = Number(snap.versao || row.versao || 1);
   const status = (row.status || snap.status || 'enviado') as StatusOrcamento;
 
@@ -570,17 +688,48 @@ export async function obterOrcamentoPublico(
   ok: boolean;
   orcamento?: OrcamentoPublicoDados;
   error?: string;
+  code?: string;
   isExpirado?: boolean;
 }> {
   if (!identificador || !token) {
-    return { ok: false, error: 'Identificador e token de acesso são obrigatórios' };
+    return {
+      ok: false,
+      error: 'Link incompleto ou token de acesso ausente. Por razões de privacidade e segurança jurídica, utilize o link oficial completo fornecido pela clínica.',
+      code: 'INVALID_PARAM'
+    };
   }
 
+  // 1. Tenta Edge Function 'orcamento-publico' prioritariamente (service_role no backend)
+  try {
+    const { data: edgeData, error: edgeErr } = await supabase.functions.invoke('orcamento-publico', {
+      body: { action: 'get', identificador, token },
+    });
+    if (!edgeErr && edgeData?.ok && edgeData?.orcamento) {
+      const o = edgeData.orcamento;
+      return {
+        ok: true,
+        orcamento: {
+          ...o,
+          condicoes: parseCondicoesPagamento(o.formasPagamentoRaw, Number(o.total || 0)),
+        },
+      };
+    } else if (edgeData && !edgeData.ok) {
+      if (edgeData.code === 'EXPIRED_TOKEN' || edgeData.isExpirado) {
+        return { ok: false, error: edgeData.error || 'Esta proposta de orçamento expirou.', code: 'EXPIRED_TOKEN', isExpirado: true };
+      }
+      if (edgeData.code === 'INVALID_TOKEN' || edgeData.code === 'NOT_FOUND') {
+        return { ok: false, error: edgeData.error || 'Orçamento não encontrado. Verifique o link ou solicite um novo à clínica.', code: edgeData.code };
+      }
+    }
+  } catch (_) {}
+
+  // 2. Fallback: localizador com RPC e consultas diretas
   const localizacao = await localizarRegistroOrcamento(identificador, token);
   if (!localizacao.ok || !localizacao.row) {
     return {
       ok: false,
       error: localizacao.error || 'Orçamento não encontrado. Verifique o link ou solicite um novo à clínica.',
+      code: localizacao.code || 'NOT_FOUND',
       isExpirado: localizacao.isExpirado,
     };
   }
@@ -715,7 +864,44 @@ export async function solicitarAjusteOrcamentoPublico(params: {
     return { ok: false, error: 'Selecione o motivo da solicitação de ajuste.' };
   }
 
-  // 1. Tenta RPC segura do PostgreSQL
+  // 1. Tenta Edge Function 'orcamento-publico' (action: 'request_adjustment') com service_role
+  try {
+    const { data: edgeData, error: edgeErr } = await supabase.functions.invoke('orcamento-publico', {
+      body: {
+        action: 'request_adjustment',
+        identificador: orcamentoId || identificador,
+        token: token.trim(),
+        motivo: motivo.trim(),
+        mensagem: mensagem?.trim() || null,
+      },
+    });
+
+    if (!edgeErr && edgeData?.ok && edgeData?.solicitacao) {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        try {
+          const keys = [`orcamento_${identificador}`, orcamentoId ? `orcamento_${orcamentoId}` : ''].filter(Boolean);
+          for (const k of keys) {
+            const prev = window.localStorage.getItem(k);
+            if (prev) {
+              const parsed = JSON.parse(prev);
+              parsed.status = 'ajuste_solicitado';
+              parsed.solicitacoesAjuste = [...(parsed.solicitacoesAjuste || []), edgeData.solicitacao];
+              window.localStorage.setItem(k, JSON.stringify(parsed));
+            }
+          }
+        } catch (_) {}
+      }
+
+      return {
+        ok: true,
+        solicitacao: edgeData.solicitacao,
+      };
+    } else if (edgeData && !edgeData.ok && edgeData.error) {
+      return { ok: false, error: edgeData.error };
+    }
+  } catch (_) {}
+
+  // 2. Tenta RPC segura do PostgreSQL
   try {
     const { data: rpcData, error: rpcErr } = await (supabase.rpc as any)('solicitar_ajuste_orcamento_publico', {
       p_identificador: orcamentoId || identificador.trim(),
@@ -1049,7 +1235,47 @@ export async function aprovarOrcamentoPublico(params: {
     return { ok: false, error: 'Selecione uma condição de pagamento antes de aprovar.' };
   }
 
-  // 1. Tenta RPC segura do PostgreSQL
+  // 1. Tenta Edge Function 'orcamento-publico' (action: 'approve') com service_role
+  try {
+    const { data: edgeData, error: edgeErr } = await supabase.functions.invoke('orcamento-publico', {
+      body: {
+        action: 'approve',
+        identificador: orcamentoId || identificador,
+        token: token.trim(),
+        condicaoEscolhida,
+        evidencias: evidencias || {},
+        versaoAprovada: versaoAprovada || null,
+      },
+    });
+
+    if (!edgeErr && edgeData?.ok) {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        try {
+          const keys = [`orcamento_${identificador}`, orcamentoId ? `orcamento_${orcamentoId}` : ''].filter(Boolean);
+          for (const k of keys) {
+            const prev = window.localStorage.getItem(k);
+            if (prev) {
+              const parsed = JSON.parse(prev);
+              parsed.status = 'aprovado';
+              parsed.aprovadoEm = edgeData.aprovadoEm;
+              parsed.condicaoEscolhida = condicaoEscolhida;
+              window.localStorage.setItem(k, JSON.stringify(parsed));
+            }
+          }
+        } catch (_) {}
+      }
+
+      return {
+        ok: true,
+        aprovadoEm: edgeData.aprovadoEm,
+        jaAprovado: edgeData.jaAprovado,
+      };
+    } else if (edgeData && !edgeData.ok && edgeData.error) {
+      return { ok: false, error: edgeData.error };
+    }
+  } catch (_) {}
+
+  // 2. Tenta RPC segura do PostgreSQL
   try {
     const { data: rpcData, error: rpcErr } = await (supabase.rpc as any)('aprovar_orcamento_publico', {
       p_identificador: orcamentoId || identificador.trim(),

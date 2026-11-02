@@ -435,13 +435,24 @@ export default function AssinarContrato() {
             const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
             const targetUpper = targetId.toUpperCase();
             const targetLower = targetId.toLowerCase();
+            const code8Match = targetId.match(/^(?:CTR-)?([0-9a-f]{8})$/i);
+            const code8 = code8Match ? code8Match[1] : null;
 
             let query = supabase.from('documentos_clinicos').select('*').eq('tipo', 'contrato');
+            const orConditions = [
+              `itens->>contratoId.eq.${targetUpper}`,
+              `itens->>contratoId.eq.${targetLower}`,
+              `itens->>contratoId.eq.${targetId}`,
+            ];
             if (isUuid) {
-              query = query.or(`id.eq.${targetId},itens->>contratoId.eq.${targetUpper},itens->>contratoId.eq.${targetLower},itens->>contratoId.eq.${targetId}`);
-            } else {
-              query = query.or(`itens->>contratoId.eq.${targetUpper},itens->>contratoId.eq.${targetLower},itens->>contratoId.eq.${targetId}`);
+              orConditions.unshift(`id.eq.${targetId}`);
             }
+            if (code8) {
+              orConditions.push(`id.ilike.${code8.toLowerCase()}-%`);
+              orConditions.push(`itens->>contratoId.eq.CTR-${code8.toUpperCase()}`);
+              orConditions.push(`itens->>contratoId.eq.${code8.toUpperCase()}`);
+            }
+            query = query.or(orConditions.join(','));
 
             const { data: docs } = await query.order('criado_em', { ascending: false }).limit(2);
             let doc = docs?.[0];
