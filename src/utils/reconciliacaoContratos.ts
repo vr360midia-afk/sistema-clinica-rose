@@ -172,6 +172,18 @@ export async function reconciliarContratosEOrcamentos(pacienteId?: string): Prom
       }
     }
 
+    // 4. Mecanismo de reprocessamento autônomo da fila_arquivamento_pdf no servidor
+    try {
+      const { data: qData, error: qErr } = await supabase.functions.invoke('contrato-publico', {
+        body: { action: 'processar_fila_pdf' },
+      });
+      if (!qErr && qData?.ok && qData.total > 0) {
+        detalhes.push(`Fila de arquivamento reprocessada: ${qData.total} tarefa(s) executada(s) com sucesso`);
+      }
+    } catch (qEx) {
+      console.warn('[reconciliarContratos] Aviso ao reprocessar fila_arquivamento_pdf:', qEx);
+    }
+
     return {
       sucesso: true,
       orcamentosAtualizados,
@@ -186,6 +198,31 @@ export async function reconciliarContratosEOrcamentos(pacienteId?: string): Prom
       documentosArquivados,
       detalhes: [err?.message || 'Erro desconhecido na reconciliação'],
     };
+  }
+}
+
+/**
+ * Aciona o reprocessamento explícito da fila de arquivamento de PDF no servidor.
+ * Protegido com o token de autenticação do usuário logado ou token específico do contrato.
+ */
+export async function processarFilaArquivamentoPdf(
+  contratoId?: string,
+  tokenContrato?: string
+): Promise<{ ok: boolean; total?: number; error?: string }> {
+  try {
+    const payload: Record<string, any> = { action: 'processar_fila_pdf' };
+    if (contratoId) payload.contratoId = contratoId;
+    if (tokenContrato) payload.token = tokenContrato;
+
+    const { data, error } = await supabase.functions.invoke('contrato-publico', {
+      body: payload,
+    });
+
+    if (error) throw error;
+    return { ok: Boolean(data?.ok), total: data?.total || 0 };
+  } catch (err: any) {
+    console.warn('[processarFilaArquivamentoPdf] Erro:', err);
+    return { ok: false, error: err?.message || 'Falha ao acionar processamento da fila' };
   }
 }
 

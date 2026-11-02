@@ -172,8 +172,8 @@ function gerarPdfServidorContrato(snap: any, docClinico?: any): Uint8Array {
   pdf.text(lFin, margin, y);
   y += lFin.length * 10 + 14;
 
-  // 5. CLÁUSULAS CONTRATUAIS ESSENCIAIS
-  checkPageBreak(100);
+  // 5. CLÁUSULAS CONTRATUAIS ESSENCIAIS E OBRIGAÇÕES MÚTUAS
+  checkPageBreak(120);
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(9.5);
   pdf.setTextColor(15, 23, 42);
@@ -185,9 +185,14 @@ function gerarPdfServidorContrato(snap: any, docClinico?: any): Uint8Array {
   pdf.setTextColor(71, 85, 105);
 
   const clausulas = [
-    "CLÁUSULA PRIMEIRA - O(a) CONTRATANTE compromete-se a seguir rigorosamente as prescrições médicas, comparecer às consultas designadas e comunicar previamente eventual impossibilidade.",
-    "CLÁUSULA SEGUNDA - A Odontologia é atividade de meio. O sucesso do tratamento depende de fatores biológicos individuais e da colaboração do(a) paciente.",
-    "CLÁUSULA TERCEIRA - As partes elegem o foro da Comarca do local de atendimento da clínica para dirimir quaisquer dúvidas oriundas deste instrumento.",
+    "CLÁUSULA 1ª (DO OBJETO E PROCEDIMENTOS) — A CONTRATADA obriga-se a prestar ao(à) CONTRATANTE os serviços odontológicos descritos neste instrumento, observando o diagnóstico clínico e o plano de tratamento formalmente aprovado.",
+    "CLÁUSULA 2ª (DAS CONDIÇÕES FINANCEIRAS) — O valor total ajustado e as condições de pagamento pactuadas são irreajustáveis durante a vigência deste plano, ressalvada a necessidade de procedimentos adicionais não previstos inicialmente e formalmente aprovados.",
+    "CLÁUSULA 3ª (DA ATIVIDADE DE MEIO) — A Odontologia é atividade profissional de meio e não de resultado. O sucesso clínico depende de fatores biológicos individuais, resposta tecidual e cooperação contínua do(a) paciente. A CONTRATADA compromete-se a atuar com zelo, perícia e estrita observância ao Código de Ética Odontológica.",
+    "CLÁUSULA 4ª (DAS OBRIGAÇÕES DO PACIENTE) — O(A) CONTRATANTE compromete-se a seguir com rigor as prescrições médicas, comparecer às consultas designadas, manter a higienização oral orientada e comunicar imediatamente qualquer intercorrência ou alteração de saúde.",
+    "CLÁUSULA 5ª (DA TOLERÂNCIA E REMARCAÇÕES) — A tolerância para atrasos nas consultas é de 15 minutos. Cancelamentos ou remarcações devem ser comunicados com antecedência mínima de 24 horas úteis. Faltas injustificadas prejudicam a continuidade do plano de tratamento.",
+    "CLÁUSULA 6ª (DA RESCISÃO E DESISTÊNCIA) — O contrato poderá ser rescindido por qualquer das partes. Em caso de rescisão antecipada, serão quitados proporcionalmente os atos clínicos já executados e custos laboratoriais incorridos, restituindo-se eventuais saldos remanescentes.",
+    "CLÁUSULA 7ª (DA PROTEÇÃO DE DADOS - LGPD) — Em conformidade com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018), os dados cadastrais e de saúde são confidenciais e tratados exclusivamente para fins de assistência odontológica e cumprimento de obrigação legal.",
+    "CLÁUSULA 8ª (DO FORO) — As partes elegem o foro da Comarca do local de atendimento da clínica para dirimir quaisquer dúvidas oriundas deste instrumento, renunciando expressamente a qualquer outro por mais privilegiado que seja.",
   ];
 
   for (const c of clausulas) {
@@ -196,7 +201,107 @@ function gerarPdfServidorContrato(snap: any, docClinico?: any): Uint8Array {
     pdf.text(lC, margin, y);
     y += lC.length * 9.5 + 4;
   }
-  y += 12;
+  y += 8;
+
+  // Bloco específico de Lentes em Resina (se aplicável)
+  const ehLentesResina = snap.tipoModeloContrato === "lentes_resina" || Boolean(snap.incluiLentesResina);
+  if (ehLentesResina) {
+    checkPageBreak(80);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(9);
+    pdf.setTextColor(15, 23, 42);
+    pdf.text("TERMO ESPECÍFICO — RESTAURAÇÕES ESTÉTICAS EM RESINA COMPOSTA", margin, y);
+    y += 12;
+
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(7.5);
+    pdf.setTextColor(71, 85, 105);
+
+    const clausulasResina = [
+      "1. ESCOPO DO TRATAMENTO: O tratamento compreende a confecção de lentes e/ou facetas em resina composta sobre os elementos dentários indicados no planejamento clínico, visando à harmonização do sorriso e estética dental.",
+      "2. RISCOS INERENTES E FATORES MECÂNICOS: A resina composta é material de alta estética, porém suscetível a lascamentos (chipping), fraturas ou desgastes quando submetida a sobrecarga mastigatória, alimentos excessivamente rígidos, hábitos parafuncionais (bruxismo/apertamento dental) ou traumas mecânicos externos.",
+      "3. DEVERES DE MANUTENÇÃO PREVENTIVA SEMESTRAL: O(a) paciente compromete-se a retornar a cada 6 (seis) meses para consultas de revisão, controle oclusal, profilaxia e polimento preventivo. Caso indicado, o uso de placa oclusal/miorrelaxante noturna é condição indispensável para a preservação das restaurações.",
+      "4. CONSENTIMENTO LIVRE E ESCLARECIDO: O(a) paciente declara ter compreendido as orientações, limitações biológicas e riscos, manifestando pleno consentimento para a realização do tratamento.",
+    ];
+
+    for (const cr of clausulasResina) {
+      checkPageBreak(22);
+      const lCr = pdf.splitTextToSize(cr, contentW);
+      pdf.text(lCr, margin, y);
+      y += lCr.length * 9.5 + 4;
+    }
+    y += 6;
+  }
+
+  // Bloco específico de Endodontia (se aplicável)
+  const ehEndodontia = snap.tipoModeloContrato === "endodontia" || Boolean(snap.dadosEndodontia?.ativo);
+  if (ehEndodontia) {
+    checkPageBreak(70);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(9);
+    pdf.setTextColor(15, 23, 42);
+    pdf.text("TERMO ESPECÍFICO — TRATAMENTO ENDODÔNTICO (CANAL)", margin, y);
+    y += 12;
+
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(7.5);
+    pdf.setTextColor(71, 85, 105);
+
+    const clausulasEndo = [
+      "1. ESCOPO E OBJETIVO: A intervenção visa à desinfecção, modelagem e obturação tridimensional do sistema de canais radiculares para debelar ou prevenir infecções periapicais.",
+      "2. LIMITAÇÕES E CONDUTA PÓS-TRATAMENTO: Anatomias radiculares complexas, canais calcificados ou infecções refratárias podem exigir complementações. É indispensável a realização da restauração definitiva imediata para prevenir recontaminação coronorradicular.",
+    ];
+
+    for (const ce of clausulasEndo) {
+      checkPageBreak(20);
+      const lCe = pdf.splitTextToSize(ce, contentW);
+      pdf.text(lCe, margin, y);
+      y += lCe.length * 9.5 + 4;
+    }
+    y += 6;
+  }
+
+  // Termo de Imagem e Voz (se presente)
+  if (snap.termoUsoImagem) {
+    checkPageBreak(40);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(8.5);
+    pdf.setTextColor(15, 23, 42);
+    pdf.text("TERMO DE AUTORIZAÇÃO DE USO DE IMAGEM E VOZ (LGPD)", margin, y);
+    y += 11;
+
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(7.5);
+    pdf.setTextColor(71, 85, 105);
+
+    const statusImg = snap.termoUsoImagem.autorizado !== false ? "AUTORIZADO" : "NÃO AUTORIZADO";
+    const detalheImg = snap.termoUsoImagem.autorizado !== false
+      ? `O(a) CONTRATANTE MANIFESTOU OPÇÃO [${statusImg}] para captação e utilização de registros fotográficos do tratamento para fins didático-científicos e de divulgação em redes sociais e portfólio institucional da clínica, em estrita conformidade com a LGPD, sendo facultada a revogação a qualquer tempo.`
+      : `O(a) CONTRATANTE MANIFESTOU OPÇÃO [${statusImg}] para veiculação de imagem em canais públicos, resguardado exclusivamente o prontuário interno para documentação médica legal.`;
+
+    const lImg = pdf.splitTextToSize(detalheImg, contentW);
+    pdf.text(lImg, margin, y);
+    y += lImg.length * 9.5 + 6;
+  }
+
+  // Observações personalizadas (se houver)
+  const obs = snap.observacoesCustomizadas || snap.orcamento?.observacoes;
+  if (obs && typeof obs === "string" && obs.trim()) {
+    checkPageBreak(35);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(8.5);
+    pdf.setTextColor(15, 23, 42);
+    pdf.text("DISPOSIÇÕES CONVENCIONADAS E OBSERVAÇÕES ESPECIAIS", margin, y);
+    y += 11;
+
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(7.5);
+    pdf.setTextColor(71, 85, 105);
+    const lObs = pdf.splitTextToSize(obs.trim(), contentW);
+    pdf.text(lObs, margin, y);
+    y += lObs.length * 9.5 + 6;
+  }
+  y += 6;
 
   // 6. SEÇÃO DE ASSINATURAS DIGITAIS
   checkPageBreak(150);
@@ -1772,7 +1877,44 @@ Deno.serve(async (req) => {
     // 13. AÇÃO: PROCESSAR_FILA_PDF (Reprocessamento autônomo de tarefas persistidas)
     // =========================================================================
     if (action === "processar_fila_pdf") {
+      // 1. Verificação rigorosa de autorização contra acesso público não autorizado
+      const authHeader = req.headers.get("authorization") || req.headers.get("Authorization") || "";
+      const bearerToken = authHeader.replace(/^Bearer\s+/i, "").trim();
+      let autorizado = false;
+
+      if (bearerToken) {
+        if (bearerToken === supabaseServiceKey) {
+          autorizado = true;
+        } else {
+          try {
+            const { data: userData, error: userErr } = await supabase.auth.getUser(bearerToken);
+            if (!userErr && userData?.user?.id) {
+              autorizado = true;
+            }
+          } catch (_) {}
+        }
+      }
+
+      // Se for acionamento para um contrato específico, permite também mediante validação do token do contrato
       const targetContratoId = body.contratoId || null;
+      const contratoToken = body.token || body.t || null;
+      if (!autorizado && targetContratoId && contratoToken) {
+        try {
+          const { data: dRow } = await supabase
+            .from("documentos_clinicos")
+            .select("itens")
+            .or(`identificador.eq.${targetContratoId},itens->>contratoId.eq.${targetContratoId}`)
+            .maybeSingle();
+          if (dRow?.itens?.token && dRow.itens.token === contratoToken) {
+            autorizado = true;
+          }
+        } catch (_) {}
+      }
+
+      if (!autorizado) {
+        return json({ error: "Acesso não autorizado para processamento da fila de arquivamento" }, 403);
+      }
+
       let query = supabase.from("fila_arquivamento_pdf").select("*");
 
       if (targetContratoId) {

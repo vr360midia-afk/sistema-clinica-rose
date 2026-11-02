@@ -107,6 +107,37 @@ function gerarPdfServidorContrato(snap: any, docClinico?: any): Uint8Array {
   pdf.text(lContratante, margin, y);
   y += lContratante.length * 10 + 12;
 
+  // Cláusulas e Obrigações Mútuas
+  checkPageBreak(120);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(9.5);
+  pdf.setTextColor(15, 23, 42);
+  pdf.text('4. CLÁUSULAS E OBRIGAÇÕES MÚTUAS', margin, y);
+  y += 13;
+
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(7.5);
+  pdf.setTextColor(71, 85, 105);
+
+  const clausulas = [
+    'CLÁUSULA 1ª (DO OBJETO E PROCEDIMENTOS) — A CONTRATADA obriga-se a prestar os serviços odontológicos descritos neste instrumento.',
+    'CLÁUSULA 2ª (DAS CONDIÇÕES FINANCEIRAS) — O valor total ajustado e as condições de pagamento pactuadas são irreajustáveis durante a vigência deste plano.',
+    'CLÁUSULA 3ª (DA ATIVIDADE DE MEIO) — A Odontologia é atividade profissional de meio e não de resultado. O sucesso clínico depende de fatores biológicos individuais.',
+    'CLÁUSULA 4ª (DAS OBRIGAÇÕES DO PACIENTE) — O(A) CONTRATANTE compromete-se a seguir com rigor as prescrições médicas e orientações de higiene oral.',
+    'CLÁUSULA 5ª (DA TOLERÂNCIA E REMARCAÇÕES) — A tolerância para atrasos é de 15 minutos. Cancelamentos devem ser comunicados com 24h de antecedência.',
+    'CLÁUSULA 6ª (DA RESCISÃO E DESISTÊNCIA) — Em caso de rescisão antecipada, serão quitados proporcionalmente os atos clínicos já executados.',
+    'CLÁUSULA 7ª (DA PROTEÇÃO DE DADOS - LGPD) — Em conformidade com a Lei nº 13.709/2018, os dados cadastrais e clínicos são confidenciais.',
+    'CLÁUSULA 8ª (DO FORO) — As partes elegem o foro da Comarca do local da clínica para dirimir quaisquer dúvidas oriundas deste instrumento.',
+  ];
+
+  for (const c of clausulas) {
+    checkPageBreak(22);
+    const lC = pdf.splitTextToSize(c, contentW);
+    pdf.text(lC, margin, y);
+    y += lC.length * 9.5 + 4;
+  }
+  y += 8;
+
   // Assinaturas
   checkPageBreak(150);
   pdf.setFont('helvetica', 'bold');
@@ -386,3 +417,4 @@ simularFechamentoImediato().catch((e) => {
   console.error(e);
   process.exit(1);
 });
+

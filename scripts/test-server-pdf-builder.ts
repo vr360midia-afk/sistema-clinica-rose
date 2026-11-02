@@ -193,8 +193,8 @@ export function gerarPdfServidorContrato(snap: SnapshotContrato, docClinico?: an
   pdf.text(lFin, margin, y);
   y += lFin.length * 10 + 14;
 
-  // 5. CLÁUSULAS CONTRATUAIS ESSENCIAIS
-  checkPageBreak(110);
+  // 5. CLÁUSULAS CONTRATUAIS ESSENCIAIS E OBRIGAÇÕES MÚTUAS
+  checkPageBreak(120);
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(9.5);
   pdf.setTextColor(15, 23, 42);
@@ -206,18 +206,76 @@ export function gerarPdfServidorContrato(snap: SnapshotContrato, docClinico?: an
   pdf.setTextColor(71, 85, 105);
 
   const clausulas = [
-    'CLÁUSULA PRIMEIRA - O(a) CONTRATANTE compromete-se a seguir rigorosamente as prescrições médicas, comparecer às consultas designadas e comunicar previamente eventual impossibilidade.',
-    'CLÁUSULA SEGUNDA - A Odontologia é atividade de meio. O sucesso do tratamento depende de fatores biológicos individuais e da higienização oral contínua do(a) paciente.',
-    'CLÁUSULA TERCEIRA - As partes elegem o foro da Comarca do local da clínica para dirimir quaisquer dúvidas oriundas deste instrumento.',
+    'CLÁUSULA 1ª (DO OBJETO E PROCEDIMENTOS) — A CONTRATADA obriga-se a prestar ao(à) CONTRATANTE os serviços odontológicos descritos neste instrumento, observando o diagnóstico clínico e o plano de tratamento formalmente aprovado.',
+    'CLÁUSULA 2ª (DAS CONDIÇÕES FINANCEIRAS) — O valor total ajustado e as condições de pagamento pactuadas são irreajustáveis durante a vigência deste plano, ressalvada a necessidade de procedimentos adicionais não previstos inicialmente e formalmente aprovados.',
+    'CLÁUSULA 3ª (DA ATIVIDADE DE MEIO) — A Odontologia é atividade profissional de meio e não de resultado. O sucesso clínico depende de fatores biológicos individuais, resposta tecidual e cooperação contínua do(a) paciente. A CONTRATADA compromete-se a atuar com zelo, perícia e estrita observância ao Código de Ética Odontológica.',
+    'CLÁUSULA 4ª (DAS OBRIGAÇÕES DO PACIENTE) — O(A) CONTRATANTE compromete-se a seguir com rigor as prescrições médicas, comparecer às consultas designadas, manter a higienização oral orientada e comunicar imediatamente qualquer intercorrência ou alteração de saúde.',
+    'CLÁUSULA 5ª (DA TOLERÂNCIA E REMARCAÇÕES) — A tolerância para atrasos nas consultas é de 15 minutos. Cancelamentos ou remarcações devem ser comunicados com antecedência mínima de 24 horas úteis. Faltas injustificadas prejudicam a continuidade do plano de tratamento.',
+    'CLÁUSULA 6ª (DA RESCISÃO E DESISTÊNCIA) — O contrato poderá ser rescindido por qualquer das partes. Em caso de rescisão antecipada, serão quitados proporcionalmente os atos clínicos já executados e custos laboratoriais incorridos, restituindo-se eventuais saldos remanescentes.',
+    'CLÁUSULA 7ª (DA PROTEÇÃO DE DADOS - LGPD) — Em conformidade com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018), os dados cadastrais e de saúde são confidenciais e tratados exclusivamente para fins de assistência odontológica e cumprimento de obrigação legal.',
+    'CLÁUSULA 8ª (DO FORO) — As partes elegem o foro da Comarca do local de atendimento da clínica para dirimir quaisquer dúvidas oriundas deste instrumento, renunciando expressamente a qualquer outro por mais privilegiado que seja.',
   ];
 
   for (const c of clausulas) {
-    checkPageBreak(25);
+    checkPageBreak(22);
     const lC = pdf.splitTextToSize(c, contentW);
     pdf.text(lC, margin, y);
     y += lC.length * 9.5 + 4;
   }
-  y += 12;
+  y += 8;
+
+  // Bloco específico de Lentes em Resina (se aplicável)
+  const ehLentesResina = (snap as any).tipoModeloContrato === 'lentes_resina' || Boolean((snap as any).incluiLentesResina);
+  if (ehLentesResina) {
+    checkPageBreak(80);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(9);
+    pdf.setTextColor(15, 23, 42);
+    pdf.text('TERMO ESPECÍFICO — RESTAURAÇÕES ESTÉTICAS EM RESINA COMPOSTA', margin, y);
+    y += 12;
+
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(7.5);
+    pdf.setTextColor(71, 85, 105);
+
+    const clausulasResina = [
+      '1. ESCOPO DO TRATAMENTO: O tratamento compreende a confecção de lentes e/ou facetas em resina composta sobre os elementos dentários indicados no planejamento clínico, visando à harmonização do sorriso e estética dental.',
+      '2. RISCOS INERENTES E FATORES MECÂNICOS: A resina composta é material de alta estética, porém suscetível a lascamentos (chipping), fraturas ou desgastes quando submetida a sobrecarga mastigatória, alimentos excessivamente rígidos, hábitos parafuncionais (bruxismo/apertamento dental) ou traumas mecânicos externos.',
+      '3. DEVERES DE MANUTENÇÃO PREVENTIVA SEMESTRAL: O(a) paciente compromete-se a retornar a cada 6 (seis) meses para consultas de revisão, controle oclusal, profilaxia e polimento preventivo. Caso indicado, o uso de placa oclusal/miorrelaxante noturna é condição indispensável para a preservação das restaurações.',
+      '4. CONSENTIMENTO LIVRE E ESCLARECIDO: O(a) paciente declara ter compreendido as orientações, limitações biológicas e riscos, manifestando pleno consentimento para a realização do tratamento.',
+    ];
+
+    for (const cr of clausulasResina) {
+      checkPageBreak(22);
+      const lCr = pdf.splitTextToSize(cr, contentW);
+      pdf.text(lCr, margin, y);
+      y += lCr.length * 9.5 + 4;
+    }
+    y += 6;
+  }
+
+  // Termo de Imagem e Voz (se presente)
+  if (snap.termoUsoImagem) {
+    checkPageBreak(40);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(8.5);
+    pdf.setTextColor(15, 23, 42);
+    pdf.text('TERMO DE AUTORIZAÇÃO DE USO DE IMAGEM E VOZ (LGPD)', margin, y);
+    y += 11;
+
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(7.5);
+    pdf.setTextColor(71, 85, 105);
+
+    const statusImg = snap.termoUsoImagem.autorizado !== false ? 'AUTORIZADO' : 'NÃO AUTORIZADO';
+    const detalheImg = snap.termoUsoImagem.autorizado !== false
+      ? `O(a) CONTRATANTE MANIFESTOU OPÇÃO [${statusImg}] para captação e utilização de registros fotográficos do tratamento para fins didático-científicos e de divulgação em redes sociais e portfólio institucional da clínica, em estrita conformidade com a LGPD, sendo facultada a revogação a qualquer tempo.`
+      : `O(a) CONTRATANTE MANIFESTOU OPÇÃO [${statusImg}] para veiculação de imagem em canais públicos, resguardado exclusivamente o prontuário interno para documentação médica legal.`;
+
+    const lImg = pdf.splitTextToSize(detalheImg, contentW);
+    pdf.text(lImg, margin, y);
+    y += lImg.length * 9.5 + 6;
+  }
 
   // 6. SEÇÃO DE ASSINATURAS DIGITAIS
   checkPageBreak(160);
@@ -351,3 +409,4 @@ console.log('Teste isolado concluído. Bytes gerados:', bytes.length);
 if (bytes.length > 5000) {
   console.log('PDF gerado com sucesso pelo motor de servidor!');
 }
+

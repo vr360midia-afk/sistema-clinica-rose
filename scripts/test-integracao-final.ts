@@ -96,8 +96,16 @@ async function run() {
   assert(cpContent.includes('isUuid(doc.user_id)'), 'contrato-publico valida UUID real para documentos_paciente');
   assert(cpContent.includes('documentos-pacientes'), 'Bucket documentos-pacientes utilizado para armazenamento');
   assert(cpContent.includes('function gerarPdfServidorContrato'), 'Gerador server-side de PDF autônomo implementado na Edge Function');
+  assert(cpContent.includes('CLÁUSULA 1ª (DO OBJETO E PROCEDIMENTOS)'), 'Gerador server-side inclui texto integral das cláusulas contratuais');
+  assert(cpContent.includes('TERMO ESPECÍFICO — RESTAURAÇÕES ESTÉTICAS EM RESINA COMPOSTA'), 'Gerador server-side inclui cláusulas específicas de Lentes de Resina');
   assert(cpContent.includes('async function executarArquivamentoPdfServidor'), 'Pipeline autônomo de arquivamento no servidor implementado');
   assert(cpContent.includes('action === "processar_fila_pdf"'), 'Ação de reprocessamento autônomo da fila persistida implementada');
+  assert(cpContent.includes('Acesso não autorizado para processamento da fila de arquivamento'), 'Ação processar_fila_pdf protegida contra acesso público não autorizado (HTTP 403)');
+
+  const rcPath = path.resolve('src/utils/reconciliacaoContratos.ts');
+  const rcContent = fs.readFileSync(rcPath, 'utf8');
+  assert(rcContent.includes('processar_fila_pdf'), 'reconciliacaoContratos.ts aciona processamento e autocura da fila de arquivamento');
+  assert(rcContent.includes('export async function processarFilaArquivamentoPdf'), 'reconciliacaoContratos.ts exporta função oficial de processamento de fila');
 
   const ssPath = path.resolve('src/services/supabaseService.ts');
   const ssContent = fs.readFileSync(ssPath, 'utf8');
@@ -134,7 +142,7 @@ async function run() {
   assert(migContent.includes('CREATE OR REPLACE FUNCTION public.garantir_imutabilidade_contrato_v3'), 'Função de integridade imutável pós-assinatura declarada');
 
   console.log('\n================================================================');
-  console.log('TODAS AS 18 ASSERÇÕES DE INTEGRAÇÃO PASSARAM COM SUCESSO! (18/18)');
+  console.log('TODAS AS 23 ASSERÇÕES DE INTEGRAÇÃO PASSARAM COM SUCESSO! (23/23)');
   console.log('================================================================');
 }
 
