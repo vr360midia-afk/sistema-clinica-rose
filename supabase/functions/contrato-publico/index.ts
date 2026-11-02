@@ -608,6 +608,144 @@ Deno.serve(async (req) => {
       });
     }
 
+    // =========================================================================
+    // 5. AÇÃO: ORCAMENTO-GET (Consulta pública do orçamento com validação de token)
+    // =========================================================================
+    if (action === "orcamento-get") {
+      const targetId = String(body.id || body.identificador || "").trim();
+      const token = String(body.token || body.t || "").trim();
+
+      if (!targetId || !token) {
+        return json({ error: "Identificador e token são obrigatórios" }, 400);
+      }
+
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
+      let orc: Record<string, any> | null = null;
+
+      if (isUuid) {
+        const { data } = await supabase.from("orcamentos").select("*").eq("id", targetId).maybeSingle();
+        if (data) orc = data;
+      }
+      if (!orc) {
+        const { data } = await supabase.from("orcamentos").select("*").eq("identificador", targetId).maybeSingle();
+        if (data) orc = data;
+      }
+      if (!orc && targetId.toLowerCase().startsWith("orc-")) {
+        const { data } = await supabase.from("orcamentos").select("*").eq("identificador", targetId.toUpperCase()).maybeSingle();
+        if (data) orc = data;
+      }
+
+      if (!orc) {
+        return json({ error: "Orçamento não encontrado" }, 404);
+      }
+
+      if (orc.token_assinatura !== token) {
+        return json({ error: "Token de acesso inválido ou expirado" }, 403);
+      }
+
+      if (orc.data_expiracao_link && new Date(orc.data_expiracao_link) < new Date()) {
+        return json({ error: "Esta proposta de orçamento expirou.", isExpirado: true }, 403);
+      }
+
+      // Converte fotos para signed URLs se houver storagePath
+      let fotosComSignedUrls = [];
+      if (Array.isArray(orc.fotos_planejamento)) {
+        for (const f of orc.fotos_planejamento) {
+          if (f.storagePath) {
+            try {
+              const { data: signRes } = await supabase.storage
+                .from("documentos-pacientes")
+                .createSignedUrl(f.storagePath, 3600);
+              fotosComSignedUrls.push({ ...f, url: signRes?.signedUrl || f.url });
+            } catch (_) {
+              fotosComSignedUrls.push(f);
+            }
+          } else {
+            fotosComSignedUrls.push(f);
+          }
+        }
+      }
+
+      return json({
+        ok: true,
+        orcamento: {
+          ...orc,
+          fotos_planejamento: fotosComSignedUrls,
+        },
+      });
+    }
+
+    // =========================================================================
+    // 6. AÇÃO: ORCAMENTO-APPROVE (Aprovação online do orçamento pelo paciente)
+    // =========================================================================
+    if (action === "orcamento-approve") {
+      const targetId = String(body.id || body.identificador || "").trim();
+      const token = String(body.token || body.t || "").trim();
+      const condicao = body.condicaoEscolhida;
+
+      if (!targetId || !token) {
+        return json({ error: "Identificador e token são obrigatórios" }, 400);
+      }
+      if (!condicao) {
+        return json({ error: "Condição de pagamento é obrigatória" }, 400);
+      }
+
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
+      let orc: Record<string, any> | null = null;
+
+      if (isUuid) {
+        const { data } = await supabase.from("orcamentos").select("*").eq("id", targetId).maybeSingle();
+        if (data) orc = data;
+      }
+      if (!orc) {
+        const { data } = await supabase.from("orcamentos").select("*").eq("identificador", targetId).maybeSingle();
+        if (data) orc = data;
+      }
+
+      if (!orc) {
+        return json({ error: "Orçamento não encontrado" }, 404);
+      }
+      if (orc.token_assinatura !== token) {
+        return json({ error: "Token de acesso inválido" }, 403);
+      }
+      if (orc.status === "aprovado") {
+        return json({ ok: true, jaAprovado: true, aprovadoEm: orc.aprovado_em, condicaoEscolhida: orc.condicao_escolhida });
+      }
+
+      const nowIso = new Date().toISOString();
+      const snapshot = {
+        orcamentoId: orc.id,
+        identificador: orc.identificador,
+        titulo: orc.titulo,
+        itens: orc.itens,
+        total: condicao.valorTotal || orc.total,
+        condicaoEscolhida: condicao,
+        aprovadoEm: nowIso,
+        pacienteNome: orc.paciente_nome,
+        pacienteId: orc.paciente_id,
+        evidencias: body.evidencias || {},
+      };
+
+      await supabase
+        .from("orcamentos")
+        .update({
+          status: "aprovado",
+          aprovado_em: nowIso,
+          condicao_escolhida: condicao,
+          snapshot_aprovacao: snapshot,
+          atualizado_em: nowIso,
+        })
+        .eq("id", orc.id);
+
+      if (orc.paciente_id) {
+        try {
+          await supabase.from("pacientes").update({ status: "Em Tratamento", atualizado_em: nowIso }).eq("id", orc.paciente_id);
+        } catch (_) {}
+      }
+
+      return json({ ok: true, aprovadoEm: nowIso, condicaoEscolhida: condicao });
+    }
+
     return json({ error: "Ação não suportada" }, 400);
   } catch (e) {
     console.error("contrato-publico error:", e);

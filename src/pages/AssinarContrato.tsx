@@ -85,23 +85,23 @@ function sanitizarSnapshotContrato(snap: ContratoSnapshot): ContratoSnapshot {
     ...snap,
     financeiro: snap.financeiro
       ? {
-          ...snap.financeiro,
-          formaPagamento: limparFormaPagamentoParaContrato(snap.financeiro.formaPagamento),
-          metodoParcelamento: snap.financeiro.metodoParcelamento
-            ? limparFormaPagamentoParaContrato(snap.financeiro.metodoParcelamento)
-            : undefined,
-          parcelas: (snap.financeiro.parcelas || []).map((p) => ({
-            ...p,
-            descricao: limparFormaPagamentoParaContrato(p.descricao),
-            metodo: p.metodo ? limparFormaPagamentoParaContrato(p.metodo) : p.metodo,
-          })),
-        }
+        ...snap.financeiro,
+        formaPagamento: limparFormaPagamentoParaContrato(snap.financeiro.formaPagamento),
+        metodoParcelamento: snap.financeiro.metodoParcelamento
+          ? limparFormaPagamentoParaContrato(snap.financeiro.metodoParcelamento)
+          : undefined,
+        parcelas: (snap.financeiro.parcelas || []).map((p) => ({
+          ...p,
+          descricao: limparFormaPagamentoParaContrato(p.descricao),
+          metodo: p.metodo ? limparFormaPagamentoParaContrato(p.metodo) : p.metodo,
+        })),
+      }
       : snap.financeiro,
     orcamento: snap.orcamento
       ? {
-          ...snap.orcamento,
-          formasPagamento: limparFormaPagamentoParaContrato(snap.orcamento.formasPagamento),
-        }
+        ...snap.orcamento,
+        formasPagamento: limparFormaPagamentoParaContrato(snap.orcamento.formasPagamento),
+      }
       : snap.orcamento,
   };
 }
@@ -138,7 +138,7 @@ export default function AssinarContrato() {
         const h = new URLSearchParams(window.location.hash.replace(/^#/, ''));
         rawEncoded = h.get('c') || h.get('data') || h.get('d');
       }
-    } catch (_) {}
+    } catch (_) { }
   }
   const encodedData = rawEncoded;
 
@@ -184,7 +184,7 @@ export default function AssinarContrato() {
     try {
       const parsedSpaUrl = new URL(spaQueryParam, 'https://dummy.local');
       resolvedToken = parsedSpaUrl.searchParams.get('token') || parsedSpaUrl.searchParams.get('t');
-    } catch (_) {}
+    } catch (_) { }
   }
   const token = resolvedToken;
 
@@ -357,7 +357,7 @@ export default function AssinarContrato() {
         if (mudou) {
           window.history.replaceState({}, document.title, urlObj.pathname + (urlObj.search ? urlObj.search : ''));
         }
-      } catch (_) {}
+      } catch (_) { }
     }
   };
 
@@ -371,13 +371,13 @@ export default function AssinarContrato() {
 
       const cleanSlug = rawSlug
         ? rawSlug
-            .replace(/^assinar-contrato-/, '')
-            .replace(/^contrato-/, '')
-            .replace(/^contrato\//, '')
-            .replace(/\/assinaturadocontrato.*$/, '')
-            .replace(/-assinaturadocontrato.*$/, '')
-            .replace(/\/.*$/, '')
-            .trim()
+          .replace(/^assinar-contrato-/, '')
+          .replace(/^contrato-/, '')
+          .replace(/^contrato\//, '')
+          .replace(/\/assinaturadocontrato.*$/, '')
+          .replace(/-assinaturadocontrato.*$/, '')
+          .replace(/\/.*$/, '')
+          .trim()
         : '';
 
       // 1. Fonte Primária Definitiva: SUPABASE (Edge Function -> RPC -> Consulta Direta no Banco)
@@ -407,7 +407,7 @@ export default function AssinarContrato() {
               setLoading(false);
               return;
             }
-          } catch (_) {}
+          } catch (_) { }
         }
 
         // 1.2 Fallback 1: Tenta RPC segura 'obter_contrato_publico' (executa com SECURITY DEFINER)
@@ -426,7 +426,7 @@ export default function AssinarContrato() {
               setLoading(false);
               return;
             }
-          } catch (_) {}
+          } catch (_) { }
         }
 
         // 1.3 Fallback 2: Consulta direta no banco de dados Supabase (documentos_clinicos)
@@ -494,7 +494,7 @@ export default function AssinarContrato() {
                 };
               }
             }
-          } catch (_) {}
+          } catch (_) { }
         }
 
         // Se encontrou no Supabase, limpa imediatamente qualquer resíduo de c= da URL
@@ -535,7 +535,7 @@ export default function AssinarContrato() {
                   foundDocId = parsed.contratoId || targetId;
                   break;
                 }
-              } catch (_) {}
+              } catch (_) { }
             }
           }
 
@@ -572,7 +572,7 @@ export default function AssinarContrato() {
                     break;
                   }
                 }
-              } catch (_) {}
+              } catch (_) { }
             }
           }
 
@@ -595,7 +595,7 @@ export default function AssinarContrato() {
                   foundDocId = docMatch.id || targetId;
                 }
               }
-            } catch (_) {}
+            } catch (_) { }
           }
 
           // Recuperação a partir de 'dental-system-orcamentos'
@@ -641,7 +641,7 @@ export default function AssinarContrato() {
                   }
                 }
               }
-            } catch (_) {}
+            } catch (_) { }
           }
         } catch (e) {
           console.warn('Erro ao restaurar do localStorage:', e);
@@ -659,13 +659,13 @@ export default function AssinarContrato() {
               if (decoded.contratoId) foundDocId = decoded.contratoId;
 
               // Persiste no Supabase em segundo plano para migrar o contrato definitivamente
-              emitirContratoPersistido(decoded, decoded.contratoId).catch(() => {});
+              emitirContratoPersistido(decoded, decoded.contratoId).catch(() => { });
 
               // Limpa a URL imediatamente para que o usuário não continue propagando o link com c=
               limparUrlNavegador();
             }
           }
-        } catch (_) {}
+        } catch (_) { }
       }
 
       if (foundSnapshot) {
@@ -682,7 +682,7 @@ export default function AssinarContrato() {
                 foundSnapshot = parsedSigned;
               }
             }
-          } catch (_) {}
+          } catch (_) { }
         }
 
         const sanitizado = sanitizarSnapshotContrato(foundSnapshot);
@@ -694,7 +694,7 @@ export default function AssinarContrato() {
           try {
             localStorage.setItem(`contrato_${sanitizado.contratoId}`, JSON.stringify(sanitizado));
             if (targetId) localStorage.setItem(`contrato_${targetId}`, JSON.stringify(sanitizado));
-          } catch (_) {}
+          } catch (_) { }
         }
 
         // Se o contrato já estiver assinado pelo paciente, assegura sincronização do PDF no Storage privado se houver token
@@ -766,7 +766,7 @@ export default function AssinarContrato() {
           if (contractId) localStorage.setItem(`contrato_assinado_${contractId}`, snapJson);
           if (targetId) localStorage.setItem(`contrato_assinado_${targetId}`, snapJson);
           if (rawSlug) localStorage.setItem(`contrato_assinado_${rawSlug}`, snapJson);
-        } catch (_) {}
+        } catch (_) { }
       }
 
       // 1. Persistência prioritária via Edge Function pública
@@ -823,7 +823,7 @@ export default function AssinarContrato() {
             }
             return;
           }
-        } catch (_) {}
+        } catch (_) { }
       }
 
       // 3. Fallback 2: Persistência direta em documentos_clinicos (garantindo que assinado_em ainda é NULL)
@@ -901,7 +901,7 @@ export default function AssinarContrato() {
           if (snapshot.contratoId) localStorage.setItem(`contrato_assinado_${snapshot.contratoId}`, snapJson);
           if (finalDocId) localStorage.setItem(`contrato_assinado_${finalDocId}`, snapJson);
           if (targetId) localStorage.setItem(`contrato_assinado_${targetId}`, snapJson);
-        } catch (_) {}
+        } catch (_) { }
       }
 
       // 1. Persistência prioritária via RPC atômica assinar_contrato_profissional
@@ -920,7 +920,7 @@ export default function AssinarContrato() {
               setSnapshot(sanitizarSnapshotContrato(rpcRes.snapshot));
             }
           }
-        } catch (_) {}
+        } catch (_) { }
       }
 
       // 2. Persistência via Edge Function pública
@@ -1199,8 +1199,8 @@ export default function AssinarContrato() {
                   {isContratoEndodontia(snapshot)
                     ? 'Contrato de Prestação de Serviços — Tratamento de Canal (Endodontia)'
                     : isContratoLenteResina(snapshot)
-                    ? 'Contrato de Prestação de Serviços — Lentes em Resina Composta'
-                    : 'Contrato de Prestação de Serviços Odontológicos'}
+                      ? 'Contrato de Prestação de Serviços — Lentes em Resina Composta'
+                      : 'Contrato de Prestação de Serviços Odontológicos'}
                 </span>
                 {isContratoEndodontia(snapshot) && (
                   <Badge className="bg-purple-500 hover:bg-purple-600 text-white border-0 text-[11px] font-semibold">
@@ -1261,8 +1261,8 @@ export default function AssinarContrato() {
                   {isTotalmenteAssinado
                     ? 'Contrato formalizado e assinado digitalmente por ambas as partes!'
                     : isAssinado
-                    ? 'Assinatura do Paciente concluída • Aguardando Profissional Responsável'
-                    : 'Assinatura do Profissional registrada • Aguardando Paciente'}
+                      ? 'Assinatura do Paciente concluída • Aguardando Profissional Responsável'
+                      : 'Assinatura do Profissional registrada • Aguardando Paciente'}
                 </h3>
                 <p className={cn(
                   "text-xs sm:text-sm mt-0.5",
@@ -1458,8 +1458,8 @@ export default function AssinarContrato() {
                               (card.statusBadge || '').toLowerCase().includes('autoriz')
                                 ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800'
                                 : (card.statusBadge || '').toLowerCase().includes('quitad') || (card.statusBadge || '').toLowerCase().includes('pago')
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800'
-                                : 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800'
+                                  : 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
                             )}
                           >
                             {card.statusBadge}
@@ -1535,8 +1535,8 @@ export default function AssinarContrato() {
                         {copiouPayloadPix
                           ? 'Código Copiado!'
                           : valorPixContrato > 0
-                          ? `Copiar PIX (${formatMoney(valorPixContrato)})`
-                          : 'Copiar PIX Copia e Cola'}
+                            ? `Copiar PIX (${formatMoney(valorPixContrato)})`
+                            : 'Copiar PIX Copia e Cola'}
                       </Button>
                       <Button
                         size="sm"
@@ -1839,7 +1839,7 @@ export default function AssinarContrato() {
                   <strong className="text-slate-800 dark:text-slate-200 font-semibold block mb-1">
                     ✦ Importante: A sua escolha é totalmente livre e independente.
                   </strong>
-                  A autorização para fins didáticos, científicos ou de divulgação em redes sociais é facultativa. 
+                  A autorização para fins didáticos, científicos ou de divulgação em redes sociais é facultativa.
                   <strong> Caso opte por NÃO autorizar</strong>, o termo <u>não</u> será anexado ao seu contrato e o seu atendimento odontológico seguirá rigorosamente com o mesmo cuidado, dedicação e sigilo profissional.
                 </div>
 

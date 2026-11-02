@@ -563,8 +563,8 @@ export const obterCardsResumoPagamento = (snapshot?: Partial<ContratoSnapshot> |
     const detalhe = isCartao
       ? 'Fatura do Cartão'
       : (formasTexto.match(/(?:vencimento|dia)\s*(?:todo\s*dia)?\s*(\d{1,2})/i)
-          ? `Vencimento todo dia ${formasTexto.match(/(?:vencimento|dia)\s*(?:todo\s*dia)?\s*(\d{1,2})/i)![1]} do mês`
-          : undefined);
+        ? `Vencimento todo dia ${formasTexto.match(/(?:vencimento|dia)\s*(?:todo\s*dia)?\s*(\d{1,2})/i)![1]} do mês`
+        : undefined);
 
     cards.push({
       id: 'parcelamento',
@@ -1200,8 +1200,8 @@ export const mapearDadosContrato = ({
         const descFinal = qtdParcelas === 1 && entrada === 0
           ? `Pagamento Único (${metodoRestante})`
           : isSaldoACombinar
-          ? `Saldo Restante (A combinar)`
-          : `Parcela ${idx + 1} de ${qtdParcelas} (${metodoRestante})`;
+            ? `Saldo Restante (A combinar)`
+            : `Parcela ${idx + 1} de ${qtdParcelas} (${metodoRestante})`;
 
         const vencFinal = isSaldoACombinar ? 'A combinar' : vencimentoFormatado;
 
@@ -1381,13 +1381,13 @@ export const mapearDadosContrato = ({
       assinaturaDentista !== undefined
         ? assinaturaDentista
         : (cfgContrato?.autoAssinarContrato !== false
-            ? obterAssinaturaPadraoDentista({
-                dentistaNome: dadosClinica.dentistaResponsavel,
-                dentistaCro: dadosClinica.cro,
-                emitidoEm,
-                configContrato: cfgContrato,
-              })
-            : null),
+          ? obterAssinaturaPadraoDentista({
+            dentistaNome: dadosClinica.dentistaResponsavel,
+            dentistaCro: dadosClinica.cro,
+            emitidoEm,
+            configContrato: cfgContrato,
+          })
+          : null),
   };
 };
 
@@ -1940,23 +1940,23 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
       `}
 
       ${temAlgumPix ? (() => {
-        const chavePixContrato = clinica?.chavePix || clinica?.cnpj || clinica?.telefone || '';
-        const parcelaEntrada = financeiro.parcelas?.find((p) =>
-          /entrada|sinal/i.test(p.descricao || '')
-        ) || (financeiro.entrada > 0 && financeiro.parcelas?.length > 0 ? financeiro.parcelas[0] : undefined);
-        const isEntradaPaga = parcelaEntrada?.status ? /quitad|pago|paga/i.test(parcelaEntrada.status) : false;
+      const chavePixContrato = clinica?.chavePix || clinica?.cnpj || clinica?.telefone || '';
+      const parcelaEntrada = financeiro.parcelas?.find((p) =>
+        /entrada|sinal/i.test(p.descricao || '')
+      ) || (financeiro.entrada > 0 && financeiro.parcelas?.length > 0 ? financeiro.parcelas[0] : undefined);
+      const isEntradaPaga = parcelaEntrada?.status ? /quitad|pago|paga/i.test(parcelaEntrada.status) : false;
 
-        const parcelasPixNaoPagas = (financeiro.parcelas || []).filter((p) => {
-          const isCartao = isMetodoCartao(p.metodo, p.descricao) || (p.vencimento && /fatura/i.test(p.vencimento));
-          const isPix = !isCartao && (isMetodoPix(p.metodo, p.descricao) || temAlgumPix);
-          const isPaga = Boolean(p.status && /paga|pago|quitad/i.test(p.status));
-          return isPix && !isPaga;
-        });
+      const parcelasPixNaoPagas = (financeiro.parcelas || []).filter((p) => {
+        const isCartao = isMetodoCartao(p.metodo, p.descricao) || (p.vencimento && /fatura/i.test(p.vencimento));
+        const isPix = !isCartao && (isMetodoPix(p.metodo, p.descricao) || temAlgumPix);
+        const isPaga = Boolean(p.status && /paga|pago|quitad/i.test(p.status));
+        return isPix && !isPaga;
+      });
 
-        const todasPixPagas = (financeiro.parcelas || []).length > 0 && parcelasPixNaoPagas.length === 0;
+      const todasPixPagas = (financeiro.parcelas || []).length > 0 && parcelasPixNaoPagas.length === 0;
 
-        if (todasPixPagas) {
-          return `
+      if (todasPixPagas) {
+        return `
       <!-- Status Oficial de Quitação PIX -->
       <div class="evitar-corte" style="margin: 8px 0; padding: 10px 14px; border: 1.5px solid #10b981; background-color: #f0fdf4; border-radius: 8px; font-family: Arial, sans-serif; font-size: 11px; color: #065f46; page-break-inside: avoid !important; break-inside: avoid !important;">
         <div style="font-weight: bold; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px;">
@@ -1968,29 +1968,29 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
         </div>
       </div>
           `;
-        }
+      }
 
-        const valorPixContrato = (!isEntradaPaga && financeiro.entrada && financeiro.entrada > 0)
-          ? financeiro.entrada
-          : (parcelasPixNaoPagas.length === 1 ? parcelasPixNaoPagas[0].valor : undefined);
+      const valorPixContrato = (!isEntradaPaga && financeiro.entrada && financeiro.entrada > 0)
+        ? financeiro.entrada
+        : (parcelasPixNaoPagas.length === 1 ? parcelasPixNaoPagas[0].valor : undefined);
 
-        const numIdContrato = orcamento?.numeroIdentificador || snapshot?.contratoId || '';
-        const payloadPixContrato = chavePixContrato ? gerarPayloadPix({
-          chave: chavePixContrato,
-          tipoChave: clinica?.tipoChavePix,
-          nomeFavorecido: clinica?.favorecidoPix || clinica?.nome,
-          cidade: (clinica?.cidade && !clinica.cidade.toUpperCase().includes('SAO PAULO')) ? clinica.cidade : 'MACEIO',
-          valor: valorPixContrato,
-          descricao: `Contrato ${numIdContrato}`.trim(),
-        }) : '';
-        const qrCodeSrc = payloadPixContrato
-          ? gerarQrCodePixUrl(payloadPixContrato, 280)
-          : `https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=4&data=${encodeURIComponent(chavePixContrato || 'pix')}`;
-        const qrCodeGrandeSrc = payloadPixContrato
-          ? gerarQrCodePixUrl(payloadPixContrato, 450)
-          : qrCodeSrc;
+      const numIdContrato = orcamento?.numeroIdentificador || snapshot?.contratoId || '';
+      const payloadPixContrato = chavePixContrato ? gerarPayloadPix({
+        chave: chavePixContrato,
+        tipoChave: clinica?.tipoChavePix,
+        nomeFavorecido: clinica?.favorecidoPix || clinica?.nome,
+        cidade: (clinica?.cidade && !clinica.cidade.toUpperCase().includes('SAO PAULO')) ? clinica.cidade : 'MACEIO',
+        valor: valorPixContrato,
+        descricao: `Contrato ${numIdContrato}`.trim(),
+      }) : '';
+      const qrCodeSrc = payloadPixContrato
+        ? gerarQrCodePixUrl(payloadPixContrato, 280)
+        : `https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=4&data=${encodeURIComponent(chavePixContrato || 'pix')}`;
+      const qrCodeGrandeSrc = payloadPixContrato
+        ? gerarQrCodePixUrl(payloadPixContrato, 450)
+        : qrCodeSrc;
 
-        return `
+      return `
       <!-- Detalhamento Oficial para Pagamento via PIX com QR Code -->
       <div class="box-pix evitar-corte" style="margin: 8px 0; padding: 10px 14px; border: 1.5px dashed #0284c7; background-color: #f0f9ff; border-radius: 8px; font-family: Arial, sans-serif; font-size: 11px; color: #0369a1; page-break-inside: avoid !important; break-inside: avoid !important;">
         <div style="font-weight: bold; margin-bottom: 6px; text-transform: uppercase; font-size: 10.5px; letter-spacing: 0.5px; display: flex; align-items: center; justify-content: space-between;">
@@ -2016,11 +2016,10 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
           <div style="flex: 1;">
             <div style="padding: 6px 10px; background-color: #ffffff; border-radius: 6px; border: 1px solid #bae6fd; font-size: 10.5px; color: #0c4a6e; line-height: 1.45;">
               <strong>Chave PIX:</strong> <span style="font-family: monospace; font-weight: bold; font-size: 11.5px;">${clinica?.chavePix || clinica?.cnpj || clinica?.telefone || 'Chave da clínica sob consulta'}</span> <br/>
-              <strong>Titular / Favorecido:</strong> ${clinica?.favorecidoPix || clinica?.nome} ${
-                clinica?.cnpjCpfFavorecidoPix
-                  ? `• ${labelDocFavorecido}: ${clinica.cnpjCpfFavorecidoPix}`
-                  : (clinica?.cnpj ? `• ${labelDocClinica}: ${clinica.cnpj}` : '')
-              }
+              <strong>Titular / Favorecido:</strong> ${clinica?.favorecidoPix || clinica?.nome} ${clinica?.cnpjCpfFavorecidoPix
+          ? `• ${labelDocFavorecido}: ${clinica.cnpjCpfFavorecidoPix}`
+          : (clinica?.cnpj ? `• ${labelDocClinica}: ${clinica.cnpj}` : '')
+        }
               ${clinica?.bancoPix ? `<br/><strong>Instituição / Banco:</strong> ${clinica.bancoPix}` : ''}
               ${valorPixContrato ? `<br/><strong>Valor Configurado no QR Code:</strong> <span style="color: #059669; font-weight: bold;">${formatMoney(valorPixContrato)}</span>` : ''}
 
@@ -2045,7 +2044,7 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
         </div>
       </div>
       `;
-      })() : ''}
+    })() : ''}
 
       <p class="paragrafo">
         Segue o cronograma oficial com as parcelas, vencimentos e formas de pagamento estabelecidas:
@@ -2064,28 +2063,28 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
         </thead>
         <tbody>
           ${financeiro.parcelas.map((parc) => {
-            const isCartao = isMetodoCartao(parc.metodo, parc.descricao) || (parc.vencimento && /fatura/i.test(parc.vencimento));
-            const vencTexto = isCartao ? 'Fatura do Cartão' : (parc.vencimento || '-');
-            const isPix = !isCartao && (isMetodoPix(parc.metodo, parc.descricao) || temAlgumPix);
-            const isPaga = Boolean(parc.status && /paga|pago|quitad/i.test(parc.status));
+      const isCartao = isMetodoCartao(parc.metodo, parc.descricao) || (parc.vencimento && /fatura/i.test(parc.vencimento));
+      const vencTexto = isCartao ? 'Fatura do Cartão' : (parc.vencimento || '-');
+      const isPix = !isCartao && (isMetodoPix(parc.metodo, parc.descricao) || temAlgumPix);
+      const isPaga = Boolean(parc.status && /paga|pago|quitad/i.test(parc.status));
 
-            let parcPayload = isPaga ? '' : (parc.payloadPix || '');
-            let parcQrCode = isPaga ? '' : (parc.qrCodePixUrl || '');
+      let parcPayload = isPaga ? '' : (parc.payloadPix || '');
+      let parcQrCode = isPaga ? '' : (parc.qrCodePixUrl || '');
 
-            if (!isPaga && isPix && !parcPayload && clinica?.chavePix && clinica?.chavePix !== 'Chave da clínica sob consulta' && parc.valor > 0) {
-              const numIdContrato = orcamento?.numeroIdentificador || snapshot?.contratoId || '';
-              parcPayload = gerarPayloadPix({
-                chave: clinica?.chavePix || '',
-                tipoChave: clinica?.tipoChavePix,
-                nomeFavorecido: clinica?.favorecidoPix || clinica?.nome,
-                cidade: (clinica?.cidade && !clinica.cidade.toUpperCase().includes('SAO PAULO')) ? clinica.cidade : 'MACEIO',
-                valor: parc.valor,
-                descricao: `Parc ${parc.numero} CTR-${numIdContrato}`.slice(0, 25),
-              });
-              parcQrCode = parcPayload ? gerarQrCodePixUrl(parcPayload, 280) : '';
-            }
+      if (!isPaga && isPix && !parcPayload && clinica?.chavePix && clinica?.chavePix !== 'Chave da clínica sob consulta' && parc.valor > 0) {
+        const numIdContrato = orcamento?.numeroIdentificador || snapshot?.contratoId || '';
+        parcPayload = gerarPayloadPix({
+          chave: clinica?.chavePix || '',
+          tipoChave: clinica?.tipoChavePix,
+          nomeFavorecido: clinica?.favorecidoPix || clinica?.nome,
+          cidade: (clinica?.cidade && !clinica.cidade.toUpperCase().includes('SAO PAULO')) ? clinica.cidade : 'MACEIO',
+          valor: parc.valor,
+          descricao: `Parc ${parc.numero} CTR-${numIdContrato}`.slice(0, 25),
+        });
+        parcQrCode = parcPayload ? gerarQrCodePixUrl(parcPayload, 280) : '';
+      }
 
-            return `
+      return `
             <tr class="evitar-corte" style="page-break-inside: avoid !important; break-inside: avoid !important;">
               <td class="col-num">${parc.numero}</td>
               <td><strong>${limparFormaPagamentoParaContrato(parc.descricao || `Parcela ${parc.numero}`)}</strong> ${parc.metodo ? `— ${limparFormaPagamentoParaContrato(parc.metodo)}` : ''}</td>
@@ -2117,7 +2116,7 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
               <td style="text-align: center; font-size: 10.5px;">${isPaga ? `<strong style="color: #059669;">Quitada</strong>` : (parc.status || (isCartao ? 'Autorizado' : 'A vencer'))}</td>
             </tr>
           `;
-          }).join('')}
+    }).join('')}
         </tbody>
       </table>
 
@@ -2484,11 +2483,11 @@ export async function obterUserIdAtivo(): Promise<string | null> {
   try {
     const { data: sessionData } = await supabase.auth.getSession();
     if (sessionData?.session?.user?.id) return sessionData.session.user.id;
-  } catch (_) {}
+  } catch (_) { }
   try {
     const { data: userData } = await supabase.auth.getUser();
     if (userData?.user?.id) return userData.user.id;
-  } catch (_) {}
+  } catch (_) { }
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
       for (let i = 0; i < window.localStorage.length; i++) {
@@ -2509,12 +2508,12 @@ export async function obterUserIdAtivo(): Promise<string | null> {
           }
         }
       }
-    } catch (_) {}
+    } catch (_) { }
   }
   try {
     const { data: rpcId } = await (supabase.rpc as any)('clinica_id');
     if (rpcId && typeof rpcId === 'string') return rpcId;
-  } catch (_) {}
+  } catch (_) { }
   return null;
 }
 
@@ -2592,7 +2591,7 @@ export function gerarSnapshotDemonstracao(nome = 'Diego Duracenski'): ContratoSn
       totalExtenso: 'cinco mil e quinhentos reais',
       formaPagamento: 'Entrada via PIX + Saldo em até 10x no Cartão',
       entrada: 1500,
-            parcelas: [
+      parcelas: [
         { numero: 1, valor: 400, vencimento: '30 dias', metodo: 'Cart�o de Cr�dito (10x)', descricao: 'Parcela 1 de 10' },
         { numero: 2, valor: 400, vencimento: '60 dias', metodo: 'Cart�o de Cr�dito (10x)', descricao: 'Parcela 2 de 10' },
         { numero: 3, valor: 400, vencimento: '90 dias', metodo: 'Cart�o de Cr�dito (10x)', descricao: 'Parcela 3 de 10' },
@@ -2713,8 +2712,8 @@ export async function emitirContratoPersistido(
       snapshot.contratoId && snapshot.contratoId.startsWith('CTR-')
         ? snapshot.contratoId
         : docId && !isDocIdUuid
-        ? docId
-        : gerarIdentificadorContrato();
+          ? docId
+          : gerarIdentificadorContrato();
 
     // 2. Gera ou preserva o token criptográfico exclusivo de acesso
     const token = snapshot.token && snapshot.token.length >= 16 ? snapshot.token : gerarTokenAcesso();
@@ -2774,7 +2773,7 @@ export async function emitirContratoPersistido(
         persistidoComSucesso = true;
         if (edgeData.id) finalId = edgeData.id;
       }
-    } catch (_) {}
+    } catch (_) { }
 
     // 6. Tentativa 2: Persistência direta no banco de dados Supabase (documentos_clinicos)
     if (!persistidoComSucesso) {
@@ -2870,7 +2869,7 @@ export async function emitirContratoPersistido(
                   insErr = null;
                 }
               }
-            } catch (_) {}
+            } catch (_) { }
           }
 
           if (!insErr && insData?.id) {
@@ -2893,7 +2892,23 @@ export async function emitirContratoPersistido(
         if (finalId) window.localStorage.setItem(`contrato_${finalId}`, snapJson);
         const slug = slugifyNome(pacienteNome);
         window.localStorage.setItem(`contrato_slug_${slug}`, snapJson);
-      } catch (_) {}
+      } catch (_) { }
+    }
+
+    // 7.1 Vincula o contrato ao orçamento de origem se houver orcamentoId
+    const orcId = snapshot.orcamento?.id;
+    if (orcId) {
+      try {
+        supabase
+          .from('orcamentos')
+          .update({
+            contrato_id: identificador,
+            contrato_token: token,
+            atualizado_em: new Date().toISOString(),
+          })
+          .eq('id', orcId)
+          .then(() => {});
+      } catch (_) { }
     }
 
     // 8. Constrói o link oficial curto e seguro com token (sem payload base64 na URL)

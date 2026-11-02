@@ -42,6 +42,9 @@ import {
   ArrowRight,
   DollarSign,
   Lock,
+  Eye,
+  Camera,
+  ExternalLink,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -51,6 +54,12 @@ import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { useConfiguracoesContrato } from '@/hooks/useConfiguracoesContrato';
 import { Orcamento, OrcamentoItem } from '@/hooks/useOrcamentos';
 import { mapearDadosContrato, gerarLinkAssinaturaContrato, garantirContratoPersistido, emitirContratoPersistido } from '@/utils/contratoEngine';
+import {
+  garantirOrcamentoPersistidoComToken,
+  construirUrlPublicaOrcamento,
+  gerarContratoDoOrcamentoAprovado,
+  FotoPlanejamento,
+} from '@/utils/orcamentoEngine';
 import { openWhatsApp } from '@/lib/whatsapp';
 import {
   CondicaoPagamento,
@@ -124,12 +133,22 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
   const [copiouPix, setCopiouPix] = useState(false);
   const [qrCodeAmpliadoOpen, setQrCodeAmpliadoOpen] = useState(false);
   const [copiouLinkContrato, setCopiouLinkContrato] = useState(false);
+  const [copiouLinkOrcamento, setCopiouLinkOrcamento] = useState(false);
+  const [fotosPlanejamento, setFotosPlanejamento] = useState<FotoPlanejamento[]>([]);
+  const [modalFotosOpen, setModalFotosOpen] = useState(false);
+  const [uploadingFoto, setUploadingFoto] = useState(false);
 
   // Sincroniza dados do orçamento selecionado ao abrir
   useEffect(() => {
     if (orcamento) {
       setDesconto(orcamento.desconto || 0);
       setInputValorFinal(orcamento.total ? String(orcamento.total) : '');
+
+      if (orcamento.fotosPlanejamento && Array.isArray(orcamento.fotosPlanejamento)) {
+        setFotosPlanejamento(orcamento.fotosPlanejamento);
+      } else {
+        setFotosPlanejamento([]);
+      }
 
       const parsed = parseCondicoesPagamento(orcamento.formasPagamento, orcamento.total || 0);
       if (parsed.length > 0) {
@@ -441,7 +460,126 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
     });
   };
 
-  // Copia o link público e auto-contido de assinatura digital
+  // Copia o link público seguro do orçamento online
+  const handleCopiarLinkOrcamento = async () => {
+    if (!orcamento) return;
+    try {
+      const res = await garantirOrcamentoPersistidoComToken(
+        {
+          ...orcamento,
+          desconto,
+          total,
+          formasPagamento: formasPagamentoTexto,
+          fotosPlanejamento,
+          itens: orcamento.itens,
+        },
+        patient
+      );
+
+      if (res.link) {
+        navigator.clipboard.writeText(res.link);
+        setCopiouLinkOrcamento(true);
+        toast.success('Link do orçamento copiado com sucesso!', {
+          description: 'Envie para o paciente visualizar a proposta e aprovar online.',
+        });
+        setTimeout(() => setCopiouLinkOrcamento(false), 2500);
+      }
+    } catch (e) {
+      toast.error('Erro ao gerar link do orçamento.');
+    }
+  };
+
+  // Envia proposta de orçamento e link seguro direto pelo WhatsApp
+  const handleEnviarWhatsAppOrcamento = async () => {
+    if (!orcamento) return;
+    try {
+      const res = await garantirOrcamentoPersistidoComToken(
+        {
+          ...orcamento,
+          desconto,
+          total,
+          formasPagamento: formasPagamentoTexto,
+          fotosPlanejamento,
+          itens: orcamento.itens,
+        },
+        patient
+      );
+
+      let tel = patient?.telefone?.trim() || '';
+      if (!tel) {
+        const inputTel = window.prompt('Informe o número de WhatsApp do paciente com DDD (ex: 82999998888):', '');
+        if (!inputTel) {
+          toast.info('Envio cancelado: telefone não informado.');
+          return;
+        }
+        tel = inputTel.trim();
+      }
+
+      const linhas = [
+        `Olá, *${patient?.nome || 'Paciente'}*! Tudo bem?`,
+        '',
+        `Segue o orçamento oficial de tratamento da *${configuracoes?.nomeClinica || 'Clínica Odontológica'}*:`,
+        `📋 *${orcamento.titulo}*`,
+        '',
+        ...orcamento.itens.map((i) => `• ${i.nome} ${i.quantidade > 1 ? `(${i.quantidade}x) ` : ''}— ${formatMoney(i.valor * i.quantidade)}`),
+        desconto > 0 ? `Desconto especial: -${formatMoney(desconto)}` : null,
+        `*Valor Total: ${formatMoney(total)}*`,
+        '',
+        gerarTextoWhatsAppCondicoes(condicoes, total),
+      ];
+
+      if (temPix && chavePixOficial) {
+        linhas.push('');
+        linhas.push(`✦ *Dados para Pagamento via PIX:*`);
+        linhas.push(`• Chave: ${chavePixOficial}`);
+        linhas.push(`• Titular: ${favorecidoPixOficial}`);
+        if (valorPixAlvo > 0) {
+          linhas.push(`• Valor (${labelPixAlvo}): ${formatMoney(valorPixAlvo)}`);
+        }
+      }
+
+      if (res.link) {
+        linhas.push('');
+        linhas.push(`📱 *ACESSE O LINK PARA CONFERIR OS DETALHES E APROVAR SEU ORÇAMENTO:*`);
+        linhas.push(`Clique no link abaixo pelo seu celular para escolher a forma de pagamento e aprovar:`);
+        linhas.push(`👉 ${res.link}`);
+      }
+
+      linhas.push('');
+      linhas.push('Qualquer dúvida estamos à sua inteira disposição!');
+
+      openWhatsApp(tel, linhas.filter(Boolean).join('\n'));
+      toast.success('Abrindo WhatsApp com a proposta do orçamento!');
+    } catch (e) {
+      toast.error('Erro ao gerar mensagem para o WhatsApp.');
+    }
+  };
+
+  // Abre a página pública do orçamento em nova aba para visualizar exatamente como o paciente vê
+  const handleVisualizarComoPaciente = async () => {
+    if (!orcamento) return;
+    try {
+      const res = await garantirOrcamentoPersistidoComToken(
+        {
+          ...orcamento,
+          desconto,
+          total,
+          formasPagamento: formasPagamentoTexto,
+          fotosPlanejamento,
+          itens: orcamento.itens,
+        },
+        patient
+      );
+
+      if (res.link) {
+        window.open(res.link, '_blank');
+      }
+    } catch (e) {
+      toast.error('Erro ao abrir visualização como paciente.');
+    }
+  };
+
+  // Copia o link público e auto-contido de assinatura digital do contrato (somente quando solicitado explicitamente)
   const handleCopiarLinkContrato = async () => {
     const snap = obterSnapshotContratoAtual();
     if (!snap) {
@@ -458,59 +596,88 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
     setTimeout(() => setCopiouLinkContrato(false), 2500);
   };
 
-  // Envia proposta e link de assinatura digital direto pelo WhatsApp
-  const handleEnviarWhatsAppContrato = async () => {
-    if (!orcamento) return;
-    const snap = obterSnapshotContratoAtual();
-    if (!snap) return;
-    const resEmissao = await emitirContratoPersistido(snap, orcamento.id);
-    const link = resEmissao.link;
+  // Upload e gerenciamento de fotos de planejamento vinculadas ao orçamento
+  const handleUploadFotoPlanejamento = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !orcamento) return;
+    try {
+      setUploadingFoto(true);
+      const ext = file.name.split('.').pop();
+      const fileName = `${patient?.id || 'geral'}/planejamento_${Date.now()}.${ext}`;
 
-    let tel = patient?.telefone?.trim() || '';
-    if (!tel) {
-      const inputTel = window.prompt('Informe o número de WhatsApp do paciente com DDD (ex: 82999998888):', '');
-      if (!inputTel) {
-        toast.info('Envio cancelado: telefone não informado.');
-        return;
+      const { error: upErr } = await supabase.storage
+        .from('documentos-pacientes')
+        .upload(fileName, file);
+
+      if (upErr) throw upErr;
+
+      const { data: urlData } = supabase.storage
+        .from('documentos-pacientes')
+        .getPublicUrl(fileName);
+
+      const novaFoto: FotoPlanejamento = {
+        id: String(Date.now()),
+        url: urlData.publicUrl,
+        storagePath: fileName,
+        titulo: file.name.replace(/\.[^/.]+$/, ''),
+        descricao: '',
+        tipo: 'planejamento',
+        autorizada: true,
+        criadaEm: new Date().toISOString(),
+      };
+
+      const novasFotos = [...fotosPlanejamento, novaFoto];
+      setFotosPlanejamento(novasFotos);
+
+      if (orcamento.id) {
+        await supabase
+          .from('orcamentos')
+          .update({
+            fotos_planejamento: novasFotos as never,
+            atualizado_em: new Date().toISOString(),
+          })
+          .eq('id', orcamento.id);
       }
-      tel = inputTel.trim();
+
+      toast.success('Foto de planejamento adicionada com sucesso!');
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Erro ao enviar imagem: ' + (err.message || ''));
+    } finally {
+      setUploadingFoto(false);
     }
+  };
 
-    const linhas = [
-      `Olá, *${patient?.nome || 'Paciente'}*! Tudo bem?`,
-      '',
-      `Segue o orçamento oficial de tratamento da *${configuracoes?.nomeClinica || 'Clínica Odontológica'}*:`,
-      `📋 *${orcamento.titulo}*`,
-      '',
-      ...orcamento.itens.map((i) => `• ${i.nome} ${i.quantidade > 1 ? `(${i.quantidade}x) ` : ''}— ${formatMoney(i.valor * i.quantidade)}`),
-      desconto > 0 ? `Desconto especial: -${formatMoney(desconto)}` : null,
-      `*Valor Total: ${formatMoney(total)}*`,
-      '',
-      gerarTextoWhatsAppCondicoes(condicoes, total),
-    ];
-
-    if (temPix && chavePixOficial) {
-      linhas.push('');
-      linhas.push(`✦ *Dados Oficiais para Pagamento via PIX:*`);
-      linhas.push(`• Chave: ${chavePixOficial}`);
-      linhas.push(`• Titular: ${favorecidoPixOficial}`);
-      if (valorPixAlvo > 0) {
-        linhas.push(`• Valor (${labelPixAlvo}): ${formatMoney(valorPixAlvo)}`);
-      }
+  const handleToggleAutorizacaoFoto = async (fotoId: string) => {
+    const atualizadas = fotosPlanejamento.map((f) =>
+      f.id === fotoId ? { ...f, autorizada: !f.autorizada } : f
+    );
+    setFotosPlanejamento(atualizadas);
+    if (orcamento?.id) {
+      await supabase
+        .from('orcamentos')
+        .update({
+          fotos_planejamento: atualizadas as never,
+          atualizado_em: new Date().toISOString(),
+        })
+        .eq('id', orcamento.id);
     }
+    toast.info('Autorização da imagem atualizada.');
+  };
 
-    if (link) {
-      linhas.push('');
-      linhas.push(`✍️ *LINK PARA VISUALIZAR E ASSINAR O CONTRATO ONLINE:*`);
-      linhas.push(`Clique no link abaixo pelo seu celular para conferir os termos e assinar digitalmente:`);
-      linhas.push(`👉 ${link}`);
+  const handleRemoverFoto = async (fotoId: string) => {
+    const filtradas = fotosPlanejamento.filter((f) => f.id !== fotoId);
+    setFotosPlanejamento(filtradas);
+    if (orcamento?.id) {
+      await supabase
+        .from('orcamentos')
+        .update({
+          fotos_planejamento: filtradas as never,
+          atualizado_em: new Date().toISOString(),
+        })
+        .eq('id', orcamento.id);
     }
-
-    linhas.push('');
-    linhas.push('Qualquer dúvida estamos à sua inteira disposição!');
-
-    openWhatsApp(tel, linhas.filter(Boolean).join('\n'));
-    toast.success('Abrindo WhatsApp com proposta e link do contrato!');
+    toast.info('Foto removida do planejamento.');
   };
 
   // Salvar alterações de desconto e formas de pagamento
@@ -1239,24 +1406,44 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
                   <Download className="h-3.5 w-3.5" /> PDF
                 </Button>
               )}
+              {/* Ações do Orçamento Online */}
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleCopiarLinkContrato}
-                className="text-xs gap-1.5 border-blue-200 dark:border-blue-800 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30 font-medium"
-                title="Copiar link oficial para assinatura digital do contrato pelo paciente"
+                onClick={handleCopiarLinkOrcamento}
+                className="text-xs gap-1.5 border-primary/30 text-primary hover:bg-primary/10 font-semibold"
+                title="Copiar link seguro do orçamento online para envio ao paciente"
               >
-                {copiouLinkContrato ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <LinkIcon className="h-3.5 w-3.5" />}
-                <span>{copiouLinkContrato ? 'Link Copiado!' : 'Copiar Link'}</span>
+                {copiouLinkOrcamento ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <LinkIcon className="h-3.5 w-3.5" />}
+                <span>{copiouLinkOrcamento ? 'Link Copiado!' : 'Copiar Link do Orçamento'}</span>
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleEnviarWhatsAppContrato}
+                onClick={handleEnviarWhatsAppOrcamento}
                 className="text-xs gap-1.5 border-emerald-300 dark:border-emerald-800 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 font-medium"
-                title="Enviar orçamento com condições e link de assinatura via WhatsApp"
+                title="Enviar orçamento com condições e link seguro via WhatsApp"
               >
-                <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
+                <MessageCircle className="h-3.5 w-3.5" /> WhatsApp Orçamento
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleVisualizarComoPaciente}
+                className="text-xs gap-1.5 border-border/80 text-foreground hover:bg-muted font-medium"
+                title="Abrir a página pública do orçamento exatamente como o paciente visualiza"
+              >
+                <Eye className="h-3.5 w-3.5 text-primary" /> Visualizar como Paciente
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setModalFotosOpen(true)}
+                className="text-xs gap-1.5 border-border/70 text-foreground hover:bg-muted"
+                title="Gerenciar galeria de fotos e simulações do planejamento"
+              >
+                <Camera className="h-3.5 w-3.5 text-muted-foreground" />
+                Fotos ({fotosPlanejamento.length})
               </Button>
               {onGerarContrato && (
                 <Button
@@ -2296,6 +2483,133 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Dialog de Gerenciamento da Galeria de Fotos do Planejamento */}
+      <Dialog open={modalFotosOpen} onOpenChange={setModalFotosOpen}>
+        <DialogContent className="max-w-2xl w-full p-5 space-y-4 max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-bold text-foreground">
+              <Camera className="h-5 w-5 text-primary" />
+              Galeria de Planejamento & Imagens Clínicas Autorizadas
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Anexe fotos iniciais, enceramento diagnóstico, simulações ou planejamento visual para compartilhar na proposta online do paciente.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Botão de Envio de Foto */}
+            <div className="p-4 rounded-xl border border-dashed border-primary/40 bg-primary/5 flex flex-col items-center justify-center text-center gap-2">
+              <input
+                type="file"
+                id="upload-planejamento-input"
+                className="hidden"
+                accept="image/*"
+                onChange={handleUploadFotoPlanejamento}
+                disabled={uploadingFoto}
+              />
+              <label
+                htmlFor="upload-planejamento-input"
+                className="cursor-pointer flex flex-col items-center gap-2"
+              >
+                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                  <Camera className="h-5 w-5" />
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-primary block">
+                    {uploadingFoto ? 'Enviando imagem...' : 'Clique para selecionar uma foto'}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">
+                    Formatos JPG, PNG, WEBP (Armazenamento privado seguro)
+                  </span>
+                </div>
+              </label>
+            </div>
+
+            {/* Lista de Fotos Adicionadas */}
+            {fotosPlanejamento.length === 0 ? (
+              <div className="text-center py-6 text-xs text-muted-foreground border rounded-xl">
+                Nenhuma foto anexada a este orçamento ainda.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {fotosPlanejamento.map((f) => (
+                  <div
+                    key={f.id}
+                    className="p-3 rounded-xl border border-border/80 bg-card space-y-2 relative"
+                  >
+                    <div className="aspect-4/3 rounded-lg overflow-hidden bg-muted relative">
+                      <img src={f.url} alt={f.titulo} className="w-full h-full object-cover" />
+                      <Badge
+                        variant={f.autorizada ? 'default' : 'secondary'}
+                        className={cn(
+                          'absolute top-2 right-2 text-[10px]',
+                          f.autorizada ? 'bg-emerald-600 text-white' : 'bg-muted text-muted-foreground'
+                        )}
+                      >
+                        {f.autorizada ? 'Visível ao Paciente' : 'Oculta'}
+                      </Badge>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Input
+                        value={f.titulo || ''}
+                        onChange={(e) => {
+                          const novos = fotosPlanejamento.map((item) =>
+                            item.id === f.id ? { ...item, titulo: e.target.value } : item
+                          );
+                          setFotosPlanejamento(novos);
+                        }}
+                        placeholder="Título da foto (ex: Simulação Mockup)"
+                        className="h-8 text-xs font-semibold"
+                      />
+                      <Input
+                        value={f.descricao || ''}
+                        onChange={(e) => {
+                          const novos = fotosPlanejamento.map((item) =>
+                            item.id === f.id ? { ...item, descricao: e.target.value } : item
+                          );
+                          setFotosPlanejamento(novos);
+                        }}
+                        placeholder="Legenda explicativa opcional"
+                        className="h-7 text-[11px]"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1 border-t border-border/60">
+                      <label className="flex items-center gap-1.5 cursor-pointer text-[11px]">
+                        <input
+                          type="checkbox"
+                          checked={f.autorizada !== false}
+                          onChange={() => handleToggleAutorizacaoFoto(f.id)}
+                          className="rounded border-border text-primary"
+                        />
+                        <span>Autorizar no link público</span>
+                      </label>
+
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRemoverFoto(f.id)}
+                        className="h-7 w-7 p-0 text-muted-foreground hover:text-rose-600"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="pt-2">
+            <Button size="sm" onClick={() => setModalFotosOpen(false)} className="text-xs">
+              Concluir
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>

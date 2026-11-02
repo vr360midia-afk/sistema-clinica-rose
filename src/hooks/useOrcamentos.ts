@@ -12,6 +12,7 @@ export interface OrcamentoItem {
 
 export interface Orcamento {
   id: string;
+  identificador?: string;
   pacienteId?: string | null;
   pacienteNome?: string | null;
   titulo: string;
@@ -22,6 +23,14 @@ export interface Orcamento {
   validade?: string | null;
   observacoes?: string | null;
   formasPagamento?: string | null;
+  tokenAssinatura?: string | null;
+  dataExpiracaoLink?: string | null;
+  aprovadoEm?: string | null;
+  condicaoEscolhida?: any;
+  snapshotAprovacao?: any;
+  fotosPlanejamento?: any[];
+  contratoId?: string | null;
+  contratoToken?: string | null;
 
   parceiroId?: string | null;
   parceiroNome?: string | null;
@@ -33,8 +42,10 @@ export interface Orcamento {
 
 const rowToOrcamento = (row: any): Orcamento | null => {
   if (!row) return null;
+  const snap = row.assinatura_paciente || {};
   return {
     id: row.id,
+    identificador: row.identificador || snap.identificador || (row.id ? `ORC-${String(row.id).slice(0, 8).toUpperCase()}` : undefined),
     pacienteId: row.paciente_id,
     pacienteNome: row.paciente_nome,
     titulo: row.titulo || 'Plano de tratamento',
@@ -45,6 +56,14 @@ const rowToOrcamento = (row: any): Orcamento | null => {
     validade: row.validade,
     observacoes: row.observacoes,
     formasPagamento: (row as any).formas_pagamento ?? null,
+    tokenAssinatura: row.token_assinatura || snap.tokenAssinatura,
+    dataExpiracaoLink: row.data_expiracao_link || snap.dataExpiracaoLink,
+    aprovadoEm: row.aprovado_em || snap.aprovadoEm || row.data_assinatura,
+    condicaoEscolhida: row.condicao_escolhida || snap.condicaoEscolhida,
+    snapshotAprovacao: row.snapshot_aprovacao || snap.snapshotAprovacao,
+    fotosPlanejamento: Array.isArray(row.fotos_planejamento) ? row.fotos_planejamento : (snap.fotosPlanejamento || []),
+    contratoId: row.contrato_id || snap.contratoId,
+    contratoToken: row.contrato_token || snap.contratoToken,
     parceiroId: row.parceiro_id,
     parceiroNome: row.parceiro_nome,
     parceiroTipoRepasse: row.parceiro_tipo_repasse,
@@ -82,7 +101,7 @@ export const useOrcamentos = (pacienteId?: string) => {
     if (!user) return;
     const subtotal = o.itens.reduce((s, i) => s + (i.valor || 0) * (i.quantidade || 1), 0);
     const total = Math.max(0, subtotal - (o.desconto || 0));
-    const payload = {
+    const payload: Record<string, any> = {
       user_id: clinicaId,
       paciente_id: o.pacienteId ?? pacienteId ?? null,
       paciente_nome: o.pacienteNome ?? null,
@@ -101,9 +120,47 @@ export const useOrcamentos = (pacienteId?: string) => {
       atualizado_em: new Date().toISOString(),
     };
 
-    const { error } = o.id
+    const snapAssinatura = {
+      identificador: o.identificador,
+      tokenAssinatura: o.tokenAssinatura,
+      dataExpiracaoLink: o.dataExpiracaoLink,
+      aprovadoEm: o.aprovadoEm,
+      condicaoEscolhida: o.condicaoEscolhida,
+      snapshotAprovacao: o.snapshotAprovacao,
+      fotosPlanejamento: o.fotosPlanejamento,
+      contratoId: o.contratoId,
+      contratoToken: o.contratoToken,
+    };
+    payload.assinatura_paciente = snapAssinatura;
+
+    if (o.identificador) payload.identificador = o.identificador;
+    if (o.tokenAssinatura) payload.token_assinatura = o.tokenAssinatura;
+    if (o.dataExpiracaoLink) payload.data_expiracao_link = o.dataExpiracaoLink;
+    if (o.aprovadoEm) payload.aprovado_em = o.aprovadoEm;
+    if (o.condicaoEscolhida) payload.condicao_escolhida = o.condicaoEscolhida;
+    if (o.snapshotAprovacao) payload.snapshot_aprovacao = o.snapshotAprovacao;
+    if (o.fotosPlanejamento) payload.fotos_planejamento = o.fotosPlanejamento;
+    if (o.contratoId) payload.contrato_id = o.contratoId;
+    if (o.contratoToken) payload.contrato_token = o.contratoToken;
+
+    let { error } = o.id
       ? await supabase.from('orcamentos').update(payload).eq('id', o.id)
       : await supabase.from('orcamentos').insert(payload);
+
+    if (error && (error.code === 'PGRST204' || error.message?.includes('column'))) {
+      delete payload.identificador;
+      delete payload.fotos_planejamento;
+      delete payload.condicao_escolhida;
+      delete payload.snapshot_aprovacao;
+      delete payload.contrato_id;
+      delete payload.contrato_token;
+      delete payload.aprovado_em;
+
+      const retry = o.id
+        ? await supabase.from('orcamentos').update(payload).eq('id', o.id)
+        : await supabase.from('orcamentos').insert(payload);
+      error = retry.error;
+    }
 
     if (error) {
       console.error(error);
@@ -188,4 +245,3 @@ export const useOrcamentos = (pacienteId?: string) => {
 
   return { orcamentos, loading, saveOrcamento, updateStatus, deleteOrcamento, reload: load };
 };
-

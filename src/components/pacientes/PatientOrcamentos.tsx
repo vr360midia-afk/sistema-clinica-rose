@@ -20,6 +20,11 @@ import { openWhatsApp } from '@/lib/whatsapp';
 import { formatMoney } from '@/utils/exportCsv';
 import { toast } from 'sonner';
 import ContratoModal from '@/components/contratos/ContratoModal';
+import {
+  garantirOrcamentoPersistidoComToken,
+  gerarContratoDoOrcamentoAprovado,
+  construirUrlPublicaOrcamento,
+} from '@/utils/orcamentoEngine';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import { mapearDadosContrato, gerarLinkAssinaturaContrato, parseBrMoney, garantirContratoPersistido, emitirContratoPersistido } from '@/utils/contratoEngine';
 import { somarMesesSeguro } from '@/utils/documentoFormat';
@@ -1882,6 +1887,70 @@ const PatientOrcamentos = ({ patient }: Props) => {
   };
 
 
+  const copiarLinkOrcamento = async (o: (typeof orcamentos)[number]) => {
+    const res = await garantirOrcamentoPersistidoComToken(o, patient);
+    if (res.link) {
+      navigator.clipboard.writeText(res.link);
+      toast.success('Link do orçamento copiado com sucesso!', {
+        description: 'Envie para o paciente visualizar a proposta e aprovar pelo celular.',
+      });
+    } else {
+      toast.error('Erro ao gerar link do orçamento.');
+    }
+  };
+
+  const visualizarComoPaciente = async (o: (typeof orcamentos)[number]) => {
+    const res = await garantirOrcamentoPersistidoComToken(o, patient);
+    if (res.link) {
+      window.open(res.link, '_blank');
+    }
+  };
+
+  const enviarWhatsAppOrcamento = async (o: (typeof orcamentos)[number]) => {
+    let tel = patient?.telefone?.trim() || '';
+    if (!tel) {
+      const inputTel = window.prompt('Informe o número de WhatsApp do paciente com DDD (ex: 82999998888):', '');
+      if (!inputTel) {
+        toast.info('Envio cancelado: telefone não informado.');
+        return;
+      }
+      tel = inputTel.trim();
+    }
+
+    const resOrc = await garantirOrcamentoPersistidoComToken(o, patient);
+    const linkOrcamento = resOrc.link;
+
+    const linhas = [
+      `Olá, *${patient?.nome || 'Paciente'}*! Tudo bem?`,
+      '',
+      `Segue a proposta de tratamento odontológico da *${configuracoes?.nomeClinica || 'Clínica Odontológica'}*:`,
+      `📋 *${o.titulo}*`,
+      '',
+      ...o.itens.map((i) => `• ${i.nome} ${i.quantidade > 1 ? `(${i.quantidade}x) ` : ''}— ${formatMoney(i.valor * i.quantidade)}`),
+      o.desconto ? `Desconto especial: -${formatMoney(o.desconto)}` : null,
+      `*Valor Total: ${formatMoney(o.total)}*`,
+      '',
+      gerarTextoWhatsAppCondicoes(parseCondicoesPagamento(o.formasPagamento, o.total), o.total),
+      o.observacoes ? `Observações: ${o.observacoes}` : null,
+      '',
+      `📱 *LINK PARA VISUALIZAR E APROVAR SEU ORÇAMENTO ONLINE:*`,
+      `Clique no link abaixo pelo seu celular para escolher a forma de pagamento e aprovar:`,
+      `👉 ${linkOrcamento}`,
+      '',
+      'Qualquer dúvida estamos à sua inteira disposição!',
+    ];
+
+    try {
+      baixarPdf(o);
+    } catch (_) {}
+
+    openWhatsApp(tel, linhas.filter(Boolean).join('\n'));
+    updateStatus(o.id, 'enviado');
+    toast.info('Abrindo WhatsApp!', {
+      description: 'Proposta com link do orçamento pronta para envio!',
+    });
+  };
+
   const copiarLinkContrato = async (o: (typeof orcamentos)[number]) => {
     const snap = mapearDadosContrato({
       patient,
@@ -1898,7 +1967,9 @@ const PatientOrcamentos = ({ patient }: Props) => {
     });
   };
 
-  const enviarWhatsApp = async (o: (typeof orcamentos)[number]) => {
+  const enviarWhatsApp = enviarWhatsAppOrcamento;
+
+  const enviarWhatsAppAntigo = async (o: (typeof orcamentos)[number]) => {
     let tel = patient?.telefone?.trim() || '';
     if (!tel) {
       const inputTel = window.prompt('Informe o número de WhatsApp do paciente com DDD (ex: 82999998888):', '');
@@ -2114,10 +2185,19 @@ const PatientOrcamentos = ({ patient }: Props) => {
                   size="sm"
                   variant="outline"
                   className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30"
-                  onClick={() => copiarLinkContrato(o)}
-                  title="Copiar link oficial para o paciente assinar digitalmente pelo celular"
+                  onClick={() => copiarLinkOrcamento(o)}
+                  title="Copiar link seguro do orçamento para envio ao paciente"
                 >
-                  <LinkIcon className="h-4 w-4 mr-1" /> Copiar Link
+                  <LinkIcon className="h-4 w-4 mr-1" /> Link Orçamento
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => visualizarComoPaciente(o)}
+                  title="Visualizar a página pública exatamente como o paciente vê"
+                >
+                  <Eye className="h-4 w-4 mr-1 text-primary" /> Como Paciente
                 </Button>
 
                 <Button
@@ -2130,7 +2210,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
                   }}
                   title="Gerar contrato formal com base neste orçamento"
                 >
-                  <FileSignature className="h-4 w-4 mr-1" /> Contrato
+                  <FileSignature className="h-4 w-4 mr-1" /> {o?.status === 'aprovado' ? 'Gerar/Ver Contrato' : 'Contrato'}
                 </Button>
 
                 {o?.status === 'aprovado' && (

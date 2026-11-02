@@ -32,6 +32,7 @@ import Lixeira from '@/pages/Lixeira';
 import AssinarAnamnese from '@/pages/AssinarAnamnese';
 import AssinarExtrato from '@/pages/AssinarExtrato';
 import AssinarContrato from '@/pages/AssinarContrato';
+import VisualizarOrcamento from '@/pages/VisualizarOrcamento';
 import VerificarRecibo from '@/pages/VerificarRecibo';
 import NotFound from '@/pages/NotFound';
 
@@ -99,6 +100,15 @@ const PublicLinkDispatcher = () => {
     return <AssinarContrato />;
   }
 
+  if (
+    slug.startsWith('orcamento-') ||
+    slug.startsWith('orcamento') ||
+    slug.includes('/orcamento') ||
+    slug.includes('orcamento')
+  ) {
+    return <VisualizarOrcamento />;
+  }
+
   if (slug.startsWith('assinar-extrato') || slug.startsWith('extrato-')) {
     return <AssinarExtrato />;
   }
@@ -132,6 +142,15 @@ function App() {
               <Route path="/assinar-extrato/:id" element={<AssinarExtrato />} />
               <Route path="/assinar-extrato/:slug" element={<AssinarExtrato />} />
               <Route path="/assinar-extrato" element={<AssinarExtrato />} />
+
+              {/* Orçamento Público (Apresentação e Aprovação Online) */}
+              <Route path="/:pacienteSlug/orcamento/:identificador/:token" element={<VisualizarOrcamento />} />
+              <Route path="/:pacienteSlug/orcamento/:identificador" element={<VisualizarOrcamento />} />
+              <Route path="/orcamento/:identificador/:token" element={<VisualizarOrcamento />} />
+              <Route path="/orcamento/:identificador" element={<VisualizarOrcamento />} />
+              <Route path="/:pacienteSlug/orcamento" element={<VisualizarOrcamento />} />
+              <Route path="/orcamento" element={<VisualizarOrcamento />} />
+
               {/* Rotas Amigáveis de Contrato: /:pacienteSlug/contrato/:identificador?token=... */}
               <Route path="/:pacienteSlug/contrato/:identificador/:token" element={<AssinarContrato />} />
               <Route path="/:pacienteSlug/contrato/:identificador" element={<AssinarContrato />} />

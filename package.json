@@ -9,7 +9,8 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test:contrato": "node scripts/test-contrato-links.cjs"
+    "test:contrato": "node scripts/test-contrato-links.cjs",
+    "test:jornada": "node scripts/test-jornada-orcamento-contrato.cjs"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
