@@ -394,3 +394,4 @@ runSuite().catch((err) => {
   console.error('\n[FALHA NO TESTE]:', err);
   process.exit(1);
 });
+

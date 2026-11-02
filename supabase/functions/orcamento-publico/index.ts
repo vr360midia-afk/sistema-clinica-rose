@@ -497,24 +497,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    // =========================================================================
-    // 4. AÇÃO: SAVE — Persistência administrativa garantida (service_role)
-    // =========================================================================
-    if (action === "save" || action === "upsert") {
-      const orcamento = body.orcamento || body;
-      const id = orcamento.id;
-      const isUuid = id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-
-      if (isUuid) {
-        const { error: updErr } = await supabase.from("orcamentos").update(orcamento).eq("id", id);
-        if (updErr) throw updErr;
-        return json({ ok: true, id, action: "updated" });
-      } else {
-        const { data: ins, error: insErr } = await supabase.from("orcamentos").insert(orcamento).select("id").maybeSingle();
-        if (insErr) throw insErr;
-        return json({ ok: true, id: ins?.id || id, action: "inserted" });
-      }
-    }
+    // Observação de segurança: esta função é pública (verify_jwt = false).
+    // Ela NÃO expõe ação de gravação livre; a emissão/edição do orçamento
+    // continua sendo feita pela área administrativa autenticada (RLS normal).
 
     return json({ ok: false, error: `Ação '${action}' desconhecida`, code: "UNKNOWN_ACTION" }, 400);
   } catch (err: any) {
@@ -523,7 +508,7 @@ Deno.serve(async (req) => {
       ok: false,
       error: "Ocorreu um erro interno no servidor ao processar a solicitação.",
       code: "INTERNAL_ERROR",
-      detalhe: err?.message || String(err)
     }, 500);
   }
 });
+

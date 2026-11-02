@@ -9,3 +9,4 @@ echo.
 npx supabase functions deploy orcamento-publico --project-ref skonxcdojbkbfnfemayz --no-verify-jwt
 echo.
 pause
+

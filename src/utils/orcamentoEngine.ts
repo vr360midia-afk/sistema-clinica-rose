@@ -244,24 +244,8 @@ export async function garantirOrcamentoPersistidoComToken(
     let finalId = orcamento.id;
     const isUuid = finalId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(finalId);
 
-    // Tenta persistir via Edge Function orcamento-publico com service_role
-    let persistidoViaEdge = false;
-    try {
-      const { data: edgeSave, error: edgeErr } = await supabase.functions.invoke('orcamento-publico', {
-        body: {
-          action: 'save',
-          orcamento: {
-            ...payloadDb,
-            ...(finalId ? { id: finalId } : {}),
-            status: orcamento.status || 'enviado',
-          },
-        },
-      });
-      if (!edgeErr && edgeSave?.ok) {
-        persistidoViaEdge = true;
-        if (edgeSave.id) finalId = edgeSave.id;
-      }
-    } catch (_) {}
+    // Persistência feita pela sessão administrativa autenticada (respeita RLS e user_id da clínica)
+    const persistidoViaEdge = false;
 
     if (!persistidoViaEdge) {
       if (isUuid) {

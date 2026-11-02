@@ -23,32 +23,12 @@ CREATE INDEX IF NOT EXISTS idx_orcamentos_token ON public.orcamentos (token_assi
 CREATE INDEX IF NOT EXISTS idx_orcamentos_paciente_id ON public.orcamentos (paciente_id);
 CREATE INDEX IF NOT EXISTS idx_orcamentos_status ON public.orcamentos (status);
 
--- 3. Habilita RLS em orcamentos
-ALTER TABLE public.orcamentos ENABLE ROW LEVEL SECURITY;
-
--- Políticas de RLS
+-- 3. Segurança: o acesso público NÃO é feito por leitura direta na tabela.
+-- Visitantes anônimos acessam apenas pelas funções abaixo (SECURITY DEFINER),
+-- que validam CTR/ORC + token antes de devolver ou alterar um único orçamento.
+-- Remove políticas abertas criadas por versões anteriores deste script.
 DROP POLICY IF EXISTS "Permitir leitura publica de orcamentos por token" ON public.orcamentos;
-CREATE POLICY "Permitir leitura publica de orcamentos por token"
-  ON public.orcamentos
-  FOR SELECT
-  TO anon, authenticated
-  USING (token_assinatura IS NOT NULL);
-
 DROP POLICY IF EXISTS "Permitir aprovacao publica de orcamentos" ON public.orcamentos;
-CREATE POLICY "Permitir aprovacao publica de orcamentos"
-  ON public.orcamentos
-  FOR UPDATE
-  TO anon, authenticated
-  USING (token_assinatura IS NOT NULL)
-  WITH CHECK (token_assinatura IS NOT NULL);
-
-DROP POLICY IF EXISTS "Permitir total autenticados em orcamentos" ON public.orcamentos;
-CREATE POLICY "Permitir total autenticados em orcamentos"
-  ON public.orcamentos
-  FOR ALL
-  TO authenticated
-  USING (true)
-  WITH CHECK (true);
 
 -- 4. Função RPC: Obter Orçamento Público
 CREATE OR REPLACE FUNCTION public.obter_orcamento_publico(
@@ -434,3 +414,11 @@ BEGIN
   );
 END;
 $$;
+
+-- 7. Permite que visitantes (anon) executem SOMENTE estas funções validadas
+GRANT EXECUTE ON FUNCTION public.obter_orcamento_publico(text, text) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.aprovar_orcamento_publico(text, text, jsonb, jsonb, integer) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.solicitar_ajuste_orcamento_publico(text, text, text, text) TO anon, authenticated;
+
+-- 8. Recarrega o cache da API para as funções ficarem disponíveis imediatamente
+NOTIFY pgrst, 'reload schema';
