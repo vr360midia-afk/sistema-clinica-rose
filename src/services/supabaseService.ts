@@ -797,7 +797,42 @@ class SupabaseService {
       .order('criado_em', { ascending: false });
 
     if (error) throw error;
-    return (data || []).map(this.transformSupabaseToLocal).filter(Boolean);
+    const docs = (data || []).map(this.transformSupabaseToLocal).filter(Boolean);
+
+    // Complementar com contratos assinados de documentos_clinicos caso ainda não constem em documentos_paciente
+    try {
+      const { data: clinicos } = await supabase
+        .from('documentos_clinicos')
+        .select('*')
+        .eq('tipo', 'contrato')
+        .not('pdf_path', 'is', null)
+        .order('criado_em', { ascending: false });
+
+      if (clinicos && clinicos.length > 0) {
+        const existingUrls = new Set(docs.map((d: any) => d.arquivo || d.url));
+        for (const c of clinicos) {
+          const pdfPath = c.pdf_path || (c.itens && (c.itens as any).pdfPath);
+          if (pdfPath && !existingUrls.has(pdfPath)) {
+            const ident = c.identificador || (c.id ? c.id.slice(0, 8) : '');
+            docs.push({
+              id: `doc-clinico-${c.id}`,
+              userId: c.user_id || userId,
+              pacienteId: c.paciente_id || (c.itens && (c.itens as any).pacienteId),
+              nome: `Contrato Odontológico Assinado - ${ident}`,
+              tipo: 'contrato',
+              arquivo: pdfPath,
+              url: pdfPath,
+              tamanho: 50000,
+              criadoEm: new Date(c.assinado_em || c.criado_em || Date.now()),
+              atualizadoEm: new Date(c.atualizado_em || c.criado_em || Date.now()),
+            } as any);
+            existingUrls.add(pdfPath);
+          }
+        }
+      }
+    } catch (_) {}
+
+    return docs;
   }
 
   async saveDocumento(documento: Omit<DocumentoPaciente, 'id' | 'criadoEm' | 'atualizadoEm'>): Promise<DocumentoPaciente> {

@@ -109,6 +109,7 @@ export async function reconciliarContratosEOrcamentos(pacienteId?: string): Prom
             const { error: updOrcErr } = await supabase
               .from('orcamentos')
               .update({
+                contrato_id: identificador,
                 assinatura_paciente: updatedSnap,
                 data_assinatura: currentSnap.data_assinatura || formalizadoEm,
                 atualizado_em: nowIso,
@@ -133,22 +134,35 @@ export async function reconciliarContratosEOrcamentos(pacienteId?: string): Prom
               .maybeSingle();
 
             if (!existingDp) {
-              const { error: insDpErr } = await supabase
-                .from('documentos_paciente')
-                .insert({
-                  user_id: doc.user_id || orcMatch?.user_id || 'clinica',
-                  paciente_id: targetPacId,
-                  nome: `Contrato Odontológico Assinado - ${identificador}`,
-                  tipo: 'contrato',
-                  url: canonicalPath,
-                  tamanho: 50000,
-                  criado_em: formalizadoEm,
-                  atualizado_em: nowIso,
-                });
+              const isUuid = (val: any): boolean => typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+              let docPacUserId = isUuid(doc.user_id) ? doc.user_id : (isUuid(orcMatch?.user_id) ? orcMatch.user_id : null);
+              if (!docPacUserId && targetPacId) {
+                const { data: pRow } = await supabase.from('pacientes').select('user_id').eq('id', targetPacId).maybeSingle();
+                if (isUuid(pRow?.user_id)) docPacUserId = pRow.user_id;
+              }
+              if (!docPacUserId) {
+                const { data: s } = await supabase.auth.getSession();
+                if (isUuid(s?.session?.user?.id)) docPacUserId = s.session.user.id;
+              }
 
-              if (!insDpErr) {
-                documentosArquivados++;
-                detalhes.push(`Documento do paciente arquivado: ${identificador}`);
+              if (docPacUserId) {
+                const { error: insDpErr } = await supabase
+                  .from('documentos_paciente')
+                  .insert({
+                    user_id: docPacUserId,
+                    paciente_id: targetPacId,
+                    nome: `Contrato Odontológico Assinado - ${identificador}`,
+                    tipo: 'contrato',
+                    url: canonicalPath,
+                    tamanho: 50000,
+                    criado_em: formalizadoEm,
+                    atualizado_em: nowIso,
+                  });
+
+                if (!insDpErr) {
+                  documentosArquivados++;
+                  detalhes.push(`Documento do paciente arquivado: ${identificador}`);
+                }
               }
             }
           } catch (dpErr) {
@@ -174,3 +188,4 @@ export async function reconciliarContratosEOrcamentos(pacienteId?: string): Prom
     };
   }
 }
+

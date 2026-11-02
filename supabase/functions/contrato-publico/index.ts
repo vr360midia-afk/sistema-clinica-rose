@@ -335,7 +335,7 @@ Deno.serve(async (req) => {
           status: temDentista ? "formalizado" : "assinado",
           assinado_em: dataHoraIso,
           assinante_nome: signerName || doc.paciente_nome || "Paciente",
-          assinatura_data: dataHoraIso,
+          assinatura_data: signature,
           itens: updatedSnapshot,
           atualizado_em: dataHoraIso,
         })
@@ -393,6 +393,7 @@ Deno.serve(async (req) => {
           };
 
           await supabase.from("orcamentos").update({
+            contrato_id: updatedSnapshot.contratoId || doc.id,
             assinatura_paciente: updatedOrcSnap,
             data_assinatura: currentSnap.data_assinatura || dataHoraIso,
             atualizado_em: dataHoraIso,
@@ -739,10 +740,20 @@ Deno.serve(async (req) => {
         .eq("id", doc.id);
 
       // ARQUIVAMENTO AUTOMÁTICO EM DOCUMENTOS DO PACIENTE (documentos_paciente)
+      const isUuid = (val: any): boolean => typeof val === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
       const targetPacId = doc.paciente_id || doc.itens?.pacienteId;
-      const targetUserId = doc.user_id || "clinica";
+      let targetUserId = isUuid(doc.user_id) ? doc.user_id : null;
 
-      if (targetPacId) {
+      if (!targetUserId && targetPacId) {
+        const { data: pacRow } = await supabase.from("pacientes").select("user_id").eq("id", targetPacId).maybeSingle();
+        if (isUuid(pacRow?.user_id)) targetUserId = pacRow.user_id;
+      }
+      if (!targetUserId) {
+        const { data: cfgRow } = await supabase.from("configuracoes").select("user_id").limit(1).maybeSingle();
+        if (isUuid(cfgRow?.user_id)) targetUserId = cfgRow.user_id;
+      }
+
+      if (targetPacId && targetUserId) {
         try {
           const { data: existingDp } = await supabase
             .from("documentos_paciente")
@@ -802,6 +813,7 @@ Deno.serve(async (req) => {
           };
 
           await supabase.from("orcamentos").update({
+            contrato_id: identificador,
             assinatura_paciente: updatedOrcSnap,
             atualizado_em: nowIso,
           }).eq("id", orcRow.id);
@@ -1206,16 +1218,29 @@ Deno.serve(async (req) => {
               .maybeSingle();
 
             if (!existingDp) {
-              await supabase.from("documentos_paciente").insert({
-                user_id: c.user_id || orcRow?.user_id || "clinica",
-                paciente_id: pacId,
-                nome: `Contrato Odontológico Assinado - ${identificador}`,
-                tipo: "contrato",
-                url: canonicalPath,
-                tamanho: 50000,
-                criado_em: c.assinado_em || nowIso,
-                atualizado_em: nowIso,
-              });
+              const isUuid = (val: any): boolean => typeof val === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+              let docPacUserId = isUuid(c.user_id) ? c.user_id : (isUuid(orcRow?.user_id) ? orcRow.user_id : null);
+              if (!docPacUserId && pacId) {
+                const { data: pR } = await supabase.from("pacientes").select("user_id").eq("id", pacId).maybeSingle();
+                if (isUuid(pR?.user_id)) docPacUserId = pR.user_id;
+              }
+              if (!docPacUserId) {
+                const { data: cR } = await supabase.from("configuracoes").select("user_id").limit(1).maybeSingle();
+                if (isUuid(cR?.user_id)) docPacUserId = cR.user_id;
+              }
+
+              if (docPacUserId) {
+                await supabase.from("documentos_paciente").insert({
+                  user_id: docPacUserId,
+                  paciente_id: pacId,
+                  nome: `Contrato Odontológico Assinado - ${identificador}`,
+                  tipo: "contrato",
+                  url: canonicalPath,
+                  tamanho: 50000,
+                  criado_em: c.assinado_em || nowIso,
+                  atualizado_em: nowIso,
+                });
+              }
             }
           }
 

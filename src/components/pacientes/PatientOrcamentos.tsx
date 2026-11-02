@@ -2687,7 +2687,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
                       }}
                       title="Baixar PDF oficial do contrato formalizado"
                     >
-                      <Download className="h-4 w-4" /> Baixar PDF
+                      <Download className="h-4 w-4" /> Baixar PDF Assinado
                     </Button>
                   </>
                 ) : temContratoEmitido ? (
@@ -2699,9 +2699,10 @@ const PatientOrcamentos = ({ patient }: Props) => {
                       setContratoOrcamento(o);
                       setContratoModalOpen(true);
                     }}
-                    title="Ver contrato emitido - aguardando assinatura"
+                    title={temAssinaturaDra ? "Ver contrato emitido com assinatura profissional - aguardando paciente" : "Ver contrato emitido - aguardando assinatura da profissional"}
                   >
-                    <Clock className="h-4 w-4 text-amber-600" /> Ver Contrato — Aguardando assinatura
+                    <Clock className="h-4 w-4 text-amber-600" />
+                    {temAssinaturaDra ? "Ver Contrato — Aguardando Paciente" : "Ver Contrato — Aguardando Profissional"}
                   </Button>
                 ) : (
                   <Button
