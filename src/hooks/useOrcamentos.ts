@@ -137,14 +137,15 @@ export const useOrcamentos = (pacienteId?: string) => {
       atualizado_em: new Date().toISOString(),
     };
 
+    const identificador = o.identificador || (o.id ? `ORC-${String(o.id).slice(0, 8).toUpperCase()}` : undefined);
     const snapAssinatura = {
-      identificador: o.identificador,
+      identificador,
       tokenAssinatura: o.tokenAssinatura,
       dataExpiracaoLink: o.dataExpiracaoLink,
       aprovadoEm: o.aprovadoEm,
       condicaoEscolhida: o.condicaoEscolhida,
       snapshotAprovacao: o.snapshotAprovacao,
-      fotosPlanejamento: o.fotosPlanejamento,
+      fotosPlanejamento: o.fotosPlanejamento || [],
       contratoId: o.contratoId,
       contratoToken: o.contratoToken,
       versao: o.versao || 1,
@@ -153,39 +154,47 @@ export const useOrcamentos = (pacienteId?: string) => {
     };
     payload.assinatura_paciente = snapAssinatura;
 
-    if (o.identificador) payload.identificador = o.identificador;
     if (o.tokenAssinatura) payload.token_assinatura = o.tokenAssinatura;
     if (o.dataExpiracaoLink) payload.data_expiracao_link = o.dataExpiracaoLink;
-    if (o.aprovadoEm) payload.aprovado_em = o.aprovadoEm;
-    if (o.condicaoEscolhida) payload.condicao_escolhida = o.condicaoEscolhida;
-    if (o.snapshotAprovacao) payload.snapshot_aprovacao = o.snapshotAprovacao;
-    if (o.fotosPlanejamento) payload.fotos_planejamento = o.fotosPlanejamento;
-    if (o.contratoId) payload.contrato_id = o.contratoId;
-    if (o.contratoToken) payload.contrato_token = o.contratoToken;
-    if (o.versao !== undefined) payload.versao = o.versao;
-    if (o.solicitacoesAjuste) payload.solicitacoes_ajuste = o.solicitacoesAjuste;
-    if (o.historicoVersoes) payload.historico_versoes = o.historicoVersoes;
+    if (o.aprovadoEm) payload.data_assinatura = o.aprovadoEm;
 
-    let { error } = o.id
-      ? await supabase.from('orcamentos').update(payload).eq('id', o.id)
-      : await supabase.from('orcamentos').insert(payload);
+    let { data: savedRow, error } = o.id
+      ? await supabase.from('orcamentos').update(payload).eq('id', o.id).select('id').maybeSingle()
+      : await supabase.from('orcamentos').insert(payload).select('id').maybeSingle();
 
     if (error && (error.code === 'PGRST204' || error.message?.includes('column'))) {
-      delete payload.identificador;
-      delete payload.fotos_planejamento;
-      delete payload.condicao_escolhida;
-      delete payload.snapshot_aprovacao;
-      delete payload.contrato_id;
-      delete payload.contrato_token;
-      delete payload.aprovado_em;
-      delete payload.versao;
-      delete payload.solicitacoes_ajuste;
-      delete payload.historico_versoes;
-
       const retry = o.id
-        ? await supabase.from('orcamentos').update(payload).eq('id', o.id)
-        : await supabase.from('orcamentos').insert(payload);
+        ? await supabase.from('orcamentos').update(payload).eq('id', o.id).select('id').maybeSingle()
+        : await supabase.from('orcamentos').insert(payload).select('id').maybeSingle();
       error = retry.error;
+      savedRow = retry.data;
+    }
+
+    if (error) {
+      console.error(error);
+      alert('Erro DB Orçamento: ' + error.message);
+      toast.error('Erro ao salvar orçamento');
+      return;
+    }
+
+    const savedId = o.id || savedRow?.id;
+    if (savedId && typeof window !== 'undefined' && window.localStorage) {
+      try {
+        const cacheItem = {
+          ...o,
+          id: savedId,
+          identificador: identificador || `ORC-${String(savedId).slice(0, 8).toUpperCase()}`,
+          tokenAssinatura: o.tokenAssinatura,
+          total,
+          versao: o.versao || 1,
+          solicitacoesAjuste: o.solicitacoesAjuste || [],
+          historicoVersoes: o.historicoVersoes || [],
+        };
+        if (identificador) {
+          window.localStorage.setItem(`orcamento_${identificador}`, JSON.stringify(cacheItem));
+        }
+        window.localStorage.setItem(`orcamento_${savedId}`, JSON.stringify(cacheItem));
+      } catch (_) {}
     }
 
     if (error) {

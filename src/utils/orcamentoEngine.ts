@@ -7,7 +7,7 @@ import {
   obterTextoCondicaoParaContrato,
   filtrarApenasCondicaoEscolhida,
 } from './orcamentoCondicoes';
-import { mapearDadosContrato, emitirContratoPersistido, ContratoSnapshot } from './contratoEngine';
+import { mapearDadosContrato, emitirContratoPersistido, ContratoSnapshot, obterUserIdAtivo } from './contratoEngine';
 import type { Orcamento, OrcamentoItem, StatusOrcamento } from '@/hooks/useOrcamentos';
 
 export type { StatusOrcamento };
@@ -154,7 +154,7 @@ export async function garantirOrcamentoPersistidoComToken(
     let identificador = (orcamento as any).identificador;
     if (!identificador || !identificador.startsWith('ORC-')) {
       if (orcamento.id && !orcamento.id.includes('-')) {
-        identificador = orcamento.id;
+        identificador = `ORC-${orcamento.id}`;
       } else {
         identificador = gerarIdentificadorOrcamento();
       }
@@ -184,10 +184,13 @@ export async function garantirOrcamentoPersistidoComToken(
       historicoVersoes,
       dataExpiracaoLink: dataExpiracao,
       fotosPlanejamento: (orcamento as any).fotosPlanejamento || (orcamento as any).fotos_planejamento || [],
+      condicaoEscolhida: orcamento.condicaoEscolhida || null,
+      aprovadoEm: orcamento.aprovadoEm || null,
+      contratoId: orcamento.contratoId || null,
+      contratoToken: orcamento.contratoToken || null,
     };
 
-    // Payload para atualizar ou inserir no Supabase
-    const payloadUpdate: Record<string, any> = {
+    const payloadDb: Record<string, any> = {
       token_assinatura: token,
       data_expiracao_link: dataExpiracao,
       paciente_nome: pacienteNome,
@@ -198,73 +201,43 @@ export async function garantirOrcamentoPersistidoComToken(
       formas_pagamento: orcamento.formasPagamento || null,
       observacoes: orcamento.observacoes || null,
       validade: orcamento.validade || null,
-      versao,
-      solicitacoes_ajuste: solicitacoesAjuste,
-      historico_versoes: historicoVersoes,
       assinatura_paciente: snapAssinatura,
       atualizado_em: new Date().toISOString(),
     };
 
-    if (identificador) {
-      payloadUpdate.identificador = identificador;
-    }
-
     if (pacienteId) {
-      payloadUpdate.paciente_id = pacienteId;
+      payloadDb.paciente_id = pacienteId;
     }
 
     let finalId = orcamento.id;
+    const isUuid = finalId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(finalId);
 
-    if (finalId) {
-      let { error: updErr } = await supabase
+    if (isUuid) {
+      const { error: updErr } = await supabase
         .from('orcamentos')
-        .update(payloadUpdate)
+        .update(payloadDb)
         .eq('id', finalId);
 
-      if (updErr && (updErr.code === 'PGRST204' || updErr.message?.includes('column'))) {
-        delete payloadUpdate.identificador;
-        delete payloadUpdate.versao;
-        delete payloadUpdate.solicitacoes_ajuste;
-        delete payloadUpdate.historico_versoes;
-        const retry = await supabase
-          .from('orcamentos')
-          .update(payloadUpdate)
-          .eq('id', finalId);
-        updErr = retry.error;
-      }
-
       if (updErr) {
-        console.warn('[OrcamentoEngine] Falha ao atualizar orcamento no banco:', updErr);
+        console.warn('[OrcamentoEngine] Aviso ao atualizar orcamento no banco:', updErr);
       }
     } else {
-      // Inserção caso seja um novo orçamento
-      let { data: insData, error: insErr } = await supabase
+      const activeUserId = (await obterUserIdAtivo()) || paciente?.user_id || undefined;
+      const { data: insData, error: insErr } = await supabase
         .from('orcamentos')
         .insert({
-          ...payloadUpdate,
-          user_id: paciente?.user_id || undefined,
+          ...payloadDb,
+          user_id: activeUserId,
           status: orcamento.status || 'enviado',
+          criado_em: new Date().toISOString(),
         })
         .select('id')
         .maybeSingle();
 
-      if (insErr && (insErr.code === 'PGRST204' || insErr.message?.includes('column'))) {
-        delete payloadUpdate.identificador;
-        const retryIns = await supabase
-          .from('orcamentos')
-          .insert({
-            ...payloadUpdate,
-            user_id: paciente?.user_id || undefined,
-            status: orcamento.status || 'enviado',
-          })
-          .select('id')
-          .maybeSingle();
-        insData = retryIns.data;
-        insErr = retryIns.error;
-      }
-
       if (!insErr && insData?.id) {
         finalId = insData.id;
+      } else if (insErr) {
+        console.warn('[OrcamentoEngine] Aviso ao inserir novo orcamento no banco:', insErr);
       }
     }
 
@@ -279,6 +252,9 @@ export async function garantirOrcamentoPersistidoComToken(
           token_assinatura: token,
           pacienteNome,
           total,
+          versao,
+          solicitacoesAjuste,
+          historicoVersoes,
         };
         window.localStorage.setItem(`orcamento_${identificador}`, JSON.stringify(cacheData));
         if (finalId) {
@@ -319,6 +295,272 @@ export async function garantirOrcamentoPersistidoComToken(
 }
 
 /**
+ * Localizador e validador centralizado para ações públicas de orçamento.
+ * Resolve de forma segura e resiliente:
+ * - Por UUID interno do Supabase (id)
+ * - Por identificador público amigável (assinatura_paciente->>identificador)
+ * - Por token criptográfico (token_assinatura / assinatura_paciente->>token)
+ * - Por contingência local (localStorage) para permitir visualização e testes
+ * Valida autorização de token, integridade de dados e expiração.
+ */
+export async function localizarRegistroOrcamento(
+  identificadorOuId: string,
+  token?: string,
+  orcamentoId?: string
+): Promise<{
+  ok: boolean;
+  row?: any;
+  uuid?: string;
+  identificador?: string;
+  versao?: number;
+  status?: StatusOrcamento;
+  error?: string;
+  isExpirado?: boolean;
+}> {
+  const cleanId = String(identificadorOuId || '').trim();
+  const cleanToken = String(token || '').trim();
+  const cleanUuid = String(orcamentoId || '').trim();
+
+  const isExplicitUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanUuid);
+  const isTargetUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanId);
+
+  let row: any = null;
+
+  // 1. Tenta RPC do backend se disponível (com SECURITY DEFINER)
+  try {
+    const { data: rpcData, error: rpcErr } = await (supabase.rpc as any)('obter_orcamento_publico', {
+      p_identificador: cleanId || cleanUuid,
+      p_token: cleanToken,
+    });
+    if (!rpcErr && rpcData?.ok) {
+      return {
+        ok: true,
+        row: rpcData,
+        uuid: rpcData.id,
+        identificador: rpcData.identificador,
+        versao: Number(rpcData.versao || 1),
+        status: rpcData.status,
+      };
+    } else if (rpcData && !rpcData.ok && rpcData.error && rpcData.error.includes('expirou')) {
+      return { ok: false, error: rpcData.error, isExpirado: true };
+    }
+  } catch (_) {}
+
+  // 2. Consulta direta no Supabase: por UUID explícito se fornecido
+  if (isExplicitUuid) {
+    try {
+      const { data: rows, error: qErr } = await supabase
+        .from('orcamentos')
+        .select('*')
+        .eq('id', cleanUuid)
+        .limit(1);
+      if (!qErr && rows && rows.length > 0) {
+        row = rows[0];
+      }
+    } catch (_) {}
+  }
+
+  // 3. Consulta direta no Supabase: se cleanId for UUID e ainda não achou
+  if (!row && isTargetUuid) {
+    try {
+      const { data: rows, error: qErr } = await supabase
+        .from('orcamentos')
+        .select('*')
+        .eq('id', cleanId)
+        .limit(1);
+      if (!qErr && rows && rows.length > 0) {
+        row = rows[0];
+      }
+    } catch (_) {}
+  }
+
+  // 4. Consulta direta no Supabase: por identificador amigável dentro do JSONB assinatura_paciente
+  if (!row && cleanId) {
+    try {
+      const idUpper = cleanId.toUpperCase();
+      const withPrefix = idUpper.startsWith('ORC-') ? idUpper : `ORC-${idUpper}`;
+      const withoutPrefix = idUpper.startsWith('ORC-') ? idUpper.replace(/^ORC-/, '') : idUpper;
+
+      const { data: rows } = await supabase
+        .from('orcamentos')
+        .select('*')
+        .or(
+          `assinatura_paciente->>identificador.eq.${idUpper},` +
+          `assinatura_paciente->>identificador.eq.${cleanId},` +
+          `assinatura_paciente->>identificador.eq.${withPrefix},` +
+          `assinatura_paciente->>identificador.eq.${withoutPrefix}`
+        )
+        .order('criado_em', { ascending: false })
+        .limit(1);
+
+      if (rows && rows.length > 0) {
+        row = rows[0];
+      }
+    } catch (_) {}
+  }
+
+  // 5. Consulta direta no Supabase: por token criptográfico único
+  if (!row && cleanToken) {
+    try {
+      const { data: rows } = await supabase
+        .from('orcamentos')
+        .select('*')
+        .eq('token_assinatura', cleanToken)
+        .order('criado_em', { ascending: false })
+        .limit(1);
+
+      if (rows && rows.length > 0) {
+        row = rows[0];
+      } else {
+        const { data: rowsJson } = await supabase
+          .from('orcamentos')
+          .select('*')
+          .filter('assinatura_paciente->>token', 'eq', cleanToken)
+          .order('criado_em', { ascending: false })
+          .limit(1);
+        if (rowsJson && rowsJson.length > 0) {
+          row = rowsJson[0];
+        }
+      }
+    } catch (_) {}
+  }
+
+  // 6. Fallback: Cache local (localStorage) para contingência instantânea / modo offline
+  if (!row && typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const idUpper = cleanId.toUpperCase();
+      const withPrefix = idUpper.startsWith('ORC-') ? idUpper : `ORC-${idUpper}`;
+      const possibleKeys = [
+        cleanId ? `orcamento_${cleanId}` : '',
+        idUpper ? `orcamento_${idUpper}` : '',
+        withPrefix ? `orcamento_${withPrefix}` : '',
+        cleanUuid ? `orcamento_${cleanUuid}` : '',
+      ].filter(Boolean);
+
+      for (const k of possibleKeys) {
+        const str = window.localStorage.getItem(k);
+        if (str) {
+          try {
+            const parsed = JSON.parse(str);
+            if (parsed) {
+              row = {
+                id: parsed.id || cleanUuid || cleanId,
+                titulo: parsed.titulo || 'Plano de tratamento',
+                itens: parsed.itens || [],
+                desconto: Number(parsed.desconto || 0),
+                total: Number(parsed.total || 0),
+                status: parsed.status || 'enviado',
+                validade: parsed.validade,
+                observacoes: parsed.observacoes,
+                formas_pagamento: parsed.formasPagamento || parsed.formas_pagamento,
+                token_assinatura: parsed.tokenAssinatura || parsed.token_assinatura || cleanToken,
+                data_expiracao_link: parsed.dataExpiracaoLink || parsed.data_expiracao_link,
+                data_assinatura: parsed.aprovadoEm || parsed.data_assinatura,
+                paciente_id: parsed.pacienteId || parsed.paciente_id,
+                paciente_nome: parsed.pacienteNome || parsed.paciente_nome,
+                assinatura_paciente: {
+                  identificador: parsed.identificador || idUpper,
+                  token: parsed.tokenAssinatura || cleanToken,
+                  versao: parsed.versao || 1,
+                  solicitacoesAjuste: parsed.solicitacoesAjuste || [],
+                  historicoVersoes: parsed.historicoVersoes || [],
+                  condicaoEscolhida: parsed.condicaoEscolhida,
+                  aprovadoEm: parsed.aprovadoEm,
+                  fotosPlanejamento: parsed.fotosPlanejamento || [],
+                  contratoId: parsed.contratoId,
+                  contratoToken: parsed.contratoToken,
+                },
+              };
+              break;
+            }
+          } catch (_) {}
+        }
+      }
+
+      // Varredura por token no localStorage
+      if (!row && cleanToken) {
+        for (let i = 0; i < window.localStorage.length; i++) {
+          const k = window.localStorage.key(i);
+          if (k && k.startsWith('orcamento_')) {
+            try {
+              const val = JSON.parse(window.localStorage.getItem(k) || '{}');
+              if (val.tokenAssinatura === cleanToken || val.token_assinatura === cleanToken || val.token === cleanToken) {
+                row = {
+                  id: val.id || cleanId,
+                  titulo: val.titulo,
+                  itens: val.itens || [],
+                  desconto: val.desconto || 0,
+                  total: val.total || 0,
+                  status: val.status || 'enviado',
+                  validade: val.validade,
+                  observacoes: val.observacoes,
+                  formas_pagamento: val.formasPagamento || val.formas_pagamento,
+                  token_assinatura: cleanToken,
+                  paciente_id: val.pacienteId || val.paciente_id,
+                  paciente_nome: val.pacienteNome || val.paciente_nome,
+                  assinatura_paciente: {
+                    identificador: val.identificador,
+                    token: cleanToken,
+                    versao: val.versao || 1,
+                    solicitacoesAjuste: val.solicitacoesAjuste || [],
+                    historicoVersoes: val.historicoVersoes || [],
+                    condicaoEscolhida: val.condicaoEscolhida,
+                    aprovadoEm: val.aprovadoEm,
+                    fotosPlanejamento: val.fotosPlanejamento || [],
+                  },
+                };
+                break;
+              }
+            } catch (_) {}
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  if (!row) {
+    return {
+      ok: false,
+      error: 'Orçamento não encontrado. Verifique o link ou solicite um novo à clínica.',
+    };
+  }
+
+  const snap = (row.assinatura_paciente || {}) as any;
+  const tokenSalvo = row.token_assinatura || snap.token || snap.tokenAssinatura;
+
+  // Validação do token de segurança se fornecido
+  if (cleanToken && tokenSalvo && cleanToken !== tokenSalvo) {
+    return {
+      ok: false,
+      error: 'Token de segurança inválido. Acesso não autorizado.',
+    };
+  }
+
+  // Validação de expiração
+  const expiraEm = row.data_expiracao_link || snap.dataExpiracaoLink;
+  if (expiraEm && new Date(expiraEm) < new Date()) {
+    return {
+      ok: false,
+      error: 'Esta proposta de orçamento expirou.',
+      isExpirado: true,
+    };
+  }
+
+  const identificador = snap.identificador || (row.id ? `ORC-${String(row.id).slice(0, 8).toUpperCase()}` : cleanId);
+  const versao = Number(snap.versao || row.versao || 1);
+  const status = (row.status || snap.status || 'enviado') as StatusOrcamento;
+
+  return {
+    ok: true,
+    row,
+    uuid: row.id,
+    identificador,
+    versao,
+    status,
+  };
+}
+
+/**
  * Consulta o orçamento público com validação estrita de token e permissões
  */
 export async function obterOrcamentoPublico(
@@ -334,241 +576,115 @@ export async function obterOrcamentoPublico(
     return { ok: false, error: 'Identificador e token de acesso são obrigatórios' };
   }
 
-  const cleanId = identificador.trim();
-  const cleanToken = token.trim();
+  const localizacao = await localizarRegistroOrcamento(identificador, token);
+  if (!localizacao.ok || !localizacao.row) {
+    return {
+      ok: false,
+      error: localizacao.error || 'Orçamento não encontrado. Verifique o link ou solicite um novo à clínica.',
+      isExpirado: localizacao.isExpirado,
+    };
+  }
 
-  // 1. Tenta RPC do backend 'obter_orcamento_publico'
+  const row = localizacao.row;
+  const snap = (row.assinatura_paciente || {}) as any;
+  const parsedConds = parseCondicoesPagamento(row.formas_pagamento, Number(row.total || 0));
+
+  // Tenta carregar dados da clínica
+  let clinicaInfo = {
+    nome: 'Clínica Odontológica',
+    logoUrl: null,
+    telefone: null,
+    email: null,
+    dentistaResponsavel: null,
+    cro: null,
+  };
   try {
-    const { data: rpcData, error: rpcErr } = await (supabase.rpc as any)('obter_orcamento_publico', {
-      p_identificador: cleanId,
-      p_token: cleanToken,
-    });
-
-    if (!rpcErr && rpcData?.ok) {
-      const orc = rpcData;
-      const parsedConds = parseCondicoesPagamento(orc.formasPagamento, orc.total || 0);
-
-      let contratoLink: string | null = null;
-      if (orc.contratoId && orc.contratoToken) {
-        const base = obterBaseUrlOficial();
-        const slug = slugifyNome(orc.pacienteNome || 'paciente');
-        const cId = orc.contratoIdentificador || orc.contratoId;
-        contratoLink = `${base}/${slug}/contrato/${cId}?token=${encodeURIComponent(orc.contratoToken)}`;
-      }
-
-      return {
-        ok: true,
-        orcamento: {
-          id: orc.id,
-          identificador: orc.identificador,
-          titulo: orc.titulo || 'Plano de tratamento',
-          itens: Array.isArray(orc.itens) ? orc.itens : [],
-          subtotal: (Array.isArray(orc.itens) ? orc.itens : []).reduce(
-            (acc: number, it: any) => acc + (Number(it.valor || 0) * Number(it.quantidade || 1)),
-            0
-          ),
-          desconto: Number(orc.desconto || 0),
-          total: Number(orc.total || 0),
-          status: orc.status,
-          versao: Number(orc.versao || 1),
-          solicitacoesAjuste: Array.isArray(orc.solicitacoesAjuste) ? orc.solicitacoesAjuste : [],
-          historicoVersoes: Array.isArray(orc.historicoVersoes) ? orc.historicoVersoes : [],
-          validade: orc.validade,
-          observacoes: orc.observacoes,
-          formasPagamentoRaw: orc.formasPagamento,
-          condicoes: parsedConds,
-          condicaoEscolhida: orc.condicaoEscolhida || (parsedConds.find((c) => c.selecionada) || null),
-          aprovadoEm: orc.aprovadoEm,
-          pacienteId: orc.pacienteId,
-          pacienteNome: orc.pacienteNome,
-          fotosPlanejamento: Array.isArray(orc.fotosPlanejamento) ? orc.fotosPlanejamento : [],
-          contratoId: orc.contratoId,
-          contratoToken: orc.contratoToken,
-          contratoStatus: orc.contratoStatus,
-          contratoIdentificador: orc.contratoIdentificador,
-          contratoLink,
-          clinica: orc.clinica || { nome: 'Clínica Odontológica' },
-        },
+    const { data: configRow } = await supabase.from('configuracoes').select('*').limit(1).maybeSingle();
+    if (configRow) {
+      clinicaInfo = {
+        nome: configRow.nome_clinica || 'Clínica Odontológica',
+        logoUrl: configRow.logo_url || null,
+        telefone: configRow.telefone || null,
+        email: configRow.email || null,
+        dentistaResponsavel: configRow.dentista_responsavel || null,
+        cro: configRow.cro || null,
       };
-    } else if (rpcData && !rpcData.ok && rpcData.error) {
-      if (rpcData.error.includes('expirou')) {
-        return { ok: false, error: rpcData.error, isExpirado: true };
-      }
-      return { ok: false, error: rpcData.error };
     }
   } catch (_) {}
 
-  // 2. Fallback: Consulta direta no banco de dados Supabase
-  try {
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanId);
-    let query = supabase.from('orcamentos').select('*');
+  // Verifica contrato vinculado
+  let contratoLink: string | null = null;
+  let contratoIdentificador: string | null = null;
+  let contratoStatus: string | null = null;
 
-    if (isUuid) {
-      query = query.or(`id.eq.${cleanId},identificador.eq.${cleanId.toUpperCase()},identificador.eq.${cleanId}`);
-    } else {
-      query = query.or(`identificador.eq.${cleanId.toUpperCase()},identificador.eq.${cleanId},id.eq.${cleanId}`);
-    }
+  const effectiveContratoId = row.contrato_id || snap.contratoId;
+  const effectiveContratoToken = row.contrato_token || snap.contratoToken;
 
-    const { data: rows, error: queryErr } = await query.order('criado_em', { ascending: false }).limit(1);
-    const row = rows?.[0];
-
-    if (!row) {
-      // 3. Fallback: Cache local (offline)
-      if (typeof window !== 'undefined' && window.localStorage) {
-        const cachedStr =
-          window.localStorage.getItem(`orcamento_${cleanId}`) ||
-          window.localStorage.getItem(`orcamento_${cleanId.toUpperCase()}`);
-        if (cachedStr) {
-          const cached = JSON.parse(cachedStr);
-          if (cached.tokenAssinatura === cleanToken || cached.token_assinatura === cleanToken) {
-            const parsedConds = parseCondicoesPagamento(cached.formasPagamento, cached.total || 0);
-            return {
-              ok: true,
-              orcamento: {
-                id: cached.id || cleanId,
-                identificador: cached.identificador || cleanId,
-                titulo: cached.titulo || 'Plano de tratamento',
-                itens: cached.itens || [],
-                subtotal: (cached.itens || []).reduce(
-                  (acc: number, it: any) => acc + (Number(it.valor || 0) * Number(it.quantidade || 1)),
-                  0
-                ),
-                desconto: Number(cached.desconto || 0),
-                total: Number(cached.total || 0),
-                status: cached.status || 'enviado',
-                validade: cached.validade,
-                observacoes: cached.observacoes,
-                formasPagamentoRaw: cached.formasPagamento,
-                condicoes: parsedConds,
-                condicaoEscolhida: cached.condicaoEscolhida || (parsedConds.find((c) => c.selecionada) || null),
-                aprovadoEm: cached.aprovadoEm || null,
-                pacienteId: cached.pacienteId,
-                pacienteNome: cached.pacienteNome || 'Paciente',
-                fotosPlanejamento: cached.fotosPlanejamento || [],
-                contratoId: cached.contratoId || null,
-                contratoToken: cached.contratoToken || null,
-                clinica: { nome: 'Clínica Odontológica' },
-              },
-            };
-          }
-        }
-      }
-
-      return { ok: false, error: 'Orçamento não encontrado. Verifique o link ou solicite um novo à clínica.' };
-    }
-
-    // Validação estrita do token
-    const tokenSalvo = row.token_assinatura;
-    if (!tokenSalvo || tokenSalvo !== cleanToken) {
-      return { ok: false, error: 'Token de segurança inválido. Acesso não autorizado.' };
-    }
-
-    // Validação de expiração se informada
-    if (row.data_expiracao_link && new Date(row.data_expiracao_link) < new Date()) {
-      return { ok: false, error: 'Esta proposta de orçamento expirou.', isExpirado: true };
-    }
-
-    const parsedConds = parseCondicoesPagamento(row.formas_pagamento, Number(row.total || 0));
-
-    // Tenta carregar dados da clínica
-    let clinicaInfo = { nome: 'Clínica Odontológica', logoUrl: null, telefone: null, email: null, dentistaResponsavel: null, cro: null };
+  if (effectiveContratoId) {
     try {
-      const { data: configRow } = await supabase.from('configuracoes').select('*').limit(1).maybeSingle();
-      if (configRow) {
-        clinicaInfo = {
-          nome: configRow.nome_clinica || 'Clínica Odontológica',
-          logoUrl: configRow.logo_url || null,
-          telefone: configRow.telefone || null,
-          email: configRow.email || null,
-          dentistaResponsavel: configRow.dentista_responsavel || null,
-          cro: configRow.cro || null,
-        };
+      const isDocUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(effectiveContratoId);
+      let queryContrato = supabase.from('documentos_clinicos').select('id, itens').eq('tipo', 'contrato');
+      if (isDocUuid) {
+        queryContrato = queryContrato.or(`id.eq.${effectiveContratoId},itens->>contratoId.eq.${effectiveContratoId}`);
+      } else {
+        queryContrato = queryContrato.filter('itens->>contratoId', 'eq', effectiveContratoId);
+      }
+      const { data: docContrato } = await queryContrato.maybeSingle();
+
+      if (docContrato) {
+        const snapContrato = docContrato.itens as any;
+        contratoIdentificador = snapContrato?.contratoId || docContrato.id;
+        contratoStatus = snapContrato?.status || 'pendente';
+        const tok = snapContrato?.token || effectiveContratoToken;
+        if (tok) {
+          const base = obterBaseUrlOficial();
+          const slug = slugifyNome(row.paciente_nome || 'paciente');
+          contratoLink = `${base}/${slug}/contrato/${contratoIdentificador}?token=${encodeURIComponent(tok)}`;
+        }
       }
     } catch (_) {}
-
-    // Verifica se há contrato vinculado
-    let contratoLink: string | null = null;
-    let contratoIdentificador: string | null = null;
-    let contratoStatus: string | null = null;
-
-    const snapAssinatura = (row.assinatura_paciente || {}) as any;
-    const effectiveContratoId = row.contrato_id || snapAssinatura.contratoId;
-    const effectiveContratoToken = row.contrato_token || snapAssinatura.contratoToken;
-    const effectiveIdentificador = row.identificador || snapAssinatura.identificador || `ORC-${row.id.slice(0, 8).toUpperCase()}`;
-    const effectiveFotos = Array.isArray(row.fotos_planejamento) && row.fotos_planejamento.length > 0
-      ? row.fotos_planejamento
-      : (snapAssinatura.fotosPlanejamento || []);
-    const effectiveCondicao = row.condicao_escolhida || snapAssinatura.condicaoEscolhida;
-    const effectiveAprovadoEm = row.aprovado_em || snapAssinatura.aprovadoEm || row.data_assinatura;
-
-    if (effectiveContratoId) {
-      try {
-        const { data: docContrato } = await supabase
-          .from('documentos_clinicos')
-          .select('id, itens')
-          .eq('tipo', 'contrato')
-          .or(`id.eq.${effectiveContratoId},itens->>contratoId.eq.${effectiveContratoId}`)
-          .maybeSingle();
-
-        if (docContrato) {
-          const snap = docContrato.itens as any;
-          contratoIdentificador = snap?.contratoId || docContrato.id;
-          contratoStatus = snap?.status || 'pendente';
-          const tok = snap?.token || effectiveContratoToken;
-          if (tok) {
-            const base = obterBaseUrlOficial();
-            const slug = slugifyNome(row.paciente_nome || 'paciente');
-            contratoLink = `${base}/${slug}/contrato/${contratoIdentificador}?token=${encodeURIComponent(tok)}`;
-          }
-        }
-      } catch (_) {}
-    }
-
-    const effectiveVersao = Number(row.versao || snapAssinatura.versao || 1);
-    const effectiveSolicitacoes = Array.isArray(row.solicitacoes_ajuste) && row.solicitacoes_ajuste.length > 0
-      ? row.solicitacoes_ajuste
-      : (snapAssinatura.solicitacoesAjuste || []);
-    const effectiveHistorico = Array.isArray(row.historico_versoes) && row.historico_versoes.length > 0
-      ? row.historico_versoes
-      : (snapAssinatura.historicoVersoes || []);
-
-    return {
-      ok: true,
-      orcamento: {
-        id: row.id,
-        identificador: effectiveIdentificador,
-        titulo: row.titulo || 'Plano de tratamento',
-        itens: Array.isArray(row.itens) ? row.itens : [],
-        subtotal: (Array.isArray(row.itens) ? row.itens : []).reduce(
-          (acc: number, it: any) => acc + (Number(it.valor || 0) * Number(it.quantidade || 1)),
-          0
-        ),
-        desconto: Number(row.desconto || 0),
-        total: Number(row.total || 0),
-        status: row.status as any,
-        versao: effectiveVersao,
-        solicitacoesAjuste: effectiveSolicitacoes,
-        historicoVersoes: effectiveHistorico,
-        validade: row.validade,
-        observacoes: row.observacoes,
-        formasPagamentoRaw: row.formas_pagamento,
-        condicoes: parsedConds,
-        condicaoEscolhida: effectiveCondicao || (parsedConds.find((c) => c.selecionada) || null),
-        aprovadoEm: effectiveAprovadoEm,
-        pacienteId: row.paciente_id,
-        pacienteNome: row.paciente_nome || 'Paciente',
-        fotosPlanejamento: effectiveFotos,
-        contratoId: effectiveContratoId,
-        contratoToken: effectiveContratoToken,
-        contratoStatus,
-        contratoIdentificador,
-        contratoLink,
-        clinica: clinicaInfo,
-      },
-    };
-  } catch (err: any) {
-    return { ok: false, error: err?.message || 'Erro ao carregar orçamento.' };
   }
+
+  const effectiveFotos = Array.isArray(snap.fotosPlanejamento) ? snap.fotosPlanejamento : [];
+  const effectiveSolicitacoes = Array.isArray(snap.solicitacoesAjuste) ? snap.solicitacoesAjuste : [];
+  const effectiveHistorico = Array.isArray(snap.historicoVersoes) ? snap.historicoVersoes : [];
+  const effectiveCondicao = snap.condicaoEscolhida || (parsedConds.find((c) => c.selecionada) || null);
+  const effectiveAprovadoEm = snap.aprovadoEm || row.data_assinatura || null;
+
+  return {
+    ok: true,
+    orcamento: {
+      id: row.id,
+      identificador: localizacao.identificador!,
+      titulo: row.titulo || 'Plano de tratamento',
+      itens: Array.isArray(row.itens) ? row.itens : [],
+      subtotal: (Array.isArray(row.itens) ? row.itens : []).reduce(
+        (acc: number, it: any) => acc + (Number(it.valor || 0) * Number(it.quantidade || 1)),
+        0
+      ),
+      desconto: Number(row.desconto || 0),
+      total: Number(row.total || 0),
+      status: (row.status || snap.status || 'enviado') as StatusOrcamento,
+      versao: localizacao.versao!,
+      solicitacoesAjuste: effectiveSolicitacoes,
+      historicoVersoes: effectiveHistorico,
+      validade: row.validade,
+      observacoes: row.observacoes,
+      formasPagamentoRaw: row.formas_pagamento,
+      condicoes: parsedConds,
+      condicaoEscolhida: effectiveCondicao,
+      aprovadoEm: effectiveAprovadoEm,
+      pacienteId: row.paciente_id,
+      pacienteNome: row.paciente_nome || 'Paciente',
+      fotosPlanejamento: effectiveFotos,
+      contratoId: effectiveContratoId,
+      contratoToken: effectiveContratoToken,
+      contratoStatus,
+      contratoIdentificador,
+      contratoLink,
+      clinica: clinicaInfo,
+    },
+  };
 }
 
 /**
@@ -584,12 +700,13 @@ export async function solicitarAjusteOrcamentoPublico(params: {
   token: string;
   motivo: string;
   mensagem?: string;
+  orcamentoId?: string;
 }): Promise<{
   ok: boolean;
   solicitacao?: SolicitacaoAjuste;
   error?: string;
 }> {
-  const { identificador, token, motivo, mensagem } = params;
+  const { identificador, token, motivo, mensagem, orcamentoId } = params;
 
   if (!identificador || !token) {
     return { ok: false, error: 'Identificador e token são obrigatórios.' };
@@ -598,24 +715,19 @@ export async function solicitarAjusteOrcamentoPublico(params: {
     return { ok: false, error: 'Selecione o motivo da solicitação de ajuste.' };
   }
 
-  const cleanId = identificador.trim();
-  const cleanToken = token.trim();
-  const nowIso = new Date().toISOString();
-
   // 1. Tenta RPC segura do PostgreSQL
   try {
     const { data: rpcData, error: rpcErr } = await (supabase.rpc as any)('solicitar_ajuste_orcamento_publico', {
-      p_identificador: cleanId,
-      p_token: cleanToken,
+      p_identificador: orcamentoId || identificador.trim(),
+      p_token: token.trim(),
       p_motivo: motivo.trim(),
       p_mensagem: mensagem?.trim() || null,
     });
 
     if (!rpcErr && rpcData?.ok) {
-      // Atualiza cache local
       if (typeof window !== 'undefined' && window.localStorage) {
         try {
-          const cachedKey = `orcamento_${cleanId}`;
+          const cachedKey = `orcamento_${identificador}`;
           const prev = window.localStorage.getItem(cachedKey);
           if (prev) {
             const parsed = JSON.parse(prev);
@@ -635,103 +747,100 @@ export async function solicitarAjusteOrcamentoPublico(params: {
     }
   } catch (_) {}
 
-  // 2. Fallback: Gravação direta no Supabase com integridade
-  try {
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanId);
-    let query = supabase.from('orcamentos').select('*');
-    if (isUuid) {
-      query = query.or(`id.eq.${cleanId},identificador.eq.${cleanId.toUpperCase()},identificador.eq.${cleanId}`);
-    } else {
-      query = query.or(`identificador.eq.${cleanId.toUpperCase()},identificador.eq.${cleanId},id.eq.${cleanId}`);
-    }
+  // 2. Serviço centralizado de localização e validação
+  const localizacao = await localizarRegistroOrcamento(identificador, token, orcamentoId);
+  if (!localizacao.ok || !localizacao.row) {
+    return { ok: false, error: localizacao.error || 'Orçamento não encontrado no sistema.' };
+  }
 
-    const { data: rows } = await query.limit(1);
-    const orc = rows?.[0];
+  const orc = localizacao.row;
+  const uuid = localizacao.uuid || orc.id;
+  const snap = (orc.assinatura_paciente || {}) as any;
+  const nowIso = new Date().toISOString();
 
-    if (!orc) {
-      return { ok: false, error: 'Orçamento não encontrado no sistema.' };
-    }
+  if (orc.status === 'aprovado' || snap.status === 'aprovado') {
+    return { ok: false, error: 'Este orçamento já foi aprovado e não pode receber solicitações de ajuste.' };
+  }
 
-    if (orc.token_assinatura !== cleanToken) {
-      return { ok: false, error: 'Token de segurança inválido. Acesso não autorizado.' };
-    }
+  const versaoAtual = Number(localizacao.versao || snap.versao || 1);
 
-    if (orc.status === 'aprovado') {
-      return { ok: false, error: 'Este orçamento já foi aprovado e não pode receber solicitações de ajuste.' };
-    }
+  const novaSolicitacao: SolicitacaoAjuste = {
+    id: `ajuste-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    orcamentoId: uuid,
+    pacienteId: orc.paciente_id,
+    pacienteNome: orc.paciente_nome,
+    versaoOrcamento: versaoAtual,
+    motivo: motivo.trim(),
+    mensagem: mensagem?.trim() || undefined,
+    solicitadaEm: nowIso,
+    atendida: false,
+  };
 
-    const snap = (orc.assinatura_paciente || {}) as any;
-    const versaoAtual = Number(orc.versao || snap.versao || 1);
+  const solicitacoesExistentes = Array.isArray(snap.solicitacoesAjuste)
+    ? snap.solicitacoesAjuste
+    : (Array.isArray(orc.solicitacoes_ajuste) ? orc.solicitacoes_ajuste : []);
 
-    const novaSolicitacao: SolicitacaoAjuste = {
-      id: `ajuste-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      orcamentoId: orc.id,
-      pacienteId: orc.paciente_id,
-      pacienteNome: orc.paciente_nome,
-      versaoOrcamento: versaoAtual,
-      motivo: motivo.trim(),
-      mensagem: mensagem?.trim() || undefined,
-      solicitadaEm: nowIso,
-      atendida: false,
-    };
+  const novasSolicitacoes = [...solicitacoesExistentes, novaSolicitacao];
 
-    const solicitacoesExistentes = Array.isArray(orc.solicitacoes_ajuste) && orc.solicitacoes_ajuste.length > 0
-      ? orc.solicitacoes_ajuste
-      : (snap.solicitacoesAjuste || []);
+  const updatedAssinatura = {
+    ...snap,
+    identificador: localizacao.identificador,
+    status: 'ajuste_solicitado',
+    solicitacoesAjuste: novasSolicitacoes,
+  };
 
-    const novasSolicitacoes = [...solicitacoesExistentes, novaSolicitacao];
+  const updPayload: Record<string, any> = {
+    status: 'ajuste_solicitado',
+    assinatura_paciente: updatedAssinatura,
+    atualizado_em: nowIso,
+  };
 
-    const updPayload: Record<string, any> = {
-      status: 'ajuste_solicitado',
-      solicitacoes_ajuste: novasSolicitacoes,
-      assinatura_paciente: {
-        ...snap,
-        status: 'ajuste_solicitado',
-        solicitacoesAjuste: novasSolicitacoes,
-      },
-      atualizado_em: nowIso,
-    };
-
-    let { error: updErr } = await supabase
-      .from('orcamentos')
-      .update(updPayload)
-      .eq('id', orc.id);
-
-    if (updErr && (updErr.code === 'PGRST204' || updErr.message?.includes('column'))) {
-      delete updPayload.solicitacoes_ajuste;
-      const retry = await supabase
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid);
+  if (isUuid) {
+    try {
+      const { error: updErr } = await supabase
         .from('orcamentos')
         .update(updPayload)
-        .eq('id', orc.id);
-      updErr = retry.error;
-    }
+        .eq('id', uuid);
 
-    if (updErr) {
-      throw updErr;
+      if (updErr) {
+        console.warn('[OrcamentoEngine] Aviso ao atualizar solicitacao de ajuste:', updErr);
+      }
+    } catch (e) {
+      console.warn('[OrcamentoEngine] Erro ao gravar solicitacao de ajuste:', e);
     }
-
-    // Atualiza cache local
-    if (typeof window !== 'undefined' && window.localStorage) {
-      try {
-        const cachedKey = `orcamento_${orc.identificador || cleanId}`;
-        const prev = window.localStorage.getItem(cachedKey);
-        if (prev) {
-          const parsed = JSON.parse(prev);
-          parsed.status = 'ajuste_solicitado';
-          parsed.solicitacoesAjuste = novasSolicitacoes;
-          window.localStorage.setItem(cachedKey, JSON.stringify(parsed));
-        }
-      } catch (_) {}
-    }
-
-    return {
-      ok: true,
-      solicitacao: novaSolicitacao,
-    };
-  } catch (err: any) {
-    console.error('[OrcamentoEngine] Erro ao registrar solicitação de ajuste:', err);
-    return { ok: false, error: err?.message || 'Falha ao registrar solicitação de ajuste.' };
   }
+
+  // Atualiza cache local
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const keysToUpdate = [
+        `orcamento_${localizacao.identificador}`,
+        `orcamento_${identificador}`,
+        uuid ? `orcamento_${uuid}` : '',
+      ].filter(Boolean);
+
+      for (const k of keysToUpdate) {
+        const prev = window.localStorage.getItem(k);
+        let baseObj: any = {};
+        if (prev) {
+          try { baseObj = JSON.parse(prev); } catch (_) {}
+        }
+        const merged = {
+          ...baseObj,
+          ...orc,
+          status: 'ajuste_solicitado',
+          solicitacoesAjuste: novasSolicitacoes,
+        };
+        window.localStorage.setItem(k, JSON.stringify(merged));
+      }
+    } catch (_) {}
+  }
+
+  return {
+    ok: true,
+    solicitacao: novaSolicitacao,
+  };
 }
 
 /**
@@ -764,19 +873,37 @@ export async function enviarNovaPropostaOrcamento(params: {
   }
 
   try {
-    const { data: rows, error: fetchErr } = await supabase
-      .from('orcamentos')
-      .select('*')
-      .eq('id', orcamentoId)
-      .limit(1);
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orcamentoId);
+    let row: any = null;
 
-    const row = rows?.[0];
-    if (fetchErr || !row) {
+    if (isUuid) {
+      const { data: rows } = await supabase.from('orcamentos').select('*').eq('id', orcamentoId).limit(1);
+      row = rows?.[0];
+    } else {
+      const idUpper = orcamentoId.toUpperCase();
+      const { data: rows } = await supabase
+        .from('orcamentos')
+        .select('*')
+        .filter('assinatura_paciente->>identificador', 'eq', idUpper)
+        .limit(1);
+      row = rows?.[0];
+    }
+
+    if (!row) {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const cached = window.localStorage.getItem(`orcamento_${orcamentoId}`);
+        if (cached) {
+          try { row = JSON.parse(cached); } catch (_) {}
+        }
+      }
+    }
+
+    if (!row) {
       return { ok: false, novaVersao: 1, link: '', identificador: '', error: 'Orçamento não encontrado para revisão.' };
     }
 
     const snap = (row.assinatura_paciente || {}) as any;
-    const versaoAtual = Number(row.versao || snap.versao || 1);
+    const versaoAtual = Number(snap.versao || row.versao || 1);
     const novaVersao = versaoAtual + 1;
     const nowIso = new Date().toISOString();
 
@@ -786,7 +913,6 @@ export async function enviarNovaPropostaOrcamento(params: {
     );
     const totalNovo = Math.max(0, subtotalNovo - Number(novoDesconto || 0));
 
-    // Snapshot da versão anterior arquivado no histórico
     const snapshotVersaoAnterior: VersaoHistoricoOrcamento = {
       versao: versaoAtual,
       titulo: row.titulo,
@@ -797,23 +923,16 @@ export async function enviarNovaPropostaOrcamento(params: {
       desconto: Number(row.desconto || 0),
       total: Number(row.total || 0),
       itens: row.itens || [],
-      formasPagamento: row.formas_pagamento,
+      formasPagamento: row.formas_pagamento || row.formasPagamento,
       alteradaEm: nowIso,
       alteradaPor: usuarioNome || 'Clínica',
       motivoAjuste: motivoAjuste || 'Revisão e envio de nova proposta',
     };
 
-    const historicoExistente = Array.isArray(row.historico_versoes) && row.historico_versoes.length > 0
-      ? row.historico_versoes
-      : (snap.historicoVersoes || []);
-
+    const historicoExistente = Array.isArray(snap.historicoVersoes) ? snap.historicoVersoes : [];
     const novoHistorico = [...historicoExistente, snapshotVersaoAnterior];
 
-    // Marca solicitações anteriores como atendidas
-    const solicitacoesExistentes = Array.isArray(row.solicitacoes_ajuste) && row.solicitacoes_ajuste.length > 0
-      ? row.solicitacoes_ajuste
-      : (snap.solicitacoesAjuste || []);
-
+    const solicitacoesExistentes = Array.isArray(snap.solicitacoesAjuste) ? snap.solicitacoesAjuste : [];
     const solicitacoesAtendidas = solicitacoesExistentes.map((s: any) => ({
       ...s,
       atendida: true,
@@ -821,8 +940,20 @@ export async function enviarNovaPropostaOrcamento(params: {
       respondidaPor: usuarioNome || 'Clínica',
     }));
 
-    const identificador = row.identificador || snap.identificador || `ORC-${row.id.slice(0, 8).toUpperCase()}`;
+    const identificador = snap.identificador || (row.id ? `ORC-${String(row.id).slice(0, 8).toUpperCase()}` : orcamentoId);
     const token = row.token_assinatura || snap.tokenAssinatura || snap.token;
+
+    const updatedAssinatura = {
+      ...snap,
+      identificador,
+      status: 'nova_proposta_enviada',
+      versao: novaVersao,
+      historicoVersoes: novoHistorico,
+      solicitacoesAjuste: solicitacoesAtendidas,
+      condicaoEscolhida: null,
+      aprovadoEm: null,
+      snapshotAprovacao: null,
+    };
 
     const payload: Record<string, any> = {
       itens: novosItens,
@@ -830,51 +961,16 @@ export async function enviarNovaPropostaOrcamento(params: {
       total: totalNovo,
       formas_pagamento: novasFormasPagamento !== undefined ? novasFormasPagamento : row.formas_pagamento,
       status: 'nova_proposta_enviada',
-      versao: novaVersao,
-      historico_versoes: novoHistorico,
-      solicitacoes_ajuste: solicitacoesAtendidas,
-      condicao_escolhida: null,
-      aprovado_em: null,
-      snapshot_aprovacao: null,
+      assinatura_paciente: updatedAssinatura,
       atualizado_em: nowIso,
-      assinatura_paciente: {
-        ...snap,
-        status: 'nova_proposta_enviada',
-        versao: novaVersao,
-        historicoVersoes: novoHistorico,
-        solicitacoesAjuste: solicitacoesAtendidas,
-        condicaoEscolhida: null,
-        aprovadoEm: null,
-        snapshotAprovacao: null,
-      },
     };
 
-    let { error: updErr } = await supabase
-      .from('orcamentos')
-      .update(payload)
-      .eq('id', orcamentoId);
-
-    if (updErr && (updErr.code === 'PGRST204' || updErr.message?.includes('column'))) {
-      delete payload.versao;
-      delete payload.historico_versoes;
-      delete payload.solicitacoes_ajuste;
-      delete payload.condicao_escolhida;
-      delete payload.snapshot_aprovacao;
-      delete payload.aprovado_em;
-
-      const retry = await supabase
-        .from('orcamentos')
-        .update(payload)
-        .eq('id', orcamentoId);
-      updErr = retry.error;
-    }
-
-    if (updErr) {
-      throw updErr;
+    if (row.id && isUuid) {
+      await supabase.from('orcamentos').update(payload).eq('id', row.id);
     }
 
     const link = construirUrlPublicaOrcamento({
-      pacienteNome: row.paciente_nome,
+      pacienteNome: row.paciente_nome || row.pacienteNome,
       identificador,
       token,
     });
@@ -882,21 +978,20 @@ export async function enviarNovaPropostaOrcamento(params: {
     // Atualiza cache local
     if (typeof window !== 'undefined' && window.localStorage) {
       try {
-        const cachedKey = `orcamento_${identificador}`;
-        const prev = window.localStorage.getItem(cachedKey);
-        if (prev) {
-          const parsed = JSON.parse(prev);
-          parsed.status = 'nova_proposta_enviada';
-          parsed.versao = novaVersao;
-          parsed.itens = novosItens;
-          parsed.desconto = novoDesconto;
-          parsed.total = totalNovo;
-          parsed.formasPagamento = payload.formas_pagamento;
-          parsed.historicoVersoes = novoHistorico;
-          parsed.solicitacoesAjuste = solicitacoesAtendidas;
-          parsed.condicaoEscolhida = null;
-          parsed.aprovadoEm = null;
-          window.localStorage.setItem(cachedKey, JSON.stringify(parsed));
+        const cacheData = {
+          ...row,
+          ...payload,
+          identificador,
+          tokenAssinatura: token,
+          versao: novaVersao,
+          solicitacoesAjuste: solicitacoesAtendidas,
+          historicoVersoes: novoHistorico,
+          condicaoEscolhida: null,
+          aprovadoEm: null,
+        };
+        window.localStorage.setItem(`orcamento_${identificador}`, JSON.stringify(cacheData));
+        if (row.id) {
+          window.localStorage.setItem(`orcamento_${row.id}`, JSON.stringify(cacheData));
         }
       } catch (_) {}
     }
@@ -933,6 +1028,7 @@ export async function aprovarOrcamentoPublico(params: {
   token: string;
   condicaoEscolhida: CondicaoPagamento;
   versaoAprovada?: number;
+  orcamentoId?: string;
   evidencias?: {
     ip?: string;
     userAgent?: string;
@@ -944,7 +1040,7 @@ export async function aprovarOrcamentoPublico(params: {
   error?: string;
   jaAprovado?: boolean;
 }> {
-  const { identificador, token, condicaoEscolhida, versaoAprovada, evidencias } = params;
+  const { identificador, token, condicaoEscolhida, versaoAprovada, orcamentoId, evidencias } = params;
 
   if (!identificador || !token) {
     return { ok: false, error: 'Identificador e token são obrigatórios.' };
@@ -956,7 +1052,7 @@ export async function aprovarOrcamentoPublico(params: {
   // 1. Tenta RPC segura do PostgreSQL
   try {
     const { data: rpcData, error: rpcErr } = await (supabase.rpc as any)('aprovar_orcamento_publico', {
-      p_identificador: identificador.trim(),
+      p_identificador: orcamentoId || identificador.trim(),
       p_token: token.trim(),
       p_condicao: condicaoEscolhida,
       p_evidencias: evidencias || {},
@@ -974,153 +1070,147 @@ export async function aprovarOrcamentoPublico(params: {
     }
   } catch (_) {}
 
-  // 2. Fallback: Gravação direta no Supabase com validação e integridade
-  try {
-    const cleanId = identificador.trim();
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanId);
+  // 2. Serviço centralizado de localização e validação
+  const localizacao = await localizarRegistroOrcamento(identificador, token, orcamentoId);
+  if (!localizacao.ok || !localizacao.row) {
+    return { ok: false, error: localizacao.error || 'Orçamento não encontrado no sistema.' };
+  }
 
-    let query = supabase.from('orcamentos').select('*');
-    if (isUuid) {
-      query = query.or(`id.eq.${cleanId},identificador.eq.${cleanId.toUpperCase()},identificador.eq.${cleanId}`);
-    } else {
-      query = query.or(`identificador.eq.${cleanId.toUpperCase()},identificador.eq.${cleanId},id.eq.${cleanId}`);
-    }
+  const orc = localizacao.row;
+  const uuid = localizacao.uuid || orc.id;
+  const snap = (orc.assinatura_paciente || {}) as any;
+  const nowIso = new Date().toISOString();
 
-    const { data: rows } = await query.limit(1);
-    const orc = rows?.[0];
-
-    if (!orc) {
-      return { ok: false, error: 'Orçamento não encontrado no sistema.' };
-    }
-
-    if (orc.token_assinatura !== token.trim()) {
-      return { ok: false, error: 'Token de segurança inválido.' };
-    }
-
-    if (orc.status === 'aprovado') {
-      return {
-        ok: true,
-        jaAprovado: true,
-        aprovadoEm: orc.aprovado_em || new Date().toISOString(),
-      };
-    }
-
-    const snapAssinatura = (orc.assinatura_paciente || {}) as any;
-    const versaoAtual = Number(orc.versao || snapAssinatura.versao || 1);
-
-    // Validação de versão: impede aprovação de versão antiga se a clínica tiver enviado uma nova
-    if (versaoAprovada !== undefined && versaoAprovada < versaoAtual) {
-      return {
-        ok: false,
-        error: 'Uma nova proposta foi enviada pela clínica. Por favor, atualize a página para visualizar e aprovar a versão mais recente.',
-      };
-    }
-
-    const nowIso = new Date().toISOString();
-    const subtotalItens = (orc.itens || []).reduce(
-      (acc: number, it: any) => acc + (Number(it.valor || 0) * Number(it.quantidade || 1)),
-      0
-    );
-
-    let totalFinal = orc.total;
-    let descontoFinal = orc.desconto;
-
-    if (typeof condicaoEscolhida.valorTotal === 'number' && condicaoEscolhida.valorTotal > 0) {
-      totalFinal = condicaoEscolhida.valorTotal;
-      descontoFinal = Math.max(0, Number((subtotalItens - totalFinal).toFixed(2)));
-    }
-
-    const snapshot = {
-      orcamentoId: orc.id,
-      identificador: orc.identificador,
-      versaoAprovada: versaoAtual,
-      titulo: orc.titulo,
-      itens: orc.itens,
-      subtotal: subtotalItens,
-      desconto: descontoFinal,
-      total: totalFinal,
-      condicaoEscolhida,
-      aprovadoEm: nowIso,
-      pacienteNome: orc.paciente_nome,
-      pacienteId: orc.paciente_id,
-      evidencias: evidencias || {},
-    };
-
-    const updPayload: Record<string, any> = {
-      status: 'aprovado',
-      desconto: descontoFinal,
-      total: totalFinal,
-      data_assinatura: nowIso,
-      aprovado_em: nowIso,
-      condicao_escolhida: condicaoEscolhida as never,
-      snapshot_aprovacao: snapshot as never,
-      assinatura_paciente: {
-        ...snapAssinatura,
-        status: 'aprovado',
-        aprovadoEm: nowIso,
-        condicaoEscolhida,
-        snapshotAprovacao: snapshot,
-        versaoAprovada: versaoAtual,
-      },
-      atualizado_em: nowIso,
-    };
-
-    let { error: updErr } = await supabase
-      .from('orcamentos')
-      .update(updPayload)
-      .eq('id', orc.id);
-
-    if (updErr && (updErr.code === 'PGRST204' || updErr.message?.includes('column'))) {
-      delete updPayload.aprovado_em;
-      delete updPayload.condicao_escolhida;
-      delete updPayload.snapshot_aprovacao;
-      const retry = await supabase
-        .from('orcamentos')
-        .update(updPayload)
-        .eq('id', orc.id);
-      updErr = retry.error;
-    }
-
-    if (updErr) {
-      throw updErr;
-    }
-
-    // Se houver paciente vinculado, atualiza status para 'Em Tratamento'
-    if (orc.paciente_id) {
-      try {
-        await supabase
-          .from('pacientes')
-          .update({
-            status: 'Em Tratamento',
-            atualizado_em: nowIso,
-          })
-          .eq('id', orc.paciente_id);
-      } catch (_) {}
-    }
-
-    // Atualiza cache local
-    if (typeof window !== 'undefined' && window.localStorage) {
-      try {
-        const cachedKey = `orcamento_${orc.identificador || cleanId}`;
-        const prev = window.localStorage.getItem(cachedKey);
-        if (prev) {
-          const parsed = JSON.parse(prev);
-          parsed.status = 'aprovado';
-          parsed.aprovadoEm = nowIso;
-          parsed.condicaoEscolhida = condicaoEscolhida;
-          window.localStorage.setItem(cachedKey, JSON.stringify(parsed));
-        }
-      } catch (_) {}
-    }
-
+  // Bloqueio de aprovação duplicada
+  if (orc.status === 'aprovado' || snap.status === 'aprovado') {
     return {
       ok: true,
-      aprovadoEm: nowIso,
+      jaAprovado: true,
+      aprovadoEm: orc.data_assinatura || snap.aprovadoEm || nowIso,
     };
-  } catch (err: any) {
-    console.error('[OrcamentoEngine] Erro ao aprovar orçamento:', err);
-    return { ok: false, error: err?.message || 'Falha ao registrar aprovação do orçamento.' };
   }
+
+  const versaoAtual = Number(localizacao.versao || snap.versao || 1);
+
+  // Validação de versão: impede aprovação de versão antiga se a clínica tiver enviado uma nova
+  if (versaoAprovada !== undefined && versaoAprovada < versaoAtual) {
+    return {
+      ok: false,
+      error: 'Uma nova proposta foi enviada pela clínica. Por favor, atualize a página para visualizar e aprovar a versão mais recente.',
+    };
+  }
+
+  const subtotalItens = (orc.itens || []).reduce(
+    (acc: number, it: any) => acc + (Number(it.valor || 0) * Number(it.quantidade || 1)),
+    0
+  );
+
+  let totalFinal = Number(orc.total || 0);
+  let descontoFinal = Number(orc.desconto || 0);
+
+  if (typeof condicaoEscolhida.valorTotal === 'number' && condicaoEscolhida.valorTotal > 0) {
+    totalFinal = condicaoEscolhida.valorTotal;
+    descontoFinal = Math.max(0, Number((subtotalItens - totalFinal).toFixed(2)));
+  }
+
+  const snapshot = {
+    orcamentoId: uuid,
+    identificador: localizacao.identificador,
+    versaoAprovada: versaoAtual,
+    titulo: orc.titulo,
+    itens: orc.itens,
+    subtotal: subtotalItens,
+    desconto: descontoFinal,
+    total: totalFinal,
+    condicaoEscolhida,
+    aprovadoEm: nowIso,
+    pacienteNome: orc.paciente_nome,
+    pacienteId: orc.paciente_id,
+    evidencias: evidencias || {},
+  };
+
+  const updatedAssinatura = {
+    ...snap,
+    identificador: localizacao.identificador,
+    status: 'aprovado',
+    aprovadoEm: nowIso,
+    condicaoEscolhida,
+    snapshotAprovacao: snapshot,
+    versaoAprovada: versaoAtual,
+  };
+
+  const updPayload: Record<string, any> = {
+    status: 'aprovado',
+    desconto: descontoFinal,
+    total: totalFinal,
+    data_assinatura: nowIso,
+    assinatura_paciente: updatedAssinatura,
+    atualizado_em: nowIso,
+  };
+
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid);
+  if (isUuid) {
+    try {
+      const { error: updErr } = await supabase
+        .from('orcamentos')
+        .update(updPayload)
+        .eq('id', uuid);
+
+      if (updErr) {
+        console.warn('[OrcamentoEngine] Aviso ao atualizar aprovacao no banco:', updErr);
+      }
+    } catch (e) {
+      console.warn('[OrcamentoEngine] Erro de rede ao atualizar aprovacao:', e);
+    }
+  }
+
+  // Se houver paciente vinculado, atualiza status para 'Em Tratamento'
+  if (orc.paciente_id) {
+    try {
+      await supabase
+        .from('pacientes')
+        .update({
+          status: 'Em Tratamento',
+          atualizado_em: nowIso,
+        })
+        .eq('id', orc.paciente_id);
+    } catch (_) {}
+  }
+
+  // Atualiza cache local
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const keysToUpdate = [
+        `orcamento_${localizacao.identificador}`,
+        `orcamento_${identificador}`,
+        uuid ? `orcamento_${uuid}` : '',
+      ].filter(Boolean);
+
+      for (const k of keysToUpdate) {
+        const prev = window.localStorage.getItem(k);
+        let baseObj: any = {};
+        if (prev) {
+          try { baseObj = JSON.parse(prev); } catch (_) {}
+        }
+        const merged = {
+          ...baseObj,
+          ...orc,
+          status: 'aprovado',
+          desconto: descontoFinal,
+          total: totalFinal,
+          aprovadoEm: nowIso,
+          condicaoEscolhida,
+          snapshotAprovacao: snapshot,
+        };
+        window.localStorage.setItem(k, JSON.stringify(merged));
+      }
+    } catch (_) {}
+  }
+
+  return {
+    ok: true,
+    aprovadoEm: nowIso,
+  };
 }
 
 /**
@@ -1196,16 +1286,21 @@ export async function gerarContratoDoOrcamentoAprovado(params: {
   if (resEmissao.ok || resEmissao.identificador) {
     // 5. Vincula o contrato gerado ao orçamento no Supabase
     try {
+      const { data: currentRows } = await supabase.from('orcamentos').select('assinatura_paciente').eq('id', orcamento.id).limit(1);
+      const prevSnap = (currentRows?.[0]?.assinatura_paciente || (orcamento as any).assinatura_paciente || {}) as any;
       await supabase
         .from('orcamentos')
         .update({
-          contrato_id: resEmissao.identificador,
-          contrato_token: resEmissao.token,
+          assinatura_paciente: {
+            ...prevSnap,
+            contratoId: resEmissao.identificador,
+            contratoToken: resEmissao.token,
+          },
           atualizado_em: new Date().toISOString(),
         })
         .eq('id', orcamento.id);
     } catch (e) {
-      console.warn('[OrcamentoEngine] Falha ao salvar contrato_id no orcamento:', e);
+      console.warn('[OrcamentoEngine] Falha ao salvar contrato no orcamento:', e);
     }
 
     return {

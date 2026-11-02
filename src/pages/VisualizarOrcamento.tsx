@@ -201,6 +201,7 @@ export default function VisualizarOrcamento() {
       setAprovando(true);
       const res = await aprovarOrcamentoPublico({
         identificador: orcamento.identificador || targetId!,
+        orcamentoId: orcamento.id,
         token: queryToken,
         condicaoEscolhida: condicaoAtiva,
         versaoAprovada: orcamento.versao,
@@ -242,6 +243,7 @@ export default function VisualizarOrcamento() {
       setEnviandoAjuste(true);
       const res = await solicitarAjusteOrcamentoPublico({
         identificador: orcamento.identificador || targetId!,
+        orcamentoId: orcamento.id,
         token: queryToken,
         motivo: motivoAjuste,
         mensagem: mensagemAjuste.trim() || undefined,
