@@ -18,6 +18,7 @@ import {
   isContratoEndodontia,
   construirUrlPublicaContrato,
 } from './contratoEngine';
+import { temValorValido, formatarEnderecoCompleto, formatarTelefone } from './documentoFormat';
 import type { Orcamento, OrcamentoItem, StatusOrcamento } from '@/hooks/useOrcamentos';
 
 export type { StatusOrcamento };
@@ -1685,14 +1686,43 @@ export async function gerarContratoDoOrcamentoAprovado(params: {
   const autorizacaoAtiva = await obterAutorizacaoAtivaProfissional('06267-AL');
   const isAutorizado = validarAutorizacaoAssinatura(autorizacaoAtiva, modeloId || 'geral');
 
+  // 3.5. Garante hidratação completa dos dados cadastrais do paciente (CPF, RG, endereço completo, telefone, etc.)
+  let pacienteCompleto = { ...(patient || {}) };
+  const targetPacId = pacienteCompleto.id || orcamento.pacienteId || (orcamento as any).paciente_id;
+  if (targetPacId && (!temValorValido(pacienteCompleto.cpf) || !temValorValido(pacienteCompleto.endereco) || !temValorValido(pacienteCompleto.telefone))) {
+    try {
+      const { data: pDb } = await supabase.from('pacientes').select('*').eq('id', targetPacId).maybeSingle();
+      if (pDb) {
+        const endFmt = formatarEnderecoCompleto(pDb) || (temValorValido(pDb.endereco) ? pDb.endereco : '');
+        pacienteCompleto = {
+          ...pDb,
+          origemLead: pDb.origem_lead || pacienteCompleto.origemLead,
+          historicoMedico: pDb.historico_medico || pacienteCompleto.historicoMedico,
+          ...pacienteCompleto,
+          nome: pacienteCompleto.nome || pDb.nome,
+          cpf: temValorValido(pacienteCompleto.cpf) ? pacienteCompleto.cpf : pDb.cpf,
+          rg: temValorValido(pacienteCompleto.rg) ? pacienteCompleto.rg : pDb.rg,
+          telefone: temValorValido(pacienteCompleto.telefone) ? pacienteCompleto.telefone : pDb.telefone,
+          email: temValorValido(pacienteCompleto.email) ? pacienteCompleto.email : pDb.email,
+          endereco: temValorValido(pacienteCompleto.endereco) ? pacienteCompleto.endereco : endFmt,
+          profissao: temValorValido(pacienteCompleto.profissao) ? pacienteCompleto.profissao : pDb.profissao,
+          estadoCivil: temValorValido(pacienteCompleto.estadoCivil) ? pacienteCompleto.estadoCivil : pDb.estado_civil,
+          dataNascimento: temValorValido(pacienteCompleto.dataNascimento) ? pacienteCompleto.dataNascimento : pDb.data_nascimento,
+        };
+      }
+    } catch (e) {
+      console.warn('[OrcamentoEngine] Falha ao hidratar dados cadastrais do paciente:', e);
+    }
+  }
+
   // 4. Mapeia o snapshot formal do contrato com os termos, cláusulas e assinatura autorizada (se válida)
   const snapshotContrato = mapearDadosContrato({
-    patient,
+    patient: pacienteCompleto,
     orcamento: orcamentoAprovadoParaContrato,
     configuracoes,
     configContrato,
     tipoModeloContrato: modeloId,
-    dadosRestauracoesPreexistentes: patient?.restauracoesPreexistentes,
+    dadosRestauracoesPreexistentes: pacienteCompleto?.restauracoesPreexistentes || patient?.restauracoesPreexistentes,
     autorizacaoProfissional: isAutorizado ? autorizacaoAtiva : null,
   });
 

@@ -4,7 +4,13 @@ import {
   isMetodoCartao,
   limparFormaPagamentoParaContrato,
 } from './contratoEngine';
-import { identificarTipoDocumento, temValorValido } from './documentoFormat';
+import {
+  identificarTipoDocumento,
+  temValorValido,
+  formatarDocumento,
+  formatarEnderecoCompleto,
+  formatarTelefone,
+} from './documentoFormat';
 import { formatMoney } from './exportCsv';
 import { downloadHtmlAsPdf } from './pdfDownload';
 import { gerarFragmentoHtmlTermoUsoImagem } from './termoUsoImagem';
@@ -342,13 +348,13 @@ export const gerarHtmlContratoEndodontia = (snapshot: ContratoSnapshot): string 
         <div class="bloco-parte">
           <strong style="text-transform: uppercase; color: #0369a1; display: block; margin-bottom: 3px;">CONTRATANTE — PACIENTE</strong>
           <strong>Nome completo:</strong> ${paciente.nome}<br/>
-          <strong>${labelDocPaciente}:</strong> ${paciente.cpf}${temValorValido(paciente.rg) ? ` • <strong>RG:</strong> ${paciente.rg}` : ''}<br/>
+          <strong>${labelDocPaciente}:</strong> ${temValorValido(paciente.cpf) ? formatarDocumento(paciente.cpf) : (paciente.cpf || 'Não informado')}${temValorValido(paciente.rg) ? ` • <strong>RG:</strong> ${paciente.rg}` : ''}<br/>
           ${temValorValido(paciente.estadoCivil) ? `<strong>Estado civil:</strong> ${paciente.estadoCivil}<br/>` : ''}
           ${temValorValido(paciente.profissao) ? `<strong>Profissão:</strong> ${paciente.profissao}<br/>` : ''}
           ${temValorValido(paciente.dataNascimento) ? `<strong>Data de nascimento:</strong> ${paciente.dataNascimento}<br/>` : ''}
-          ${temValorValido(paciente.telefone) ? `<strong>Telefone/WhatsApp:</strong> ${paciente.telefone}<br/>` : ''}
+          ${temValorValido(paciente.telefone) ? `<strong>Telefone/WhatsApp:</strong> ${formatarTelefone(paciente.telefone)}<br/>` : ''}
           ${temValorValido(paciente.email) ? `<strong>E-mail:</strong> ${paciente.email}<br/>` : ''}
-          <strong>Endereço completo:</strong> ${paciente.endereco || 'Não informado'}
+          <strong>Endereço completo:</strong> ${formatarEnderecoCompleto(paciente.endereco) || (temValorValido(paciente.endereco) ? paciente.endereco : 'Não informado')}
         </div>
       </div>
 

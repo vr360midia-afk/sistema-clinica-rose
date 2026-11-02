@@ -43,6 +43,49 @@ function normalizarIdentificador(input?: string | null): {
   return { raw, upper, code8, isUuid, withOrc, withCtr };
 }
 
+function formatarEnderecoCompleto(input?: any): string {
+  if (!input) return "";
+  if (typeof input === "string") {
+    const s = input.trim();
+    if (!s || s.toLowerCase() === "não informado" || s.toLowerCase() === "nao informado") return "";
+    if (s.startsWith("{") && s.endsWith("}")) {
+      try {
+        return formatarEnderecoCompleto(JSON.parse(s));
+      } catch (_) {}
+    }
+    return s;
+  }
+  if (typeof input !== "object") return "";
+
+  const logradouro = (input.logradouro || input.rua || input.logr || "").trim();
+  const numero = (input.numero || input.num || "").trim();
+  const complemento = (input.complemento || input.compl || "").trim();
+  const bairro = (input.bairro || input.bair || "").trim();
+  const cidade = (input.cidade || input.municipio || "").trim();
+  const estado = (input.estado || input.uf || "").trim();
+  const cep = (input.cep || "").trim();
+
+  if (input.endereco && typeof input.endereco === "string" && !logradouro && !numero && !bairro) {
+    return formatarEnderecoCompleto(input.endereco);
+  }
+
+  const partes: string[] = [];
+  if (logradouro) {
+    partes.push(numero ? `${logradouro}, nº ${numero}` : logradouro);
+  } else if (numero) {
+    partes.push(`nº ${numero}`);
+  }
+  if (complemento) partes.push(complemento);
+  if (bairro) partes.push(`Bairro ${bairro.replace(/^bairro\s*/i, "")}`);
+  if (cidade || estado) partes.push([cidade, estado].filter(Boolean).join(" - "));
+  if (cep) {
+    const cepLimpo = cep.replace(/\D/g, "");
+    const cepFmt = cepLimpo.length === 8 ? `${cepLimpo.slice(0, 5)}-${cepLimpo.slice(5)}` : cep;
+    partes.push(`CEP ${cepFmt.replace(/^CEP\s*/i, "")}`);
+  }
+  return partes.join(", ");
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -523,6 +566,11 @@ Deno.serve(async (req) => {
           rg: pacienteDados.rg || null,
           email: pacienteDados.email || null,
           telefone: pacienteDados.telefone || null,
+          endereco: formatarEnderecoCompleto(pacienteDados) || pacienteDados.endereco || null,
+          dataNascimento: pacienteDados.data_nascimento || pacienteDados.dataNascimento || null,
+          idade: pacienteDados.idade || null,
+          profissao: pacienteDados.profissao || null,
+          estadoCivil: pacienteDados.estado_civil || pacienteDados.estadoCivil || null,
         },
         clinica: clinicaDados,
       };

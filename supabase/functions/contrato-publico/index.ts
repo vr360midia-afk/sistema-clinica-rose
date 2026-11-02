@@ -26,6 +26,91 @@ async function gerarHashConteudo(texto: string): Promise<string> {
   }
 }
 
+function temValorValido(val?: string | null): boolean {
+  if (!val) return false;
+  const s = String(val).trim().toLowerCase();
+  return (
+    s !== "" &&
+    s !== "não informado" &&
+    s !== "nao informado" &&
+    s !== "não informada" &&
+    s !== "nao informada" &&
+    s !== "null" &&
+    s !== "undefined"
+  );
+}
+
+function formatarDocumento(value?: string | null): string {
+  if (!value) return "";
+  const digits = String(value).replace(/\D/g, "").slice(0, 14);
+  if (digits.length <= 11) {
+    return digits
+      .replace(/^(\d{3})(\d)/, "$1.$2")
+      .replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
+      .replace(/\.(\d{3})(\d{1,2})$/, ".$1-$2");
+  }
+  return digits
+    .replace(/^(\d{2})(\d)/, "$1.$2")
+    .replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3")
+    .replace(/\.(\d{3})(\d)/, ".$1/$2")
+    .replace(/(\d{4})(\d{1,2})$/, "$1-$2");
+}
+
+function formatarEnderecoCompleto(input?: any): string {
+  if (!input) return "";
+  if (typeof input === "string") {
+    const s = input.trim();
+    if (!temValorValido(s)) return "";
+    if (s.startsWith("{") && s.endsWith("}")) {
+      try {
+        return formatarEnderecoCompleto(JSON.parse(s));
+      } catch (_) {}
+    }
+    return s;
+  }
+  if (typeof input !== "object") return "";
+
+  const logradouro = (input.logradouro || input.rua || input.logr || "").trim();
+  const numero = (input.numero || input.num || "").trim();
+  const complemento = (input.complemento || input.compl || "").trim();
+  const bairro = (input.bairro || input.bair || "").trim();
+  const cidade = (input.cidade || input.municipio || "").trim();
+  const estado = (input.estado || input.uf || "").trim();
+  const cep = (input.cep || "").trim();
+
+  if (input.endereco && typeof input.endereco === "string" && !logradouro && !numero && !bairro) {
+    return formatarEnderecoCompleto(input.endereco);
+  }
+
+  const partes: string[] = [];
+  if (logradouro) {
+    partes.push(numero ? `${logradouro}, nº ${numero}` : logradouro);
+  } else if (numero) {
+    partes.push(`nº ${numero}`);
+  }
+  if (complemento) partes.push(complemento);
+  if (bairro) partes.push(`Bairro ${bairro.replace(/^bairro\s*/i, "")}`);
+  if (cidade || estado) partes.push([cidade, estado].filter(Boolean).join(" - "));
+  if (cep) {
+    const cepLimpo = cep.replace(/\D/g, "");
+    const cepFmt = cepLimpo.length === 8 ? `${cepLimpo.slice(0, 5)}-${cepLimpo.slice(5)}` : cep;
+    partes.push(`CEP ${cepFmt.replace(/^CEP\s*/i, "")}`);
+  }
+  return partes.join(", ");
+}
+
+function formatarTelefone(v?: string | null): string {
+  if (!v || !temValorValido(v)) return "";
+  const digits = String(v).replace(/\D/g, "");
+  if (digits.length === 11) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  }
+  if (digits.length === 10) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  }
+  return String(v).trim();
+}
+
 // RESOLUÇÃO DE CONTRATOS HISTÓRICOS NÃO-AMBÍGUA E DETERMINÍSTICA
 // Preserva 100% dos códigos CTR existentes sem renomear nenhum contrato.
 // Em caso de duplicidade histórica, localiza exatamente o contrato correspondente ao token informado.
@@ -163,12 +248,21 @@ function gerarPdfServidorContrato(snap: any, docClinico?: any): Uint8Array {
   y += lContratada.length * 10 + 5;
 
   const pacNome = snap.paciente?.nome || docClinico?.paciente_nome || "Paciente";
-  const pacCpf = snap.paciente?.cpf || "Não informado";
-  const pacRg = snap.paciente?.rg || "Não informado";
-  const pacEnd = snap.paciente?.endereco || "Endereço cadastrado em prontuário";
-  const pacTel = snap.paciente?.telefone || "Telefone cadastrado";
+  const pacCpf = temValorValido(snap.paciente?.cpf) ? formatarDocumento(snap.paciente.cpf) : (snap.paciente?.cpf || "Não informado");
+  const pacRg = snap.paciente?.rg || "";
+  const pacEnd = formatarEnderecoCompleto(snap.paciente?.endereco) || (temValorValido(snap.paciente?.endereco) ? snap.paciente.endereco : "Não informado");
+  const pacTel = temValorValido(snap.paciente?.telefone) ? formatarTelefone(snap.paciente.telefone) : (snap.paciente?.telefone || "Não informado");
+  const pacEmail = snap.paciente?.email || "";
 
-  const txtContratante = `CONTRATANTE: ${pacNome.toUpperCase()}, inscrito(a) no CPF/MF sob o nº ${pacCpf}, RG nº ${pacRg}, residente em ${pacEnd}, telefone de contato ${pacTel}.`;
+  let txtContratante = `CONTRATANTE: ${pacNome.toUpperCase()}, inscrito(a) no CPF/MF sob o nº ${pacCpf}`;
+  if (temValorValido(pacRg)) {
+    txtContratante += `, portador(a) do RG nº ${pacRg}`;
+  }
+  txtContratante += `, residente e domiciliado(a) em ${pacEnd}, telefone de contato ${pacTel}`;
+  if (temValorValido(pacEmail)) {
+    txtContratante += `, e-mail: ${pacEmail}`;
+  }
+  txtContratante += ".";
   const lContratante = pdf.splitTextToSize(txtContratante, contentW);
   pdf.text(lContratante, margin, y);
   y += lContratante.length * 10 + 12;
@@ -703,6 +797,28 @@ Deno.serve(async (req) => {
       if (token) snap.token = token;
       if (!snap.status) snap.status = "pendente";
 
+      // Hidrata dados completos do paciente caso estejam ausentes no snapshot recebido
+      if (pacienteId && (!temValorValido(snap.paciente?.cpf) || !temValorValido(snap.paciente?.endereco) || !temValorValido(snap.paciente?.telefone))) {
+        try {
+          const { data: pDb } = await supabase.from("pacientes").select("*").eq("id", pacienteId).maybeSingle();
+          if (pDb) {
+            const endDb = formatarEnderecoCompleto(pDb) || pDb.endereco || "";
+            snap.paciente = {
+              ...(snap.paciente || {}),
+              nome: snap.paciente?.nome || pDb.nome,
+              cpf: temValorValido(snap.paciente?.cpf) ? snap.paciente.cpf : (pDb.cpf ? formatarDocumento(pDb.cpf) : null),
+              rg: temValorValido(snap.paciente?.rg) ? snap.paciente.rg : (pDb.rg || null),
+              telefone: temValorValido(snap.paciente?.telefone) ? snap.paciente.telefone : (pDb.telefone ? formatarTelefone(pDb.telefone) : null),
+              email: temValorValido(snap.paciente?.email) ? snap.paciente.email : (pDb.email || null),
+              endereco: temValorValido(snap.paciente?.endereco) ? snap.paciente.endereco : (endDb || null),
+              dataNascimento: temValorValido(snap.paciente?.dataNascimento) ? snap.paciente.dataNascimento : (pDb.data_nascimento || null),
+              profissao: temValorValido(snap.paciente?.profissao) ? snap.paciente.profissao : (pDb.profissao || null),
+              estadoCivil: temValorValido(snap.paciente?.estadoCivil) ? snap.paciente.estadoCivil : (pDb.estado_civil || null),
+            };
+          }
+        } catch (_) {}
+      }
+
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identificador);
       let existingDoc: Record<string, any> | null = null;
 
@@ -821,6 +937,31 @@ Deno.serve(async (req) => {
         } catch (_) {}
       }
 
+      let snapshotRetorno = doc.itens ? { ...doc.itens } : {};
+      if (!isAssinadoPaciente && doc.paciente_id) {
+        const pacCurrent = snapshotRetorno.paciente || {};
+        if (!temValorValido(pacCurrent.cpf) || !temValorValido(pacCurrent.endereco) || !temValorValido(pacCurrent.telefone)) {
+          try {
+            const { data: pDb } = await supabase.from("pacientes").select("*").eq("id", doc.paciente_id).maybeSingle();
+            if (pDb) {
+              const endDb = formatarEnderecoCompleto(pDb) || pDb.endereco || "";
+              snapshotRetorno.paciente = {
+                ...pacCurrent,
+                nome: pacCurrent.nome || pDb.nome,
+                cpf: temValorValido(pacCurrent.cpf) ? pacCurrent.cpf : (pDb.cpf ? formatarDocumento(pDb.cpf) : null),
+                rg: temValorValido(pacCurrent.rg) ? pacCurrent.rg : (pDb.rg || null),
+                telefone: temValorValido(pacCurrent.telefone) ? pacCurrent.telefone : (pDb.telefone ? formatarTelefone(pDb.telefone) : null),
+                email: temValorValido(pacCurrent.email) ? pacCurrent.email : (pDb.email || null),
+                endereco: temValorValido(pacCurrent.endereco) ? pacCurrent.endereco : (endDb || null),
+                dataNascimento: temValorValido(pacCurrent.dataNascimento) ? pacCurrent.dataNascimento : (pDb.data_nascimento || null),
+                profissao: temValorValido(pacCurrent.profissao) ? pacCurrent.profissao : (pDb.profissao || null),
+                estadoCivil: temValorValido(pacCurrent.estadoCivil) ? pacCurrent.estadoCivil : (pDb.estado_civil || null),
+              };
+            }
+          } catch (_) {}
+        }
+      }
+
       return json({
         ok: true,
         id: doc.id,
@@ -837,7 +978,7 @@ Deno.serve(async (req) => {
         signedPdfUrl,
         assinadoEm: doc.assinado_em,
         assinanteNome: doc.assinante_nome,
-        snapshot: doc.itens,
+        snapshot: snapshotRetorno,
       });
     }
 
@@ -887,11 +1028,56 @@ Deno.serve(async (req) => {
       const existingItens = typeof doc.itens === "object" && doc.itens ? doc.itens : {};
       const updatedSnapshot = { ...existingItens };
 
+      // Se dados cadastrais do paciente estiverem ausentes no snapshot prévio, hidrata do banco
+      const targetPacId = doc.paciente_id || updatedSnapshot.pacienteId || updatedSnapshot.paciente?.id;
+      if (targetPacId && (!temValorValido(updatedSnapshot.paciente?.cpf) || !temValorValido(updatedSnapshot.paciente?.endereco) || !temValorValido(updatedSnapshot.paciente?.telefone))) {
+        try {
+          const { data: pDb } = await supabase.from("pacientes").select("*").eq("id", targetPacId).maybeSingle();
+          if (pDb) {
+            const endDb = formatarEnderecoCompleto(pDb) || pDb.endereco || "";
+            updatedSnapshot.paciente = {
+              ...(updatedSnapshot.paciente || {}),
+              nome: updatedSnapshot.paciente?.nome || pDb.nome,
+              cpf: temValorValido(updatedSnapshot.paciente?.cpf) ? updatedSnapshot.paciente.cpf : (pDb.cpf ? formatarDocumento(pDb.cpf) : null),
+              rg: temValorValido(updatedSnapshot.paciente?.rg) ? updatedSnapshot.paciente.rg : (pDb.rg || null),
+              telefone: temValorValido(updatedSnapshot.paciente?.telefone) ? updatedSnapshot.paciente.telefone : (pDb.telefone ? formatarTelefone(pDb.telefone) : null),
+              email: temValorValido(updatedSnapshot.paciente?.email) ? updatedSnapshot.paciente.email : (pDb.email || null),
+              endereco: temValorValido(updatedSnapshot.paciente?.endereco) ? updatedSnapshot.paciente.endereco : (endDb || null),
+              dataNascimento: temValorValido(updatedSnapshot.paciente?.dataNascimento) ? updatedSnapshot.paciente.dataNascimento : (pDb.data_nascimento || null),
+              profissao: temValorValido(updatedSnapshot.paciente?.profissao) ? updatedSnapshot.paciente.profissao : (pDb.profissao || null),
+              estadoCivil: temValorValido(updatedSnapshot.paciente?.estadoCivil) ? updatedSnapshot.paciente.estadoCivil : (pDb.estado_civil || null),
+            };
+          }
+        } catch (_) {}
+      }
+
       const selfie = body.selfie || null;
       const signerInfo = body.signerInfo || {};
       const cpf = signerInfo.cpf || updatedSnapshot.paciente?.cpf || null;
       const rg = signerInfo.rg || updatedSnapshot.paciente?.rg || null;
       const email = signerInfo.email || updatedSnapshot.paciente?.email || null;
+
+      // Validação impeditiva para novos contratos se faltar identificação obrigatória
+      const pacCad = updatedSnapshot.paciente || {};
+      const finalNome = (signerName || pacCad.nome || doc.paciente_nome || "").trim();
+      const finalCpf = (cpf || pacCad.cpf || "").trim();
+      const finalTelefone = (pacCad.telefone || "").trim();
+      const finalEndereco = (pacCad.endereco || "").trim();
+
+      const camposFaltantes: string[] = [];
+      if (!finalNome || !temValorValido(finalNome)) camposFaltantes.push("Nome completo");
+      if (!finalCpf || !temValorValido(finalCpf)) camposFaltantes.push("CPF");
+      if (!finalEndereco || !temValorValido(finalEndereco)) camposFaltantes.push("Endereço completo");
+      if (!finalTelefone || !temValorValido(finalTelefone)) camposFaltantes.push("Telefone/WhatsApp");
+
+      if (camposFaltantes.length > 0) {
+        return json({
+          ok: false,
+          error: `Não é possível formalizar o contrato: dados cadastrais obrigatórios ausentes (${camposFaltantes.join(", ")}). Por favor, complete o cadastro no sistema antes de prosseguir.`,
+          code: "MISSING_REQUIRED_PATIENT_DATA",
+          camposFaltantes,
+        }, 400);
+      }
 
       const temDentista = !!updatedSnapshot.assinaturaDentista;
 

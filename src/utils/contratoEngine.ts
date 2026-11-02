@@ -7,6 +7,8 @@ import {
   formatarDocumento,
   somarMesesSeguro,
   temValorValido,
+  formatarEnderecoCompleto,
+  formatarTelefone,
 } from './documentoFormat';
 import type { Paciente, Transacao, AvaliacaoRestauracoesPreexistentes } from '@/types/shared';
 import type { Orcamento } from '@/hooks/useOrcamentos';
@@ -29,6 +31,8 @@ export {
   formatarDocumento,
   somarMesesSeguro,
   temValorValido,
+  formatarEnderecoCompleto,
+  formatarTelefone,
   gerarHtmlContratoEndodontia,
   downloadContratoEndodontiaPdf,
   gerarHtmlTcleEndodontia,
@@ -784,20 +788,22 @@ export async function obterAutorizacaoAtivaProfissional(cro: string = '06267-AL'
 }
 
 export function validarAutorizacaoAssinatura(
-  autorizacao: AutorizacaoAssinaturaProfissional | null,
+  autorizacao: AutorizacaoAssinaturaProfissional | any | null,
   modeloId: string = 'geral'
 ): boolean {
   if (!autorizacao) return false;
   if (!autorizacao.ativo) return false;
-  if (autorizacao.revogadoEm) return false;
+  if (autorizacao.revogadoEm || autorizacao.revogado_em) return false;
 
-  const croLimpo = String(autorizacao.profissionalCro || '').replace(/[^0-9]/g, '');
+  const croRaw = autorizacao.profissionalCro || autorizacao.profissional_cro || '';
+  const croLimpo = String(croRaw).replace(/[^0-9]/g, '');
   if (croLimpo !== '06267') return false;
 
-  if (Array.isArray(autorizacao.modelosAutorizados) && autorizacao.modelosAutorizados.length > 0) {
+  const modelos = autorizacao.modelosAutorizados || autorizacao.modelos_autorizados;
+  if (Array.isArray(modelos) && modelos.length > 0) {
     const modeloNorm = modeloId.toLowerCase();
-    const permite = autorizacao.modelosAutorizados.some(
-      (m) => m.toLowerCase() === modeloNorm || m.toLowerCase() === 'todos' || m.toLowerCase() === 'geral'
+    const permite = modelos.some(
+      (m: string) => m.toLowerCase() === modeloNorm || m.toLowerCase() === 'todos' || m.toLowerCase() === 'geral'
     );
     if (!permite) return false;
   }
@@ -1044,18 +1050,19 @@ export const mapearDadosContrato = ({
   const cfgContrato = configuracoesContrato || carregarConfiguracoesContratoSync(null, configuracoes);
 
   // 1. Dados cadastrais do Paciente
+  const enderecoCompleto = formatarEnderecoCompleto(patient) || (typeof patient?.endereco === 'string' && temValorValido(patient.endereco) ? patient.endereco.trim() : '');
   const dadosPaciente: ContratoDadosPaciente = {
     id: patient?.id || '',
     nome: patient?.nome || 'Nome não informado',
-    cpf: patient?.cpf || 'Não informado',
+    cpf: temValorValido(patient?.cpf) ? formatarDocumento(patient.cpf) : (patient?.cpf || 'Não informado'),
     rg: temValorValido(patient?.rg) ? String(patient.rg).trim() : '',
-    dataNascimento: formatarData(patient?.dataNascimento),
+    dataNascimento: formatarData(patient?.dataNascimento || patient?.data_nascimento),
     idade: patient?.idade ? `${patient.idade} anos` : 'Não informada',
-    endereco: patient?.endereco || 'Não informado',
-    telefone: patient?.telefone || 'Não informado',
+    endereco: enderecoCompleto || 'Não informado',
+    telefone: temValorValido(patient?.telefone) ? formatarTelefone(patient.telefone) : (patient?.telefone || 'Não informado'),
     email: patient?.email || 'Não informado',
     profissao: temValorValido(patient?.profissao) ? String(patient.profissao).trim() : '',
-    estadoCivil: temValorValido(patient?.estadoCivil) ? String(patient.estadoCivil).trim() : '',
+    estadoCivil: temValorValido(patient?.estadoCivil || patient?.estado_civil) ? String(patient.estadoCivil || patient.estado_civil).trim() : '',
   };
 
   const cidadeLimpa = cidadeLocal && !cidadeLocal.toLowerCase().includes('são paulo') && !cidadeLocal.toLowerCase().includes('sao paulo')
@@ -1611,21 +1618,28 @@ export const mapearDadosContrato = ({
   }
 
   const isAutorizadoValido = validarAutorizacaoAssinatura(authEfetiva, modeloFinal);
+  const profNome = authEfetiva?.profissionalNome || (authEfetiva as any)?.profissional_nome || dadosClinica.dentistaResponsavel;
+  const profCro = authEfetiva?.profissionalCro || (authEfetiva as any)?.profissional_cro || dadosClinica.cro;
 
   let assinaturaDentistaFinal: any = null;
   if (assinaturaDentista !== undefined) {
     assinaturaDentistaFinal = assinaturaDentista;
   } else if (isAutorizadoValido && authEfetiva) {
+    const profDoc = authEfetiva.profissionalDocumento || (authEfetiva as any).profissional_documento || '032.663.962-43';
+    const profAssinatura = authEfetiva.assinaturaGrafica || (authEfetiva as any).assinatura_grafica || gerarRubricaPadraoDra(profNome, profCro);
+    const profAutorizadoEm = authEfetiva.autorizadoEm || (authEfetiva as any).autorizado_em || emitidoEm;
+    const profExpressa = authEfetiva.autorizacaoExpressa ?? (authEfetiva as any).autorizacao_expressa ?? true;
+
     assinaturaDentistaFinal = {
-      assinaturaData: authEfetiva.assinaturaGrafica || gerarRubricaPadraoDra(authEfetiva.profissionalNome || dadosClinica.dentistaResponsavel, authEfetiva.profissionalCro || dadosClinica.cro),
-      nome: authEfetiva.profissionalNome || dadosClinica.dentistaResponsavel,
-      cro: authEfetiva.profissionalCro || dadosClinica.cro,
-      documento: authEfetiva.profissionalDocumento || '032.663.962-43',
+      assinaturaData: profAssinatura,
+      nome: profNome,
+      cro: profCro,
+      documento: profDoc,
       dataHora: emitidoEm,
       metodo: 'assinatura_automatica_autorizada',
       autorizacaoId: authEfetiva.id,
-      autorizadoEm: authEfetiva.autorizadoEm,
-      autorizacaoExpressa: authEfetiva.autorizacaoExpressa,
+      autorizadoEm: profAutorizadoEm,
+      autorizacaoExpressa: profExpressa,
     };
   }
 
@@ -1643,7 +1657,11 @@ export const mapearDadosContrato = ({
     emitidoEm,
     tipoModeloContrato: modeloFinal,
     paciente: dadosPaciente,
-    clinica: dadosClinica,
+    clinica: {
+      ...dadosClinica,
+      dentistaResponsavel: profNome || dadosClinica.dentistaResponsavel,
+      cro: profCro || dadosClinica.cro,
+    },
     orcamento: dadosOrcamento,
     financeiro: dadosFinanceiro,
     observacoesCustomizadas: orcamento?.observacoes || undefined,
@@ -1767,16 +1785,18 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
     partesPreambuloPaciente.push(`portador(a) do RG nº <strong>${paciente.rg.trim()}</strong>`);
   }
 
-  partesPreambuloPaciente.push(`inscrito(a) no ${labelDocPaciente} sob o nº <strong>${paciente.cpf || 'Não informado'}</strong>`);
+  const docPacienteFmt = temValorValido(paciente.cpf) ? formatarDocumento(paciente.cpf) : (paciente.cpf || 'Não informado');
+  partesPreambuloPaciente.push(`inscrito(a) no ${labelDocPaciente} sob o nº <strong>${docPacienteFmt}</strong>`);
 
   if (temValorValido(paciente.dataNascimento)) {
     partesPreambuloPaciente.push(`data de nascimento: <strong>${paciente.dataNascimento.trim()}</strong>`);
   }
 
-  partesPreambuloPaciente.push(`residente e domiciliado(a) em <strong>${paciente.endereco || 'Não informado'}</strong>`);
+  const endPacienteFmt = formatarEnderecoCompleto(paciente.endereco) || (temValorValido(paciente.endereco) ? paciente.endereco.trim() : 'Não informado');
+  partesPreambuloPaciente.push(`residente e domiciliado(a) em <strong>${endPacienteFmt}</strong>`);
 
   if (temValorValido(paciente.telefone)) {
-    partesPreambuloPaciente.push(`telefone: <strong>${paciente.telefone.trim()}</strong>`);
+    partesPreambuloPaciente.push(`telefone: <strong>${formatarTelefone(paciente.telefone)}</strong>`);
   }
 
   if (temValorValido(paciente.email)) {
@@ -3020,6 +3040,28 @@ export async function emitirContratoPersistido(
         formasPagamento: limparFormaPagamentoParaContrato(snapshot.orcamento.formasPagamento),
       } : snapshot.orcamento,
     };
+
+    // Hidrata dados completos do paciente caso estejam ausentes no snapshot
+    if (rawPacienteId && (!temValorValido(snapshotFinal.paciente?.cpf) || !temValorValido(snapshotFinal.paciente?.endereco) || !temValorValido(snapshotFinal.paciente?.telefone))) {
+      try {
+        const { data: pDb } = await supabase.from('pacientes').select('*').eq('id', rawPacienteId).maybeSingle();
+        if (pDb) {
+          const endDb = formatarEnderecoCompleto(pDb) || (temValorValido(pDb.endereco) ? pDb.endereco : '');
+          snapshotFinal.paciente = {
+            ...snapshotFinal.paciente,
+            nome: snapshotFinal.paciente?.nome || pDb.nome,
+            cpf: temValorValido(snapshotFinal.paciente?.cpf) ? snapshotFinal.paciente.cpf : (pDb.cpf ? formatarDocumento(pDb.cpf) : 'Não informado'),
+            rg: temValorValido(snapshotFinal.paciente?.rg) ? snapshotFinal.paciente.rg : (pDb.rg || ''),
+            telefone: temValorValido(snapshotFinal.paciente?.telefone) ? snapshotFinal.paciente.telefone : (pDb.telefone ? formatarTelefone(pDb.telefone) : 'Não informado'),
+            email: temValorValido(snapshotFinal.paciente?.email) ? snapshotFinal.paciente.email : (pDb.email || 'Não informado'),
+            endereco: temValorValido(snapshotFinal.paciente?.endereco) ? snapshotFinal.paciente.endereco : (endDb || 'Não informado'),
+            dataNascimento: temValorValido(snapshotFinal.paciente?.dataNascimento) ? snapshotFinal.paciente.dataNascimento : (pDb.data_nascimento ? formatarData(pDb.data_nascimento) : 'Não informada'),
+            profissao: temValorValido(snapshotFinal.paciente?.profissao) ? snapshotFinal.paciente.profissao : (pDb.profissao || ''),
+            estadoCivil: temValorValido(snapshotFinal.paciente?.estadoCivil) ? snapshotFinal.paciente.estadoCivil : (pDb.estado_civil || ''),
+          };
+        }
+      } catch (_) {}
+    }
 
     const titulo = `Contrato Odontológico - ${pacienteNome} (${identificador})`;
     const html = gerarHtmlContrato(snapshotFinal);

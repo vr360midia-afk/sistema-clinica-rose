@@ -51,6 +51,9 @@ import {
   isContratoLenteResina,
   isContratoEndodontia,
   temValorValido,
+  formatarDocumento,
+  formatarEnderecoCompleto,
+  formatarTelefone,
   obterCardsResumoPagamento,
   isMetodoPix,
   isMetodoCartao,
@@ -743,6 +746,35 @@ export default function AssinarContrato() {
           } catch (_) { }
         }
 
+        // Hidratação cadastral preventiva para contratos em aberto (sem alterar contratos já assinados)
+        const targetPacId = foundSnapshot.pacienteId || foundSnapshot.paciente?.id;
+        const pacCurrent = foundSnapshot.paciente || {};
+        const isContratoJaAssinado = Boolean(foundSnapshot.assinaturaPaciente?.assinaturaData || foundSnapshot.status === 'assinado' || foundSnapshot.status === 'formalizado');
+        if (
+          !isContratoJaAssinado &&
+          targetPacId &&
+          (!temValorValido(pacCurrent.cpf) || !temValorValido(pacCurrent.endereco) || !temValorValido(pacCurrent.telefone))
+        ) {
+          try {
+            const { data: pDb } = await supabase.from('pacientes').select('*').eq('id', targetPacId).maybeSingle();
+            if (pDb) {
+              const endCompleto = formatarEnderecoCompleto(pDb) || (temValorValido(pDb.endereco) ? pDb.endereco : '');
+              foundSnapshot.paciente = {
+                ...pacCurrent,
+                nome: pacCurrent.nome || pDb.nome,
+                cpf: temValorValido(pacCurrent.cpf) ? pacCurrent.cpf : (pDb.cpf ? formatarDocumento(pDb.cpf) : 'Não informado'),
+                rg: temValorValido(pacCurrent.rg) ? pacCurrent.rg : (pDb.rg || ''),
+                telefone: temValorValido(pacCurrent.telefone) ? pacCurrent.telefone : (pDb.telefone ? formatarTelefone(pDb.telefone) : 'Não informado'),
+                email: temValorValido(pacCurrent.email) ? pacCurrent.email : (pDb.email || 'Não informado'),
+                endereco: temValorValido(pacCurrent.endereco) ? pacCurrent.endereco : (endCompleto || 'Não informado'),
+                dataNascimento: temValorValido(pacCurrent.dataNascimento) ? pacCurrent.dataNascimento : (pDb.data_nascimento ? formatarData(pDb.data_nascimento) : 'Não informada'),
+                profissao: temValorValido(pacCurrent.profissao) ? pacCurrent.profissao : (pDb.profissao || ''),
+                estadoCivil: temValorValido(pacCurrent.estadoCivil) ? pacCurrent.estadoCivil : (pDb.estado_civil || ''),
+              };
+            }
+          } catch (_) {}
+        }
+
         const sanitizado = sanitizarSnapshotContrato(foundSnapshot);
         setSnapshot(sanitizado);
         if (foundDocId) setDocDbId(foundDocId);
@@ -784,6 +816,25 @@ export default function AssinarContrato() {
     // Impede alteração ou re-assinatura se já estiver assinado
     if (snapshot.status === 'assinado' || snapshot.assinaturaPaciente?.assinaturaData) {
       toast.info('Este contrato já se encontra assinado digitalmente.');
+      setShowSignatureModal(false);
+      return;
+    }
+
+    // Validação obrigatória de dados cadastrais para formalização de novos contratos
+    const pacCad = snapshot.paciente || {};
+    const finalNome = (sigData.signerName || pacCad.nome || '').trim();
+    const finalCpf = (sigData.signerInfo?.cpf || pacCad.cpf || '').trim();
+    const finalTelefone = (pacCad.telefone || '').trim();
+    const finalEndereco = (pacCad.endereco || '').trim();
+
+    const camposFaltantes: string[] = [];
+    if (!finalNome || !temValorValido(finalNome)) camposFaltantes.push('Nome completo');
+    if (!finalCpf || !temValorValido(finalCpf)) camposFaltantes.push('CPF');
+    if (!finalEndereco || !temValorValido(finalEndereco)) camposFaltantes.push('Endereço completo');
+    if (!finalTelefone || !temValorValido(finalTelefone)) camposFaltantes.push('Telefone/WhatsApp');
+
+    if (camposFaltantes.length > 0) {
+      toast.error(`Não é possível formalizar o contrato. Dados cadastrais obrigatórios ausentes: ${camposFaltantes.join(', ')}. Por favor, complete o cadastro antes de prosseguir.`);
       setShowSignatureModal(false);
       return;
     }
