@@ -4,6 +4,9 @@
 -- Totalmente idempotente, não-destrutiva e compatível com histórico
 -- ==============================================================================
 
+-- Garante disponibilidade de extensões criptográficas padrão
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 -- ------------------------------------------------------------------------------
 -- 1. IDENTIFICADORES DETERMINÍSTICOS E UNICIDADE DE CONTRATOS (SEM PREFIXO AMBÍGUO)
 -- ------------------------------------------------------------------------------
@@ -21,6 +24,18 @@ UPDATE public.documentos_clinicos
 SET identificador = COALESCE(itens->>'contratoId', 'CTR-' || upper(substring(id::text from 1 for 8)))
 WHERE identificador IS NULL AND tipo = 'contrato';
 
+-- Desambigua identificadores duplicados preexistentes para garantir que o índice único nunca colida
+WITH duplicados AS (
+  SELECT id,
+         ROW_NUMBER() OVER (PARTITION BY identificador ORDER BY criado_em ASC, id ASC) AS rn
+  FROM public.documentos_clinicos
+  WHERE identificador IS NOT NULL AND tipo = 'contrato'
+)
+UPDATE public.documentos_clinicos d
+SET identificador = d.identificador || '-DUP' || dup.rn
+FROM duplicados dup
+WHERE d.id = dup.id AND dup.rn > 1;
+
 -- Índice único condicional para contratos: garante que nenhum CTR seja duplicado
 CREATE UNIQUE INDEX IF NOT EXISTS idx_doc_clinicos_identificador_unique
   ON public.documentos_clinicos (identificador)
@@ -32,6 +47,20 @@ CREATE INDEX IF NOT EXISTS idx_doc_clinicos_paciente_tipo
 -- ------------------------------------------------------------------------------
 -- 2. ISOLAMENTO MULTI-TENANT E CONTROLE DE PERFIS POR CLÍNICA
 -- ------------------------------------------------------------------------------
+
+-- Função auxiliar segura para obtenção do clinica_id (idempotente)
+CREATE OR REPLACE FUNCTION public.clinica_id()
+RETURNS uuid
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+  SELECT coalesce(
+    nullif(current_setting('request.jwt.claims', true)::jsonb -> 'app_metadata' ->> 'clinica_id', '')::uuid,
+    auth.uid()
+  );
+$$;
 
 -- Adiciona clinica_id na tabela user_roles se ainda não existir
 ALTER TABLE public.user_roles 

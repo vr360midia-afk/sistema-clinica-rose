@@ -1881,15 +1881,20 @@ Deno.serve(async (req) => {
       const authHeader = req.headers.get("authorization") || req.headers.get("Authorization") || "";
       const bearerToken = authHeader.replace(/^Bearer\s+/i, "").trim();
       let autorizado = false;
+      let authenticatedUserId: string | null = null;
+      let isServiceRole = false;
+      let contratoAutorizadoPorToken = false;
 
       if (bearerToken) {
         if (bearerToken === supabaseServiceKey) {
           autorizado = true;
+          isServiceRole = true;
         } else {
           try {
             const { data: userData, error: userErr } = await supabase.auth.getUser(bearerToken);
             if (!userErr && userData?.user?.id) {
               autorizado = true;
+              authenticatedUserId = userData.user.id;
             }
           } catch (_) {}
         }
@@ -1907,6 +1912,7 @@ Deno.serve(async (req) => {
             .maybeSingle();
           if (dRow?.itens?.token && dRow.itens.token === contratoToken) {
             autorizado = true;
+            contratoAutorizadoPorToken = true;
           }
         } catch (_) {}
       }
@@ -1915,11 +1921,24 @@ Deno.serve(async (req) => {
         return json({ error: "Acesso não autorizado para processamento da fila de arquivamento" }, 403);
       }
 
+      // REGRA DE SEGURANÇA 1: Tokens públicos NUNCA podem permitir reprocessamento em lote
+      if (contratoAutorizadoPorToken && !targetContratoId) {
+        return json({ error: "Tokens públicos de contrato não possuem permissão para reprocessamento em lote." }, 403);
+      }
+
       let query = supabase.from("fila_arquivamento_pdf").select("*");
 
       if (targetContratoId) {
         query = query.eq("contrato_id", targetContratoId);
+        // Se usuário autenticado da clínica (não-service_role) chamou com contratoId, restringe à sua própria clínica
+        if (!isServiceRole && !contratoAutorizadoPorToken && authenticatedUserId) {
+          query = query.or(`clinica_id.eq.${authenticatedUserId},clinica_id.is.null`);
+        }
       } else {
+        // REGRA DE SEGURANÇA 2: Usuários autenticados processam em lote estritamente tarefas da sua própria clínica
+        if (!isServiceRole && authenticatedUserId) {
+          query = query.or(`clinica_id.eq.${authenticatedUserId},clinica_id.is.null`);
+        }
         query = query
           .in("status", ["pendente", "falha"])
           .lt("tentativas", 5)
