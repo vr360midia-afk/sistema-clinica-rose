@@ -142,9 +142,12 @@ BEGIN
 END;
 $$;
 
--- 3. Vinculação idempotente do trigger na tabela documentos_clinicos
+-- 3. Vinculação idempotente e unificada do trigger na tabela documentos_clinicos
+-- Remove eventuais variantes e mantém rigorosamente um único trigger de UPDATE
 DROP TRIGGER IF EXISTS trg_garantir_imutabilidade_contrato_v3 ON public.documentos_clinicos;
-CREATE TRIGGER trg_garantir_imutabilidade_contrato_v3
+DROP TRIGGER IF EXISTS trg_garantir_imutabilidade_contrato ON public.documentos_clinicos;
+
+CREATE TRIGGER trg_garantir_imutabilidade_contrato
   BEFORE UPDATE ON public.documentos_clinicos
   FOR EACH ROW
   EXECUTE FUNCTION public.garantir_imutabilidade_contrato_v3();

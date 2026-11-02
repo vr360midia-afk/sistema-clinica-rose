@@ -1239,7 +1239,6 @@ Deno.serve(async (req) => {
       const { error: updErr } = await supabase
         .from("documentos_clinicos")
         .update({
-          status: temPaciente ? "formalizado" : "aguardando_assinatura_paciente",
           itens: updatedSnapshot,
           atualizado_em: dataHoraIso,
         })
