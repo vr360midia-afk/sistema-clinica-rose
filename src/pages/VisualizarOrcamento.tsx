@@ -220,6 +220,10 @@ export default function VisualizarOrcamento() {
                 status: 'aprovado',
                 aprovadoEm: res.aprovadoEm || new Date().toISOString(),
                 condicaoEscolhida: condicaoAtiva,
+                contratoId: res.contratoId || prev.contratoId,
+                contratoToken: res.contratoToken || prev.contratoToken,
+                contratoLink: res.contratoLink || prev.contratoLink || (res.contratoId && res.contratoToken ? `https://app.lentesemresinamaceio.com.br/contrato/${res.contratoId}?token=${encodeURIComponent(res.contratoToken)}` : null),
+                contratoStatus: res.contratoStatus || prev.contratoStatus,
               }
             : null
         );
@@ -505,48 +509,48 @@ export default function VisualizarOrcamento() {
               </div>
               <div className="space-y-1 flex-1">
                 <h3 className="font-bold text-base sm:text-lg text-emerald-900 dark:text-emerald-200">
-                  Orçamento Aprovado com Sucesso!
+                  Orçamento aprovado com sucesso!
                 </h3>
-                <p className="text-xs text-emerald-800/90 dark:text-emerald-300/90 leading-relaxed">
-                  {orcamento.aprovadoEm ? (
-                    <>
-                      Aprovação registrada formalmente em{' '}
-                      <strong>{new Date(orcamento.aprovadoEm).toLocaleString('pt-BR')}</strong> com a condição:{' '}
-                      <strong>{orcamento.condicaoEscolhida?.titulo || 'Condição de pagamento selecionada'}</strong>.
-                    </>
-                  ) : (
-                    'Sua aprovação já está registrada no sistema da clínica.'
-                  )}
+                <p className="text-xs sm:text-sm text-emerald-800/90 dark:text-emerald-300/90 leading-relaxed font-medium">
+                  Seu contrato foi preparado e está aguardando sua assinatura digital.
                 </p>
+                {orcamento.aprovadoEm && (
+                  <p className="text-[11px] text-emerald-700/80 dark:text-emerald-400/80 pt-0.5">
+                    Aprovação registrada em {new Date(orcamento.aprovadoEm).toLocaleString('pt-BR')} • Opção:{' '}
+                    <strong>{orcamento.condicaoEscolhida?.titulo || 'Condição de pagamento selecionada'}</strong>
+                  </p>
+                )}
               </div>
             </div>
 
             {/* Status do Próximo Passo: Contrato Digital */}
             <div className="mt-3 pt-3 border-t border-emerald-500/20 flex flex-col sm:flex-row items-center justify-between gap-3">
               <div className="text-xs text-emerald-900 dark:text-emerald-200 text-center sm:text-left">
-                {orcamento.contratoLink ? (
-                  <span className="font-semibold flex items-center gap-1.5 justify-center sm:justify-start">
-                    <FileSignature className="h-4 w-4 text-emerald-600" />
-                    Seu contrato digital já está disponível para visualização e assinatura!
-                  </span>
-                ) : (
-                  <span className="text-muted-foreground flex items-center gap-1.5 justify-center sm:justify-start">
-                    <Clock className="h-4 w-4 text-muted-foreground" />
-                    Próximo passo: A equipe da clínica está preparando a minuta contratual para assinatura digital.
-                  </span>
-                )}
+                <span className="font-semibold flex items-center gap-1.5 justify-center sm:justify-start">
+                  <FileSignature className="h-4 w-4 text-emerald-600" />
+                  Leia todas as cláusulas e condições de pagamento antes de assinar digitalmente.
+                </span>
               </div>
 
-              {orcamento.contratoLink ? (
-                <Button
-                  onClick={() => (window.location.href = orcamento.contratoLink!)}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1.5 shrink-0 shadow-sm w-full sm:w-auto"
-                >
-                  <FileSignature className="h-4 w-4" />
-                  Visualizar e Assinar Contrato
-                  <ArrowRight className="h-3.5 w-3.5" />
-                </Button>
-              ) : (
+              (() => {
+                const linkContratoFinal = orcamento.contratoLink || (orcamento.contratoId && orcamento.contratoToken ? `/contrato/${orcamento.contratoId}?token=${encodeURIComponent(orcamento.contratoToken)}` : orcamento.contratoIdentificador && orcamento.contratoToken ? `/contrato/${orcamento.contratoIdentificador}?token=${encodeURIComponent(orcamento.contratoToken)}` : null);
+
+                return linkContratoFinal ? (
+                  <Button
+                    onClick={() => {
+                      if (linkContratoFinal.startsWith('http')) {
+                        window.location.href = linkContratoFinal;
+                      } else {
+                        navigate(linkContratoFinal);
+                      }
+                    }}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1.5 shrink-0 shadow-sm w-full sm:w-auto h-9 px-4"
+                  >
+                    <FileSignature className="h-4 w-4" />
+                    Visualizar e assinar contrato
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </Button>
+                ) : (
                 <Button
                   variant="outline"
                   size="sm"
@@ -556,7 +560,8 @@ export default function VisualizarOrcamento() {
                   <MessageCircle className="h-3.5 w-3.5 mr-1.5" />
                   Falar com a Clínica no WhatsApp
                 </Button>
-              )}
+              );
+            })()}
             </div>
           </div>
         )}

@@ -172,7 +172,7 @@ export interface ContratoSnapshot {
   orcamentoId: string;
   pacienteId: string;
   versao: string;
-  status: 'emitido' | 'assinado' | 'cancelado' | 'pendente';
+  status: 'emitido' | 'assinado' | 'cancelado' | 'pendente' | 'aguardando_assinatura_dentista' | 'aguardando_assinatura_paciente' | 'formalizado';
   token?: string;
   tokenValidoAte?: string;
   emitidoEm: string;
@@ -670,6 +670,248 @@ export const obterCardsResumoPagamento = (snapshot?: Partial<ContratoSnapshot> |
   }));
 };
 
+export interface AutorizacaoAssinaturaProfissional {
+  id: string;
+  profissionalNome: string;
+  profissionalCro: string;
+  profissionalDocumento: string;
+  autorizacaoExpressa: string;
+  modelosAutorizados: string[];
+  condicoesAbrangidas: Record<string, any>;
+  assinaturaGrafica?: string | null;
+  ativo: boolean;
+  autorizadoEm: string;
+  revogadoEm?: string | null;
+  revogadoPor?: string | null;
+  motivoRevogacao?: string | null;
+  evidencias?: Record<string, any>;
+}
+
+export const STORAGE_KEY_AUTORIZACAO = 'sistema_clinica_autorizacao_profissional_dra_rosangela';
+
+export async function obterAutorizacaoAtivaProfissional(cro: string = '06267-AL'): Promise<AutorizacaoAssinaturaProfissional | null> {
+  // 1. Tenta Edge Function 'contrato-publico' (action: 'autorizacao_obter')
+  try {
+    const { data: edgeData, error: edgeErr } = await supabase.functions.invoke('contrato-publico', {
+      body: { action: 'autorizacao_obter', cro },
+    });
+    if (!edgeErr && edgeData?.ok) {
+      if (edgeData.temAutorizacao && edgeData.autorizacao) {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          localStorage.setItem(STORAGE_KEY_AUTORIZACAO, JSON.stringify(edgeData.autorizacao));
+        }
+        return edgeData.autorizacao;
+      }
+      return null;
+    }
+  } catch (_) {}
+
+  // 2. Tenta RPC do PostgreSQL
+  try {
+    const { data: rpcData, error: rpcErr } = await (supabase.rpc as any)('obter_autorizacao_ativa_profissional', {
+      p_cro: cro,
+    });
+    if (!rpcErr && rpcData?.ok) {
+      if (rpcData.temAutorizacao) {
+        const authObj: AutorizacaoAssinaturaProfissional = {
+          id: rpcData.id,
+          profissionalNome: rpcData.profissionalNome,
+          profissionalCro: rpcData.profissionalCro,
+          profissionalDocumento: rpcData.profissionalDocumento,
+          autorizacaoExpressa: rpcData.autorizacaoExpressa,
+          modelosAutorizados: rpcData.modelosAutorizados || ['geral', 'lentes_resina', 'endodontia'],
+          condicoesAbrangidas: rpcData.condicoesAbrangidas || { apenas_orcamentos_aprovados: true },
+          assinaturaGrafica: rpcData.assinaturaGrafica,
+          ativo: Boolean(rpcData.ativo),
+          autorizadoEm: rpcData.autorizadoEm,
+          evidencias: rpcData.evidencias,
+        };
+        if (typeof window !== 'undefined' && window.localStorage) {
+          localStorage.setItem(STORAGE_KEY_AUTORIZACAO, JSON.stringify(authObj));
+        }
+        return authObj;
+      }
+      return null;
+    }
+  } catch (_) {}
+
+  // 3. Tenta consulta direta no Supabase
+  try {
+    const { data: authRows, error: dbErr } = await supabase
+      .from('autorizacoes_assinatura_profissional')
+      .select('*')
+      .eq('ativo', true)
+      .is('revogado_em', null)
+      .order('autorizado_em', { ascending: false })
+      .limit(1);
+
+    if (!dbErr && authRows && authRows.length > 0) {
+      const row = authRows[0];
+      const authObj: AutorizacaoAssinaturaProfissional = {
+        id: row.id,
+        profissionalNome: row.profissional_nome,
+        profissionalCro: row.profissional_cro,
+        profissionalDocumento: row.profissional_documento,
+        autorizacaoExpressa: row.autorizacao_expressa,
+        modelosAutorizados: row.modelos_autorizados || ['geral', 'lentes_resina', 'endodontia'],
+        condicoesAbrangidas: row.condicoes_abrangidas || { apenas_orcamentos_aprovados: true },
+        assinaturaGrafica: row.assinatura_grafica,
+        ativo: Boolean(row.ativo),
+        autorizadoEm: row.autorizado_em,
+        evidencias: row.evidencias,
+      };
+      if (typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem(STORAGE_KEY_AUTORIZACAO, JSON.stringify(authObj));
+      }
+      return authObj;
+    }
+  } catch (_) {}
+
+  // 4. Fallback no cache local
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_AUTORIZACAO);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.ativo && !parsed.revogadoEm) {
+          return parsed;
+        }
+      }
+    } catch (_) {}
+  }
+
+  return null;
+}
+
+export function validarAutorizacaoAssinatura(
+  autorizacao: AutorizacaoAssinaturaProfissional | null,
+  modeloId: string = 'geral'
+): boolean {
+  if (!autorizacao) return false;
+  if (!autorizacao.ativo) return false;
+  if (autorizacao.revogadoEm) return false;
+
+  const croLimpo = String(autorizacao.profissionalCro || '').replace(/[^0-9]/g, '');
+  if (croLimpo !== '06267') return false;
+
+  if (Array.isArray(autorizacao.modelosAutorizados) && autorizacao.modelosAutorizados.length > 0) {
+    const modeloNorm = modeloId.toLowerCase();
+    const permite = autorizacao.modelosAutorizados.some(
+      (m) => m.toLowerCase() === modeloNorm || m.toLowerCase() === 'todos' || m.toLowerCase() === 'geral'
+    );
+    if (!permite) return false;
+  }
+
+  return true;
+}
+
+export async function concederAutorizacaoProfissional(params: {
+  profissionalNome?: string;
+  profissionalCro?: string;
+  profissionalDocumento?: string;
+  autorizacaoExpressa: string;
+  modelosAutorizados?: string[];
+  assinaturaGrafica?: string;
+  evidencias?: Record<string, any>;
+}): Promise<{ ok: boolean; autorizacao?: AutorizacaoAssinaturaProfissional; error?: string }> {
+  const profissionalNome = params.profissionalNome || 'Dra. Rosângela Santos Pereira';
+  const profissionalCro = params.profissionalCro || '06267-AL';
+  const profissionalDocumento = params.profissionalDocumento || '032.663.962-43';
+  const modelosAutorizados = params.modelosAutorizados || ['geral', 'lentes_resina', 'endodontia'];
+  const nowIso = new Date().toISOString();
+  const id = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : 'auth-' + Date.now();
+
+  const authObj: AutorizacaoAssinaturaProfissional = {
+    id,
+    profissionalNome,
+    profissionalCro,
+    profissionalDocumento,
+    autorizacaoExpressa: params.autorizacaoExpressa,
+    modelosAutorizados,
+    condicoesAbrangidas: { apenas_orcamentos_aprovados: true },
+    assinaturaGrafica: params.assinaturaGrafica || null,
+    ativo: true,
+    autorizadoEm: nowIso,
+    evidencias: {
+      ...params.evidencias,
+      timestamp: nowIso,
+      userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'web',
+    },
+  };
+
+  try {
+    const { data: edgeData, error: edgeErr } = await supabase.functions.invoke('contrato-publico', {
+      body: {
+        action: 'autorizacao_conceder',
+        profissionalNome,
+        profissionalCro,
+        profissionalDocumento,
+        autorizacaoExpressa: params.autorizacaoExpressa,
+        modelosAutorizados,
+        assinaturaGrafica: params.assinaturaGrafica,
+        evidencias: authObj.evidencias,
+      },
+    });
+    if (!edgeErr && edgeData?.ok && edgeData.autorizacao?.id) {
+      authObj.id = edgeData.autorizacao.id;
+    }
+  } catch (_) {}
+
+  if (typeof window !== 'undefined' && window.localStorage) {
+    localStorage.setItem(STORAGE_KEY_AUTORIZACAO, JSON.stringify(authObj));
+    if (params.assinaturaGrafica) {
+      localStorage.setItem('assinatura_padrao_dentista', params.assinaturaGrafica);
+    }
+    window.dispatchEvent(new Event('autorizacao-profissional-updated'));
+  }
+
+  return { ok: true, autorizacao: authObj };
+}
+
+export async function revogarAutorizacaoProfissional(
+  autorizacaoId?: string,
+  motivo: string = 'Revogação manual da profissional pelo painel administrativo'
+): Promise<{ ok: boolean; error?: string }> {
+  const nowIso = new Date().toISOString();
+
+  try {
+    await supabase.functions.invoke('contrato-publico', {
+      body: {
+        action: 'autorizacao_revogar',
+        autorizacaoId,
+        motivo,
+      },
+    });
+  } catch (_) {}
+
+  if (autorizacaoId) {
+    try {
+      await (supabase.rpc as any)('revogar_autorizacao_assinatura_profissional', {
+        p_autorizacao_id: autorizacaoId,
+        p_motivo: motivo,
+      });
+    } catch (_) {}
+  }
+
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_AUTORIZACAO);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        parsed.ativo = false;
+        parsed.revogadoEm = nowIso;
+        parsed.motivoRevogacao = motivo;
+        localStorage.setItem(STORAGE_KEY_AUTORIZACAO, JSON.stringify(parsed));
+      } else {
+        localStorage.removeItem(STORAGE_KEY_AUTORIZACAO);
+      }
+      window.dispatchEvent(new Event('autorizacao-profissional-updated'));
+    } catch (_) {}
+  }
+
+  return { ok: true };
+}
+
 /**
  * Gera uma assinatura vetorial caligráfica estilizada e fluida para a Dra. Responsável
  * caso nenhuma assinatura física tenha sido desenhada ou carregada previamente.
@@ -776,6 +1018,7 @@ export const mapearDadosContrato = ({
   parceiro,
   termoUsoImagem,
   assinaturaDentista,
+  autorizacaoProfissional,
 }: {
   patient: Partial<Paciente> | any;
   orcamento: Orcamento | any;
@@ -792,6 +1035,7 @@ export const mapearDadosContrato = ({
   parceiro?: ContratoDadosParceiro;
   termoUsoImagem?: ContratoTermoUsoImagem;
   assinaturaDentista?: any;
+  autorizacaoProfissional?: AutorizacaoAssinaturaProfissional | null;
 }): ContratoSnapshot => {
   const emitidoEmData = new Date();
   const emitidoEm = emitidoEmData.toISOString();
@@ -1352,12 +1596,50 @@ export const mapearDadosContrato = ({
     procedimentosAprovados: procedimentosAprovadosExtraidos,
   } : undefined);
 
+  // Avalia autorização prévia da profissional
+  let authEfetiva: AutorizacaoAssinaturaProfissional | null = autorizacaoProfissional || null;
+  if (!authEfetiva && typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_AUTORIZACAO);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.ativo && !parsed.revogadoEm) {
+          authEfetiva = parsed;
+        }
+      }
+    } catch (_) {}
+  }
+
+  const isAutorizadoValido = validarAutorizacaoAssinatura(authEfetiva, modeloFinal);
+
+  let assinaturaDentistaFinal: any = null;
+  if (assinaturaDentista !== undefined) {
+    assinaturaDentistaFinal = assinaturaDentista;
+  } else if (isAutorizadoValido && authEfetiva) {
+    assinaturaDentistaFinal = {
+      assinaturaData: authEfetiva.assinaturaGrafica || gerarRubricaPadraoDra(authEfetiva.profissionalNome || dadosClinica.dentistaResponsavel, authEfetiva.profissionalCro || dadosClinica.cro),
+      nome: authEfetiva.profissionalNome || dadosClinica.dentistaResponsavel,
+      cro: authEfetiva.profissionalCro || dadosClinica.cro,
+      documento: authEfetiva.profissionalDocumento || '032.663.962-43',
+      dataHora: emitidoEm,
+      metodo: 'assinatura_automatica_autorizada',
+      autorizacaoId: authEfetiva.id,
+      autorizadoEm: authEfetiva.autorizadoEm,
+      autorizacaoExpressa: authEfetiva.autorizacaoExpressa,
+    };
+  }
+
+  const statusInicial = assinaturaDentistaFinal ? 'aguardando_assinatura_paciente' : 'aguardando_assinatura_dentista';
+
   return {
     contratoId,
     orcamentoId: orcamento?.id || '',
     pacienteId: patient?.id || '',
     versao: '1.0',
-    status: 'emitido',
+    status: statusInicial,
+    statusAssinaturaDentista: assinaturaDentistaFinal ? 'assinado' : 'pendente',
+    statusAssinaturaPaciente: 'pendente',
+    isFormalizadoTotal: false,
     emitidoEm,
     tipoModeloContrato: modeloFinal,
     paciente: dadosPaciente,
@@ -1377,17 +1659,7 @@ export const mapearDadosContrato = ({
       depoimentos: true,
     },
     assinaturaPaciente: null,
-    assinaturaDentista:
-      assinaturaDentista !== undefined
-        ? assinaturaDentista
-        : (cfgContrato?.autoAssinarContrato !== false
-          ? obterAssinaturaPadraoDentista({
-            dentistaNome: dadosClinica.dentistaResponsavel,
-            dentistaCro: dadosClinica.cro,
-            emitidoEm,
-            configContrato: cfgContrato,
-          })
-          : null),
+    assinaturaDentista: assinaturaDentistaFinal,
   };
 };
 
@@ -2729,7 +3001,9 @@ export async function emitirContratoPersistido(
       pacienteId: rawPacienteId || undefined,
       token,
       tokenValidoAte,
-      status: snapshot.status || 'pendente',
+      status: snapshot.status || (snapshot.assinaturaDentista ? 'aguardando_assinatura_paciente' : 'pendente'),
+      statusAssinaturaDentista: snapshot.statusAssinaturaDentista || (snapshot.assinaturaDentista ? 'assinado' : 'pendente'),
+      statusAssinaturaPaciente: snapshot.statusAssinaturaPaciente || (snapshot.assinaturaPaciente ? 'assinado' : 'pendente'),
       emitidoEm: snapshot.emitidoEm || new Date().toISOString(),
       financeiro: snapshot.financeiro ? {
         ...snapshot.financeiro,

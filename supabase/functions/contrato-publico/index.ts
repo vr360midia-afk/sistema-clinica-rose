@@ -194,7 +194,7 @@ Deno.serve(async (req) => {
       let statusTexto = "pendente";
       if (isFormalizadoTotal) statusTexto = "formalizado";
       else if (isAssinadoPaciente) statusTexto = "assinado_paciente";
-      else if (isAssinadoDentista) statusTexto = "assinado_profissional";
+      else if (isAssinadoDentista) statusTexto = "aguardando_assinatura_paciente";
 
       const pdfPath = doc.pdf_path || doc.itens?.pdfPath || null;
       let signedPdfUrl = null;
@@ -332,6 +332,7 @@ Deno.serve(async (req) => {
       const { error: updateErr } = await supabase
         .from("documentos_clinicos")
         .update({
+          status: temDentista ? "formalizado" : "assinado",
           assinado_em: dataHoraIso,
           assinante_nome: signerName || doc.paciente_nome || "Paciente",
           assinatura_data: signature,
@@ -441,6 +442,7 @@ Deno.serve(async (req) => {
       const { error: updErr } = await supabase
         .from("documentos_clinicos")
         .update({
+          status: temPaciente ? "formalizado" : "aguardando_assinatura_paciente",
           itens: updatedSnapshot,
           atualizado_em: dataHoraIso,
         })
@@ -794,6 +796,180 @@ Deno.serve(async (req) => {
       }
 
       return json({ ok: true, aprovadoEm: nowIso, condicaoEscolhida: condicao });
+    }
+
+    // =========================================================================
+    // 7. AÇÕES DE AUTORIZAÇÃO DE ASSINATURA AUTOMÁTICA DA PROFISSIONAL
+    // =========================================================================
+    if (action === "autorizacao_obter") {
+      const cro = String(body.cro || "06267-AL").trim();
+      let autorizacao: any = null;
+
+      try {
+        const { data: rows } = await supabase
+          .from("autorizacoes_assinatura_profissional")
+          .select("*")
+          .eq("ativo", true)
+          .is("revogado_em", null)
+          .order("autorizado_em", { ascending: false })
+          .limit(1);
+
+        if (rows && rows.length > 0) {
+          autorizacao = rows[0];
+        }
+      } catch (_) {
+        // Fallback
+        try {
+          const { data: docs } = await supabase
+            .from("documentos_clinicos")
+            .select("*")
+            .eq("tipo", "autorizacao_profissional")
+            .filter("itens->>ativo", "eq", "true")
+            .order("criado_em", { ascending: false })
+            .limit(1);
+
+          if (docs && docs.length > 0) {
+            autorizacao = docs[0].itens;
+          }
+        } catch (_) {}
+      }
+
+      return json({
+        ok: true,
+        temAutorizacao: !!autorizacao,
+        autorizacao: autorizacao ? {
+          id: autorizacao.id,
+          profissionalNome: autorizacao.profissional_nome || autorizacao.profissionalNome || "Dra. Rosângela Santos Pereira",
+          profissionalCro: autorizacao.profissional_cro || autorizacao.profissionalCro || "06267-AL",
+          profissionalDocumento: autorizacao.profissional_documento || autorizacao.profissionalDocumento || "032.663.962-43",
+          autorizacaoExpressa: autorizacao.autorizacao_expressa || autorizacao.autorizacaoExpressa,
+          modelosAutorizados: autorizacao.modelos_autorizados || autorizacao.modelosAutorizados || ["geral", "lentes_resina", "endodontia"],
+          condicoesAbrangidas: autorizacao.condicoes_abrangidas || autorizacao.condicoesAbrangidas || { apenas_orcamentos_aprovados: true },
+          assinaturaGrafica: autorizacao.assinatura_grafica || autorizacao.assinaturaGrafica || null,
+          ativo: autorizacao.ativo,
+          autorizadoEm: autorizacao.autorizado_em || autorizacao.autorizadoEm,
+          evidencias: autorizacao.evidencias || {},
+        } : null,
+      });
+    }
+
+    if (action === "autorizacao_conceder") {
+      const {
+        profissionalNome = "Dra. Rosângela Santos Pereira",
+        profissionalCro = "06267-AL",
+        profissionalDocumento = "032.663.962-43",
+        autorizacaoExpressa,
+        modelosAutorizados = ["geral", "lentes_resina", "endodontia"],
+        condicoesAbrangidas = { apenas_orcamentos_aprovados: true },
+        assinaturaGrafica,
+        evidencias = {},
+      } = body;
+
+      if (!autorizacaoExpressa) {
+        return json({ error: "Termo de autorização expressa é obrigatório" }, 400);
+      }
+
+      const nowIso = new Date().toISOString();
+      const newId = crypto.randomUUID();
+
+      const payload = {
+        id: newId,
+        profissional_nome: profissionalNome,
+        profissional_cro: profissionalCro,
+        profissional_documento: profissionalDocumento,
+        autorizacao_expressa: autorizacaoExpressa,
+        modelos_autorizados: modelosAutorizados,
+        condicoes_abrangidas: condicoesAbrangidas,
+        assinatura_grafica: assinaturaGrafica || null,
+        ativo: true,
+        autorizado_em: nowIso,
+        evidencias: {
+          ...evidencias,
+          ip: req.headers.get("x-real-ip") || req.headers.get("x-forwarded-for") || "web",
+          timestamp: nowIso,
+        },
+        criado_em: nowIso,
+        atualizado_em: nowIso,
+      };
+
+      try {
+        // Desativa anteriores
+        await supabase
+          .from("autorizacoes_assinatura_profissional")
+          .update({ ativo: false, revogado_em: nowIso, motivo_revogacao: "Substituída por nova outorga" })
+          .eq("ativo", true);
+
+        // Insere nova
+        await supabase.from("autorizacoes_assinatura_profissional").insert(payload);
+      } catch (_) {
+        // Fallback em documentos_clinicos
+        try {
+          await supabase.from("documentos_clinicos").insert({
+            tipo: "autorizacao_profissional",
+            titulo: `Autorização de Assinatura Automática - ${profissionalNome}`,
+            conteudo: autorizacaoExpressa,
+            itens: {
+              ...payload,
+              profissionalNome,
+              profissionalCro,
+              profissionalDocumento,
+              autorizacaoExpressa,
+              modelosAutorizados,
+              condicoesAbrangidas,
+              assinaturaGrafica,
+            },
+            criado_em: nowIso,
+            atualizado_em: nowIso,
+          });
+        } catch (_) {}
+      }
+
+      return json({
+        ok: true,
+        mensagem: "Autorização concedida e autenticada com sucesso!",
+        autorizacao: {
+          id: newId,
+          profissionalNome,
+          profissionalCro,
+          autorizadoEm: nowIso,
+          modelosAutorizados,
+        },
+      });
+    }
+
+    if (action === "autorizacao_revogar") {
+      const { autorizacaoId, motivo = "Revogação voluntária pela profissional" } = body;
+      const nowIso = new Date().toISOString();
+
+      try {
+        if (autorizacaoId) {
+          await supabase
+            .from("autorizacoes_assinatura_profissional")
+            .update({ ativo: false, revogado_em: nowIso, motivo_revogacao: motivo, atualizado_em: nowIso })
+            .eq("id", autorizacaoId);
+        } else {
+          await supabase
+            .from("autorizacoes_assinatura_profissional")
+            .update({ ativo: false, revogado_em: nowIso, motivo_revogacao: motivo, atualizado_em: nowIso })
+            .eq("ativo", true);
+        }
+      } catch (_) {
+        try {
+          await supabase
+            .from("documentos_clinicos")
+            .update({
+              itens: { ativo: false, revogadoEm: nowIso, motivoRevogacao: motivo },
+              atualizado_em: nowIso,
+            })
+            .eq("tipo", "autorizacao_profissional");
+        } catch (_) {}
+      }
+
+      return json({
+        ok: true,
+        mensagem: "Autorização de assinatura automática revogada com sucesso.",
+        revogadoEm: nowIso,
+      });
     }
 
     return json({ error: "Ação não suportada" }, 400);

@@ -300,6 +300,7 @@ Deno.serve(async (req) => {
 
     // =========================================================================
     // 2. AÇÃO: APPROVE — Registro de aprovação do paciente com bloqueio atômico
+    //                    e geração automática do contrato com assinatura autorizada
     // =========================================================================
     if (action === "approve") {
       const targetId = String(body.identificador || body.id || body.orcamentoId || "").trim();
@@ -315,7 +316,7 @@ Deno.serve(async (req) => {
         return json({ ok: false, error: "Condição de pagamento deve ser selecionada para aprovação.", code: "INVALID_PARAM" }, 400);
       }
 
-      const { row } = await localizarOrcamento(targetId);
+      const { row, norm } = await localizarOrcamento(targetId);
       if (!row) {
         return json({ ok: false, error: "Orçamento não encontrado", code: "NOT_FOUND" }, 404);
       }
@@ -327,8 +328,37 @@ Deno.serve(async (req) => {
         return json({ ok: false, error: "Token de acesso inválido", code: "INVALID_TOKEN" }, 403);
       }
 
-      // Se já está aprovado, retorna confirmação idempotente
+      const origin = "https://app.lentesemresinamaceio.com.br";
+      const nowIso = new Date().toISOString();
+
+      // 1. Se já está aprovado, retorna confirmação idempotente com dados do contrato vinculado
       if (row.status === "aprovado" || snap.status === "aprovado") {
+        const existingContratoId = row.contrato_id || snap.contratoId;
+        const existingContratoToken = row.contrato_token || snap.contratoToken;
+        let existingContratoStatus = "pendente";
+        let existingDraStatus = "pendente";
+        let existingContratoLink: string | null = null;
+
+        if (existingContratoId) {
+          try {
+            const { data: exDoc } = await supabase
+              .from("documentos_clinicos")
+              .select("id, itens")
+              .eq("tipo", "contrato")
+              .or(`id.eq.${existingContratoId},itens->>contratoId.eq.${existingContratoId}`)
+              .limit(1)
+              .maybeSingle();
+
+            if (exDoc) {
+              const cSnap = (exDoc.itens || {}) as any;
+              existingContratoStatus = cSnap.status || "pendente";
+              existingDraStatus = cSnap.statusAssinaturaDentista === "assinado" ? "concluida" : "pendente";
+              const tok = cSnap.token || existingContratoToken;
+              existingContratoLink = `${origin}/contrato/${cSnap.contratoId || exDoc.id}?token=${encodeURIComponent(tok)}`;
+            }
+          } catch (_) {}
+        }
+
         return json({
           ok: true,
           jaAprovado: true,
@@ -336,10 +366,14 @@ Deno.serve(async (req) => {
           status: "aprovado",
           aprovadoEm: row.aprovado_em || row.data_assinatura || snap.aprovadoEm,
           condicaoEscolhida: row.condicao_escolhida || snap.condicaoEscolhida,
+          contratoId: existingContratoId,
+          contratoToken: existingContratoToken,
+          contratoStatus: existingContratoStatus,
+          contratoLink: existingContratoLink,
+          assinaturaDraStatus: existingDraStatus,
         });
       }
 
-      const nowIso = new Date().toISOString();
       const versaoAtual = Number(row.versao || snap.versao || 1);
 
       if (versaoAprovada !== null && versaoAprovada !== versaoAtual) {
@@ -353,10 +387,191 @@ Deno.serve(async (req) => {
       const totalFinal = Number(condicaoEscolhida.valorTotal || row.total || 0);
       const descontoFinal = Number(condicaoEscolhida.valorDesconto || row.desconto || 0);
 
+      // 2. Busca dados complementares do paciente e clínica
+      let pacienteDados: any = { id: row.paciente_id, nome: row.paciente_nome || snap.pacienteNome || "Paciente" };
+      if (row.paciente_id) {
+        try {
+          const { data: pRow } = await supabase.from("pacientes").select("*").eq("id", row.paciente_id).maybeSingle();
+          if (pRow) pacienteDados = { ...pacienteDados, ...pRow };
+        } catch (_) {}
+      }
+
+      let clinicaDados: any = {
+        nome: "Dra. Rosangela Santos - Clínica Odontológica",
+        dentistaResponsavel: "Dra. Rosângela Santos Pereira",
+        cro: "06267-AL",
+        documento: "032.663.962-43",
+        endereco: "JTR - Edifício Espanha, R. Comerc. José Pontes de Magalhães, 70 - Sl 405 - Jatiúca, Maceió - AL",
+        telefone: "82974002213",
+      };
+      try {
+        const { data: cRow } = await supabase.from("configuracoes").select("*").limit(1).maybeSingle();
+        if (cRow) {
+          clinicaDados = {
+            nome: cRow.nome_clinica || clinicaDados.nome,
+            dentistaResponsavel: cRow.dentista_responsavel || clinicaDados.dentistaResponsavel,
+            cro: cRow.cro || clinicaDados.cro,
+            documento: cRow.cnpj || clinicaDados.documento,
+            endereco: cRow.endereco || clinicaDados.endereco,
+            telefone: cRow.telefone || cRow.whatsapp_numero || clinicaDados.telefone,
+          };
+        }
+      } catch (_) {}
+
+      // 3. Avalia autorização prévia da profissional (Dra. Rosângela Santos Pereira — CRO 06267-AL)
+      let autorizacaoAtiva: any = null;
+      try {
+        const { data: authRows } = await supabase
+          .from("autorizacoes_assinatura_profissional")
+          .select("*")
+          .eq("ativo", true)
+          .is("revogado_em", null)
+          .order("autorizado_em", { ascending: false })
+          .limit(1);
+
+        if (authRows && authRows.length > 0) {
+          autorizacaoAtiva = authRows[0];
+        }
+      } catch (_) {
+        try {
+          const { data: authDoc } = await supabase
+            .from("documentos_clinicos")
+            .select("*")
+            .eq("tipo", "autorizacao_profissional")
+            .filter("itens->>ativo", "eq", "true")
+            .order("criado_em", { ascending: false })
+            .limit(1);
+
+          if (authDoc && authDoc.length > 0) {
+            autorizacaoAtiva = authDoc[0].itens;
+          }
+        } catch (_) {}
+      }
+
+      // 4. Geração do Contrato correspondente vinculado
+      const contratoId = "CTR-" + (norm.code8 || crypto.randomUUID().slice(0, 8).toUpperCase());
+      const rawTokenBytes = new Uint8Array(24);
+      crypto.getRandomValues(rawTokenBytes);
+      const contratoToken = Array.from(rawTokenBytes, (b) => b.toString(16).padStart(2, "0")).join("");
+      const contratoLink = `${origin}/contrato/${contratoId}?token=${contratoToken}`;
+
+      let statusContrato = "pendente";
+      let statusAssinaturaDentista = "pendente";
+      let assinaturaDentistaObj: any = null;
+      let assinaturaDraStatus = "pendente";
+
+      const isCroValido = autorizacaoAtiva && (
+        autorizacaoAtiva.profissional_cro === "06267-AL" ||
+        autorizacaoAtiva.profissionalCro === "06267-AL" ||
+        String(autorizacaoAtiva.profissional_cro || autorizacaoAtiva.profissionalCro || "").replace(/[^0-9]/g, "") === "06267"
+      );
+
+      if (autorizacaoAtiva && isCroValido && autorizacaoAtiva.ativo !== false && !autorizacaoAtiva.revogado_em) {
+        statusContrato = "aguardando_assinatura_paciente";
+        statusAssinaturaDentista = "assinado";
+        assinaturaDraStatus = "concluida";
+
+        assinaturaDentistaObj = {
+          nome: autorizacaoAtiva.profissional_nome || autorizacaoAtiva.profissionalNome || clinicaDados.dentistaResponsavel,
+          cro: autorizacaoAtiva.profissional_cro || autorizacaoAtiva.profissionalCro || clinicaDados.cro,
+          documento: autorizacaoAtiva.profissional_documento || autorizacaoAtiva.profissionalDocumento || clinicaDados.documento,
+          dataHora: nowIso,
+          metodo: "assinatura_automatica_autorizada",
+          autorizacaoId: autorizacaoAtiva.id,
+          autorizadoEm: autorizacaoAtiva.autorizado_em || autorizacaoAtiva.autorizadoEm,
+          autorizacaoExpressa: autorizacaoAtiva.autorizacao_expressa || autorizacaoAtiva.autorizacaoExpressa,
+          assinaturaData: autorizacaoAtiva.assinatura_grafica || autorizacaoAtiva.assinaturaGrafica || "",
+          versaoContrato: "1.0",
+        };
+      }
+
+      // Snapshot contratual imutável com UNICAMENTE a condição de pagamento aprovada
+      const snapshotContrato = {
+        contratoId,
+        token: contratoToken,
+        orcamentoId: row.id,
+        pacienteId: row.paciente_id || null,
+        pacienteNome: pacienteDados.nome,
+        versao: "1.0",
+        status: statusContrato,
+        statusAssinaturaDentista,
+        statusAssinaturaPaciente: "pendente",
+        isFormalizadoTotal: false,
+        emitidoEm: nowIso,
+        assinaturaDentista: assinaturaDentistaObj,
+        assinaturaPaciente: null,
+        financeiro: {
+          valorTotal: totalFinal,
+          valorDesconto: descontoFinal,
+          condicaoEscolhida,
+          formaPagamento: condicaoEscolhida.titulo || "Conforme aprovado",
+          detalhes: condicaoEscolhida.descricao,
+          parcelas: condicaoEscolhida.parcelas || 1,
+        },
+        orcamento: {
+          id: row.id,
+          titulo: row.titulo || "Plano de Tratamento",
+          itens: row.itens,
+          total: totalFinal,
+          desconto: descontoFinal,
+          formasPagamento: condicaoEscolhida.titulo,
+        },
+        paciente: {
+          id: row.paciente_id || null,
+          nome: pacienteDados.nome,
+          cpf: pacienteDados.cpf || null,
+          rg: pacienteDados.rg || null,
+          email: pacienteDados.email || null,
+          telefone: pacienteDados.telefone || null,
+        },
+        clinica: clinicaDados,
+      };
+
+      // 5. Persiste o contrato em documentos_clinicos
+      try {
+        await supabase.from("documentos_clinicos").insert({
+          paciente_id: row.paciente_id || null,
+          paciente_nome: pacienteDados.nome,
+          tipo: "contrato",
+          titulo: `Contrato Odontológico - ${pacienteDados.nome} (${contratoId})`,
+          conteudo: "",
+          itens: snapshotContrato,
+          dentista: clinicaDados.dentistaResponsavel,
+          criado_em: nowIso,
+          atualizado_em: nowIso,
+        });
+
+        if (assinaturaDentistaObj) {
+          await supabase.from("assinaturas").insert({
+            documento_id: contratoId,
+            documento_tipo: "contrato",
+            tipo: "dentista",
+            nome: assinaturaDentistaObj.nome,
+            assinatura_data: assinaturaDentistaObj.assinaturaData || "RUBRICA_DIGITAL_AUTORIZADA",
+            paciente_id: row.paciente_id || null,
+            user_id: row.user_id || null,
+            evidencias: {
+              autorizacaoId: assinaturaDentistaObj.autorizacaoId,
+              autorizadoEm: assinaturaDentistaObj.autorizadoEm,
+              metodo: "assinatura_automatica_autorizada",
+              cro: assinaturaDentistaObj.cro,
+              aplicadaEm: nowIso,
+            },
+            criado_em: nowIso,
+            atualizado_em: nowIso,
+          }).catch(() => {});
+        }
+      } catch (cErr) {
+        console.error("[orcamento-publico] Erro ao persistir contrato automático:", cErr);
+      }
+
+      // 6. Atualiza o orçamento com a aprovação e vincula o contrato
       const snapshotAprovacao = {
         condicao: condicaoEscolhida,
         aprovadoEm: nowIso,
         versao: versaoAtual,
+        contratoId,
+        contratoToken,
         evidencias: {
           ...evidencias,
           ip: req.headers.get("x-real-ip") || req.headers.get("x-forwarded-for") || undefined,
@@ -369,16 +584,23 @@ Deno.serve(async (req) => {
         status: "aprovado",
         aprovadoEm: nowIso,
         condicaoEscolhida,
+        contratoId,
+        contratoToken,
+        contratoStatus: statusContrato,
         snapshotAprovacao,
         versaoAprovada: versaoAtual,
       };
 
-      // Atualiza o orçamento no Supabase
       const updPayload: Record<string, any> = {
         status: "aprovado",
         desconto: descontoFinal,
         total: totalFinal,
         data_assinatura: nowIso,
+        aprovado_em: nowIso,
+        condicao_escolhida: condicaoEscolhida,
+        contrato_id: contratoId,
+        contrato_token: contratoToken,
+        snapshot_aprovacao: snapshotAprovacao,
         assinatura_paciente: updatedSnap,
         atualizado_em: nowIso,
       };
@@ -389,7 +611,7 @@ Deno.serve(async (req) => {
         throw updErr;
       }
 
-      // Se houver paciente vinculado, atualiza status do paciente para 'Em Tratamento'
+      // Atualiza status do paciente para 'Em Tratamento'
       if (row.paciente_id) {
         try {
           await supabase.from("pacientes").update({
@@ -399,7 +621,7 @@ Deno.serve(async (req) => {
         } catch (_) {}
       }
 
-      console.log(`[orcamento-publico] Orçamento id=${row.id} aprovado com sucesso em ${nowIso}`);
+      console.log(`[orcamento-publico] Orçamento id=${row.id} aprovado com contrato vinculado ${contratoId}`);
 
       return json({
         ok: true,
@@ -408,6 +630,11 @@ Deno.serve(async (req) => {
         status: "aprovado",
         aprovadoEm: nowIso,
         condicaoEscolhida,
+        contratoId,
+        contratoToken,
+        contratoStatus: statusContrato,
+        contratoLink,
+        assinaturaDraStatus,
       });
     }
 

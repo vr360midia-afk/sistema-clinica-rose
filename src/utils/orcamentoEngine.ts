@@ -7,7 +7,14 @@ import {
   obterTextoCondicaoParaContrato,
   filtrarApenasCondicaoEscolhida,
 } from './orcamentoCondicoes';
-import { mapearDadosContrato, emitirContratoPersistido, ContratoSnapshot, obterUserIdAtivo } from './contratoEngine';
+import {
+  mapearDadosContrato,
+  emitirContratoPersistido,
+  ContratoSnapshot,
+  obterUserIdAtivo,
+  obterAutorizacaoAtivaProfissional,
+  validarAutorizacaoAssinatura,
+} from './contratoEngine';
 import type { Orcamento, OrcamentoItem, StatusOrcamento } from '@/hooks/useOrcamentos';
 
 export type { StatusOrcamento };
@@ -74,6 +81,8 @@ export interface OrcamentoPublicoDados {
   contratoStatus?: string | null;
   contratoIdentificador?: string | null;
   contratoLink?: string | null;
+  assinaturaDraStatus?: 'concluida' | 'pendente' | null;
+  assinaturaPacienteStatus?: 'concluida' | 'pendente' | null;
   clinica: {
     nome: string;
     logoUrl?: string | null;
@@ -1209,6 +1218,11 @@ export async function aprovarOrcamentoPublico(params: {
   aprovadoEm?: string;
   error?: string;
   jaAprovado?: boolean;
+  contratoId?: string;
+  contratoToken?: string;
+  contratoLink?: string;
+  contratoStatus?: string;
+  assinaturaDraStatus?: 'concluida' | 'pendente';
 }> {
   const { identificador, token, condicaoEscolhida, versaoAprovada, orcamentoId, evidencias } = params;
 
@@ -1243,6 +1257,8 @@ export async function aprovarOrcamentoPublico(params: {
               parsed.status = 'aprovado';
               parsed.aprovadoEm = edgeData.aprovadoEm;
               parsed.condicaoEscolhida = condicaoEscolhida;
+              if (edgeData.contratoId) parsed.contratoId = edgeData.contratoId;
+              if (edgeData.contratoToken) parsed.contratoToken = edgeData.contratoToken;
               window.localStorage.setItem(k, JSON.stringify(parsed));
             }
           }
@@ -1253,6 +1269,11 @@ export async function aprovarOrcamentoPublico(params: {
         ok: true,
         aprovadoEm: edgeData.aprovadoEm,
         jaAprovado: edgeData.jaAprovado,
+        contratoId: edgeData.contratoId,
+        contratoToken: edgeData.contratoToken,
+        contratoLink: edgeData.contratoLink,
+        contratoStatus: edgeData.contratoStatus,
+        assinaturaDraStatus: edgeData.assinaturaDraStatus,
       };
     } else if (edgeData && !edgeData.ok && edgeData.error) {
       return { ok: false, error: edgeData.error };
@@ -1274,13 +1295,18 @@ export async function aprovarOrcamentoPublico(params: {
         ok: true,
         aprovadoEm: rpcData.aprovadoEm,
         jaAprovado: rpcData.jaAprovado,
+        contratoId: rpcData.contratoId,
+        contratoToken: rpcData.contratoToken,
+        contratoLink: rpcData.contratoLink,
+        contratoStatus: rpcData.contratoStatus,
+        assinaturaDraStatus: rpcData.assinaturaDraStatus,
       };
     } else if (rpcData && !rpcData.ok && rpcData.error) {
       return { ok: false, error: rpcData.error };
     }
   } catch (_) {}
 
-  // 2. Serviço centralizado de localização e validação
+  // 3. Serviço centralizado de localização e validação
   const localizacao = await localizarRegistroOrcamento(identificador, token, orcamentoId);
   if (!localizacao.ok || !localizacao.row) {
     return { ok: false, error: localizacao.error || 'Orçamento não encontrado no sistema.' };
@@ -1293,16 +1319,25 @@ export async function aprovarOrcamentoPublico(params: {
 
   // Bloqueio de aprovação duplicada
   if (orc.status === 'aprovado' || snap.status === 'aprovado') {
+    const existingContratoId = orc.contrato_id || snap.contratoId;
+    const existingContratoToken = orc.contrato_token || snap.contratoToken;
+    let existingLink = undefined;
+    if (existingContratoId && existingContratoToken) {
+      existingLink = `https://app.lentesemresinamaceio.com.br/contrato/${existingContratoId}?token=${encodeURIComponent(existingContratoToken)}`;
+    }
     return {
       ok: true,
       jaAprovado: true,
       aprovadoEm: orc.data_assinatura || snap.aprovadoEm || nowIso,
+      contratoId: existingContratoId,
+      contratoToken: existingContratoToken,
+      contratoLink: existingLink,
+      contratoStatus: snap.contratoStatus || 'pendente',
     };
   }
 
   const versaoAtual = Number(localizacao.versao || snap.versao || 1);
 
-  // Validação de versão: impede aprovação de versão antiga se a clínica tiver enviado uma nova
   if (versaoAprovada !== undefined && versaoAprovada < versaoAtual) {
     return {
       ok: false,
@@ -1354,6 +1389,8 @@ export async function aprovarOrcamentoPublico(params: {
     desconto: descontoFinal,
     total: totalFinal,
     data_assinatura: nowIso,
+    aprovado_em: nowIso,
+    condicao_escolhida: condicaoEscolhida,
     assinatura_paciente: updatedAssinatura,
     atualizado_em: nowIso,
   };
@@ -1387,6 +1424,40 @@ export async function aprovarOrcamentoPublico(params: {
     } catch (_) {}
   }
 
+  // Gera automaticamente o contrato correspondente
+  let contratoRes: any = null;
+  try {
+    let pacRow: any = null;
+    if (orc.paciente_id) {
+      const { data } = await supabase.from('pacientes').select('*').eq('id', orc.paciente_id).maybeSingle();
+      if (data) pacRow = data;
+    }
+
+    contratoRes = await gerarContratoDoOrcamentoAprovado({
+      orcamento: {
+        id: uuid,
+        identificador: localizacao.identificador,
+        titulo: orc.titulo,
+        itens: orc.itens,
+        total: totalFinal,
+        desconto: descontoFinal,
+        status: 'aprovado',
+        pacienteId: orc.paciente_id,
+        pacienteNome: orc.paciente_nome,
+        condicaoEscolhida,
+        validade: orc.validade,
+        observacoes: orc.observacoes,
+        criadoEm: new Date(),
+        atualizadoEm: new Date(),
+      },
+      patient: pacRow || { id: orc.paciente_id, nome: orc.paciente_nome },
+      configuracoes: {},
+      configContrato: {},
+    });
+  } catch (err) {
+    console.warn('[OrcamentoEngine] Erro ao gerar contrato automático:', err);
+  }
+
   // Atualiza cache local
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
@@ -1411,6 +1482,9 @@ export async function aprovarOrcamentoPublico(params: {
           aprovadoEm: nowIso,
           condicaoEscolhida,
           snapshotAprovacao: snapshot,
+          contratoId: contratoRes?.contratoId,
+          contratoToken: contratoRes?.contratoToken,
+          contratoLink: contratoRes?.contratoLink,
         };
         window.localStorage.setItem(k, JSON.stringify(merged));
       }
@@ -1420,6 +1494,11 @@ export async function aprovarOrcamentoPublico(params: {
   return {
     ok: true,
     aprovadoEm: nowIso,
+    contratoId: contratoRes?.contratoId,
+    contratoToken: contratoRes?.contratoToken,
+    contratoLink: contratoRes?.contratoLink,
+    contratoStatus: contratoRes?.snapshot?.status,
+    assinaturaDraStatus: contratoRes?.snapshot?.assinaturaDentista ? 'concluida' : 'pendente',
   };
 }
 
@@ -1441,6 +1520,22 @@ export async function gerarContratoDoOrcamentoAprovado(params: {
   error?: string;
 }> {
   const { orcamento, patient, configuracoes, configContrato, modeloId } = params;
+
+  // 0. Bloqueio estrito de duplicidade: se já houver contrato gerado para este orçamento, retorna o existente
+  const existingContratoId = ('contratoId' in orcamento && orcamento.contratoId) || (orcamento as any).contrato_id;
+  const existingContratoToken = ('contratoToken' in orcamento && orcamento.contratoToken) || (orcamento as any).contrato_token;
+
+  if (existingContratoId && existingContratoToken) {
+    const origin = 'https://app.lentesemresinamaceio.com.br';
+    const link = `${origin}/contrato/${existingContratoId}?token=${encodeURIComponent(existingContratoToken)}`;
+    return {
+      ok: true,
+      contratoId: existingContratoId,
+      contratoToken: existingContratoToken,
+      contratoLink: link,
+      snapshot: (orcamento as any).snapshotContrato || ({} as any),
+    };
+  }
 
   // 1. Identifica a condição aprovada
   const condicoes = 'condicoes' in orcamento && Array.isArray(orcamento.condicoes)
@@ -1476,13 +1571,19 @@ export async function gerarContratoDoOrcamentoAprovado(params: {
     atualizadoEm: new Date(),
   };
 
-  // 3. Mapeia o snapshot formal do contrato com os termos e cláusulas
+  // 3. Valida se a profissional Dra. Rosângela Santos Pereira (CRO 06267-AL) possui autorização expressa ativa
+  const autorizacaoAtiva = await obterAutorizacaoAtivaProfissional('06267-AL');
+  const isAutorizado = validarAutorizacaoAssinatura(autorizacaoAtiva, modeloId || 'geral');
+
+  // 4. Mapeia o snapshot formal do contrato com os termos, cláusulas e assinatura autorizada (se válida)
   const snapshotContrato = mapearDadosContrato({
     patient,
     orcamento: orcamentoAprovadoParaContrato,
     configuracoes,
     configContrato,
+    tipoModeloContrato: modeloId,
     dadosRestauracoesPreexistentes: patient?.restauracoesPreexistentes,
+    autorizacaoProfissional: isAutorizado ? autorizacaoAtiva : null,
   });
 
   // Vincula ID do orçamento no snapshot
@@ -1490,21 +1591,24 @@ export async function gerarContratoDoOrcamentoAprovado(params: {
     snapshotContrato.orcamento.id = orcamento.id;
   }
 
-  // 4. Emite e persiste o contrato no Supabase
+  // 5. Emite e persiste o contrato no Supabase
   const resEmissao = await emitirContratoPersistido(snapshotContrato);
 
   if (resEmissao.ok || resEmissao.identificador) {
-    // 5. Vincula o contrato gerado ao orçamento no Supabase
+    // 6. Vincula o contrato gerado ao orçamento no Supabase
     try {
       const { data: currentRows } = await supabase.from('orcamentos').select('assinatura_paciente').eq('id', orcamento.id).limit(1);
       const prevSnap = (currentRows?.[0]?.assinatura_paciente || (orcamento as any).assinatura_paciente || {}) as any;
       await supabase
         .from('orcamentos')
         .update({
+          contrato_id: resEmissao.identificador,
+          contrato_token: resEmissao.token,
           assinatura_paciente: {
             ...prevSnap,
             contratoId: resEmissao.identificador,
             contratoToken: resEmissao.token,
+            contratoStatus: snapshotContrato.status,
           },
           atualizado_em: new Date().toISOString(),
         })

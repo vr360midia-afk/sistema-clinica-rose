@@ -2,6 +2,14 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { toast } from 'sonner';
+import {
+  AutorizacaoAssinaturaProfissional,
+  obterAutorizacaoAtivaProfissional,
+  concederAutorizacaoProfissional,
+  revogarAutorizacaoProfissional,
+} from '@/utils/contratoEngine';
+
+export type { AutorizacaoAssinaturaProfissional };
 
 export interface ConfiguracoesContrato {
   // Dados Oficiais do PIX para o Contrato e Recibos
@@ -70,6 +78,7 @@ export const getDefaultConfigContrato = (configGerais?: any): ConfiguracoesContr
 
 export const carregarConfiguracoesContratoSync = (clinicaId?: string | null, configGerais?: any): ConfiguracoesContrato => {
   const padrao = getDefaultConfigContrato(configGerais);
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') return padrao;
   try {
     const key = getStorageKey(clinicaId);
     const salvo = localStorage.getItem(key) || localStorage.getItem(STORAGE_KEY_PREFIX + 'padrao');
@@ -97,11 +106,32 @@ export const useConfiguracoesContrato = () => {
   const { clinicaId } = useAuth();
   const { configuracoes: configGerais } = useConfiguracoes();
   const padrao = getDefaultConfigContrato(configGerais);
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') return padrao;
   const [configContrato, setConfigContrato] = useState<ConfiguracoesContrato>(() =>
     carregarConfiguracoesContratoSync(clinicaId, configGerais)
   );
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
+  const [autorizacaoAtiva, setAutorizacaoAtiva] = useState<AutorizacaoAssinaturaProfissional | null>(null);
+  const [carregandoAutorizacao, setCarregandoAutorizacao] = useState(true);
+
+  const carregarAutorizacao = useCallback(async () => {
+    try {
+      setCarregandoAutorizacao(true);
+      const auth = await obterAutorizacaoAtivaProfissional('06267-AL');
+      setAutorizacaoAtiva(auth);
+    } catch (_) {
+    } finally {
+      setCarregandoAutorizacao(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    carregarAutorizacao();
+    const handleAuthChange = () => carregarAutorizacao();
+    window.addEventListener('autorizacao-profissional-updated', handleAuthChange);
+    return () => window.removeEventListener('autorizacao-profissional-updated', handleAuthChange);
+  }, [carregarAutorizacao]);
 
   const carregar = useCallback(() => {
     setLoading(true);
@@ -165,6 +195,11 @@ export const useConfiguracoesContrato = () => {
     restaurarPadrao,
     loading,
     salvando,
+    autorizacaoAtiva,
+    carregandoAutorizacao,
+    carregarAutorizacao,
+    concederAutorizacao: concederAutorizacaoProfissional,
+    revogarAutorizacao: revogarAutorizacaoProfissional,
   };
 };
 
