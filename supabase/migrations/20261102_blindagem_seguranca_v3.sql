@@ -19,37 +19,8 @@ ALTER TABLE public.documentos_clinicos
 ALTER TABLE public.documentos_clinicos 
   ADD COLUMN IF NOT EXISTS hash_integridade text;
 
--- Preservação integral de contratos históricos: Não executa UPDATE automático de clinica_id
--- Preserva os documentos legados intactos até vinculação individual comprovada.
-
--- Preenche identificador de forma segura e não colidente para registros legados que estejam nulos
-DO $$
-DECLARE
-  r RECORD;
-  v_base text;
-  v_candidate text;
-  v_count integer;
-BEGIN
-  FOR r IN 
-    SELECT id, itens->>'contratoId' AS contrato_id
-    FROM public.documentos_clinicos
-    WHERE identificador IS NULL AND tipo = 'contrato'
-    ORDER BY criado_em ASC
-  LOOP
-    v_base := COALESCE(NULLIF(trim(r.contrato_id), ''), 'CTR-' || upper(substring(r.id::text from 1 for 8)));
-    v_candidate := v_base;
-    v_count := 1;
-
-    WHILE EXISTS (SELECT 1 FROM public.documentos_clinicos WHERE identificador = v_candidate AND id <> r.id) LOOP
-      v_count := v_count + 1;
-      v_candidate := v_base || '-LEG' || v_count::text;
-    END LOOP;
-
-    UPDATE public.documentos_clinicos
-    SET identificador = v_candidate
-    WHERE id = r.id;
-  END LOOP;
-END $$;
+-- Preservação integral de contratos históricos: Não executa UPDATE em identificador nem clinica_id.
+-- Preserva todos os documentos legados intactos com seus identificadores, assinaturas e links originais.
 
 -- Índices de alta performance para resolução rápida de contratos sem renomear códigos históricos
 CREATE INDEX IF NOT EXISTS idx_doc_clinicos_identificador

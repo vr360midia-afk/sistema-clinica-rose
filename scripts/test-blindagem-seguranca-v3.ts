@@ -163,20 +163,23 @@ async function runTests() {
   await db.exec(migrationSql);
   assert(true, 'Migration 20261102_blindagem_seguranca_v3.sql aplicada com sucesso');
 
-  // 3. Validação do Ponto 3: Preservação de Contratos Históricos sem UPDATE automático de clinica_id
-  console.log(`\n${STEP} 3. Validação da Preservação de Contratos Históricos (Sem UPDATE automático de clinica_id)`);
+  // 3. Validação do Ponto 3: Preservação Total de Contratos Históricos (Zero UPDATE em registros legados)
+  console.log(`\n${STEP} 3. Validação da Preservação de Contratos Históricos (Zero UPDATE em clinica_id e identificador)`);
   const resDocs = await db.query<any>(`
-    SELECT id, identificador, clinica_id FROM public.documentos_clinicos ORDER BY criado_em ASC;
+    SELECT id, identificador, clinica_id, itens FROM public.documentos_clinicos ORDER BY criado_em ASC;
   `);
   const c1 = resDocs.rows.find(r => r.id === '11111111-1111-1111-1111-111111111111');
   const c2 = resDocs.rows.find(r => r.id === '22222222-2222-2222-2222-222222222222');
   const c3 = resDocs.rows.find(r => r.id === '33333333-3333-3333-3333-333333333333');
+  const c4 = resDocs.rows.find(r => r.id === '44444444-4444-4444-4444-444444444444');
 
-  assert(c1.clinica_id === null, 'Contrato legado 1 PRESERVADO intacto sem UPDATE automático (clinica_id IS NULL)');
-  assert(c2.clinica_id === null, 'Contrato legado 2 PRESERVADO intacto sem UPDATE automático (clinica_id IS NULL)');
-  assert(c1.identificador === 'CTR-DUPLICADO', 'Primeiro contrato legado manteve identificador original');
-  assert(c2.identificador === 'CTR-DUPLICADO-LEG2', 'Segundo contrato legado recebeu sufixo não-colidente -LEG2');
-  assert(c3.identificador.startsWith('CTR-33333333'), 'Contrato sem identificador recebeu código canônico CTR-');
+  assert(c1.clinica_id === null, 'Contrato legado 1 PRESERVADO intacto sem UPDATE em clinica_id');
+  assert(c2.clinica_id === null, 'Contrato legado 2 PRESERVADO intacto sem UPDATE em clinica_id');
+  assert(c1.identificador === null, 'Contrato legado 1 PRESERVADO intacto sem UPDATE em identificador');
+  assert(c2.identificador === null, 'Contrato legado 2 PRESERVADO intacto sem UPDATE em identificador');
+  assert(c3.identificador === null, 'Contrato legado sem identificador PRESERVADO intacto');
+  assert(c4.identificador === 'CTR-CLINICA-B-ORIG', 'Contrato com identificador pré-existente preservado exatamente como estava');
+  assert(c1.itens.contratoId === 'CTR-DUPLICADO', 'Link e identificador no payload itens permanecem 100% preservados');
 
   // Inserção de contrato regular com clinica_id comprovada para testes de fluxo da Clínica A
   const resDocClinicaA = await db.query<any>(`
