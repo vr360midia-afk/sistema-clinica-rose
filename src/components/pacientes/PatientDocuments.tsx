@@ -9,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, FileText, FilePlus, Image, Download, Eye, Trash2, Loader2, UploadCloud, Sparkles } from 'lucide-react';
+import { Plus, FileText, FilePlus, Image, Download, Eye, Trash2, Loader2, UploadCloud, Sparkles, FileCheck, CheckCircle2 } from 'lucide-react';
 import EmptyState from '@/components/common/EmptyState';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import { useSecurityGate } from '@/context/SecurityContext';
@@ -27,6 +27,7 @@ const MAX_SIZE = 15 * 1024 * 1024;
 const ACCEPT = 'application/pdf,image/*';
 
 const TIPOS: { value: TipoDocumento; label: string }[] = [
+  { value: 'contrato', label: 'Contrato Assinado' },
   { value: 'exame', label: 'Exame' },
   { value: 'raio-x', label: 'Raio-X' },
   { value: 'foto', label: 'Foto' },
@@ -146,9 +147,10 @@ const PatientDocuments = ({ patient }: PatientDocumentsProps) => {
 
   const openDocument = async (documento: any, download = false) => {
     try {
+      if (documento.arquivo && (documento.arquivo.startsWith('http://') || documento.arquivo.startsWith('https://'))) { window.open(documento.arquivo, '_blank'); return; }
       const { data, error } = await supabase.storage
         .from(BUCKET)
-        .createSignedUrl(documento.arquivo, 60, download ? { download: documento.nome } : undefined);
+        .createSignedUrl(documento.arquivo, 300, download ? { download: documento.nome } : undefined);
       if (error || !data) throw error || new Error('Falha ao gerar link');
       window.open(data.signedUrl, '_blank');
     } catch (err: any) {
@@ -228,7 +230,7 @@ const PatientDocuments = ({ patient }: PatientDocumentsProps) => {
   };
 
   const getDocumentIcon = (t: string) =>
-    t === 'foto' || t === 'raio-x' ? <Image className="h-4 w-4" /> : <FileText className="h-4 w-4" />;
+    t === 'contrato' ? <FileCheck className="h-4 w-4 text-emerald-600" /> : (t === 'foto' || t === 'raio-x' ? <Image className="h-4 w-4" /> : <FileText className="h-4 w-4" />);
 
   const getDocumentTypeLabel = (t: string) =>
     TIPOS.find((x) => x.value === t)?.label || t;
@@ -323,7 +325,7 @@ const PatientDocuments = ({ patient }: PatientDocumentsProps) => {
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-2">
                     {getDocumentIcon(documento.tipo)}
-                    <Badge variant="outline" className="text-xs">
+                    <Badge variant="outline" className={`text-xs ${documento.tipo === 'contrato' ? 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 font-semibold' : ''}`}>
                       {getDocumentTypeLabel(documento.tipo)}
                     </Badge>
                   </div>

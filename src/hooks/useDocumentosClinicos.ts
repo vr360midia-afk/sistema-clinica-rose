@@ -20,6 +20,11 @@ export interface DocumentoClinico {
   titulo: string;
   conteudo?: string | null;
   itens: any;
+  orcamentoId?: string | null;
+  contratoId?: string | null;
+  identificador?: string | null;
+  status?: string | null;
+  pdfPath?: string | null;
   diasAfastamento?: number | null;
   cid?: string | null;
   dentista?: string | null;
@@ -33,26 +38,48 @@ export interface DocumentoClinico {
   criadoEm: Date;
 }
 
-const rowToDoc = (row: any): DocumentoClinico => ({
-  id: row.id,
-  pacienteId: row.paciente_id,
-  pacienteNome: row.paciente_nome,
-  tipo: row.tipo,
-  titulo: row.titulo,
-  conteudo: row.conteudo,
-  itens: Array.isArray(row.itens) ? row.itens : [],
-  diasAfastamento: row.dias_afastamento,
-  cid: row.cid,
-  dentista: row.dentista,
-  assinaturaId: row.assinatura_id,
-  assinaturaData: row.assinatura_data,
-  assinanteNome: row.assinante_nome,
-  assinadoEm: row.assinado_em ? new Date(row.assinado_em) : null,
-  cfoLinkValidacao: row.cfo_link_validacao ?? null,
-  cfoCodigoValidacao: row.cfo_codigo_validacao ?? null,
-  cfoEmitidoEm: row.cfo_emitido_em ? new Date(row.cfo_emitido_em) : null,
-  criadoEm: new Date(row.criado_em),
-});
+const parseJsonField = (field: any) => {
+  if (typeof field === 'string') {
+    try {
+      return JSON.parse(field);
+    } catch (_) {
+      return field;
+    }
+  }
+  return field;
+};
+
+const rowToDoc = (row: any): DocumentoClinico => {
+  const parsedItens = parseJsonField(row.itens);
+  const snap = (parsedItens && typeof parsedItens === 'object') ? parsedItens : {};
+  return {
+    id: row.id,
+    pacienteId: row.paciente_id || snap.pacienteId,
+    pacienteNome: row.paciente_nome || snap.pacienteNome || snap.paciente?.nome,
+    tipo: row.tipo,
+    titulo: row.titulo,
+    conteudo: row.conteudo,
+    itens: parsedItens || [],
+    orcamentoId: row.orcamento_id || snap.orcamentoId || null,
+    contratoId: snap.contratoId || (row.tipo === 'contrato' ? row.id : null),
+    identificador: snap.contratoId || row.identificador || (row.tipo === 'contrato' ? row.id : null),
+    status: row.status || snap.status || null,
+    pdfPath: row.pdf_path || snap.pdfPath || null,
+    diasAfastamento: row.dias_afastamento,
+    cid: row.cid,
+    dentista: row.dentista || snap.clinica?.dentistaResponsavel,
+    assinaturaId: row.assinatura_id,
+    assinaturaData: row.assinatura_data,
+    assinanteNome: row.assinante_nome,
+    assinadoEm: row.assinado_em
+      ? new Date(row.assinado_em)
+      : (snap.assinaturaPaciente?.dataHora ? new Date(snap.assinaturaPaciente.dataHora) : null),
+    cfoLinkValidacao: row.cfo_link_validacao ?? null,
+    cfoCodigoValidacao: row.cfo_codigo_validacao ?? null,
+    cfoEmitidoEm: row.cfo_emitido_em ? new Date(row.cfo_emitido_em) : null,
+    criadoEm: new Date(row.criado_em),
+  };
+};
 
 const isUuid = (val: unknown): val is string =>
   typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);

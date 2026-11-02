@@ -335,7 +335,7 @@ Deno.serve(async (req) => {
           status: temDentista ? "formalizado" : "assinado",
           assinado_em: dataHoraIso,
           assinante_nome: signerName || doc.paciente_nome || "Paciente",
-          assinatura_data: signature,
+          assinatura_data: dataHoraIso,
           itens: updatedSnapshot,
           atualizado_em: dataHoraIso,
         })
@@ -364,6 +364,43 @@ Deno.serve(async (req) => {
           atualizado_em: dataHoraIso,
         });
       } catch (_) {}
+
+      // Atualização automática do orçamento associado no Supabase
+      try {
+        const orcId = updatedSnapshot.orcamentoId || doc.orcamento_id;
+        const targetPacId = doc.paciente_id || updatedSnapshot.pacienteId;
+
+        let orcRow: any = null;
+        if (orcId) {
+          const { data: oData } = await supabase.from("orcamentos").select("*").eq("id", orcId).maybeSingle();
+          if (oData) orcRow = oData;
+        }
+        if (!orcRow && targetPacId) {
+          const { data: oData2 } = await supabase.from("orcamentos").select("*").eq("paciente_id", targetPacId).order("atualizado_em", { ascending: false }).limit(1);
+          if (oData2 && oData2.length > 0) orcRow = oData2[0];
+        }
+
+        if (orcRow) {
+          const currentSnap = (orcRow.assinatura_paciente || {}) as Record<string, any>;
+          const updatedOrcSnap = {
+            ...currentSnap,
+            contratoId: updatedSnapshot.contratoId || doc.id,
+            contratoStatus: temDentista ? "assinaturas_realizadas" : "aguardando_assinatura_dentista",
+            statusContrato: temDentista ? "assinaturas_realizadas" : "aguardando_assinatura_dentista",
+            contratoFormalizadoEm: temDentista ? dataHoraIso : (currentSnap.contratoFormalizadoEm || null),
+            assinaturaPacienteStatus: "concluida",
+            assinaturaDraStatus: temDentista ? "concluida" : (currentSnap.assinaturaDraStatus || "pendente"),
+          };
+
+          await supabase.from("orcamentos").update({
+            assinatura_paciente: updatedOrcSnap,
+            data_assinatura: currentSnap.data_assinatura || dataHoraIso,
+            atualizado_em: dataHoraIso,
+          }).eq("id", orcRow.id);
+        }
+      } catch (orcUpdErr) {
+        console.warn("[contrato-publico] Erro ao sincronizar orçamento no sign:", orcUpdErr);
+      }
 
       return json({
         ok: true,
@@ -464,6 +501,42 @@ Deno.serve(async (req) => {
           atualizado_em: dataHoraIso,
         });
       } catch (_) {}
+
+      // Atualização automática do orçamento associado no Supabase
+      try {
+        const orcId = updatedSnapshot.orcamentoId || doc.orcamento_id;
+        const targetPacId = doc.paciente_id || updatedSnapshot.pacienteId;
+
+        let orcRow: any = null;
+        if (orcId) {
+          const { data: oData } = await supabase.from("orcamentos").select("*").eq("id", orcId).maybeSingle();
+          if (oData) orcRow = oData;
+        }
+        if (!orcRow && targetPacId) {
+          const { data: oData2 } = await supabase.from("orcamentos").select("*").eq("paciente_id", targetPacId).order("atualizado_em", { ascending: false }).limit(1);
+          if (oData2 && oData2.length > 0) orcRow = oData2[0];
+        }
+
+        if (orcRow) {
+          const currentSnap = (orcRow.assinatura_paciente || {}) as Record<string, any>;
+          const updatedOrcSnap = {
+            ...currentSnap,
+            contratoId: updatedSnapshot.contratoId || doc.id,
+            contratoStatus: temPaciente ? "assinaturas_realizadas" : (currentSnap.contratoStatus || "aguardando_assinatura_paciente"),
+            statusContrato: temPaciente ? "assinaturas_realizadas" : (currentSnap.statusContrato || "aguardando_assinatura_paciente"),
+            contratoFormalizadoEm: temPaciente ? dataHoraIso : (currentSnap.contratoFormalizadoEm || null),
+            assinaturaDraStatus: "concluida",
+            assinaturaPacienteStatus: temPaciente ? "concluida" : (currentSnap.assinaturaPacienteStatus || "pendente"),
+          };
+
+          await supabase.from("orcamentos").update({
+            assinatura_paciente: updatedOrcSnap,
+            atualizado_em: dataHoraIso,
+          }).eq("id", orcRow.id);
+        }
+      } catch (orcUpdErr) {
+        console.warn("[contrato-publico] Erro ao sincronizar orçamento no sign_professional:", orcUpdErr);
+      }
 
       return json({
         ok: true,
@@ -618,13 +691,15 @@ Deno.serve(async (req) => {
       const identificador = doc.itens?.contratoId || doc.id;
       const tipoSufixo = isFormalizado ? "formalizado" : "paciente";
       const filePath = `contratos/${identificador}/contrato_${tipoSufixo}.pdf`;
+      const canonicalFileName = `Contrato_Assinado_${identificador}.pdf`;
+      const canonicalPath = `contratos/${identificador}/${canonicalFileName}`;
 
       // Garante que o bucket privado exista
       try {
         await supabase.storage.createBucket("documentos-pacientes", { public: false });
       } catch (_) {}
 
-      // Upload do arquivo para o bucket privado
+      // Upload do arquivo para o bucket privado (versão sufixo e canônica)
       const { error: uploadErr } = await supabase.storage
         .from("documentos-pacientes")
         .upload(filePath, pdfBytes, {
@@ -636,27 +711,110 @@ Deno.serve(async (req) => {
         throw uploadErr;
       }
 
+      try {
+        await supabase.storage
+          .from("documentos-pacientes")
+          .upload(canonicalPath, pdfBytes, {
+            contentType: "application/pdf",
+            upsert: true,
+          });
+      } catch (_) {}
+
       // Gera URL assinada de curta duração (300 segundos = 5 minutos)
       const { data: signedData } = await supabase.storage
         .from("documentos-pacientes")
-        .createSignedUrl(filePath, 300);
+        .createSignedUrl(canonicalPath, 300);
+
+      const nowIso = new Date().toISOString();
 
       // Atualiza o documento clínico com o caminho do PDF
-      const updatedItens = { ...(doc.itens || {}), pdfPath: filePath };
+      const updatedItens = { ...(doc.itens || {}), pdfPath: canonicalPath };
       await supabase
         .from("documentos_clinicos")
         .update({
-          pdf_path: filePath,
+          pdf_path: canonicalPath,
           itens: updatedItens,
-          atualizado_em: new Date().toISOString(),
+          atualizado_em: nowIso,
         })
         .eq("id", doc.id);
 
+      // ARQUIVAMENTO AUTOMÁTICO EM DOCUMENTOS DO PACIENTE (documentos_paciente)
+      const targetPacId = doc.paciente_id || doc.itens?.pacienteId;
+      const targetUserId = doc.user_id || "clinica";
+
+      if (targetPacId) {
+        try {
+          const { data: existingDp } = await supabase
+            .from("documentos_paciente")
+            .select("id")
+            .eq("paciente_id", targetPacId)
+            .or(`url.eq.${canonicalPath},url.eq.${filePath},nome.ilike.%${identificador}%`)
+            .maybeSingle();
+
+          if (!existingDp) {
+            await supabase.from("documentos_paciente").insert({
+              user_id: targetUserId,
+              paciente_id: targetPacId,
+              nome: `Contrato Odontológico Assinado - ${identificador}`,
+              tipo: "contrato",
+              url: canonicalPath,
+              tamanho: pdfBytes.length,
+              criado_em: nowIso,
+              atualizado_em: nowIso,
+            });
+          } else {
+            await supabase.from("documentos_paciente").update({
+              nome: `Contrato Odontológico Assinado - ${identificador}`,
+              url: canonicalPath,
+              tamanho: pdfBytes.length,
+              atualizado_em: nowIso,
+            }).eq("id", existingDp.id);
+          }
+        } catch (dpErr) {
+          console.warn("[contrato-publico] Erro ao arquivar em documentos_paciente:", dpErr);
+        }
+      }
+
+      // ATUALIZAÇÃO AUTOMÁTICA DO ORÇAMENTO ASSOCIADO
+      try {
+        const orcId = doc.itens?.orcamentoId || doc.orcamento_id;
+        let orcRow: any = null;
+        if (orcId) {
+          const { data: oData } = await supabase.from("orcamentos").select("*").eq("id", orcId).maybeSingle();
+          if (oData) orcRow = oData;
+        }
+        if (!orcRow && targetPacId) {
+          const { data: oData2 } = await supabase.from("orcamentos").select("*").eq("paciente_id", targetPacId).order("atualizado_em", { ascending: false }).limit(1);
+          if (oData2 && oData2.length > 0) orcRow = oData2[0];
+        }
+
+        if (orcRow) {
+          const currentSnap = (orcRow.assinatura_paciente || {}) as Record<string, any>;
+          const updatedOrcSnap = {
+            ...currentSnap,
+            contratoId: identificador,
+            contratoStatus: "assinaturas_realizadas",
+            statusContrato: "assinaturas_realizadas",
+            contratoFormalizadoEm: currentSnap.contratoFormalizadoEm || nowIso,
+            pdfPath: canonicalPath,
+            assinaturaDraStatus: "concluida",
+            assinaturaPacienteStatus: "concluida",
+          };
+
+          await supabase.from("orcamentos").update({
+            assinatura_paciente: updatedOrcSnap,
+            atualizado_em: nowIso,
+          }).eq("id", orcRow.id);
+        }
+      } catch (orcErr) {
+        console.warn("[contrato-publico] Erro ao atualizar orçamento no upload_signed_pdf:", orcErr);
+      }
+
       return json({
         ok: true,
-        pdfPath: filePath,
+        pdfPath: canonicalPath,
         signedUrl: signedData?.signedUrl || null,
-        mensagem: "PDF assinado armazenado com sucesso no Supabase Storage privado",
+        mensagem: "PDF assinado arquivado com sucesso no Supabase Storage e na aba Documentos do Paciente",
       });
     }
 
@@ -969,6 +1127,114 @@ Deno.serve(async (req) => {
         ok: true,
         mensagem: "Autorização de assinatura automática revogada com sucesso.",
         revogadoEm: nowIso,
+      });
+    }
+
+    // =========================================================================
+    // 8. AÇÃO: RECONCILIAR (Reconciliação retroativa de contratos já assinados)
+    // =========================================================================
+    if (action === "reconciliar") {
+      const nowIso = new Date().toISOString();
+      const { data: contratos } = await supabase
+        .from("documentos_clinicos")
+        .select("*")
+        .eq("tipo", "contrato");
+
+      const reconciliados: any[] = [];
+
+      for (const c of (contratos || [])) {
+        const snap = (typeof c.itens === "object" && c.itens) ? c.itens : {};
+        const temPaciente = Boolean(c.assinado_em || snap.assinaturaPaciente?.assinaturaData || snap.status === "assinado" || snap.status === "formalizado");
+        const temDentista = Boolean(snap.assinaturaDentista?.assinaturaData || snap.statusAssinaturaDentista === "assinado");
+        const identificador = snap.contratoId || c.id;
+        const pacId = c.paciente_id || snap.pacienteId;
+        const orcId = snap.orcamentoId || c.orcamento_id;
+
+        if (temPaciente) {
+          // 1. Atualiza status formalizado em documentos_clinicos se ambos assinaram
+          if (temDentista && c.status !== "formalizado") {
+            snap.status = "formalizado";
+            snap.isFormalizadoTotal = true;
+            await supabase.from("documentos_clinicos").update({
+              status: "formalizado",
+              itens: snap,
+              atualizado_em: nowIso,
+            }).eq("id", c.id);
+          }
+
+          // 2. Localiza e atualiza o orçamento
+          let orcRow: any = null;
+          if (orcId) {
+            const { data } = await supabase.from("orcamentos").select("*").eq("id", orcId).maybeSingle();
+            if (data) orcRow = data;
+          }
+          if (!orcRow && pacId) {
+            const { data } = await supabase.from("orcamentos").select("*").eq("paciente_id", pacId).order("atualizado_em", { ascending: false }).limit(1);
+            if (data && data.length > 0) orcRow = data[0];
+          }
+
+          const canonicalPath = c.pdf_path || snap.pdfPath || `contratos/${identificador}/Contrato_Assinado_${identificador}.pdf`;
+
+          if (orcRow) {
+            const currentSnap = (orcRow.assinatura_paciente || {}) as Record<string, any>;
+            const formalizadoEm = c.assinado_em || snap.assinaturaPaciente?.dataHora || currentSnap.contratoFormalizadoEm || nowIso;
+            const updatedOrcSnap = {
+              ...currentSnap,
+              contratoId: identificador,
+              contratoStatus: temDentista ? "assinaturas_realizadas" : "aguardando_assinatura_dentista",
+              statusContrato: temDentista ? "assinaturas_realizadas" : "aguardando_assinatura_dentista",
+              contratoFormalizadoEm: temDentista ? formalizadoEm : null,
+              assinaturaPacienteStatus: "concluida",
+              assinaturaDraStatus: temDentista ? "concluida" : (currentSnap.assinaturaDraStatus || "pendente"),
+              pdfPath: canonicalPath,
+            };
+
+            await supabase.from("orcamentos").update({
+              assinatura_paciente: updatedOrcSnap,
+              data_assinatura: currentSnap.data_assinatura || formalizadoEm,
+              atualizado_em: nowIso,
+            }).eq("id", orcRow.id);
+          }
+
+          // 3. Garante registro em documentos_paciente
+          if (pacId) {
+            const { data: existingDp } = await supabase
+              .from("documentos_paciente")
+              .select("id")
+              .eq("paciente_id", pacId)
+              .or(`url.eq.${canonicalPath},nome.ilike.%${identificador}%`)
+              .maybeSingle();
+
+            if (!existingDp) {
+              await supabase.from("documentos_paciente").insert({
+                user_id: c.user_id || orcRow?.user_id || "clinica",
+                paciente_id: pacId,
+                nome: `Contrato Odontológico Assinado - ${identificador}`,
+                tipo: "contrato",
+                url: canonicalPath,
+                tamanho: 50000,
+                criado_em: c.assinado_em || nowIso,
+                atualizado_em: nowIso,
+              });
+            }
+          }
+
+          reconciliados.push({
+            id: c.id,
+            identificador,
+            pacienteId: pacId,
+            orcamentoId: orcRow?.id,
+            temDentista,
+            temPaciente,
+          });
+        }
+      }
+
+      return json({
+        ok: true,
+        mensagem: "Reconciliação de contratos concluída com sucesso",
+        total: reconciliados.length,
+        reconciliados,
       });
     }
 

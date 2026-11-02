@@ -29,7 +29,9 @@ import {
   enviarNovaPropostaOrcamento,
 } from '@/utils/orcamentoEngine';
 import { useDentalSystem } from '@/context/DentalSystemContext';
-import { isContratoLenteResina, isContratoEndodontia, mapearDadosContrato, gerarLinkAssinaturaContrato, parseBrMoney, garantirContratoPersistido, emitirContratoPersistido } from '@/utils/contratoEngine';
+import { isContratoLenteResina, isContratoEndodontia, mapearDadosContrato, gerarLinkAssinaturaContrato, parseBrMoney, garantirContratoPersistido, emitirContratoPersistido, gerarHtmlContrato } from '@/utils/contratoEngine';
+import { downloadHtmlAsPdf } from '@/utils/pdfDownload';
+import { reconciliarContratosEOrcamentos } from '@/utils/reconciliacaoContratos';
 import { somarMesesSeguro } from '@/utils/documentoFormat';
 import { downloadTcleLentesResinaPdf } from '@/utils/tcleLentesResina';
 import { useMaquinasCartao, calcularTaxaCartao, extrairDetalhesCartaoDeTexto } from '@/hooks/useMaquinasCartao';
@@ -127,6 +129,20 @@ const PatientOrcamentos = ({ patient }: Props) => {
   const [contratoModalOpen, setContratoModalOpen] = useState(false);
   const [contratoOrcamento, setContratoOrcamento] = useState<Orcamento | null>(null);
   const [apresentarOrcamento, setApresentarOrcamento] = useState<Orcamento | null>(null);
+
+  // Auto-reconciliação de contratos e orçamentos assinados com Supabase
+  useEffect(() => {
+    if (!patient?.id || loading) return;
+    const temAprovado = (orcamentos || []).some((o) => o.status === 'aprovado');
+    const temContrato = (documentos || []).some((d) => d.tipo === 'contrato');
+    if (temAprovado && temContrato) {
+      void reconciliarContratosEOrcamentos(patient.id).then((res) => {
+        if (res.orcamentosAtualizados > 0) {
+          reload?.();
+        }
+      });
+    }
+  }, [patient?.id, loading, orcamentos?.length, documentos?.length]);
 
   // Aprovação com lançamento financeiro e fechamento de contrato
   const [aprovandoOrcamento, setAprovandoOrcamento] = useState<Orcamento | null>(null);
@@ -2188,17 +2204,80 @@ const PatientOrcamentos = ({ patient }: Props) => {
         ) : orcamentos.length === 0 ? (
           <p className="text-sm text-muted-foreground">Nenhum orçamento criado para este paciente.</p>
         ) : (
-          (orcamentos || []).filter(Boolean).map((o) => (
-            <div key={o.id} className="rounded-lg border border-border p-3 space-y-2">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="font-medium truncate">{o.titulo}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {(o.itens || []).length} procedimento(s) • {formatMoney(o.total || 0)}
-                  </p>
+          (orcamentos || []).filter(Boolean).map((o) => {
+            const contObj = (documentos || []).find(
+              (d) => d.tipo === 'contrato' && (
+                (o.contratoId && (d.id === o.contratoId || d.identificador === o.contratoId || (d.itens as any)?.contratoId === o.contratoId)) ||
+                (d.itens as any)?.orcamentoId === o.id ||
+                d.orcamentoId === o.id ||
+                (d.pacienteId === o.pacienteId && (o.contratoId || o.status === 'aprovado'))
+              )
+            );
+
+            const temAssinaturaDra = Boolean(
+              (o as any).assinaturaDraStatus === 'concluida' ||
+              o.snapshotAprovacao?.assinaturaDraStatus === 'concluida' ||
+              (o.assinaturaPaciente as any)?.assinaturaDraStatus === 'concluida' ||
+              o.snapshotAprovacao?.assinaturaDentista ||
+              (contObj?.itens as any)?.assinaturaDentista?.assinaturaData ||
+              (contObj?.itens as any)?.statusAssinaturaDentista === 'assinado' ||
+              contObj?.conteudo?.assinaturaDentista
+            );
+
+            const temAssinaturaPaciente = Boolean(
+              (o as any).assinaturaPacienteStatus === 'concluida' ||
+              (o.assinaturaPaciente as any)?.assinaturaPacienteStatus === 'concluida' ||
+              o.snapshotAprovacao?.assinaturaPaciente ||
+              contObj?.assinadoEm ||
+              (contObj?.itens as any)?.assinaturaPaciente?.assinaturaData ||
+              (contObj?.itens as any)?.statusAssinaturaPaciente === 'assinado' ||
+              contObj?.conteudo?.assinaturaPaciente ||
+              contObj?.status === 'assinado' ||
+              contObj?.status === 'formalizado' ||
+              (contObj?.itens as any)?.status === 'assinado' ||
+              (contObj?.itens as any)?.status === 'formalizado'
+            );
+
+            const isContratoTotalmenteAssinado = Boolean(
+              (temAssinaturaDra && temAssinaturaPaciente) ||
+              (o as any).contratoStatus === 'assinaturas_realizadas' ||
+              (o.assinaturaPaciente as any)?.contratoStatus === 'assinaturas_realizadas' ||
+              (contObj?.itens as any)?.status === 'formalizado' ||
+              (contObj?.itens as any)?.isFormalizadoTotal
+            );
+
+            const temContratoEmitido = Boolean(o.contratoId || contObj);
+            const idContratoExibicao = o.contratoId || contObj?.identificador || contObj?.id || 'Emitido';
+
+            const tokenContrato = o.contratoToken || contObj?.tokenAssinatura || (contObj?.itens as any)?.token;
+            const linkContratoPublico = temContratoEmitido && tokenContrato
+              ? `https://app.lentesemresinamaceio.com.br/contrato/${idContratoExibicao}?token=${encodeURIComponent(tokenContrato)}`
+              : null;
+
+            const dataFormalizacao = (o as any).contratoFormalizadoEm ||
+              (o.assinaturaPaciente as any)?.contratoFormalizadoEm ||
+              (contObj?.itens as any)?.assinaturaPaciente?.dataHora ||
+              contObj?.assinadoEm ||
+              o.aprovadoEm;
+
+            return (
+              <div key={o.id} className="rounded-lg border border-border p-3 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">{o.titulo}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {(o.itens || []).length} procedimento(s) • {formatMoney(o.total || 0)}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                    {renderStatusBadge(o?.status, o?.versao)}
+                    {isContratoTotalmenteAssinado && (
+                      <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] px-2 py-0.5 flex items-center gap-1">
+                        <CheckCircle2 className="h-3 w-3" /> Assinaturas realizadas
+                      </Badge>
+                    )}
+                  </div>
                 </div>
-                {renderStatusBadge(o?.status, o?.versao)}
-              </div>
 
               {o.status === 'ajuste_solicitado' && (() => {
                 const ultAjuste = Array.isArray(o.solicitacoesAjuste) && o.solicitacoesAjuste.length > 0
@@ -2389,161 +2468,151 @@ const PatientOrcamentos = ({ patient }: Props) => {
               </div>
 
               {/* Painel Administrativo de Status Pós-Aprovação e Contrato */}
-              {o.status === 'aprovado' && (() => {
-                const contObj = (documentos || []).find(
-                  (d) => d.tipo === 'contrato' && ((o.contratoId && (d.id === o.contratoId || d.identificador === o.contratoId)) || d.orcamentoId === o.id)
-                );
-
-                const temContratoEmitido = Boolean(o.contratoId || contObj);
-                const idContratoExibicao = o.contratoId || contObj?.identificador || contObj?.id || 'Emitido';
-
-                const temAssinaturaDra = Boolean(
-                  (o as any).assinaturaDraStatus === 'concluida' ||
-                  o.snapshotAprovacao?.assinaturaDraStatus === 'concluida' ||
-                  o.snapshotAprovacao?.assinaturaDentista ||
-                  contObj?.conteudo?.assinaturaDentista
-                );
-
-                const temAssinaturaPaciente = Boolean(
-                  o.snapshotAprovacao?.assinaturaPaciente ||
-                  contObj?.conteudo?.assinaturaPaciente ||
-                  contObj?.status === 'assinado' ||
-                  contObj?.status === 'formalizado'
-                );
-
-                const tokenContrato = o.contratoToken || contObj?.tokenAssinatura || contObj?.token;
-                const linkContratoPublico = temContratoEmitido && tokenContrato
-                  ? `https://app.lentesemresinamaceio.com.br/contrato/${idContratoExibicao}?token=${encodeURIComponent(tokenContrato)}`
-                  : null;
-
-                return (
-                  <div className="p-3 rounded-xl border border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/20 space-y-2.5 my-2">
-                    <div className="flex items-center justify-between gap-2 flex-wrap pb-1.5 border-b border-emerald-500/20">
-                      <div className="flex items-center gap-2">
-                        <div className="h-6 w-6 rounded-md bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-                          <CheckCircle2 className="h-3.5 w-3.5" />
-                        </div>
-                        <span className="font-bold text-xs text-emerald-950 dark:text-emerald-100">
-                          Fluxo de Contrato & Assinatura Digital
-                        </span>
+              {o.status === 'aprovado' && (
+                <div className="p-3 rounded-xl border border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/20 space-y-2.5 my-2">
+                  <div className="flex items-center justify-between gap-2 flex-wrap pb-1.5 border-b border-emerald-500/20">
+                    <div className="flex items-center gap-2">
+                      <div className="h-6 w-6 rounded-md bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                        <CheckCircle2 className="h-3.5 w-3.5" />
                       </div>
-                      <Badge className="bg-emerald-600 text-white text-[9px] px-2 py-0.5 font-bold">
-                        {temAssinaturaPaciente && temAssinaturaDra ? 'Contrato formalizado' : 'Aguardando assinatura do paciente'}
-                      </Badge>
+                      <span className="font-bold text-xs text-emerald-950 dark:text-emerald-100">
+                        Fluxo de Contrato & Assinatura Digital
+                      </span>
+                    </div>
+                    <Badge className={`${isContratoTotalmenteAssinado ? 'bg-emerald-600' : 'bg-amber-600'} text-white text-[9px] px-2.5 py-0.5 font-bold flex items-center gap-1`}>
+                      {isContratoTotalmenteAssinado ? (
+                        <>
+                          <CheckCircle2 className="h-3 w-3" /> ASSINATURAS REALIZADAS
+                        </>
+                      ) : (
+                        <>
+                          <Clock className="h-3 w-3" /> Aguardando assinatura do paciente
+                        </>
+                      )}
+                    </Badge>
+                  </div>
+
+                  {/* Os 4 Status Administrativos Exigidos */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                    {/* 1. Status do orçamento: Aprovado */}
+                    <div className="p-2 rounded-lg bg-background/90 border border-emerald-500/30 space-y-0.5">
+                      <span className="text-[10px] uppercase font-bold text-muted-foreground block">
+                        Status do orçamento
+                      </span>
+                      <div className="flex items-center gap-1 font-bold text-emerald-700 dark:text-emerald-400">
+                        <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                        <span>Aprovado</span>
+                      </div>
                     </div>
 
-                    {/* Os 4 Status Administrativos Exigidos */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                      {/* 1. Orçamento: Aprovado */}
-                      <div className="p-2 rounded-lg bg-background/90 border border-emerald-500/30 space-y-0.5">
-                        <span className="text-[10px] uppercase font-bold text-muted-foreground block">
-                          Orçamento
+                    {/* 2. Status do contrato: Assinaturas realizadas / Emitido */}
+                    <div className="p-2 rounded-lg bg-background/90 border border-emerald-500/30 space-y-0.5">
+                      <span className="text-[10px] uppercase font-bold text-muted-foreground block">
+                        Status do contrato
+                      </span>
+                      <div className="flex items-center gap-1 font-bold text-emerald-700 dark:text-emerald-400 truncate">
+                        <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate">
+                          {isContratoTotalmenteAssinado ? 'Assinaturas realizadas' : (temContratoEmitido ? `Emitido (${idContratoExibicao})` : 'Pendente de emissão')}
                         </span>
+                      </div>
+                    </div>
+
+                    {/* 3. Assinatura da profissional: Concluída (ou Pendente) */}
+                    <div className="p-2 rounded-lg bg-background/90 border border-border space-y-0.5">
+                      <span className="text-[10px] uppercase font-bold text-muted-foreground block">
+                        Assinatura profissional
+                      </span>
+                      {temAssinaturaDra ? (
                         <div className="flex items-center gap-1 font-bold text-emerald-700 dark:text-emerald-400">
                           <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                          <span>Aprovado</span>
+                          <span>Concluída</span>
                         </div>
-                      </div>
-
-                      {/* 2. Contrato: Emitido */}
-                      <div className="p-2 rounded-lg bg-background/90 border border-emerald-500/30 space-y-0.5">
-                        <span className="text-[10px] uppercase font-bold text-muted-foreground block">
-                          Contrato
-                        </span>
-                        <div className="flex items-center gap-1 font-bold text-emerald-700 dark:text-emerald-400 truncate">
-                          <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                          <span className="truncate">{temContratoEmitido ? `Emitido (${idContratoExibicao})` : 'Emitido'}</span>
+                      ) : (
+                        <div className="flex items-center gap-1 font-bold text-amber-600 dark:text-amber-400">
+                          <Clock className="h-3.5 w-3.5 shrink-0" />
+                          <span>Pendente</span>
                         </div>
-                      </div>
-
-                      {/* 3. Assinatura da Dra.: Concluída (ou Pendente) */}
-                      <div className="p-2 rounded-lg bg-background/90 border border-border space-y-0.5">
-                        <span className="text-[10px] uppercase font-bold text-muted-foreground block">
-                          Assinatura da Dra.
-                        </span>
-                        {temAssinaturaDra ? (
-                          <div className="flex items-center gap-1 font-bold text-emerald-700 dark:text-emerald-400">
-                            <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                            <span>Concluída</span>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1 font-bold text-amber-600 dark:text-amber-400">
-                            <Clock className="h-3.5 w-3.5 shrink-0" />
-                            <span>Pendente</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* 4. Assinatura do paciente: Pendente (ou Concluída) */}
-                      <div className="p-2 rounded-lg bg-background/90 border border-border space-y-0.5">
-                        <span className="text-[10px] uppercase font-bold text-muted-foreground block">
-                          Assinatura do paciente
-                        </span>
-                        {temAssinaturaPaciente ? (
-                          <div className="flex items-center gap-1 font-bold text-emerald-700 dark:text-emerald-400">
-                            <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                            <span>Concluída</span>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1 font-bold text-amber-600 dark:text-amber-400">
-                            <Clock className="h-3.5 w-3.5 shrink-0" />
-                            <span>Pendente</span>
-                          </div>
-                        )}
-                      </div>
+                      )}
                     </div>
 
-                    {/* Ações Rápidas do Contrato */}
-                    <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-emerald-500/20">
-                      {linkContratoPublico && (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-xs border-emerald-400 text-emerald-800 dark:text-emerald-200 hover:bg-emerald-100/50 gap-1"
-                          onClick={() => {
-                            navigator.clipboard.writeText(linkContratoPublico);
-                            toast.success('Link do contrato copiado para a área de transferência!');
-                          }}
-                        >
-                          <LinkIcon className="h-3.5 w-3.5" />
-                          Copiar Link do Contrato
-                        </Button>
-                      )}
-
-                      {linkContratoPublico && (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-xs border-emerald-400 text-emerald-800 dark:text-emerald-200 hover:bg-emerald-100/50 gap-1"
-                          onClick={() => {
-                            window.open(linkContratoPublico, '_blank');
-                          }}
-                        >
-                          <Eye className="h-3.5 w-3.5 text-primary" />
-                          Abrir Contrato como Paciente
-                        </Button>
-                      )}
-
-                      {!temAssinaturaDra && (
-                        <Button
-                          type="button"
-                          size="sm"
-                          className="h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white font-semibold gap-1 shadow-xs"
-                          onClick={() => {
-                            setContratoOrcamento(o);
-                            setContratoModalOpen(true);
-                          }}
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                          Assinar como Dra. Responsável
-                        </Button>
+                    {/* 4. Assinatura do paciente: Concluída (ou Pendente) */}
+                    <div className="p-2 rounded-lg bg-background/90 border border-border space-y-0.5">
+                      <span className="text-[10px] uppercase font-bold text-muted-foreground block">
+                        Assinatura paciente
+                      </span>
+                      {temAssinaturaPaciente ? (
+                        <div className="flex items-center gap-1 font-bold text-emerald-700 dark:text-emerald-400">
+                          <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                          <span>Concluída</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1 font-bold text-amber-600 dark:text-amber-400">
+                          <Clock className="h-3.5 w-3.5 shrink-0" />
+                          <span>Pendente</span>
+                        </div>
                       )}
                     </div>
                   </div>
-                );
-              })()}
+
+                  {/* Data de Formalização */}
+                  {isContratoTotalmenteAssinado && dataFormalizacao && (
+                    <div className="text-[11px] text-emerald-800 dark:text-emerald-200 bg-emerald-100/60 dark:bg-emerald-950/40 px-2.5 py-1.5 rounded-lg flex items-center justify-between flex-wrap gap-1">
+                      <span><strong>Data de formalização:</strong> {new Date(dataFormalizacao).toLocaleString('pt-BR')}</span>
+                      <span className="text-[10px] text-emerald-700/80 dark:text-emerald-400/80">Contrato formalizado e válido juridicamente</span>
+                    </div>
+                  )}
+
+                  {/* Ações Rápidas do Contrato */}
+                  <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-emerald-500/20">
+                    {linkContratoPublico && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs border-emerald-400 text-emerald-800 dark:text-emerald-200 hover:bg-emerald-100/50 gap-1"
+                        onClick={() => {
+                          navigator.clipboard.writeText(linkContratoPublico);
+                          toast.success('Link do contrato copiado para a área de transferência!');
+                        }}
+                      >
+                        <LinkIcon className="h-3.5 w-3.5" />
+                        Copiar Link do Contrato
+                      </Button>
+                    )}
+
+                    {linkContratoPublico && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs border-emerald-400 text-emerald-800 dark:text-emerald-200 hover:bg-emerald-100/50 gap-1"
+                        onClick={() => {
+                          window.open(linkContratoPublico, '_blank');
+                        }}
+                      >
+                        <Eye className="h-3.5 w-3.5 text-primary" />
+                        Abrir Contrato como Paciente
+                      </Button>
+                    )}
+
+                    {!temAssinaturaDra && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white font-semibold gap-1 shadow-xs"
+                        onClick={() => {
+                          setContratoOrcamento(o);
+                          setContratoModalOpen(true);
+                        }}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        Assinar como Dra. Responsável
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
 
               <div className="flex flex-wrap gap-2">
                 <Button
@@ -2589,18 +2658,65 @@ const PatientOrcamentos = ({ patient }: Props) => {
                   <Eye className="h-4 w-4 mr-1 text-primary" /> Como Paciente
                 </Button>
 
-                <Button
-                  size="sm"
-                  variant={o?.status === 'aprovado' ? 'default' : 'outline'}
-                  className={o?.status === 'aprovado' ? 'bg-primary text-primary-foreground hover:bg-primary/90' : ''}
-                  onClick={() => {
-                    setContratoOrcamento(o);
-                    setContratoModalOpen(true);
-                  }}
-                  title="Gerar contrato formal com base neste orçamento"
-                >
-                  <FileSignature className="h-4 w-4 mr-1" /> {o?.status === 'aprovado' ? 'Gerar/Ver Contrato' : 'Contrato'}
-                </Button>
+                {/* Botão Dinâmico de Contrato conforme Estado Real */}
+                {isContratoTotalmenteAssinado ? (
+                  <>
+                    <Button
+                      size="sm"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs gap-1.5"
+                      onClick={() => {
+                        setContratoOrcamento(o);
+                        setContratoModalOpen(true);
+                      }}
+                      title="Ver contrato formalizado com todas as assinaturas concluídas"
+                    >
+                      <CheckCircle2 className="h-4 w-4 text-white" /> Ver Contrato Assinado
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-emerald-500/50 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 gap-1"
+                      onClick={async () => {
+                        if (contObj?.itens) {
+                          const html = gerarHtmlContrato(contObj.itens);
+                          await downloadHtmlAsPdf(html, `Contrato_Assinado_${idContratoExibicao}.pdf`);
+                        } else {
+                          setContratoOrcamento(o);
+                          setContratoModalOpen(true);
+                        }
+                      }}
+                      title="Baixar PDF oficial do contrato formalizado"
+                    >
+                      <Download className="h-4 w-4" /> Baixar PDF
+                    </Button>
+                  </>
+                ) : temContratoEmitido ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-amber-400 text-amber-700 hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-950/30 gap-1.5"
+                    onClick={() => {
+                      setContratoOrcamento(o);
+                      setContratoModalOpen(true);
+                    }}
+                    title="Ver contrato emitido - aguardando assinatura"
+                  >
+                    <Clock className="h-4 w-4 text-amber-600" /> Ver Contrato — Aguardando assinatura
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant={o?.status === 'aprovado' ? 'default' : 'outline'}
+                    className={o?.status === 'aprovado' ? 'bg-primary text-primary-foreground hover:bg-primary/90 gap-1.5' : 'gap-1.5'}
+                    onClick={() => {
+                      setContratoOrcamento(o);
+                      setContratoModalOpen(true);
+                    }}
+                    title="Gerar contrato formal com base neste orçamento"
+                  >
+                    <FileSignature className="h-4 w-4" /> Gerar Contrato
+                  </Button>
+                )}
 
                 {o?.status === 'aprovado' && (
                   <Button

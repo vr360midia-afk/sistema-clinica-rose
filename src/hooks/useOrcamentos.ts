@@ -45,6 +45,11 @@ export interface Orcamento {
   fotosPlanejamento?: any[];
   contratoId?: string | null;
   contratoToken?: string | null;
+  contratoStatus?: string | null;
+  contratoFormalizadoEm?: string | null;
+  assinaturaDraStatus?: string | null;
+  assinaturaPacienteStatus?: string | null;
+  pdfPath?: string | null;
 
   parceiroId?: string | null;
   parceiroNome?: string | null;
@@ -81,6 +86,11 @@ const rowToOrcamento = (row: any): Orcamento | null => {
     fotosPlanejamento: Array.isArray(row.fotos_planejamento) ? row.fotos_planejamento : (snap.fotosPlanejamento || []),
     contratoId: row.contrato_id || snap.contratoId,
     contratoToken: row.contrato_token || snap.contratoToken,
+    contratoStatus: row.contrato_status || snap.contratoStatus || snap.statusContrato || null,
+    contratoFormalizadoEm: row.contrato_formalizado_em || snap.contratoFormalizadoEm || null,
+    assinaturaDraStatus: row.assinatura_dra_status || snap.assinaturaDraStatus || null,
+    assinaturaPacienteStatus: row.assinatura_paciente_status || snap.assinaturaPacienteStatus || null,
+    pdfPath: row.pdf_path || snap.pdfPath || null,
     parceiroId: row.parceiro_id,
     parceiroNome: row.parceiro_nome,
     parceiroTipoRepasse: row.parceiro_tipo_repasse,
@@ -148,6 +158,11 @@ export const useOrcamentos = (pacienteId?: string) => {
       fotosPlanejamento: o.fotosPlanejamento || [],
       contratoId: o.contratoId,
       contratoToken: o.contratoToken,
+      contratoStatus: o.contratoStatus,
+      contratoFormalizadoEm: o.contratoFormalizadoEm,
+      assinaturaDraStatus: o.assinaturaDraStatus,
+      assinaturaPacienteStatus: o.assinaturaPacienteStatus,
+      pdfPath: o.pdfPath,
       versao: o.versao || 1,
       solicitacoesAjuste: o.solicitacoesAjuste || [],
       historicoVersoes: o.historicoVersoes || [],

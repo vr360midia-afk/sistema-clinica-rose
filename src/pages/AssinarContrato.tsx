@@ -73,6 +73,7 @@ import {
 import { downloadHtmlAsPdf, generateHtmlPdfBase64 } from '@/utils/pdfDownload';
 import { openWhatsApp } from '@/lib/whatsapp';
 import { supabase } from '@/integrations/supabase/client';
+import { reconciliarContratosEOrcamentos } from '@/utils/reconciliacaoContratos';
 
 const Shell = ({ children }: { children: React.ReactNode }) => (
   <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-start py-8 px-3 sm:px-6">
@@ -225,6 +226,12 @@ export default function AssinarContrato() {
 
       if (uploadRes?.signedUrl) {
         setSignedPdfUrl(uploadRes.signedUrl);
+      }
+
+      // Reconciliação imediata garantindo orçamento e documentos do paciente sincronizados no Supabase
+      const targetPacId = snap.paciente?.id || (snap as any).pacienteId;
+      if (targetPacId) {
+        void reconciliarContratosEOrcamentos(targetPacId);
       }
     } catch (e) {
       console.warn('Sincronização de PDF no Supabase Storage em segundo plano:', e);

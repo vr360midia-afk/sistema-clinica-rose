@@ -180,9 +180,12 @@ export interface DocumentoPaciente extends BaseEntity {
   analiseIa?: string;
   analiseDados?: any;
   analiseStatus?: 'pendente' | 'processando' | 'concluida' | 'erro';
+  contratoId?: string;
+  orcamentoId?: string;
+  assinadoEm?: string;
 }
 
-export type TipoDocumento = 'foto' | 'raio-x' | 'exame' | 'receita' | 'atestado' | 'comprovante' | 'outro';
+export type TipoDocumento = 'foto' | 'raio-x' | 'exame' | 'receita' | 'atestado' | 'comprovante' | 'outro' | 'contrato';
 
 
 
