@@ -68,3 +68,4 @@ Caso ocorra qualquer divergência durante a publicação, os scripts de reversã
 
 * `backups/rollback/rollback_blindagem_seguranca_v3.sql`: reverte as alterações mantendo ativa a proteção compatível de imutabilidade para contratos já formalizados.
 * `backups/rollback/rollback_agendamento_reprocessamento_pdf.sql`: remove o agendamento `pg_cron` e funções associadas sem apagar tarefas, contratos ou PDFs.
+

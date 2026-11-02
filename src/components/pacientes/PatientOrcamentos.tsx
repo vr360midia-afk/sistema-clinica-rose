@@ -2752,7 +2752,8 @@ const PatientOrcamentos = ({ patient }: Props) => {
                 </Button>
               </div>
             </div>
-          ))
+          );
+        })
         )}
       </CardContent>
 

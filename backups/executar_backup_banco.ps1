@@ -34,3 +34,4 @@ Write-Host "`n==================================================================
 Write-Host "ARQUIVOS DE BACKUP GERADOS COM SUCESSO EM: $DbDir" -ForegroundColor Green
 Write-Host "=============================================================================="
 Get-ChildItem -Path $DbDir | Select-Object Name, Length, LastWriteTime
+
