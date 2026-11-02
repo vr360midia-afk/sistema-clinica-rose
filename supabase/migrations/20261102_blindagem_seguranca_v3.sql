@@ -19,6 +19,13 @@ ALTER TABLE public.documentos_clinicos
 ALTER TABLE public.documentos_clinicos 
   ADD COLUMN IF NOT EXISTS hash_integridade text;
 
+-- Garante colunas clinica_id e valor_total para integridade multi-tenant e auditoria financeira
+ALTER TABLE public.documentos_clinicos 
+  ADD COLUMN IF NOT EXISTS clinica_id uuid;
+
+ALTER TABLE public.documentos_clinicos 
+  ADD COLUMN IF NOT EXISTS valor_total numeric;
+
 -- Preservação integral de contratos históricos: Não executa UPDATE em identificador nem clinica_id.
 -- Preserva todos os documentos legados intactos com seus identificadores, assinaturas e links originais.
 

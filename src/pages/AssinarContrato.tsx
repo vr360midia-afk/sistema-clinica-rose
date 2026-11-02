@@ -831,18 +831,7 @@ export default function AssinarContrato() {
       let persistiuRemoto = false;
       if (contractId && contractToken) {
         try {
-          // 1.1 Garante que os dados completos do snapshot (incluindo o traço gráfico/base64 da assinatura) estejam gravados
-          await supabase.functions.invoke('contrato-publico', {
-            body: {
-              action: 'save',
-              id: contractId,
-              token: contractToken,
-              pacienteNome: updatedSnapshot.pacienteNome || updatedSnapshot.paciente?.nome,
-              snapshot: updatedSnapshot,
-            },
-          }).catch(() => {});
-
-          // 1.2 Formaliza a assinatura definitiva no backend (action: 'sign' bloqueia reassinatura e atualiza assinado_em)
+          // 1. Formaliza a assinatura definitiva no backend (action: 'sign' bloqueia reassinatura e atualiza assinado_em)
           const { data: signRes, error: signErr } = await supabase.functions.invoke('contrato-publico', {
             body: {
               action: 'sign',

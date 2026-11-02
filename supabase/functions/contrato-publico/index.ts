@@ -554,7 +554,6 @@ async function executarArquivamentoPdfServidor(
     await supabase
       .from("documentos_clinicos")
       .update({
-        pdf_path: canonicalPath,
         itens: finalItens,
         atualizado_em: dataHoraIso,
       })
@@ -729,8 +728,8 @@ Deno.serve(async (req) => {
         const { error: updErr } = await supabase.from("documentos_clinicos").update({
           paciente_nome: pacienteNome,
           paciente_id: pacienteId,
-          titulo,
-          conteudo,
+          titulo: body.titulo ? titulo : (existingDoc.titulo || titulo),
+          conteudo: (body.conteudo || body.html) ? conteudo : (existingDoc.conteudo || conteudo),
           itens: snap,
           atualizado_em: new Date().toISOString(),
         }).eq("id", existingDoc.id);
@@ -919,7 +918,6 @@ Deno.serve(async (req) => {
       const { error: updateErr } = await supabase
         .from("documentos_clinicos")
         .update({
-          status: temDentista ? "formalizado" : "assinado",
           assinado_em: dataHoraIso,
           assinante_nome: signerName || doc.paciente_nome || "Paciente",
           assinatura_data: signature,
@@ -1721,7 +1719,6 @@ Deno.serve(async (req) => {
             snap.status = "formalizado";
             snap.isFormalizadoTotal = true;
             await supabase.from("documentos_clinicos").update({
-              status: "formalizado",
               itens: snap,
               atualizado_em: nowIso,
             }).eq("id", c.id);

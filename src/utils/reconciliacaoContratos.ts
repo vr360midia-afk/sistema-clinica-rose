@@ -76,7 +76,6 @@ export async function reconciliarContratosEOrcamentos(pacienteId?: string): Prom
           await supabase
             .from('documentos_clinicos')
             .update({
-              status: 'formalizado',
               assinado_em: doc.assinado_em || formalizadoEm,
               itens: { ...snap, status: 'formalizado', isFormalizadoTotal: true },
               atualizado_em: nowIso,
