@@ -8,7 +8,7 @@
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- ------------------------------------------------------------------------------
--- 1. IDENTIFICADORES DETERMINÍSTICOS E MAPEAMENTO SEGURO DE CONTRATOS HISTÓRICOS
+-- 1. IDENTIFICADORES DETERMINÍSTICOS E RESOLUÇÃO SEGURA DE CONTRATOS HISTÓRICOS
 -- ------------------------------------------------------------------------------
 
 -- Garante a coluna identificador em documentos_clinicos
@@ -18,6 +18,15 @@ ALTER TABLE public.documentos_clinicos
 -- Garante coluna hash_integridade para validação criptográfica
 ALTER TABLE public.documentos_clinicos 
   ADD COLUMN IF NOT EXISTS hash_integridade text;
+
+-- Resolução segura e determinística da titularidade de contratos legados sem clinica_id
+UPDATE public.documentos_clinicos dc
+SET clinica_id = COALESCE(
+  dc.clinica_id,
+  dc.user_id,
+  (SELECT p.clinica_id FROM public.pacientes p WHERE p.id = dc.paciente_id AND p.clinica_id IS NOT NULL LIMIT 1)
+)
+WHERE dc.clinica_id IS NULL AND dc.tipo = 'contrato';
 
 -- Preenche identificador de forma segura e não colidente para registros legados que estejam nulos
 DO $$
@@ -107,7 +116,7 @@ ALTER TABLE public.user_roles
 CREATE INDEX IF NOT EXISTS idx_user_roles_user_clinica 
   ON public.user_roles (user_id, clinica_id);
 
--- Função segura com isolamento estrito por clínica (sem permissão universal arbitrária)
+-- Função segura com isolamento estrito por clínica (sem acesso universal por clinica_id IS NULL)
 CREATE OR REPLACE FUNCTION public.usuario_possui_perfil_clinica(
   p_user_id uuid,
   p_clinica_id uuid,
@@ -133,7 +142,7 @@ BEGIN
     IF NOT EXISTS (
       SELECT 1 FROM public.user_roles ur 
       WHERE ur.user_id = v_caller AND lower(ur.role) = 'admin'
-        AND (p_clinica_id IS NULL OR ur.clinica_id = p_clinica_id)
+        AND p_clinica_id IS NOT NULL AND ur.clinica_id = p_clinica_id
     ) AND (p_clinica_id IS NULL OR v_caller <> p_clinica_id) THEN
       RETURN false;
     END IF;
@@ -144,15 +153,13 @@ BEGIN
     RETURN true;
   END IF;
 
-  -- 2. Verifica vínculo estrito na tabela user_roles vinculada à clínica específica
+  -- 2. Verifica vínculo estrito na tabela user_roles vinculada à clínica específica (sem permissão universal arbitrária)
   SELECT EXISTS (
     SELECT 1 FROM public.user_roles
     WHERE user_id = p_user_id
       AND lower(role) = lower(p_role)
-      AND (
-        (p_clinica_id IS NOT NULL AND clinica_id = p_clinica_id)
-        OR (p_clinica_id IS NULL AND clinica_id IS NULL)
-      )
+      AND p_clinica_id IS NOT NULL
+      AND clinica_id = p_clinica_id
   ) INTO v_has_role;
 
   RETURN v_has_role;
@@ -222,7 +229,7 @@ CREATE TABLE IF NOT EXISTS public.historico_autorizacoes_assinatura (
 
 ALTER TABLE public.historico_autorizacoes_assinatura ENABLE ROW LEVEL SECURITY;
 
--- RLS: Leitura segura para o profissional, clínica e administradores
+-- RLS: Leitura segura para o profissional, clínica e administradores (comprovação estrita de vínculo)
 DROP POLICY IF EXISTS "Autorizacoes prof RLS" ON public.autorizacoes_assinatura_profissional;
 DROP POLICY IF EXISTS "Autorizacoes prof select RLS" ON public.autorizacoes_assinatura_profissional;
 CREATE POLICY "Autorizacoes prof select RLS"
@@ -232,9 +239,9 @@ CREATE POLICY "Autorizacoes prof select RLS"
   USING (
     auth.uid() = profissional_id 
     OR auth.uid() = concedido_por 
-    OR clinica_id = public.contrato_obter_clinica_id()
-    OR clinica_id = auth.uid()
-    OR public.usuario_possui_perfil('admin')
+    OR (clinica_id IS NOT NULL AND clinica_id = public.contrato_obter_clinica_id())
+    OR (clinica_id IS NOT NULL AND clinica_id = auth.uid())
+    OR (clinica_id IS NOT NULL AND public.usuario_possui_perfil_clinica(auth.uid(), clinica_id, 'admin'))
   );
 
 DROP POLICY IF EXISTS "Autorizacoes prof service_role RLS" ON public.autorizacoes_assinatura_profissional;
@@ -245,7 +252,7 @@ CREATE POLICY "Autorizacoes prof service_role RLS"
   USING (true)
   WITH CHECK (true);
 
--- RLS Histórico: Estritamente imutável para authenticated. Somente leitura autorizada.
+-- RLS Histórico: Estritamente imutável para authenticated. Somente leitura autorizada por clínica.
 DROP POLICY IF EXISTS "Historico autorizacoes RLS" ON public.historico_autorizacoes_assinatura;
 DROP POLICY IF EXISTS "Historico autorizacoes select RLS" ON public.historico_autorizacoes_assinatura;
 CREATE POLICY "Historico autorizacoes select RLS"
@@ -257,13 +264,14 @@ CREATE POLICY "Historico autorizacoes select RLS"
     OR EXISTS (
       SELECT 1 FROM public.autorizacoes_assinatura_profissional a
       WHERE a.id = autorizacao_id
+        AND a.clinica_id IS NOT NULL
         AND (
           a.profissional_id = auth.uid()
           OR a.clinica_id = public.contrato_obter_clinica_id()
           OR a.clinica_id = auth.uid()
+          OR public.usuario_possui_perfil_clinica(auth.uid(), a.clinica_id, 'admin')
         )
     )
-    OR public.usuario_possui_perfil('admin')
   );
 
 DROP POLICY IF EXISTS "Historico autorizacoes service_role RLS" ON public.historico_autorizacoes_assinatura;
@@ -274,14 +282,15 @@ CREATE POLICY "Historico autorizacoes service_role RLS"
   USING (true)
   WITH CHECK (true);
 
--- RPC: Conceder autorização expressa com validação estrita de identidade e vínculo da titular
+-- RPC: Conceder autorização expressa exigindo a identidade da própria profissional titular
 CREATE OR REPLACE FUNCTION public.conceder_autorizacao_assinatura(
   p_nome_profissional text,
   p_cro text,
   p_assinatura_base64 text,
   p_escopo text DEFAULT 'contrato_odontologico',
   p_modelos jsonb DEFAULT '["padrao", "procedimentos", "ortodontia", "cirurgia"]'::jsonb,
-  p_clinica_id uuid DEFAULT NULL
+  p_clinica_id uuid DEFAULT NULL,
+  p_consentimento_expresso boolean DEFAULT true
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -303,20 +312,33 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'error', 'Nome, CRO e assinatura gráfica são obrigatórios', 'code', 'INVALID_PARAM');
   END IF;
 
+  -- Exige consentimento formal expresso
+  IF p_consentimento_expresso IS NOT TRUE THEN
+    RETURN jsonb_build_object('ok', false, 'error', 'Consentimento formal expresso da profissional titular é obrigatório', 'code', 'CONSENT_REQUIRED');
+  END IF;
+
   -- Determina a clínica do usuário autenticado
   v_clinica_id := COALESCE(p_clinica_id, public.contrato_obter_clinica_id(), v_user_id);
 
-  -- Validação de Segurança Bloqueante: Apenas a profissional titular responsável ou administradora vinculada pode conceder
-  IF NOT (
-    v_user_id = v_clinica_id
-    OR public.usuario_possui_perfil_clinica(v_user_id, v_clinica_id, 'dentista')
-    OR public.usuario_possui_perfil_clinica(v_user_id, v_clinica_id, 'admin')
-  ) THEN
-    RETURN jsonb_build_object('ok', false, 'error', 'Apenas a profissional titular responsável pela clínica pode conceder esta autorização', 'code', 'FORBIDDEN');
+  -- Validação Estrita de Identidade: Apenas a própria titular da assinatura pode autorizar seu uso.
+  -- Administradores ou outros dentistas NÃO podem autorizar em nome da profissional titular.
+  IF v_user_id <> v_clinica_id THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM public.user_roles ur
+      WHERE ur.user_id = v_user_id 
+        AND ur.clinica_id = v_clinica_id 
+        AND lower(ur.role) IN ('dentista_titular', 'responsavel_tecnica')
+    ) THEN
+      RETURN jsonb_build_object(
+        'ok', false, 
+        'error', 'Apenas a própria profissional titular (Dra. Rosângela) pode conceder e autorizar o uso de sua assinatura pessoal', 
+        'code', 'FORBIDDEN'
+      );
+    END IF;
   END IF;
 
   -- Impede delegação forjada para outra clínica
-  IF p_clinica_id IS NOT NULL AND p_clinica_id <> v_clinica_id AND NOT (v_user_id = p_clinica_id OR public.usuario_possui_perfil_clinica(v_user_id, p_clinica_id, 'admin')) THEN
+  IF p_clinica_id IS NOT NULL AND p_clinica_id <> v_clinica_id THEN
     RETURN jsonb_build_object('ok', false, 'error', 'Não é permitido conceder autorização para outra clínica', 'code', 'FORBIDDEN');
   END IF;
 
@@ -405,7 +427,7 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'error', 'Autorização não encontrada', 'code', 'NOT_FOUND');
   END IF;
 
-  -- Validação de Segurança Bloqueante: Apenas a titular, dono da clínica ou admin da mesma clínica
+  -- Validação de Segurança Bloqueante: Apenas a própria titular que concedeu, dona da clínica ou admin da mesma clínica
   v_is_authorized := (
     v_rec.profissional_id = v_user_id
     OR (v_rec.clinica_id IS NOT NULL AND v_rec.clinica_id = v_user_id)
@@ -441,9 +463,48 @@ END;
 $$;
 
 -- ------------------------------------------------------------------------------
--- 4. TRIGGER DE IMUTABILIDADE DO CONTRATO APÓS ASSINATURA
+-- 4. TRIGGERS DE IMUTABILIDADE INTEGRAL E PROIBIÇÃO DE EXCLUSÃO DE CONTRATOS
 -- ------------------------------------------------------------------------------
 
+-- Trigger 1: Bloqueia expressamente DELETE em contratos formalizados ou assinados
+CREATE OR REPLACE FUNCTION public.proibir_exclusao_contrato_assinado_v3()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_ja_assinado boolean := false;
+BEGIN
+  IF OLD.tipo IS DISTINCT FROM 'contrato' THEN
+    RETURN OLD;
+  END IF;
+
+  v_ja_assinado := (
+    OLD.assinado_em IS NOT NULL
+    OR OLD.assinatura_data IS NOT NULL
+    OR (OLD.itens IS NOT NULL AND OLD.itens->'assinaturaPaciente' IS NOT NULL)
+    OR (OLD.itens IS NOT NULL AND OLD.itens->'assinaturaDentista' IS NOT NULL)
+    OR (OLD.itens IS NOT NULL AND OLD.itens->>'statusAssinaturaPaciente' = 'assinado')
+    OR (OLD.itens IS NOT NULL AND OLD.itens->>'isFormalizadoTotal' = 'true')
+    OR (OLD.itens IS NOT NULL AND OLD.itens->>'status' IN ('formalizado', 'assinado'))
+  );
+
+  IF v_ja_assinado THEN
+    RAISE EXCEPTION 'Violação de segurança jurídica: Contratos formalizados ou assinados não podem ser excluídos do sistema.';
+  END IF;
+
+  RETURN OLD;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_proibir_exclusao_contrato ON public.documentos_clinicos;
+CREATE TRIGGER trg_proibir_exclusao_contrato
+  BEFORE DELETE ON public.documentos_clinicos
+  FOR EACH ROW
+  EXECUTE FUNCTION public.proibir_exclusao_contrato_assinado_v3();
+
+-- Trigger 2: Bloqueia alteração de quaisquer termos essenciais após assinatura
 CREATE OR REPLACE FUNCTION public.garantir_imutabilidade_contrato_v3()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -472,7 +533,7 @@ BEGIN
 
   -- Se já estiver assinado, blinda integralmente a versão contratual aceita
   IF v_ja_assinado THEN
-    -- Proíbe alteração de identificador, paciente_id ou tipo
+    -- Proíbe alteração de identificador, paciente, clínica, criador ou tipo
     IF NEW.identificador IS DISTINCT FROM OLD.identificador THEN
       RAISE EXCEPTION 'Não é permitido alterar o identificador de um contrato já assinado.';
     END IF;
@@ -485,16 +546,33 @@ BEGIN
       RAISE EXCEPTION 'Não é permitido alterar o tipo de um contrato já assinado.';
     END IF;
 
-    -- Proíbe alteração de termos essenciais (conteúdo clínico e valor total)
+    IF NEW.clinica_id IS DISTINCT FROM OLD.clinica_id THEN
+      RAISE EXCEPTION 'Não é permitido transferir a titularidade de clínica de um contrato já assinado.';
+    END IF;
+
+    IF NEW.user_id IS DISTINCT FROM OLD.user_id THEN
+      RAISE EXCEPTION 'Não é permitido alterar o criador de um contrato já assinado.';
+    END IF;
+
+    -- Proíbe alteração de termos essenciais (conteúdo clínico, título e valor total)
     IF NEW.conteudo IS DISTINCT FROM OLD.conteudo THEN
       RAISE EXCEPTION 'Violação de integridade: O conteúdo textual de um contrato assinado é estritamente imutável.';
+    END IF;
+
+    IF NEW.titulo IS DISTINCT FROM OLD.titulo THEN
+      RAISE EXCEPTION 'Violação de integridade: O título de um contrato assinado é estritamente imutável.';
     END IF;
 
     IF NEW.valor_total IS DISTINCT FROM OLD.valor_total THEN
       RAISE EXCEPTION 'Violação de integridade: O valor financeiro de um contrato assinado é estritamente imutável.';
     END IF;
 
-    -- Protege os blocos essenciais dentro de itens (financeiro, itens, parcelas, paciente, clinica)
+    -- Proíbe alteração da data original de formalização
+    IF (OLD.assinado_em IS NOT NULL) AND NEW.assinado_em IS DISTINCT FROM OLD.assinado_em THEN
+      RAISE EXCEPTION 'Violação de integridade: O carimbo de formalização de um contrato assinado não pode ser alterado.';
+    END IF;
+
+    -- Protege todos os blocos essenciais dentro de itens
     IF (OLD.itens IS NOT NULL) THEN
       IF (NEW.itens->'financeiro') IS DISTINCT FROM (OLD.itens->'financeiro') THEN
         RAISE EXCEPTION 'Violação de integridade: As condições financeiras de um contrato assinado são estritamente imutáveis.';
@@ -508,19 +586,28 @@ BEGIN
         RAISE EXCEPTION 'Violação de integridade: Os dados do paciente no contrato assinado são estritamente imutáveis.';
       END IF;
 
-      -- Assinatura do paciente já existente não pode ser substituída ou apagada
+      IF (NEW.itens->'clinica') IS DISTINCT FROM (OLD.itens->'clinica') THEN
+        RAISE EXCEPTION 'Violação de integridade: Os dados da clínica no contrato assinado são estritamente imutáveis.';
+      END IF;
+
+      IF (NEW.itens->'parcelas') IS DISTINCT FROM (OLD.itens->'parcelas') THEN
+        RAISE EXCEPTION 'Violação de integridade: As parcelas de um contrato assinado são estritamente imutáveis.';
+      END IF;
+
+      IF (NEW.itens->'clausulas') IS DISTINCT FROM (OLD.itens->'clausulas') THEN
+        RAISE EXCEPTION 'Violação de integridade: As cláusulas de um contrato assinado são estritamente imutáveis.';
+      END IF;
+
       IF (OLD.itens->'assinaturaPaciente' IS NOT NULL) AND (NEW.itens->'assinaturaPaciente') IS DISTINCT FROM (OLD.itens->'assinaturaPaciente') THEN
         RAISE EXCEPTION 'Violação de integridade: A assinatura do paciente já formalizada não pode ser modificada.';
       END IF;
 
-      -- Assinatura da profissional já existente não pode ser substituída ou apagada
       IF (OLD.itens->'assinaturaDentista' IS NOT NULL) AND (NEW.itens->'assinaturaDentista') IS DISTINCT FROM (OLD.itens->'assinaturaDentista') THEN
         RAISE EXCEPTION 'Violação de integridade: A assinatura da profissional já vinculada não pode ser modificada.';
       END IF;
     END IF;
 
-    -- PERMITE EXCLUSIVAMENTE a gravação de metadados técnicos de arquivamento (pdf_path, atualizado_em)
-    -- Isso garante que a fila e o Storage consigam arquivar o PDF oficial sem ser bloqueados pelo trigger.
+    -- PERMITE EXCLUSIVAMENTE a gravação de metadados técnicos de arquivamento (pdf_path, atualizado_em, hash_integridade)
   END IF;
 
   RETURN NEW;
@@ -542,7 +629,7 @@ CREATE TABLE IF NOT EXISTS public.fila_arquivamento_pdf (
   contrato_id text NOT NULL,
   documento_id uuid NULL,
   paciente_id uuid NULL,
-  clinica_id uuid NULL,
+  clinica_id uuid NOT NULL,
   status text NOT NULL DEFAULT 'pendente', -- 'pendente', 'processando', 'concluido', 'falha'
   tentativas integer NOT NULL DEFAULT 0,
   max_tentativas integer NOT NULL DEFAULT 5,
@@ -570,10 +657,12 @@ CREATE POLICY "Fila PDF select RLS"
   FOR SELECT
   TO authenticated
   USING (
-    clinica_id IS NULL
-    OR clinica_id = public.contrato_obter_clinica_id()
-    OR clinica_id = auth.uid()
-    OR public.usuario_possui_perfil('admin')
+    clinica_id IS NOT NULL 
+    AND (
+      clinica_id = public.contrato_obter_clinica_id()
+      OR clinica_id = auth.uid()
+      OR public.usuario_possui_perfil_clinica(auth.uid(), clinica_id, 'admin')
+    )
   );
 
 DROP POLICY IF EXISTS "Fila PDF service_role RLS" ON public.fila_arquivamento_pdf;
@@ -611,7 +700,7 @@ BEGIN
   v_user_id := auth.uid();
   v_caller_role := auth.role();
 
-  -- Determina a clínica legítima
+  -- Determina a clínica legítima da chamada
   IF v_caller_role = 'service_role' THEN
     v_clinica_id := COALESCE(p_clinica_id, (
       SELECT COALESCE(clinica_id, user_id) FROM public.documentos_clinicos 
@@ -621,17 +710,21 @@ BEGIN
     v_clinica_id := public.contrato_obter_clinica_id();
   END IF;
 
+  IF v_clinica_id IS NULL AND v_caller_role <> 'service_role' THEN
+    RETURN jsonb_build_object('ok', false, 'error', 'Clínica do usuário não identificada', 'code', 'UNAUTHORIZED');
+  END IF;
+
   -- Validação estrita de existência do contrato no acervo da PRÓPRIA clínica
+  -- Sem permissão para (clinica_id IS NULL AND user_id IS NULL)
   SELECT id, paciente_id, clinica_id, user_id INTO v_doc_record
   FROM public.documentos_clinicos
   WHERE (identificador = p_contrato_id OR id = p_documento_id)
     AND tipo = 'contrato'
     AND (
       v_caller_role = 'service_role'
-      OR clinica_id = v_clinica_id
-      OR user_id = v_clinica_id
-      OR (clinica_id IS NULL AND user_id IS NULL)
-      OR public.usuario_possui_perfil_clinica(v_user_id, COALESCE(clinica_id, user_id), 'admin')
+      OR (clinica_id IS NOT NULL AND clinica_id = v_clinica_id)
+      OR (user_id IS NOT NULL AND user_id = v_clinica_id)
+      OR (clinica_id IS NOT NULL AND public.usuario_possui_perfil_clinica(v_user_id, clinica_id, 'admin'))
     )
   LIMIT 1;
 
@@ -644,7 +737,7 @@ BEGIN
 
   IF FOUND THEN
     -- Impede manipulação da fila de outra clínica
-    IF v_caller_role <> 'service_role' AND v_rec.clinica_id IS NOT NULL AND v_rec.clinica_id <> v_clinica_id AND NOT public.usuario_possui_perfil_clinica(v_user_id, v_rec.clinica_id, 'admin') THEN
+    IF v_caller_role <> 'service_role' AND (v_rec.clinica_id IS NULL OR (v_rec.clinica_id <> v_clinica_id AND NOT public.usuario_possui_perfil_clinica(v_user_id, v_rec.clinica_id, 'admin'))) THEN
       RETURN jsonb_build_object('ok', false, 'error', 'Acesso negado à fila de outra clínica', 'code', 'FORBIDDEN');
     END IF;
 
@@ -699,7 +792,7 @@ BEGIN
     p_contrato_id,
     COALESCE(p_documento_id, v_doc_record.id),
     COALESCE(p_paciente_id, v_doc_record.paciente_id),
-    v_clinica_id,
+    COALESCE(v_clinica_id, v_doc_record.clinica_id),
     'pendente',
     p_payload,
     now(),
@@ -727,6 +820,7 @@ REVOKE EXECUTE ON FUNCTION public.usuario_possui_perfil FROM anon, public;
 REVOKE EXECUTE ON FUNCTION public.enfileirar_ou_processar_pdf FROM anon, public;
 
 -- Concede execução estritamente a autenticados e service_role
+GRANT EXECUTE ON FUNCTION public.contrato_obter_clinica_id TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.conceder_autorizacao_assinatura TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.revogar_autorizacao_assinatura TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.usuario_possui_perfil_clinica TO authenticated, service_role;

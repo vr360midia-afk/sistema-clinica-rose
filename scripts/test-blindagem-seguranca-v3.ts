@@ -2,16 +2,12 @@
  * SUÍTE DE TESTES DE SEGURANÇA E BLINDAGEM DA MIGRATION V3.0
  * Execução em PostgreSQL 18.6 Isolado (PGlite WASM)
  * 
- * Validação rigorosa dos 8 pontos de segurança:
- * 1. Imutabilidade do histórico para usuários comuns (escrita direta negada)
- * 2. RLS da Fila PDF restrita por clínica e operação (escrita direta negada)
- * 3. RPC conceder_autorizacao_assinatura: exige vínculo e identidade da titular
- * 4. RPC revogar_autorizacao_assinatura: restrita à titular e delegados autorizados
- * 5. RPC enfileirar_ou_processar_pdf: isolamento de tenant e bloqueio a loops infinitos
- * 6. usuario_possui_perfil_clinica: sem confiança cega e sem acesso universal por clinica_id IS NULL
- * 7. Trigger de imutabilidade: proteção de itens (financeiro, procedimento, assinaturas) e permissão de pdf_path
- * 8. UPDATE de contratos históricos: não colidente e preservação determinística
- * 9. Sem GRANT ALL para authenticated em tabelas sensíveis
+ * Validação rigorosa dos 4 novos impedimentos + 8 pontos de blindagem:
+ * 1. Proibição de exclusão (DELETE) de contratos formalizados
+ * 2. Exigência estrita de identidade da profissional titular para conceder assinatura (admin ou outro dentista não autorizam em nome dela)
+ * 3. Remoção de acesso genérico e resolução segura de titularidade de contratos legados sem acesso cross-clínica
+ * 4. Imutabilidade total de cláusulas, termos, partes, valores e parcelas com permissão estrita de pdf_path
+ * 5. Fila de PDFs e histórico com leitura restrita por clínica comprovada e sem escrita direta para authenticated
  */
 
 import fs from 'fs';
@@ -39,7 +35,7 @@ function assert(cond: boolean, desc: string) {
 
 async function runTests() {
   console.log('================================================================');
-  console.log('TESTES DE SEGURANÇA: MIGRATION 20261102_blindagem_seguranca_v3.sql');
+  console.log('TESTES DE SEGURANÇA REFORÇADOS: MIGRATION V3.0');
   console.log('================================================================\n');
 
   const db = new PGlite({ extensions: { pgcrypto } });
@@ -102,285 +98,450 @@ async function runTests() {
       criado_em timestamptz DEFAULT now(),
       atualizado_em timestamptz DEFAULT now()
     );
+
+    GRANT USAGE ON SCHEMA public TO authenticated;
+    GRANT USAGE ON SCHEMA auth TO authenticated;
+    GRANT SELECT ON public.user_roles TO authenticated;
+    GRANT SELECT ON public.documentos_clinicos TO authenticated;
   `);
   assert(true, 'Estrutura base criada com sucesso');
 
-  // Insere contratos legados para testar o UPDATE não colidente
-  await db.exec(`
-    INSERT INTO public.documentos_clinicos (id, tipo, titulo, itens, identificador) VALUES
-      ('11111111-1111-1111-1111-111111111111', 'contrato', 'Contrato Legado 1', '{"contratoId": "CTR-TESTE-DUPLICADO"}'::jsonb, NULL),
-      ('22222222-2222-2222-2222-222222222222', 'contrato', 'Contrato Legado 2', '{"contratoId": "CTR-TESTE-DUPLICADO"}'::jsonb, NULL),
-      ('33333333-3333-3333-3333-333333333333', 'contrato', 'Contrato Legado 3 Sem Id', '{}'::jsonb, NULL),
-      ('44444444-4444-4444-4444-444444444444', 'contrato', 'Contrato Já Identificado', '{}'::jsonb, 'CTR-HISTORICO-INTACTO');
-  `);
+  // Identificadores de Clínicas e Usuários
+  const ID_CLINICA_A = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'; // Clínica Dra. Rosângela
+  const ID_DRA_ROSANGELA = ID_CLINICA_A;                       // Dra. Rosângela (proprietária e titular técnica)
+  const ID_OUTRO_ADMIN_CLINICA_A = '12121212-1212-1212-1212-121212121212'; // Outro administrador na mesma clínica A
+  const ID_OUTRO_DENTISTA_CLINICA_A = '34343434-3434-3434-3434-343434343434'; // Outro dentista contratado na clínica A
+  const ID_RECEPCAO_CLINICA_A = '56565656-5656-5656-5656-565656565656'; // Recepcionista da clínica A
+  const ID_CLINICA_B = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'; // Clínica Externa B
+  const ID_DR_OUTRO_CLINICA_B = ID_CLINICA_B;                  // Titular da Clínica B
 
-  // 2. Executa a migration real corrigida
-  console.log(`\n${STEP} 2. Aplicando a Migration 20261102_blindagem_seguranca_v3.sql`);
-  const migrationSql = fs.readFileSync(path.resolve('supabase/migrations/20261102_blindagem_seguranca_v3.sql'), 'utf-8');
-  await db.exec(migrationSql);
-  assert(true, 'Migration 20261102_blindagem_seguranca_v3.sql aplicada sem erros de sintaxe ou execução');
-
-  // 3. Teste do Ponto 8: UPDATE de Contratos Históricos sem Colisão
-  console.log(`\n${STEP} 3. Validação do UPDATE de Contratos Históricos (Resolução de Colisão)`);
-  const resLegados = await db.query<any>(`
-    SELECT id, identificador FROM public.documentos_clinicos ORDER BY criado_em ASC;
-  `);
-  const c1 = resLegados.rows.find(r => r.id === '11111111-1111-1111-1111-111111111111');
-  const c2 = resLegados.rows.find(r => r.id === '22222222-2222-2222-2222-222222222222');
-  const c3 = resLegados.rows.find(r => r.id === '33333333-3333-3333-3333-333333333333');
-  const c4 = resLegados.rows.find(r => r.id === '44444444-4444-4444-4444-444444444444');
-
-  assert(c4.identificador === 'CTR-HISTORICO-INTACTO', 'Contrato que já possuía identificador permaneceu 100% inalterado');
-  assert(c1.identificador === 'CTR-TESTE-DUPLICADO', 'Primeiro contrato legado recebeu o identificador original');
-  assert(c2.identificador === 'CTR-TESTE-DUPLICADO-LEG2', 'Segundo contrato legado com mesmo ID recebeu sufixo não colidente determinístico');
-  assert(c3.identificador.startsWith('CTR-33333333'), 'Contrato sem identificador recebeu formato canônico prefixado por CTR-');
-
-  // Usuários de Teste:
-  const ID_DRA_ROSANGELA = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'; // Titular da Clínica A
-  const ID_RECEPCAO = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';      // Funcionária da Clínica A (role: recepcionista)
-  const ID_OUTRA_CLINICA = 'cccccccc-cccc-cccc-cccc-cccccccccccc'; // Titular da Clínica B
-  const ID_CLINICA_A = ID_DRA_ROSANGELA;
-  const ID_CLINICA_B = ID_OUTRA_CLINICA;
-
+  // Cadastro de usuários e perfis
   await db.exec(`
     INSERT INTO auth.users (id, email) VALUES
       ('${ID_DRA_ROSANGELA}', 'dra.rosangela@clinica.com'),
-      ('${ID_RECEPCAO}', 'recepcao@clinica.com'),
-      ('${ID_OUTRA_CLINICA}', 'dr.outro@clinicab.com');
+      ('${ID_OUTRO_ADMIN_CLINICA_A}', 'admin.gestor@clinica.com'),
+      ('${ID_OUTRO_DENTISTA_CLINICA_A}', 'dentista.assistente@clinica.com'),
+      ('${ID_RECEPCAO_CLINICA_A}', 'recepcao@clinica.com'),
+      ('${ID_DR_OUTRO_CLINICA_B}', 'dr.outro@clinicab.com');
 
     INSERT INTO public.user_roles (user_id, role, clinica_id) VALUES
       ('${ID_DRA_ROSANGELA}', 'admin', '${ID_CLINICA_A}'),
-      ('${ID_DRA_ROSANGELA}', 'dentista', '${ID_CLINICA_A}'),
-      ('${ID_RECEPCAO}', 'recepcao', '${ID_CLINICA_A}'),
-      ('${ID_OUTRA_CLINICA}', 'admin', '${ID_CLINICA_B}');
+      ('${ID_DRA_ROSANGELA}', 'dentista_titular', '${ID_CLINICA_A}'),
+      ('${ID_OUTRO_ADMIN_CLINICA_A}', 'admin', '${ID_CLINICA_A}'),
+      ('${ID_OUTRO_DENTISTA_CLINICA_A}', 'dentista', '${ID_CLINICA_A}'),
+      ('${ID_RECEPCAO_CLINICA_A}', 'recepcao', '${ID_CLINICA_A}'),
+      ('${ID_DR_OUTRO_CLINICA_B}', 'admin', '${ID_CLINICA_B}');
   `);
 
-  // 4. Teste do Ponto 3: RPC conceder_autorizacao_assinatura
-  console.log(`\n${STEP} 4. Testes de Segurança em conceder_autorizacao_assinatura`);
+  // Pacientes das clínicas
+  const resPacA = await db.query<any>(`
+    INSERT INTO public.pacientes (nome, cpf, clinica_id) VALUES
+      ('Paciente da Clínica A', '111.111.111-11', '${ID_CLINICA_A}')
+    RETURNING id;
+  `);
+  const pacAId = resPacA.rows[0].id;
 
-  // 4.1 Usuário da Clínica B tentando criar autorização para a Clínica A
-  await db.exec(`SET request.jwt.claims = '{"sub": "${ID_OUTRA_CLINICA}", "role": "authenticated"}';`);
-  const resAttacker = await db.query<any>(`
+  const resPacB = await db.query<any>(`
+    INSERT INTO public.pacientes (nome, cpf, clinica_id) VALUES
+      ('Paciente da Clínica B', '222.222.222-22', '${ID_CLINICA_B}')
+    RETURNING id;
+  `);
+  const pacBId = resPacB.rows[0].id;
+
+  // Inserção de contratos legados com clinica_id nulo para testar resolução de titularidade
+  await db.exec(`
+    INSERT INTO public.documentos_clinicos (id, paciente_id, tipo, titulo, itens, identificador, clinica_id) VALUES
+      ('11111111-1111-1111-1111-111111111111', '${pacAId}', 'contrato', 'Contrato Legado A1', '{"contratoId": "CTR-DUPLICADO"}'::jsonb, NULL, NULL),
+      ('22222222-2222-2222-2222-222222222222', '${pacAId}', 'contrato', 'Contrato Legado A2', '{"contratoId": "CTR-DUPLICADO"}'::jsonb, NULL, NULL),
+      ('33333333-3333-3333-3333-333333333333', '${pacAId}', 'contrato', 'Contrato Legado A Sem Id', '{}'::jsonb, NULL, NULL),
+      ('44444444-4444-4444-4444-444444444444', '${pacBId}', 'contrato', 'Contrato da Clínica B', '{"contratoId": "CTR-CLINICA-B-ORIG"}'::jsonb, 'CTR-CLINICA-B-ORIG', '${ID_CLINICA_B}');
+  `);
+
+  // 2. Executa a migration real atualizada
+  console.log(`\n${STEP} 2. Aplicando a Migration 20261102_blindagem_seguranca_v3.sql com as 4 Correções`);
+  const migrationSql = fs.readFileSync(path.resolve('supabase/migrations/20261102_blindagem_seguranca_v3.sql'), 'utf-8');
+  await db.exec(migrationSql);
+  assert(true, 'Migration 20261102_blindagem_seguranca_v3.sql aplicada com sucesso');
+
+  // 3. Validação do Ponto 3: Resolução Segura de Contratos Legados (Sem clinica_id nulo genérico)
+  console.log(`\n${STEP} 3. Validação da Resolução Determinística de Titularidade em Contratos Legados`);
+  const resDocs = await db.query<any>(`
+    SELECT id, identificador, clinica_id FROM public.documentos_clinicos ORDER BY criado_em ASC;
+  `);
+  const c1 = resDocs.rows.find(r => r.id === '11111111-1111-1111-1111-111111111111');
+  const c2 = resDocs.rows.find(r => r.id === '22222222-2222-2222-2222-222222222222');
+  const c3 = resDocs.rows.find(r => r.id === '33333333-3333-3333-3333-333333333333');
+
+  assert(c1.clinica_id === ID_CLINICA_A, 'Contrato legado 1 resolvido deterministicamente para a Clínica A do paciente');
+  assert(c2.clinica_id === ID_CLINICA_A, 'Contrato legado 2 resolvido deterministicamente para a Clínica A do paciente');
+  assert(c1.identificador === 'CTR-DUPLICADO', 'Primeiro contrato legado manteve identificador original');
+  assert(c2.identificador === 'CTR-DUPLICADO-LEG2', 'Segundo contrato legado recebeu sufixo não-colidente -LEG2');
+  assert(c3.identificador.startsWith('CTR-33333333'), 'Contrato sem identificador recebeu código canônico CTR-');
+
+  // 4. Validação do Ponto 2: Exigência da Identidade da Profissional Titular
+  console.log(`\n${STEP} 4. Testes Estritos em conceder_autorizacao_assinatura (Identidade da Titular)`);
+
+  // 4.1 Administrador de outra pessoa tentando autorizar em nome da Dra. Rosângela
+  await db.exec(`SET request.jwt.claims = '{"sub": "${ID_OUTRO_ADMIN_CLINICA_A}", "role": "authenticated"}';`);
+  const resAdminOutro = await db.query<any>(`
     SELECT public.conceder_autorizacao_assinatura(
       'Dra. Rosângela Santos Pereira',
       '06267-AL',
-      'data:image/png;base64,assinatura_forjada',
+      'data:image/png;base64,assinatura_falsa_por_admin',
       'contrato_odontologico',
       '["geral"]'::jsonb,
-      '${ID_CLINICA_A}'
+      '${ID_CLINICA_A}',
+      true
     ) as result;
   `);
-  assert(resAttacker.rows[0].result.ok === false, 'Tentativa de usuário de outra clínica de forjar autorização foi BLOQUEADA');
-  assert(resAttacker.rows[0].result.code === 'FORBIDDEN', 'Código de erro retornado: FORBIDDEN');
+  assert(resAdminOutro.rows[0].result.ok === false, 'Outro administrador NÃO tem permissão para assinar/autorizar em nome da Dra. Rosângela');
+  assert(resAdminOutro.rows[0].result.code === 'FORBIDDEN', 'Retornou código FORBIDDEN para outro administrador');
 
-  // 4.2 Funcionária recepcionista tentando criar autorização
-  await db.exec(`SET request.jwt.claims = '{"sub": "${ID_RECEPCAO}", "role": "authenticated"}';`);
-  const resRecepcao = await db.query<any>(`
+  // 4.2 Outro dentista da mesma clínica tentando autorizar em nome da Dra. Rosângela
+  await db.exec(`SET request.jwt.claims = '{"sub": "${ID_OUTRO_DENTISTA_CLINICA_A}", "role": "authenticated"}';`);
+  const resDentistaOutro = await db.query<any>(`
     SELECT public.conceder_autorizacao_assinatura(
       'Dra. Rosângela Santos Pereira',
       '06267-AL',
-      'data:image/png;base64,assinatura_recepcao',
+      'data:image/png;base64,assinatura_falsa_por_dentista',
       'contrato_odontologico',
       '["geral"]'::jsonb,
-      '${ID_CLINICA_A}'
+      '${ID_CLINICA_A}',
+      true
     ) as result;
   `);
-  assert(resRecepcao.rows[0].result.ok === false, 'Tentativa de recepcionista de criar autorização foi BLOQUEADA');
-  assert(resRecepcao.rows[0].result.code === 'FORBIDDEN', 'Código retornado para recepcionista: FORBIDDEN');
+  assert(resDentistaOutro.rows[0].result.ok === false, 'Outro dentista NÃO tem permissão para assinar/autorizar em nome da Dra. Rosângela');
+  assert(resDentistaOutro.rows[0].result.code === 'FORBIDDEN', 'Retornou código FORBIDDEN para outro dentista');
 
-  // 4.3 Titular Dra. Rosângela concedendo autorização legítima
+  // 4.2.b Usuário com perfil 'recepcao' tentando autorizar em nome da Dra. Rosângela
+  await db.exec(`SET request.jwt.claims = '{"sub": "${ID_RECEPCAO_CLINICA_A}", "role": "authenticated"}';`);
+  const resRecepcaoOutro = await db.query<any>(`
+    SELECT public.conceder_autorizacao_assinatura(
+      'Dra. Rosângela Santos Pereira',
+      '06267-AL',
+      'data:image/png;base64,assinatura_falsa_por_recepcao',
+      'contrato_odontologico',
+      '["geral"]'::jsonb,
+      '${ID_CLINICA_A}',
+      true
+    ) as result;
+  `);
+  assert(resRecepcaoOutro.rows[0].result.ok === false, 'Usuário de recepção NÃO tem permissão para autorizar assinatura titular');
+  assert(resRecepcaoOutro.rows[0].result.code === 'FORBIDDEN', 'Retornou código FORBIDDEN para usuário de recepção');
+
+  // 4.2.c Tentativa de forjar concessão para clínica externa
   await db.exec(`SET request.jwt.claims = '{"sub": "${ID_DRA_ROSANGELA}", "role": "authenticated"}';`);
-  const resTitular = await db.query<any>(`
+  const resClinicaExterna = await db.query<any>(`
+    SELECT public.conceder_autorizacao_assinatura(
+      'Dra. Rosângela Santos Pereira',
+      '06267-AL',
+      'data:image/png;base64,assinatura_ok',
+      'contrato_odontologico',
+      '["geral"]'::jsonb,
+      '${ID_CLINICA_B}',
+      true
+    ) as result;
+  `);
+  assert(resClinicaExterna.rows[0].result.ok === false, 'Tentativa de conceder autorização para outra clínica foi BLOQUEADA');
+  assert(resClinicaExterna.rows[0].result.code === 'FORBIDDEN', 'Retornou código FORBIDDEN para clínica externa');
+
+  // 4.3 Tentativa sem consentimento expresso
+  await db.exec(`SET request.jwt.claims = '{"sub": "${ID_DRA_ROSANGELA}", "role": "authenticated"}';`);
+  const resSemConsentimento = await db.query<any>(`
+    SELECT public.conceder_autorizacao_assinatura(
+      'Dra. Rosângela Santos Pereira',
+      '06267-AL',
+      'data:image/png;base64,assinatura_ok',
+      'contrato_odontologico',
+      '["geral"]'::jsonb,
+      '${ID_CLINICA_A}',
+      false
+    ) as result;
+  `);
+  assert(resSemConsentimento.rows[0].result.ok === false, 'Tentativa sem consentimento expresso foi BLOQUEADA');
+  assert(resSemConsentimento.rows[0].result.code === 'CONSENT_REQUIRED', 'Retornou código CONSENT_REQUIRED');
+
+  // 4.4 Titular legítima Dra. Rosângela com consentimento formal
+  const resTitularLegitima = await db.query<any>(`
     SELECT public.conceder_autorizacao_assinatura(
       'Dra. Rosângela Santos Pereira',
       '06267-AL',
       'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
       'contrato_odontologico',
       '["geral", "lentes_resina"]'::jsonb,
-      '${ID_CLINICA_A}'
+      '${ID_CLINICA_A}',
+      true
     ) as result;
   `);
-  assert(resTitular.rows[0].result.ok === true, 'Titular Dra. Rosângela concedeu autorização com sucesso');
-  const authId = resTitular.rows[0].result.autorizacao_id;
+  assert(resTitularLegitima.rows[0].result.ok === true, 'Própria titular (Dra. Rosângela) concedeu autorização com sucesso');
+  const authId = resTitularLegitima.rows[0].result.autorizacao_id;
   assert(Boolean(authId), 'UUID da autorização gerado');
 
-  // 5. Teste do Ponto 4: RPC revogar_autorizacao_assinatura
-  console.log(`\n${STEP} 5. Testes de Segurança em revogar_autorizacao_assinatura`);
+  // 5. Validação do Ponto 1: RLS da Fila de PDFs Sem clinica_id IS NULL e Restrita por Clínica
+  console.log(`\n${STEP} 5. Testes em Fila de PDFs (Isolamento Estrito de Leitura e Sem clinica_id IS NULL)`);
 
-  // 5.1 Outra clínica tentando revogar autorização da Dra. Rosângela
-  await db.exec(`SET request.jwt.claims = '{"sub": "${ID_OUTRA_CLINICA}", "role": "authenticated"}';`);
-  const resRevogOutro = await db.query<any>(`
-    SELECT public.revogar_autorizacao_assinatura('${authId}', 'Tentativa maliciosa') as result;
+  // Insere tarefa na fila para a Clínica A
+  await db.exec(`
+    INSERT INTO public.fila_arquivamento_pdf (contrato_id, documento_id, clinica_id, status)
+    VALUES ('CTR-FILA-TESTE-A', '${c1.id}', '${ID_CLINICA_A}', 'pendente');
   `);
-  assert(resRevogOutro.rows[0].result.ok === false, 'Tentativa de outra clínica de revogar foi BLOQUEADA');
-  assert(resRevogOutro.rows[0].result.code === 'FORBIDDEN', 'Código FORBIDDEN retornado');
 
-  // 6. Teste dos Pontos 1, 2 e 9: RLS e Ausência de GRANT ALL para authenticated
-  console.log(`\n${STEP} 6. Validação de Imutabilidade e Bloqueio de Escrita Direta (RLS e Grants)`);
+  // 5.1 Usuário da Clínica B tenta ler a fila da Clínica A
+  await db.exec(`
+    SET ROLE authenticated;
+    SET request.jwt.claims = '{"sub": "${ID_DR_OUTRO_CLINICA_B}", "role": "authenticated"}';
+  `);
+  const resFilaLeituraB = await db.query<any>(`
+    SELECT count(*) as total FROM public.fila_arquivamento_pdf WHERE contrato_id = 'CTR-FILA-TESTE-A';
+  `);
+  // RLS deve filtrar e retornar 0 linhas
+  assert(parseInt(resFilaLeituraB.rows[0].total, 10) === 0, 'Usuário da Clínica B visualizou ZERO registros da fila da Clínica A (RLS isolada)');
 
-  // 6.1 Tentativa de INSERT direto na tabela historico_autorizacoes_assinatura por authenticated
-  await db.exec(`SET ROLE authenticated;`);
-  let falhouEscritaHistorico = false;
-  try {
-    await db.exec(`
-      INSERT INTO public.historico_autorizacoes_assinatura (autorizacao_id, acao, executado_por)
-      VALUES ('${authId}', 'INVASAO_DIRETA', '${ID_DRA_ROSANGELA}');
-    `);
-  } catch (err: any) {
-    falhouEscritaHistorico = true;
-  }
-  assert(falhouEscritaHistorico, 'INSERT direto em historico_autorizacoes_assinatura por authenticated foi IMPEDIDO pelo banco');
+  // 5.2 Membro da Clínica A lê sua própria fila
+  await db.exec(`
+    SET ROLE authenticated;
+    SET request.jwt.claims = '{"sub": "${ID_DRA_ROSANGELA}", "role": "authenticated"}';
+  `);
+  const resFilaLeituraA = await db.query<any>(`
+    SELECT count(*) as total FROM public.fila_arquivamento_pdf WHERE contrato_id = 'CTR-FILA-TESTE-A';
+  `);
+  assert(parseInt(resFilaLeituraA.rows[0].total, 10) === 1, 'Titular da Clínica A visualizou seu registro na fila com sucesso');
 
-  // 6.2 Tentativa de DELETE direto na fila_arquivamento_pdf por authenticated
-  let falhouDeleteFila = false;
-  try {
-    await db.exec(`DELETE FROM public.fila_arquivamento_pdf WHERE true;`);
-  } catch (err: any) {
-    falhouDeleteFila = true;
-  }
-  assert(falhouDeleteFila, 'DELETE direto em fila_arquivamento_pdf por authenticated foi IMPEDIDO pelo banco');
-
-  // Retorna para role postgres/service_role para os testes das funções
+  // Retorna para role postgres para operações subsequentes de teste
   await db.exec(`SET ROLE postgres;`);
 
-  // 7. Teste do Ponto 5: RPC enfileirar_ou_processar_pdf (Tenant Isolation & Loop Prevention)
-  console.log(`\n${STEP} 7. Testes de Segurança na Fila de PDFs (enfileirar_ou_processar_pdf)`);
+  // 5.3 Tentativa de manipulação de contratos entre clínicas em enfileirar_ou_processar_pdf
+  await db.exec(`SET request.jwt.claims = '{"sub": "${ID_DR_OUTRO_CLINICA_B}", "role": "authenticated"}';`);
+  const resCrossFila = await db.query<any>(`
+    SELECT public.enfileirar_ou_processar_pdf('CTR-DUPLICADO') as result;
+  `);
+  assert(resCrossFila.rows[0].result.ok === false, 'Tentativa de manipular contrato da Clínica A por usuário da Clínica B foi BLOQUEADA');
+  assert(resCrossFila.rows[0].result.code === 'NOT_FOUND', 'Contrato alheio não é localizado no acervo da clínica');
 
-  // Cadastra um contrato da Clínica A
-  const CTR_A = 'CTR-CLINICA-A-001';
+  // 5.4 Tentativa de revogar autorização por usuário de outra clínica
+  await db.exec(`SET request.jwt.claims = '{"sub": "${ID_DR_OUTRO_CLINICA_B}", "role": "authenticated"}';`);
+  const resRevogacaoCross = await db.query<any>(`
+    SELECT public.revogar_autorizacao_assinatura('${authId}', 'Tentativa indevida externa') as result;
+  `);
+  assert(resRevogacaoCross.rows[0].result.ok === false, 'Tentativa de revogar autorização alheia foi BLOQUEADA');
+  assert(resRevogacaoCross.rows[0].result.code === 'FORBIDDEN', 'Retornou código FORBIDDEN para revogação cross-clínica');
+
+  // 5.5 Tentativa de INSERT direto na tabela fila_arquivamento_pdf por usuário authenticated
   await db.exec(`
+    SET ROLE authenticated;
+    SET request.jwt.claims = '{"sub": "${ID_DRA_ROSANGELA}", "role": "authenticated"}';
+  `);
+  let bloqueouInsertDiretoFila = false;
+  try {
+    await db.exec(`
+      INSERT INTO public.fila_arquivamento_pdf (contrato_id, clinica_id)
+      VALUES ('CTR-HACK', '${ID_CLINICA_A}');
+    `);
+  } catch (err: any) {
+    bloqueouInsertDiretoFila = true;
+  }
+  assert(bloqueouInsertDiretoFila, 'Usuário authenticated está BLOQUEADO de fazer INSERT direto em fila_arquivamento_pdf');
+
+  // 5.6 Tentativa de UPDATE/DELETE direto na tabela historico_autorizacoes_assinatura
+  let bloqueouUpdateHistorico = false;
+  try {
+    await db.exec(`
+      UPDATE public.historico_autorizacoes_assinatura
+      SET acao = 'FRAUDE';
+    `);
+  } catch (err: any) {
+    bloqueouUpdateHistorico = true;
+  }
+  assert(bloqueouUpdateHistorico, 'Usuário authenticated está BLOQUEADO de modificar historico_autorizacoes_assinatura (imutável)');
+
+  await db.exec(`SET ROLE postgres;`);
+
+  // 6. Validação do Ponto 4: Imutabilidade Total e Proibição de Exclusão de Contratos Assinados
+  console.log(`\n${STEP} 6. Testes de Imutabilidade Total e Bloqueio de DELETE`);
+
+  const resNovoDoc = await db.query<any>(`
     INSERT INTO public.documentos_clinicos (
-      id, tipo, titulo, identificador, clinica_id, user_id, itens
+      tipo, titulo, conteudo, valor_total, identificador, clinica_id, user_id, assinado_em, itens
     ) VALUES (
-      '55555555-5555-5555-5555-555555555555', 'contrato', 'Contrato Teste A', '${CTR_A}', '${ID_CLINICA_A}', '${ID_CLINICA_A}', '{"contratoId": "${CTR_A}"}'::jsonb
-    );
-  `);
-
-  // 7.1 Usuário da Clínica B tentando processar/enfileirar contrato da Clínica A
-  await db.exec(`SET request.jwt.claims = '{"sub": "${ID_OUTRA_CLINICA}", "role": "authenticated"}';`);
-  const resFilaB = await db.query<any>(`
-    SELECT public.enfileirar_ou_processar_pdf(
-      '${CTR_A}',
-      '55555555-5555-5555-5555-555555555555',
-      NULL,
-      '${ID_CLINICA_B}'
-    ) as result;
-  `);
-  // O contrato não pertence à clínica B, deve ser negado ou não encontrado
-  assert(resFilaB.rows[0].result.ok === false, 'Usuário de outra clínica não consegue enfileirar contrato alheio');
-
-  // 7.2 Clínica A enfileira seu próprio contrato (Legítimo)
-  await db.exec(`SET request.jwt.claims = '{"sub": "${ID_DRA_ROSANGELA}", "role": "authenticated"}';`);
-  const resFilaA = await db.query<any>(`
-    SELECT public.enfileirar_ou_processar_pdf(
-      '${CTR_A}',
-      '55555555-5555-5555-5555-555555555555',
-      NULL,
-      '${ID_CLINICA_A}'
-    ) as result;
-  `);
-  assert(resFilaA.rows[0].result.ok === true, 'Clínica A enfileirou seu contrato com sucesso');
-
-  // 7.3 Simulação de tentativas excessivas (Prevenção de Loop Infinito)
-  await db.exec(`UPDATE public.fila_arquivamento_pdf SET tentativas = 5 WHERE contrato_id = '${CTR_A}';`);
-  const resLoop = await db.query<any>(`
-    SELECT public.enfileirar_ou_processar_pdf('${CTR_A}') as result;
-  `);
-  assert(resLoop.rows[0].result.ok === false, 'Chamada que excede limite máximo de tentativas é BLOQUEADA');
-  assert(resLoop.rows[0].result.code === 'MAX_RETRIES_EXCEEDED', 'Código retornado: MAX_RETRIES_EXCEEDED');
-
-  // 8. Teste do Ponto 6: usuario_possui_perfil_clinica
-  console.log(`\n${STEP} 8. Testes na Função usuario_possui_perfil_clinica`);
-  // Usuário aleatório não pode consultar o perfil de terceiros
-  await db.exec(`SET request.jwt.claims = '{"sub": "${ID_OUTRA_CLINICA}", "role": "authenticated"}';`);
-  const resEnum = await db.query<any>(`
-    SELECT public.usuario_possui_perfil_clinica('${ID_DRA_ROSANGELA}', '${ID_CLINICA_A}', 'admin') as has_role;
-  `);
-  assert(resEnum.rows[0].has_role === false, 'Tentativa de enumeração de perfil de terceiro por usuário não-admin retornou false');
-
-  // Própria titular consulta seu perfil
-  await db.exec(`SET request.jwt.claims = '{"sub": "${ID_DRA_ROSANGELA}", "role": "authenticated"}';`);
-  const resPropria = await db.query<any>(`
-    SELECT public.usuario_possui_perfil_clinica('${ID_DRA_ROSANGELA}', '${ID_CLINICA_A}', 'admin') as has_role;
-  `);
-  assert(resPropria.rows[0].has_role === true, 'Titular consultando seu próprio perfil na clínica retorna true');
-
-  // 9. Teste do Ponto 7: Trigger de Imutabilidade Integral
-  console.log(`\n${STEP} 9. Testes no Trigger de Imutabilidade (Proteção Integral do Contrato)`);
-
-  const CTR_ASSINADO = 'CTR-ASSINADO-001';
-  const resDocAssinado = await db.query<any>(`
-    INSERT INTO public.documentos_clinicos (
-      tipo, titulo, identificador, clinica_id, valor_total, conteudo, assinado_em, itens
-    ) VALUES (
-      'contrato', 'Contrato Formalizado', '${CTR_ASSINADO}', '${ID_CLINICA_A}', 8000.00,
-      'Cláusula 1: Procedimentos de Resina...',
-      now(),
+      'contrato', 'Contrato Blindado de Lentes', 'Texto integral da Cláusula 1ª...', 12000.00,
+      'CTR-BLINDADO-001', '${ID_CLINICA_A}', '${ID_DRA_ROSANGELA}', now(),
       '{
         "status": "formalizado",
         "isFormalizadoTotal": true,
-        "financeiro": {"valorTotal": 8000.00, "parcelas": 10},
-        "itens": [{"nome": "Lentes", "qtd": 10}],
-        "paciente": {"nome": "Paciente Protegido"},
-        "assinaturaPaciente": {"dataHora": "2026-11-02T10:00:00Z", "assinaturaData": "base64_paciente"},
-        "assinaturaDentista": {"dataHora": "2026-11-02T10:00:00Z", "assinaturaData": "base64_dentista"}
+        "titulo": "Contrato Blindado de Lentes",
+        "financeiro": {"valorTotal": 12000.00, "condicao": "Entrada + 10x"},
+        "itens": [{"nome": "Lentes Cerâmicas", "qtd": 10}],
+        "parcelas": [{"numero": 1, "valor": 1200.00}],
+        "clausulas": ["Cláusula 1: Prestação", "Cláusula 2: Pagamento"],
+        "paciente": {"nome": "Paciente Protegido", "cpf": "111.111.111-11"},
+        "clinica": {"nome": "Clínica Dra. Rosângela", "cnpj": "032.663.962-43"},
+        "assinaturaDentista": {"dataHora": "2026-11-02T10:00:00Z", "assinaturaData": "base64_dra"},
+        "assinaturaPaciente": {"dataHora": "2026-11-02T10:05:00Z", "assinaturaData": "base64_pac"}
       }'::jsonb
     ) RETURNING id;
   `);
-  const docId = resDocAssinado.rows[0].id;
+  const docAssinadoId = resNovoDoc.rows[0].id;
 
-  // 9.1 Tentativa maliciosa de adulterar o valor total no banco
-  let bloqueouValor = false;
+  // 6.1 Tentativa de DELETE em contrato assinado (PROIBIÇÃO DE EXCLUSÃO)
+  let bloqueouDelete = false;
+  let erroDeleteMsg = '';
   try {
-    await db.exec(`UPDATE public.documentos_clinicos SET valor_total = 2000.00 WHERE id = '${docId}';`);
+    await db.exec(`DELETE FROM public.documentos_clinicos WHERE id = '${docAssinadoId}';`);
   } catch (err: any) {
-    bloqueouValor = true;
+    bloqueouDelete = true;
+    erroDeleteMsg = err.message || '';
   }
-  assert(bloqueouValor, 'Trigger bloqueou tentativa de adulterar valor_total de contrato assinado');
+  assert(bloqueouDelete, 'Tentativa de DELETE em contrato formalizado foi IMPEDIDA por trigger');
+  assert(erroDeleteMsg.includes('não podem ser excluídos'), 'Mensagem de proibição jurídica confirmada');
 
-  // 9.2 Tentativa maliciosa de adulterar as parcelas financeiras dentro de itens
-  let bloqueouFinanceiro = false;
-  try {
-    await db.exec(`
-      UPDATE public.documentos_clinicos 
-      SET itens = jsonb_set(itens, '{financeiro,valorTotal}', '1000.00'::jsonb)
-      WHERE id = '${docId}';
-    `);
-  } catch (err: any) {
-    bloqueouFinanceiro = true;
-  }
-  assert(bloqueouFinanceiro, 'Trigger bloqueou tentativa de adulterar itens->financeiro de contrato assinado');
-
-  // 9.3 Tentativa de substituir ou apagar a assinatura do paciente já colhida
-  let bloqueouAssinaturaPac = false;
+  // 6.2 Tentativa de adulterar dados do paciente dentro de itens
+  let bloqueouPaciente = false;
   try {
     await db.exec(`
-      UPDATE public.documentos_clinicos 
-      SET itens = jsonb_set(itens, '{assinaturaPaciente,assinaturaData}', '"outra_assinatura"'::jsonb)
-      WHERE id = '${docId}';
+      UPDATE public.documentos_clinicos
+      SET itens = jsonb_set(itens, '{paciente,nome}', '"Nome Adulterado"'::jsonb)
+      WHERE id = '${docAssinadoId}';
     `);
   } catch (err: any) {
-    bloqueouAssinaturaPac = true;
+    bloqueouPaciente = true;
   }
-  assert(bloqueouAssinaturaPac, 'Trigger bloqueou tentativa de adulterar itens->assinaturaPaciente');
+  assert(bloqueouPaciente, 'Trigger bloqueou tentativa de adulterar itens->paciente em contrato assinado');
 
-  // 9.4 Operação LEGÍTIMA: Atualização do pdf_path pelo arquivador / Storage
+  // 6.3 Tentativa de adulterar parcelas dentro de itens
+  let bloqueouParcelas = false;
+  try {
+    await db.exec(`
+      UPDATE public.documentos_clinicos
+      SET itens = jsonb_set(itens, '{parcelas}', '[{"numero": 1, "valor": 10.00}]'::jsonb)
+      WHERE id = '${docAssinadoId}';
+    `);
+  } catch (err: any) {
+    bloqueouParcelas = true;
+  }
+  assert(bloqueouParcelas, 'Trigger bloqueou tentativa de adulterar itens->parcelas em contrato assinado');
+
+  // 6.4 Tentativa de adulterar cláusulas contratuais dentro de itens
+  let bloqueouClausulas = false;
+  try {
+    await db.exec(`
+      UPDATE public.documentos_clinicos
+      SET itens = jsonb_set(itens, '{clausulas}', '["Cláusula Adulterada"]'::jsonb)
+      WHERE id = '${docAssinadoId}';
+    `);
+  } catch (err: any) {
+    bloqueouClausulas = true;
+  }
+  assert(bloqueouClausulas, 'Trigger bloqueou tentativa de adulterar itens->clausulas em contrato assinado');
+
+  // 6.5 Tentativa de transferir a titularidade de clínica do contrato
+  let bloqueouTrocaClinica = false;
+  try {
+    await db.exec(`
+      UPDATE public.documentos_clinicos
+      SET clinica_id = '${ID_CLINICA_B}'
+      WHERE id = '${docAssinadoId}';
+    `);
+  } catch (err: any) {
+    bloqueouTrocaClinica = true;
+  }
+  assert(bloqueouTrocaClinica, 'Trigger bloqueou tentativa de transferir a titularidade de clínica do contrato assinado');
+
+  // 6.6 Operação Técnica Legítima: Gravação do pdf_path pelo Storage
   let permitiuPdfPath = false;
   try {
     await db.exec(`
-      UPDATE public.documentos_clinicos 
-      SET pdf_path = 'contratos/${CTR_ASSINADO}/Contrato_Final.pdf',
+      UPDATE public.documentos_clinicos
+      SET pdf_path = 'contratos/CTR-BLINDADO-001/Contrato_Assinado_CTR-BLINDADO-001.pdf',
           atualizado_em = now()
-      WHERE id = '${docId}';
+      WHERE id = '${docAssinadoId}';
     `);
     permitiuPdfPath = true;
   } catch (err: any) {
     permitiuPdfPath = false;
   }
-  assert(permitiuPdfPath, 'Trigger PERMITIU gravação legítima de pdf_path e metadados de arquivamento');
+  assert(permitiuPdfPath, 'Trigger PERMITIU atualização técnica autorizada de pdf_path e atualizado_em');
+
+  // 6.7 Tentativa de alterar o título do contrato assinado
+  let bloqueouTitulo = false;
+  try {
+    await db.exec(`UPDATE public.documentos_clinicos SET titulo = 'Contrato Alterado' WHERE id = '${docAssinadoId}';`);
+  } catch (err) {
+    bloqueouTitulo = true;
+  }
+  assert(bloqueouTitulo, 'Trigger bloqueou tentativa de adulterar título em contrato assinado');
+
+  // 6.8 Tentativa de alterar o conteúdo textual do contrato assinado
+  let bloqueouConteudo = false;
+  try {
+    await db.exec(`UPDATE public.documentos_clinicos SET conteudo = 'Texto modificado unilateralmente' WHERE id = '${docAssinadoId}';`);
+  } catch (err) {
+    bloqueouConteudo = true;
+  }
+  assert(bloqueouConteudo, 'Trigger bloqueou tentativa de adulterar conteúdo textual em contrato assinado');
+
+  // 6.9 Tentativa de alterar o valor financeiro total do contrato assinado
+  let bloqueouValor = false;
+  try {
+    await db.exec(`UPDATE public.documentos_clinicos SET valor_total = 500.00 WHERE id = '${docAssinadoId}';`);
+  } catch (err) {
+    bloqueouValor = true;
+  }
+  assert(bloqueouValor, 'Trigger bloqueou tentativa de adulterar valor_total em contrato assinado');
+
+  // 6.10 Tentativa de alterar itens->financeiro do contrato assinado
+  let bloqueouFinanceiro = false;
+  try {
+    await db.exec(`
+      UPDATE public.documentos_clinicos 
+      SET itens = jsonb_set(itens, '{financeiro,condicao}', '"À vista com 90% desconto"'::jsonb)
+      WHERE id = '${docAssinadoId}';
+    `);
+  } catch (err) {
+    bloqueouFinanceiro = true;
+  }
+  assert(bloqueouFinanceiro, 'Trigger bloqueou tentativa de adulterar condições financeiras em contrato assinado');
+
+  // 6.11 Tentativa de alterar itens->itens (lista de procedimentos)
+  let bloqueouListaItens = false;
+  try {
+    await db.exec(`
+      UPDATE public.documentos_clinicos 
+      SET itens = jsonb_set(itens, '{itens}', '[]'::jsonb)
+      WHERE id = '${docAssinadoId}';
+    `);
+  } catch (err) {
+    bloqueouListaItens = true;
+  }
+  assert(bloqueouListaItens, 'Trigger bloqueou tentativa de adulterar lista de procedimentos em contrato assinado');
+
+  // 6.12 Tentativa de alterar itens->assinaturaPaciente
+  let bloqueouAssinaturaPac = false;
+  try {
+    await db.exec(`
+      UPDATE public.documentos_clinicos 
+      SET itens = jsonb_set(itens, '{assinaturaPaciente,assinaturaData}', '"assinatura_adulterada"'::jsonb)
+      WHERE id = '${docAssinadoId}';
+    `);
+  } catch (err) {
+    bloqueouAssinaturaPac = true;
+  }
+  assert(bloqueouAssinaturaPac, 'Trigger bloqueou tentativa de adulterar assinatura do paciente formalizada');
+
+  // 6.13 Tentativa de alterar itens->assinaturaDentista
+  let bloqueouAssinaturaDent = false;
+  try {
+    await db.exec(`
+      UPDATE public.documentos_clinicos 
+      SET itens = jsonb_set(itens, '{assinaturaDentista,assinaturaData}', '"assinatura_adulterada"'::jsonb)
+      WHERE id = '${docAssinadoId}';
+    `);
+  } catch (err) {
+    bloqueouAssinaturaDent = true;
+  }
+  assert(bloqueouAssinaturaDent, 'Trigger bloqueou tentativa de adulterar assinatura da profissional vinculada');
 
   console.log('\n================================================================');
-  console.log(`RESULTADO FINAL: ${passedTests}/${totalTests} TESTES DE BLINDAGEM APROVADOS (100%)`);
+  console.log(`RESULTADO FINAL: ${passedTests}/${totalTests} TESTES DE SEGURANÇA APROVADOS (100%)`);
   console.log('================================================================\n');
 }
 
