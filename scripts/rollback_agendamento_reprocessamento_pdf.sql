@@ -23,3 +23,4 @@ DROP VIEW IF EXISTS public.vw_fila_pdf_pendencias;
 -- NOTA DE INTEGRIDADE:
 -- A tabela public.fila_arquivamento_pdf, os contratos formalizados,
 -- as assinaturas e os PDFs no Supabase Storage permanecem 100% INTACTOS e preservados.
+
