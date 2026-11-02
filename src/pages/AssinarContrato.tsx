@@ -62,6 +62,7 @@ import {
   construirUrlPublicaContrato,
 } from '@/utils/contratoEngine';
 import { slugifyNome, unslugifyNome } from '@/utils/anamneseEngine';
+import { gerarContratoDoOrcamentoAprovado } from '@/utils/orcamentoEngine';
 import {
   Dialog,
   DialogContent,
@@ -410,7 +411,41 @@ export default function AssinarContrato() {
           } catch (_) { }
         }
 
-        // 1.2 Fallback 1: Tenta RPC segura 'obter_contrato_publico' (executa com SECURITY DEFINER)
+        // 1.2 Auto-Recuperação: Se o contrato ainda não consta em documentos_clinicos mas temos token,
+        // verifica se targetId corresponde a um orçamento aprovado para materializar e persistir o contrato imediatamente
+        if (!foundSnapshot && token) {
+          try {
+            const { data: orcData, error: orcErr } = await supabase.functions.invoke('orcamento-publico', {
+              body: { action: 'get', identificador: targetId, token },
+            });
+
+            if (!orcErr && orcData?.ok && orcData?.orcamento) {
+              const o = orcData.orcamento;
+              if (o.status === 'aprovado' || o.condicaoEscolhida) {
+                const modeloContrato = isContratoLenteResina(o.titulo || '')
+                  ? 'lentes_resina'
+                  : isContratoEndodontia(o.titulo || '')
+                    ? 'endodontia'
+                    : 'geral';
+
+                const resC = await gerarContratoDoOrcamentoAprovado({
+                  orcamento: o,
+                  patient: { id: o.pacienteId, nome: o.pacienteNome },
+                  configuracoes: {},
+                  configContrato: {},
+                  modeloId: modeloContrato,
+                });
+
+                if (resC?.ok && resC.snapshot) {
+                  foundSnapshot = resC.snapshot;
+                  foundDocId = resC.contratoId || targetId;
+                }
+              }
+            }
+          } catch (_) { }
+        }
+
+        // 1.3 Fallback 1: Tenta RPC segura 'obter_contrato_publico' (executa com SECURITY DEFINER)
         if (!foundSnapshot && token) {
           try {
             const { data: rpcData, error: rpcErr } = await (supabase.rpc as any)('obter_contrato_publico', {
@@ -784,23 +819,45 @@ export default function AssinarContrato() {
       let persistiuRemoto = false;
       if (contractId && contractToken) {
         try {
+          // 1.1 Garante que os dados completos do snapshot (incluindo o traço gráfico/base64 da assinatura) estejam gravados
+          await supabase.functions.invoke('contrato-publico', {
+            body: {
+              action: 'save',
+              id: contractId,
+              token: contractToken,
+              pacienteNome: updatedSnapshot.pacienteNome || updatedSnapshot.paciente?.nome,
+              snapshot: updatedSnapshot,
+            },
+          }).catch(() => {});
+
+          // 1.2 Formaliza a assinatura definitiva no backend (action: 'sign' bloqueia reassinatura e atualiza assinado_em)
           const { data: signRes, error: signErr } = await supabase.functions.invoke('contrato-publico', {
             body: {
               action: 'sign',
               id: contractId,
               token: contractToken,
-              signature: sigData.signature,
+              signature: dataHoraIso,
               signerName: sigData.signerName || snapshot.paciente.nome,
               selfie: sigData.selfie,
               signerInfo: sigData.signerInfo,
               termoUsoImagem: updatedSnapshot.termoUsoImagem,
             },
           });
+
           if (!signErr && signRes?.ok) {
             persistiuRemoto = true;
-            if (signRes.snapshot) {
-              setSnapshot(sanitizarSnapshotContrato(signRes.snapshot));
-            }
+            const finalSnap = {
+              ...(signRes.snapshot || updatedSnapshot),
+              assinaturaPaciente: {
+                ...updatedSnapshot.assinaturaPaciente,
+                ...(signRes.snapshot?.assinaturaPaciente || {}),
+                assinaturaData: sigData.signature || updatedSnapshot.assinaturaPaciente.assinaturaData,
+              },
+            };
+            setSnapshot(sanitizarSnapshotContrato(finalSnap));
+          } else if (signRes && !signRes.ok && signRes.jaAssinado) {
+            toast.info('Este contrato já consta como assinado no sistema.');
+            persistiuRemoto = true;
           }
         } catch (edgeErr) {
           console.warn('Erro ao assinar via Edge function:', edgeErr);

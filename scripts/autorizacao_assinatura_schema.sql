@@ -206,3 +206,4 @@ GRANT EXECUTE ON FUNCTION public.conceder_autorizacao_assinatura_profissional(te
 GRANT EXECUTE ON FUNCTION public.revogar_autorizacao_assinatura_profissional(uuid, text) TO anon, authenticated;
 
 NOTIFY pgrst, 'reload schema';
+

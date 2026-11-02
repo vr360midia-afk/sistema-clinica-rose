@@ -57,11 +57,13 @@ import {
   aprovarOrcamentoPublico,
   solicitarAjusteOrcamentoPublico,
   obterUrlAssinadaFoto,
+  gerarContratoDoOrcamentoAprovado,
   OrcamentoPublicoDados,
   FotoPlanejamento,
   SolicitacaoAjuste,
 } from '@/utils/orcamentoEngine';
 import { CondicaoPagamento } from '@/utils/orcamentoCondicoes';
+import { construirUrlPublicaContrato } from '@/utils/contratoEngine';
 import { openWhatsApp } from '@/lib/whatsapp';
 
 export const OPCOES_MOTIVO_AJUSTE = [
@@ -123,14 +125,43 @@ export default function VisualizarOrcamento() {
 
       const res = await obterOrcamentoPublico(targetId, queryToken);
       if (res.ok && res.orcamento) {
-        setOrcamento(res.orcamento);
+        let orcLoaded = res.orcamento;
+
+        // Se o orçamento já estiver aprovado mas sem contrato gerado ou persistido, gera e persiste proativamente
+        if (
+          orcLoaded.status === 'aprovado' &&
+          (!orcLoaded.contratoId || !orcLoaded.contratoToken || !orcLoaded.contratoLink)
+        ) {
+          try {
+            const condicao = orcLoaded.condicaoEscolhida || (Array.isArray(orcLoaded.condicoes) ? orcLoaded.condicoes[0] : null);
+            if (condicao) {
+              const resContrato = await gerarContratoDoOrcamentoAprovado({
+                orcamento: orcLoaded,
+                patient: { id: orcLoaded.pacienteId, nome: orcLoaded.pacienteNome },
+                configuracoes: {},
+                configContrato: {},
+              });
+              if (resContrato.ok && resContrato.contratoId) {
+                orcLoaded = {
+                  ...orcLoaded,
+                  contratoId: resContrato.contratoId,
+                  contratoToken: resContrato.contratoToken,
+                  contratoLink: resContrato.contratoLink,
+                  contratoStatus: resContrato.snapshot?.status,
+                };
+              }
+            }
+          } catch (_) {}
+        }
+
+        setOrcamento(orcLoaded);
 
         // Se já houver condição aprovada ou previamente selecionada
-        if (res.orcamento.condicaoEscolhida?.id) {
-          setCondicaoSelecionadaId(res.orcamento.condicaoEscolhida.id);
-        } else if (res.orcamento.condicoes.length > 0) {
+        if (orcLoaded.condicaoEscolhida?.id) {
+          setCondicaoSelecionadaId(orcLoaded.condicaoEscolhida.id);
+        } else if (orcLoaded.condicoes.length > 0) {
           // Seleciona a primeira condição por padrão para facilitar a visualização do paciente
-          const ativa = res.orcamento.condicoes.find((c) => c.selecionada) || res.orcamento.condicoes[0];
+          const ativa = orcLoaded.condicoes.find((c) => c.selecionada) || orcLoaded.condicoes[0];
           setCondicaoSelecionadaId(ativa.id);
         }
       } else {
@@ -222,7 +253,7 @@ export default function VisualizarOrcamento() {
                 condicaoEscolhida: condicaoAtiva,
                 contratoId: res.contratoId || prev.contratoId,
                 contratoToken: res.contratoToken || prev.contratoToken,
-                contratoLink: res.contratoLink || prev.contratoLink || (res.contratoId && res.contratoToken ? `https://app.lentesemresinamaceio.com.br/contrato/${res.contratoId}?token=${encodeURIComponent(res.contratoToken)}` : null),
+                contratoLink: res.contratoLink || prev.contratoLink || (res.contratoId && res.contratoToken ? construirUrlPublicaContrato({ pacienteNome: prev.pacienteNome, identificador: res.contratoId, token: res.contratoToken }) : null),
                 contratoStatus: res.contratoStatus || prev.contratoStatus,
               }
             : null
@@ -533,12 +564,19 @@ export default function VisualizarOrcamento() {
               </div>
 
               (() => {
-                const linkContratoFinal = orcamento.contratoLink || (orcamento.contratoId && orcamento.contratoToken ? `/contrato/${orcamento.contratoId}?token=${encodeURIComponent(orcamento.contratoToken)}` : orcamento.contratoIdentificador && orcamento.contratoToken ? `/contrato/${orcamento.contratoIdentificador}?token=${encodeURIComponent(orcamento.contratoToken)}` : null);
+                const linkContratoFinal = orcamento.contratoLink || (orcamento.contratoId && orcamento.contratoToken ? construirUrlPublicaContrato({ pacienteNome: orcamento.pacienteNome, identificador: orcamento.contratoId, token: orcamento.contratoToken }) : orcamento.contratoIdentificador && orcamento.contratoToken ? construirUrlPublicaContrato({ pacienteNome: orcamento.pacienteNome, identificador: orcamento.contratoIdentificador, token: orcamento.contratoToken }) : null);
 
                 return linkContratoFinal ? (
                   <Button
                     onClick={() => {
                       if (linkContratoFinal.startsWith('http')) {
+                        try {
+                          const u = new URL(linkContratoFinal);
+                          if (u.origin === window.location.origin) {
+                            navigate(u.pathname + u.search);
+                            return;
+                          }
+                        } catch (_) {}
                         window.location.href = linkContratoFinal;
                       } else {
                         navigate(linkContratoFinal);
