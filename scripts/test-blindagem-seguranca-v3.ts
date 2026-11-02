@@ -345,6 +345,64 @@ async function runTests() {
   const authId = resTitularLegitima.rows[0].result.autorizacao_id;
   assert(Boolean(authId), 'UUID da autorização gerado');
 
+  // 4.5.a Teste de Acesso Anônimo à RPC obter_autorizacao_ativa_profissional (REVOKE EXECUTE + Trava Interna)
+  let bloqueouPermissaoAnon = false;
+  try {
+    await db.exec(`SET ROLE anon;`);
+    await db.query(`SELECT public.obter_autorizacao_ativa_profissional('06267-AL');`);
+  } catch (err: any) {
+    bloqueouPermissaoAnon = true;
+  } finally {
+    await db.exec(`SET ROLE postgres;`);
+  }
+  assert(bloqueouPermissaoAnon, 'EXECUTE negado ao role anon em obter_autorizacao_ativa_profissional (REVOKE aplicado)');
+
+  // Chamada anônima direta sem credenciais/sub
+  await db.exec(`SET request.jwt.claims = '{"role": "anon"}';`);
+  const resAnonRpc = await db.query<any>(`
+    SELECT public.obter_autorizacao_ativa_profissional('06267-AL') as result;
+  `);
+  assert(resAnonRpc.rows[0].result.ok === false, 'Acesso não autenticado à RPC foi BLOQUEADO');
+  assert(resAnonRpc.rows[0].result.code === 'UNAUTHORIZED', 'Retornou código UNAUTHORIZED para chamada anônima');
+  assert(!resAnonRpc.rows[0].result.assinaturaGrafica, 'Rubrica gráfica NÃO foi exposta em chamada pública');
+
+  // 4.5.b Teste de Acesso Cross-Clínica (Clínica B tentando obter assinatura da Clínica A)
+  await db.exec(`SET request.jwt.claims = '{"sub": "${ID_DR_OUTRO_CLINICA_B}", "role": "authenticated"}';`);
+  const resCrossClinicaExplicit = await db.query<any>(`
+    SELECT public.obter_autorizacao_ativa_profissional('06267-AL', '${ID_CLINICA_A}') as result;
+  `);
+  assert(resCrossClinicaExplicit.rows[0].result.ok === false, 'Tentativa explícita de acessar assinatura de outra clínica foi BLOQUEADA');
+  assert(resCrossClinicaExplicit.rows[0].result.code === 'FORBIDDEN', 'Retornou código FORBIDDEN para isolamento entre clínicas');
+  assert(!resCrossClinicaExplicit.rows[0].result.assinaturaGrafica, 'Rubrica gráfica NÃO foi exposta para clínica externa');
+
+  const resCrossClinicaImplicit = await db.query<any>(`
+    SELECT public.obter_autorizacao_ativa_profissional('06267-AL') as result;
+  `);
+  assert(resCrossClinicaImplicit.rows[0].result.ok === true && resCrossClinicaImplicit.rows[0].result.temAutorizacao === false, 'Consulta no escopo de outra clínica não encontra autorização');
+  assert(!resCrossClinicaImplicit.rows[0].result.assinaturaGrafica, 'Rubrica gráfica NÃO vazou no escopo da Clínica B');
+
+  // 4.5.c Teste de Acesso Autorizado da Própria Clínica (Dra. Rosângela / Clínica A)
+  await db.exec(`SET request.jwt.claims = '{"sub": "${ID_DRA_ROSANGELA}", "role": "authenticated"}';`);
+  const resInterfaceRpc = await db.query<any>(`
+    SELECT public.obter_autorizacao_ativa_profissional('06267-AL') as result;
+  `);
+  assert(resInterfaceRpc.rows[0].result.ok === true, 'Interface RPC obter_autorizacao_ativa_profissional retornou sucesso para usuário autorizado');
+  assert(resInterfaceRpc.rows[0].result.temAutorizacao === true, 'Interface detecta autorização ativa da Dra. Rosângela');
+  assert(resInterfaceRpc.rows[0].result.profissionalCro === '06267-AL', 'Interface confirma CRO oficial 06267-AL');
+  assert(Boolean(resInterfaceRpc.rows[0].result.assinaturaGrafica), 'Rubrica gráfica entregue exclusivamente para fluxo autenticado e autorizado');
+
+  // 4.6 Confirmação de compatibilidade da consulta direta da interface com order by autorizado_em
+  const resInterfaceDirect = await db.query<any>(`
+    SELECT id, profissional_nome, profissional_cro, assinatura_grafica, ativo, autorizado_em
+    FROM public.autorizacoes_assinatura_profissional
+    WHERE ativo = true AND revogado_em IS NULL
+    ORDER BY autorizado_em DESC
+    LIMIT 1;
+  `);
+  assert(resInterfaceDirect.rows.length === 1, 'Consulta direta da interface administrativa retornou autorização vigente');
+  assert(resInterfaceDirect.rows[0].profissional_cro === '06267-AL', 'Consulta direta confirmou profissional_cro');
+  assert(Boolean(resInterfaceDirect.rows[0].assinatura_grafica), 'Consulta direta confirmou assinatura_grafica');
+
   // 5. Validação do Ponto 1: RLS da Fila de PDFs Sem clinica_id IS NULL e Restrita por Clínica
   console.log(`\n${STEP} 5. Testes em Fila de PDFs (Isolamento Estrito de Leitura e Sem clinica_id IS NULL)`);
 
@@ -482,6 +540,22 @@ async function runTests() {
   }
   assert(bloqueouUpdateDra, 'Trigger de UPDATE bloqueou alteração de conteúdo em contrato com assinaturaDra (consistência total)');
 
+  // 6.0.c Proteção específica da assinatura histórica assinaturaDra contra modificação
+  let bloqueouModificarAssinaturaDra = false;
+  let erroModificarDraMsg = '';
+  try {
+    await db.exec(`
+      UPDATE public.documentos_clinicos 
+      SET itens = jsonb_set(itens, '{assinaturaDra,assinaturaData}', '"assinatura_adulterada"'::jsonb)
+      WHERE id = '${docDraId}';
+    `);
+  } catch (err: any) {
+    bloqueouModificarAssinaturaDra = true;
+    erroModificarDraMsg = err.message || '';
+  }
+  assert(bloqueouModificarAssinaturaDra, 'Trigger bloqueou tentativa de modificar a assinatura histórica da titular (assinaturaDra)');
+  assert(erroModificarDraMsg.includes('assinaturaDra'), 'Mensagem de violação de integridade específica de assinaturaDra confirmada');
+
   const resNovoDoc = await db.query<any>(`
     INSERT INTO public.documentos_clinicos (
       tipo, titulo, conteudo, valor_total, identificador, clinica_id, user_id, assinado_em, itens
@@ -497,7 +571,7 @@ async function runTests() {
         "parcelas": [{"numero": 1, "valor": 1200.00}],
         "clausulas": ["Cláusula 1: Prestação", "Cláusula 2: Pagamento"],
         "paciente": {"nome": "Paciente Protegido", "cpf": "111.111.111-11"},
-        "clinica": {"nome": "Clínica Dra. Rosângela", "cnpj": "032.663.962-43"},
+        "clinica": {"nome": "Clínica Dra. Rosângela", "cnpj": "00.000.000/0001-00"},
         "assinaturaDentista": {"dataHora": "2026-11-02T10:00:00Z", "assinaturaData": "base64_dra"},
         "assinaturaPaciente": {"dataHora": "2026-11-02T10:05:00Z", "assinaturaData": "base64_pac"}
       }'::jsonb

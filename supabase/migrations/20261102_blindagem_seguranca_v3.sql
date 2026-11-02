@@ -99,6 +99,20 @@ BEGIN
     v_cid := NULL;
   END;
 
+  IF v_cid IS NOT NULL THEN
+    RETURN v_cid;
+  END IF;
+
+  -- 3. Fallback para tabela user_roles
+  BEGIN
+    SELECT clinica_id INTO v_cid 
+    FROM public.user_roles 
+    WHERE user_id = auth.uid() AND clinica_id IS NOT NULL 
+    LIMIT 1;
+  EXCEPTION WHEN OTHERS THEN
+    v_cid := NULL;
+  END;
+
   RETURN coalesce(v_cid, auth.uid());
 END;
 $$;
@@ -183,25 +197,45 @@ $$;
 -- Tabela de autorizações expressas (concedidas e revogadas pela própria profissional)
 CREATE TABLE IF NOT EXISTS public.autorizacoes_assinatura_profissional (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  profissional_id uuid NOT NULL,
+  profissional_id uuid NULL,
+  user_id uuid NULL,
   clinica_id uuid NULL,
-  nome_profissional text NOT NULL,
-  cro text NOT NULL,
-  assinatura_base64 text NOT NULL,
+  nome_profissional text NULL,
+  profissional_nome text NOT NULL DEFAULT '',
+  cro text NULL,
+  profissional_cro text NOT NULL DEFAULT '',
+  profissional_documento text NULL,
+  assinatura_base64 text NULL,
+  assinatura_grafica text NULL,
+  autorizacao_expressa text NULL,
   escopo text NOT NULL DEFAULT 'contrato_odontologico',
-  modelos_autorizados jsonb NOT NULL DEFAULT '["padrao", "procedimentos", "ortodontia", "cirurgia"]'::jsonb,
+  modelos_autorizados jsonb NOT NULL DEFAULT '["geral", "lentes_resina", "endodontia"]'::jsonb,
+  condicoes_abrangidas jsonb NOT NULL DEFAULT '{"apenas_orcamentos_aprovados": true}'::jsonb,
   ativo boolean NOT NULL DEFAULT true,
   concedido_em timestamptz NOT NULL DEFAULT now(),
-  concedido_por uuid NOT NULL,
+  autorizado_em timestamptz NOT NULL DEFAULT now(),
+  concedido_por uuid NULL,
   revogado_em timestamptz NULL,
   revogado_por uuid NULL,
   motivo_revogacao text NULL,
   ip_concessao text NULL,
   user_agent_concessao text NULL,
-  hash_integridade text NOT NULL,
+  evidencias jsonb NOT NULL DEFAULT '{}'::jsonb,
+  hash_integridade text NULL,
   criado_em timestamptz NOT NULL DEFAULT now(),
   atualizado_em timestamptz NOT NULL DEFAULT now()
 );
+
+-- Compatibilidade retroativa de colunas se a tabela já existir previamente
+ALTER TABLE public.autorizacoes_assinatura_profissional ADD COLUMN IF NOT EXISTS user_id uuid;
+ALTER TABLE public.autorizacoes_assinatura_profissional ADD COLUMN IF NOT EXISTS profissional_nome text;
+ALTER TABLE public.autorizacoes_assinatura_profissional ADD COLUMN IF NOT EXISTS profissional_cro text;
+ALTER TABLE public.autorizacoes_assinatura_profissional ADD COLUMN IF NOT EXISTS profissional_documento text;
+ALTER TABLE public.autorizacoes_assinatura_profissional ADD COLUMN IF NOT EXISTS autorizacao_expressa text;
+ALTER TABLE public.autorizacoes_assinatura_profissional ADD COLUMN IF NOT EXISTS condicoes_abrangidas jsonb DEFAULT '{"apenas_orcamentos_aprovados": true}'::jsonb;
+ALTER TABLE public.autorizacoes_assinatura_profissional ADD COLUMN IF NOT EXISTS assinatura_grafica text;
+ALTER TABLE public.autorizacoes_assinatura_profissional ADD COLUMN IF NOT EXISTS autorizado_em timestamptz DEFAULT now();
+ALTER TABLE public.autorizacoes_assinatura_profissional ADD COLUMN IF NOT EXISTS evidencias jsonb DEFAULT '{}'::jsonb;
 
 ALTER TABLE public.autorizacoes_assinatura_profissional ENABLE ROW LEVEL SECURITY;
 
@@ -284,7 +318,9 @@ CREATE OR REPLACE FUNCTION public.conceder_autorizacao_assinatura(
   p_escopo text DEFAULT 'contrato_odontologico',
   p_modelos jsonb DEFAULT '["padrao", "procedimentos", "ortodontia", "cirurgia"]'::jsonb,
   p_clinica_id uuid DEFAULT NULL,
-  p_consentimento_expresso boolean DEFAULT false
+  p_consentimento_expresso boolean DEFAULT false,
+  p_documento text DEFAULT NULL,
+  p_autorizacao_expressa text DEFAULT NULL
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -386,28 +422,44 @@ BEGIN
   -- Gera hash de integridade
   v_hash := encode(digest(v_user_id::text || p_cro || p_escopo || clock_timestamp()::text, 'sha256'), 'hex');
 
-  -- Insere nova autorização ativa vinculada à clínica comprovada
+  -- Insere nova autorização ativa vinculada à clínica comprovada (compatível com a interface e RPCs)
   INSERT INTO public.autorizacoes_assinatura_profissional (
     profissional_id,
+    user_id,
     clinica_id,
     nome_profissional,
+    profissional_nome,
     cro,
+    profissional_cro,
+    profissional_documento,
     assinatura_base64,
+    assinatura_grafica,
+    autorizacao_expressa,
     escopo,
     modelos_autorizados,
+    condicoes_abrangidas,
     ativo,
     concedido_em,
+    autorizado_em,
     concedido_por,
     hash_integridade
   ) VALUES (
     v_user_id,
+    v_user_id,
     v_clinica_id,
     p_nome_profissional,
+    p_nome_profissional,
     p_cro,
+    p_cro,
+    p_documento,
     p_assinatura_base64,
+    p_assinatura_base64,
+    COALESCE(p_autorizacao_expressa, 'Autorização expressa concedida pela titular'),
     p_escopo,
     p_modelos,
+    '{"apenas_orcamentos_aprovados": true}'::jsonb,
     true,
+    now(),
     now(),
     v_user_id,
     v_hash
@@ -489,6 +541,106 @@ BEGIN
   );
 
   RETURN jsonb_build_object('ok', true, 'mensagem', 'Autorização revogada com sucesso');
+END;
+$$;
+
+-- RPC de Consulta: Restrita a chamadas autenticadas e autorizadas da própria clínica (proteção contra acesso anônimo/externo)
+CREATE OR REPLACE FUNCTION public.obter_autorizacao_ativa_profissional(
+  p_cro text DEFAULT '06267-AL',
+  p_clinica_id uuid DEFAULT NULL
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_rec record;
+  v_caller uuid;
+  v_caller_role text;
+  v_target_clinica_id uuid;
+  v_is_authorized boolean := false;
+BEGIN
+  v_caller := auth.uid();
+  v_caller_role := auth.role();
+
+  -- 1. Bloqueia expressamente chamadas anônimas e públicas
+  IF v_caller IS NULL AND v_caller_role <> 'service_role' THEN
+    RETURN jsonb_build_object('ok', false, 'error', 'Acesso não autenticado proibido', 'code', 'UNAUTHORIZED');
+  END IF;
+
+  -- 2. Determina a clínica autorizada do chamador
+  IF v_caller_role = 'service_role' THEN
+    v_target_clinica_id := COALESCE(p_clinica_id, (
+      SELECT clinica_id FROM public.autorizacoes_assinatura_profissional
+      WHERE ativo = true AND revogado_em IS NULL
+        AND (COALESCE(profissional_cro, cro) = p_cro OR regexp_replace(upper(COALESCE(profissional_cro, cro)), '[^0-9]', '', 'g') = regexp_replace(upper(p_cro), '[^0-9]', '', 'g'))
+      ORDER BY COALESCE(autorizado_em, concedido_em) DESC LIMIT 1
+    ));
+    v_is_authorized := true;
+  ELSE
+    v_target_clinica_id := public.contrato_obter_clinica_id();
+
+    -- Se p_clinica_id foi fornecido explicitamente, verifica se o usuário tem permissão sobre ela
+    IF p_clinica_id IS NOT NULL AND p_clinica_id <> v_target_clinica_id THEN
+      IF NOT EXISTS (
+        SELECT 1 FROM public.user_roles ur 
+        WHERE ur.user_id = v_caller AND ur.clinica_id = p_clinica_id
+      ) THEN
+        RETURN jsonb_build_object('ok', false, 'error', 'Acesso negado à assinatura de outra clínica', 'code', 'FORBIDDEN');
+      END IF;
+      v_target_clinica_id := p_clinica_id;
+    END IF;
+
+    IF v_target_clinica_id IS NOT NULL THEN
+      v_is_authorized := (
+        v_caller = v_target_clinica_id
+        OR EXISTS (
+          SELECT 1 FROM public.user_roles ur 
+          WHERE ur.user_id = v_caller AND ur.clinica_id = v_target_clinica_id
+        )
+      );
+    END IF;
+  END IF;
+
+  IF NOT v_is_authorized THEN
+    RETURN jsonb_build_object('ok', false, 'error', 'Acesso negado à assinatura de outra clínica', 'code', 'FORBIDDEN');
+  END IF;
+
+  -- 3. Isolamento estrito por clínica: a assinatura só é retornada se pertencer à clínica do chamador
+  SELECT * INTO v_rec
+  FROM public.autorizacoes_assinatura_profissional
+  WHERE ativo = true
+    AND revogado_em IS NULL
+    AND clinica_id = v_target_clinica_id
+    AND (
+      COALESCE(profissional_cro, cro) = p_cro
+      OR regexp_replace(upper(COALESCE(profissional_cro, cro)), '[^0-9]', '', 'g') = regexp_replace(upper(p_cro), '[^0-9]', '', 'g')
+    )
+  ORDER BY COALESCE(autorizado_em, concedido_em) DESC
+  LIMIT 1;
+
+  IF v_rec.id IS NULL THEN
+    RETURN jsonb_build_object('ok', true, 'temAutorizacao', false);
+  END IF;
+
+  -- Retorna rubrica e dados estritamente para chamada autenticada e autorizada da clínica
+  RETURN jsonb_build_object(
+    'ok', true,
+    'temAutorizacao', true,
+    'id', v_rec.id,
+    'profissionalNome', COALESCE(v_rec.profissional_nome, v_rec.nome_profissional),
+    'profissionalCro', COALESCE(v_rec.profissional_cro, v_rec.cro),
+    'profissionalDocumento', v_rec.profissional_documento,
+    'autorizacaoExpressa', v_rec.autorizacao_expressa,
+    'modelosAutorizados', v_rec.modelos_autorizados,
+    'condicoesAbrangidas', v_rec.condicoes_abrangidas,
+    'assinaturaGrafica', COALESCE(v_rec.assinatura_grafica, v_rec.assinatura_base64),
+    'ativo', v_rec.ativo,
+    'autorizadoEm', COALESCE(v_rec.autorizado_em, v_rec.concedido_em),
+    'evidencias', v_rec.evidencias
+  );
 END;
 $$;
 
@@ -637,6 +789,11 @@ BEGIN
 
       IF (OLD.itens->'assinaturaDentista' IS NOT NULL) AND (NEW.itens->'assinaturaDentista') IS DISTINCT FROM (OLD.itens->'assinaturaDentista') THEN
         RAISE EXCEPTION 'Violação de integridade: A assinatura da profissional já vinculada não pode ser modificada.';
+      END IF;
+
+      -- Proteção específica e integral da assinatura histórica da titular (assinaturaDra)
+      IF (OLD.itens->'assinaturaDra' IS NOT NULL) AND (NEW.itens->'assinaturaDra') IS DISTINCT FROM (OLD.itens->'assinaturaDra') THEN
+        RAISE EXCEPTION 'Violação de integridade: A assinatura da profissional titular (assinaturaDra) já vinculada não pode ser modificada.';
       END IF;
     END IF;
 
@@ -847,6 +1004,7 @@ $$;
 -- Revoga execução pública e anônima de todas as funções administrativas e sensíveis
 REVOKE EXECUTE ON FUNCTION public.conceder_autorizacao_assinatura FROM anon, public;
 REVOKE EXECUTE ON FUNCTION public.revogar_autorizacao_assinatura FROM anon, public;
+REVOKE EXECUTE ON FUNCTION public.obter_autorizacao_ativa_profissional FROM anon, public;
 REVOKE EXECUTE ON FUNCTION public.usuario_possui_perfil_clinica FROM anon, public;
 REVOKE EXECUTE ON FUNCTION public.usuario_possui_perfil FROM anon, public;
 REVOKE EXECUTE ON FUNCTION public.enfileirar_ou_processar_pdf FROM anon, public;
@@ -855,6 +1013,7 @@ REVOKE EXECUTE ON FUNCTION public.enfileirar_ou_processar_pdf FROM anon, public;
 GRANT EXECUTE ON FUNCTION public.contrato_obter_clinica_id TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.conceder_autorizacao_assinatura TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.revogar_autorizacao_assinatura TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.obter_autorizacao_ativa_profissional TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.usuario_possui_perfil_clinica TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.usuario_possui_perfil TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.enfileirar_ou_processar_pdf TO authenticated, service_role;
