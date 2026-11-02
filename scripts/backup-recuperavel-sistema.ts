@@ -71,7 +71,10 @@ export async function executarBackupStorageSeguro(params: {
   };
 
   // Se as variáveis de ambiente estiverem disponíveis em runtime, realiza o download seguro
-  const url = params.supabaseUrl || process.env.SUPABASE_URL;
+  const envContent = fs.existsSync('.env') ? fs.readFileSync('.env', 'utf8') : '';
+  const matchUrl = envContent.match(/VITE_SUPABASE_URL\s*=\s*['"]?([^'"\r\n]+)/);
+  const fallbackUrl = matchUrl ? matchUrl[1].trim() : 'https://skonxcdojbkbfnfemayz.supabase.co';
+  const url = params.supabaseUrl || process.env.SUPABASE_URL || fallbackUrl;
   const key = params.serviceKey || process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (url && key) {
@@ -128,7 +131,7 @@ export async function executarBackupStorageSeguro(params: {
 const isMain = process.argv[1]?.endsWith('backup-recuperavel-sistema.ts');
 if (isMain) {
   console.log('--- COMANDOS OFICIAIS SUPABASE CLI V3.0.0 PARA BACKUP COMPLETO DO BANCO ---');
-  const cmds = gerarComandosCliBackup('<SEU_PROJECT_REF>');
+  const cmds = gerarComandosCliBackup('skonxcdojbkbfnfemayz');
   console.log('1. Schema:', cmds.schemaCmd);
   console.log('2. Dados Public:', cmds.dataCmd);
   console.log('3. Dados Auth:', cmds.authCmd);
