@@ -1,5 +1,5 @@
 -- ==============================================================================
--- SCHEMA: JORNADA DE ORÇAMENTO ONLINE -> APROVAÇÃO -> CONTRATO DIGITAL
+-- SCHEMA: JORNADA DE ORÇAMENTO ONLINE -> SOLICITAÇÃO DE AJUSTE -> APROVAÇÃO -> CONTRATO DIGITAL
 -- Data: 2026-11-02
 -- ==============================================================================
 
@@ -13,6 +13,9 @@ ALTER TABLE public.orcamentos ADD COLUMN IF NOT EXISTS snapshot_aprovacao jsonb;
 ALTER TABLE public.orcamentos ADD COLUMN IF NOT EXISTS fotos_planejamento jsonb DEFAULT '[]'::jsonb;
 ALTER TABLE public.orcamentos ADD COLUMN IF NOT EXISTS contrato_id text;
 ALTER TABLE public.orcamentos ADD COLUMN IF NOT EXISTS contrato_token text;
+ALTER TABLE public.orcamentos ADD COLUMN IF NOT EXISTS versao integer DEFAULT 1;
+ALTER TABLE public.orcamentos ADD COLUMN IF NOT EXISTS solicitacoes_ajuste jsonb DEFAULT '[]'::jsonb;
+ALTER TABLE public.orcamentos ADD COLUMN IF NOT EXISTS historico_versoes jsonb DEFAULT '[]'::jsonb;
 
 -- 2. Índices de alta performance para busca rápida
 CREATE INDEX IF NOT EXISTS idx_orcamentos_identificador ON public.orcamentos (identificador);
@@ -125,11 +128,14 @@ BEGIN
     'itens', v_orc.itens,
     'desconto', v_orc.desconto,
     'total', v_orc.total,
-    'status', v_orc.status,
+    'status', COALESCE(v_orc.status, 'enviado'),
+    'versao', COALESCE(v_orc.versao, 1),
     'validade', v_orc.validade,
     'observacoes', v_orc.observacoes,
     'formasPagamento', v_orc.formas_pagamento,
     'fotosPlanejamento', COALESCE(v_orc.fotos_planejamento, '[]'::jsonb),
+    'solicitacoesAjuste', COALESCE(v_orc.solicitacoes_ajuste, '[]'::jsonb),
+    'historicoVersoes', COALESCE(v_orc.historico_versoes, '[]'::jsonb),
     'pacienteId', v_orc.paciente_id,
     'pacienteNome', COALESCE(v_orc.paciente_nome, v_paciente.nome, 'Paciente'),
     'aprovadoEm', v_orc.aprovado_em,
@@ -150,12 +156,102 @@ BEGIN
 END;
 $$;
 
--- 5. Função RPC: Aprovar orçamento com bloqueio atômico de aprovação duplicada
+-- 5. Função RPC: Solicitar ajuste no orçamento pelo paciente
+CREATE OR REPLACE FUNCTION public.solicitar_ajuste_orcamento_publico(
+  p_identificador text,
+  p_token text,
+  p_motivo text,
+  p_mensagem text DEFAULT NULL
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_orc record;
+  v_now timestamptz := now();
+  v_solicitacao jsonb;
+  v_novas_solicitacoes jsonb;
+  v_versao integer;
+BEGIN
+  IF p_identificador IS NULL OR trim(p_identificador) = '' OR p_token IS NULL OR trim(p_token) = '' THEN
+    RETURN jsonb_build_object('ok', false, 'error', 'Identificador e token são obrigatórios');
+  END IF;
+
+  IF p_motivo IS NULL OR trim(p_motivo) = '' THEN
+    RETURN jsonb_build_object('ok', false, 'error', 'Informe o motivo do ajuste.');
+  END IF;
+
+  -- Busca o orçamento com lock para atomicidade
+  SELECT * INTO v_orc
+  FROM public.orcamentos
+  WHERE (
+    (p_identificador ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' AND id::text = p_identificador)
+    OR (identificador = p_identificador)
+    OR (identificador = upper(p_identificador))
+    OR (id::text = p_identificador)
+  )
+  FOR UPDATE;
+
+  IF v_orc.id IS NULL THEN
+    RETURN jsonb_build_object('ok', false, 'error', 'Orçamento não encontrado');
+  END IF;
+
+  -- Validação estrita do token
+  IF v_orc.token_assinatura IS NULL OR v_orc.token_assinatura <> trim(p_token) THEN
+    RETURN jsonb_build_object('ok', false, 'error', 'Token de acesso inválido');
+  END IF;
+
+  -- Não permitir solicitação de ajuste em orçamento já aprovado
+  IF v_orc.status = 'aprovado' THEN
+    RETURN jsonb_build_object('ok', false, 'error', 'Este orçamento já foi aprovado e não aceita mais solicitações de alteração.');
+  END IF;
+
+  v_versao := COALESCE(v_orc.versao, 1);
+
+  -- Monta objeto da solicitação de ajuste
+  v_solicitacao := jsonb_build_object(
+    'id', 'ajuste-' || extract(epoch from v_now)::bigint::text || '-' || floor(random() * 1000)::text,
+    'orcamentoId', v_orc.id,
+    'pacienteId', v_orc.paciente_id,
+    'pacienteNome', v_orc.paciente_nome,
+    'versaoOrcamento', v_versao,
+    'motivo', trim(p_motivo),
+    'mensagem', CASE WHEN p_mensagem IS NOT NULL AND trim(p_mensagem) <> '' THEN trim(p_mensagem) ELSE NULL END,
+    'solicitadaEm', v_now,
+    'atendida', false
+  );
+
+  v_novas_solicitacoes := COALESCE(v_orc.solicitacoes_ajuste, '[]'::jsonb) || jsonb_build_array(v_solicitacao);
+
+  -- Atualiza o orçamento no banco mantendo o mesmo link
+  UPDATE public.orcamentos
+  SET
+    status = 'ajuste_solicitado',
+    solicitacoes_ajuste = v_novas_solicitacoes,
+    atualizado_em = v_now
+  WHERE id = v_orc.id;
+
+  RETURN jsonb_build_object(
+    'ok', true,
+    'id', v_orc.id,
+    'identificador', COALESCE(v_orc.identificador, p_identificador),
+    'status', 'ajuste_solicitado',
+    'versao', v_versao,
+    'solicitadaEm', v_now,
+    'solicitacao', v_solicitacao
+  );
+END;
+$$;
+
+-- 6. Função RPC: Aprovar orçamento com bloqueio atômico de aprovação duplicada e validação de versão
 CREATE OR REPLACE FUNCTION public.aprovar_orcamento_publico(
   p_identificador text,
   p_token text,
   p_condicao jsonb,
-  p_evidencias jsonb DEFAULT '{}'::jsonb
+  p_evidencias jsonb DEFAULT '{}'::jsonb,
+  p_versao_aprovada integer DEFAULT NULL
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -166,6 +262,7 @@ DECLARE
   v_orc record;
   v_now timestamptz := now();
   v_novo_snapshot jsonb;
+  v_versao_atual integer;
 BEGIN
   IF p_identificador IS NULL OR trim(p_identificador) = '' OR p_token IS NULL OR trim(p_token) = '' THEN
     RETURN jsonb_build_object('ok', false, 'error', 'Identificador e token são obrigatórios');
@@ -205,10 +302,22 @@ BEGIN
     );
   END IF;
 
+  v_versao_atual := COALESCE(v_orc.versao, 1);
+
+  -- Não permitir aprovação de versões antigas ou substituídas
+  IF p_versao_aprovada IS NOT NULL AND p_versao_aprovada < v_versao_atual THEN
+    RETURN jsonb_build_object(
+      'ok', false,
+      'error', 'Uma nova versão deste orçamento foi enviada pela clínica. Por favor, atualize a página para visualizar e aprovar a proposta mais recente.',
+      'versaoAtual', v_versao_atual
+    );
+  END IF;
+
   -- Monta snapshot congelado da versão aprovada
   v_novo_snapshot := jsonb_build_object(
     'orcamentoId', v_orc.id,
     'identificador', COALESCE(v_orc.identificador, 'ORC-' || upper(substring(v_orc.id::text from 1 for 8))),
+    'versaoAprovada', v_versao_atual,
     'titulo', v_orc.titulo,
     'itens', v_orc.itens,
     'desconto', v_orc.desconto,
@@ -247,9 +356,9 @@ BEGIN
     'id', v_orc.id,
     'identificador', COALESCE(v_orc.identificador, 'ORC-' || upper(substring(v_orc.id::text from 1 for 8))),
     'status', 'aprovado',
+    'versao', v_versao_atual,
     'aprovadoEm', v_now,
     'condicaoEscolhida', p_condicao
   );
 END;
 $$;
-

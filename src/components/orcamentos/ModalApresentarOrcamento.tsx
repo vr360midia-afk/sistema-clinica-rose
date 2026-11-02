@@ -45,6 +45,8 @@ import {
   Eye,
   Camera,
   ExternalLink,
+  AlertCircle,
+  Clock,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -58,6 +60,7 @@ import {
   garantirOrcamentoPersistidoComToken,
   construirUrlPublicaOrcamento,
   gerarContratoDoOrcamentoAprovado,
+  enviarNovaPropostaOrcamento,
   FotoPlanejamento,
 } from '@/utils/orcamentoEngine';
 import { openWhatsApp } from '@/lib/whatsapp';
@@ -702,6 +705,55 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
     }
   };
 
+  // Enviar como nova proposta comercial revisada (incrementa versão)
+  const handleEnviarNovaProposta = async () => {
+    if (!orcamento) return;
+    try {
+      setSalvando(true);
+      const res = await enviarNovaPropostaOrcamento({
+        orcamentoId: orcamento.id,
+        novosItens: orcamento.itens,
+        novoDesconto: desconto,
+        novasFormasPagamento: formasPagamentoTexto,
+        usuarioNome: configuracoes?.dentistaResponsavel || 'Clínica',
+        motivoAjuste: 'Nova proposta comercial formalizada na apresentação',
+      });
+
+      if (res.ok) {
+        toast.success(`Nova proposta (Versão ${res.novaVersao}) enviada com sucesso!`, {
+          description: 'O paciente já pode acessar o mesmo link e aprovar as novas condições.',
+        });
+
+        const tel = patient?.telefone?.trim() || '';
+        if (tel) {
+          const primNome = patient?.nome ? patient.nome.split(' ')[0] : 'tudo bem';
+          const msg = `Olá, ${primNome}! Atualizamos sua proposta de tratamento com novas condições. Você pode conferir os detalhes e aprovar online através do link: ${res.link}`;
+          openWhatsApp(tel, msg);
+        }
+
+        if (onSalvarAlteracoes) {
+          await onSalvarAlteracoes({
+            id: orcamento.id,
+            titulo: orcamento.titulo,
+            itens: orcamento.itens,
+            desconto,
+            formasPagamento: formasPagamentoTexto,
+            status: 'nova_proposta_enviada',
+            versao: res.novaVersao,
+          });
+        }
+        onClose();
+      } else {
+        toast.error(res.error || 'Erro ao enviar nova proposta.');
+      }
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Erro ao processar nova proposta');
+    } finally {
+      setSalvando(false);
+    }
+  };
+
   // Aprovação imediata com o paciente na sala
   const handleConfirmarAprovacao = async () => {
     if (!orcamento || !onAprovar) return;
@@ -786,13 +838,22 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
                     <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-md border border-border/40">
                       Apresentação do Orçamento
                     </span>
+                    {(orcamento.versao || 1) > 1 && (
+                      <Badge variant="outline" className="text-[10px] font-bold px-2 py-0.5 bg-primary/10 text-primary border-primary/20">
+                        v{orcamento.versao}
+                      </Badge>
+                    )}
                     <Badge
-                      variant={isAprovado ? 'default' : 'secondary'}
+                      variant="outline"
                       className={cn(
-                        'text-[10px] font-semibold border-0 py-0.5 px-2 capitalize',
+                        'text-[10px] font-semibold py-0.5 px-2 capitalize',
                         isAprovado
                           ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
-                          : 'bg-muted text-muted-foreground'
+                          : orcamento.status === 'ajuste_solicitado'
+                            ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 animate-pulse font-bold'
+                            : orcamento.status === 'nova_proposta_enviada'
+                              ? 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-400 border border-indigo-500/30 font-bold'
+                              : 'bg-muted text-muted-foreground'
                       )}
                     >
                       {orcamento.status || 'rascunho'}
@@ -828,6 +889,26 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
               </div>
             </div>
           </div>
+
+          {/* Banner de Ajuste Solicitado se houver */}
+          {orcamento.status === 'ajuste_solicitado' && (
+            <div className="mx-4 sm:mx-6 mt-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-950 dark:text-amber-200 flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
+                <span>
+                  <strong>Ajuste Solicitado pelo Paciente:</strong> Revise descontos ou condições e envie uma nova proposta.
+                </span>
+              </div>
+              <Button
+                size="sm"
+                onClick={handleEnviarNovaProposta}
+                disabled={salvando}
+                className="h-7 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-semibold gap-1 shrink-0"
+              >
+                <Sparkles className="h-3.5 w-3.5" /> Enviar Nova Proposta (v{(orcamento.versao || 1) + 1})
+              </Button>
+            </div>
+          )}
 
           {/* Corpo Rolável */}
           <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
@@ -1395,6 +1476,17 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
                 className="text-xs border-border/70"
               >
                 Salvar Alterações
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleEnviarNovaProposta}
+                disabled={salvando}
+                className="text-xs border-indigo-400 text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 font-semibold gap-1.5"
+                title="Salvar alterações criando uma nova versão (mantém o mesmo link para o paciente)"
+              >
+                <Sparkles className="h-3.5 w-3.5 text-indigo-600" />
+                Salvar como Nova Proposta (v{(orcamento?.versao || 1) + 1})
               </Button>
               {onBaixarPdf && (
                 <Button

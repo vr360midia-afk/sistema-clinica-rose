@@ -35,6 +35,8 @@ import {
   Mail,
   User,
   HeartHandshake,
+  SlidersHorizontal,
+  Send,
 } from 'lucide-react';
 import {
   Dialog,
@@ -44,6 +46,8 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { formatMoney } from '@/utils/exportCsv';
@@ -51,12 +55,22 @@ import { gerarPayloadPix, gerarQrCodePixUrl } from '@/utils/pixPayload';
 import {
   obterOrcamentoPublico,
   aprovarOrcamentoPublico,
+  solicitarAjusteOrcamentoPublico,
   obterUrlAssinadaFoto,
   OrcamentoPublicoDados,
   FotoPlanejamento,
+  SolicitacaoAjuste,
 } from '@/utils/orcamentoEngine';
 import { CondicaoPagamento } from '@/utils/orcamentoCondicoes';
 import { openWhatsApp } from '@/lib/whatsapp';
+
+export const OPCOES_MOTIVO_AJUSTE = [
+  'Gostaria de uma condição melhor no valor',
+  'Quero ajustar o valor da entrada',
+  'Preciso de mais opções de parcelamento',
+  'Quero revisar os procedimentos',
+  'Outro motivo',
+] as const;
 
 export default function VisualizarOrcamento() {
   const navigate = useNavigate();
@@ -81,6 +95,12 @@ export default function VisualizarOrcamento() {
   // Modal de confirmação da aprovação
   const [modalConfirmarOpen, setModalConfirmarOpen] = useState(false);
   const [aprovando, setAprovando] = useState(false);
+
+  // Modal de solicitação de ajuste pelo paciente
+  const [modalAjusteOpen, setModalAjusteOpen] = useState(false);
+  const [motivoAjuste, setMotivoAjuste] = useState<string>(OPCOES_MOTIVO_AJUSTE[0]);
+  const [mensagemAjuste, setMensagemAjuste] = useState('');
+  const [enviandoAjuste, setEnviandoAjuste] = useState(false);
 
   // Modal de foto ampliada do planejamento
   const [fotoAmpliada, setFotoAmpliada] = useState<FotoPlanejamento | null>(null);
@@ -183,6 +203,7 @@ export default function VisualizarOrcamento() {
         identificador: orcamento.identificador || targetId!,
         token: queryToken,
         condicaoEscolhida: condicaoAtiva,
+        versaoAprovada: orcamento.versao,
         evidencias: {
           userAgent: navigator.userAgent,
           dispositivo: /mobile/i.test(navigator.userAgent) ? 'Celular' : 'Computador',
@@ -210,6 +231,43 @@ export default function VisualizarOrcamento() {
       toast.error('Ocorreu um erro ao processar sua aprovação. Tente novamente.');
     } finally {
       setAprovando(false);
+    }
+  };
+
+  // Envia solicitação de ajuste do paciente para a clínica
+  const handleEnviarSolicitacaoAjuste = async () => {
+    if (!orcamento || !queryToken || !motivoAjuste || enviandoAjuste) return;
+
+    try {
+      setEnviandoAjuste(true);
+      const res = await solicitarAjusteOrcamentoPublico({
+        identificador: orcamento.identificador || targetId!,
+        token: queryToken,
+        motivo: motivoAjuste,
+        mensagem: mensagemAjuste.trim() || undefined,
+      });
+
+      if (res.ok && res.solicitacao) {
+        toast.success('Solicitação de ajuste enviada com sucesso! A equipe da clínica analisará seu pedido.');
+        setOrcamento((prev) =>
+          prev
+            ? {
+                ...prev,
+                status: 'ajuste_solicitado',
+                solicitacoesAjuste: [...(prev.solicitacoesAjuste || []), res.solicitacao!],
+              }
+            : null
+        );
+        setModalAjusteOpen(false);
+        setMensagemAjuste('');
+      } else {
+        toast.error(res.error || 'Falha ao enviar solicitação de ajuste.');
+      }
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Erro de conexão ao enviar solicitação. Tente novamente.');
+    } finally {
+      setEnviandoAjuste(false);
     }
   };
 
@@ -309,14 +367,23 @@ export default function VisualizarOrcamento() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-center sm:justify-end">
+            {(orcamento.versao || 1) > 1 && (
+              <Badge variant="outline" className="text-xs font-semibold py-1 px-2.5 bg-primary/10 text-primary border-primary/30">
+                Versão {orcamento.versao}
+              </Badge>
+            )}
             <Badge
               variant="outline"
               className={cn(
                 'text-xs font-semibold py-1 px-3 gap-1.5 border',
                 isAprovado
                   ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
-                  : 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30'
+                  : orcamento.status === 'ajuste_solicitado'
+                    ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30'
+                    : orcamento.status === 'nova_proposta_enviada'
+                      ? 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-400 border-indigo-500/30'
+                      : 'bg-muted/80 text-foreground border-border'
               )}
             >
               {isAprovado ? (
@@ -324,15 +391,108 @@ export default function VisualizarOrcamento() {
                   <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
                   Orçamento Aprovado
                 </>
-              ) : (
+              ) : orcamento.status === 'ajuste_solicitado' ? (
                 <>
                   <Clock className="h-3.5 w-3.5 text-amber-600" />
+                  Ajuste Solicitado
+                </>
+              ) : orcamento.status === 'nova_proposta_enviada' ? (
+                <>
+                  <Sparkles className="h-3.5 w-3.5 text-indigo-600" />
+                  Nova Proposta Enviada
+                </>
+              ) : (
+                <>
+                  <Clock className="h-3.5 w-3.5 text-muted-foreground" />
                   Aguardando sua Aprovação
                 </>
               )}
             </Badge>
           </div>
         </header>
+
+        {/* Banner 1: Solicitação de Ajuste em Análise */}
+        {orcamento.status === 'ajuste_solicitado' && !isAprovado && (
+          <div className="rounded-2xl border-2 border-amber-500/30 bg-amber-500/10 p-5 sm:p-6 space-y-3 shadow-xs">
+            <div className="flex items-start gap-3.5">
+              <div className="h-10 w-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+                <Clock className="h-6 w-6" />
+              </div>
+              <div className="space-y-1 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="font-bold text-base sm:text-lg text-amber-950 dark:text-amber-200">
+                    Solicitação de Ajuste Enviada à Clínica
+                  </h3>
+                  <Badge className="bg-amber-600/20 text-amber-800 dark:text-amber-300 border-amber-500/30 text-[10px]">
+                    Em análise comercial
+                  </Badge>
+                </div>
+                <p className="text-xs text-amber-900/90 dark:text-amber-300/90 leading-relaxed">
+                  Recebemos seu pedido de adequação. A equipe da clínica está preparando uma proposta revisada sob medida para você e ela será disponibilizada automaticamente neste mesmo link.
+                </p>
+              </div>
+            </div>
+
+            {orcamento.solicitacoesAjuste && orcamento.solicitacoesAjuste.length > 0 && (() => {
+              const ult = orcamento.solicitacoesAjuste[orcamento.solicitacoesAjuste.length - 1];
+              return (
+                <div className="mt-2 p-3 rounded-xl bg-background/80 border border-amber-500/20 text-xs space-y-1">
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Motivo selecionado:</span>
+                    <strong className="text-foreground">{ult.motivo}</strong>
+                  </div>
+                  {ult.mensagem && (
+                    <div className="pt-1 border-t border-border/50 text-muted-foreground">
+                      <span className="font-semibold text-foreground">Sua mensagem:</span> "{ult.mensagem}"
+                    </div>
+                  )}
+                  <div className="text-[10px] text-muted-foreground/80 pt-0.5">
+                    Enviada em {new Date(ult.solicitadaEm).toLocaleString('pt-BR')} (Referente à Versão {ult.versaoOrcamento})
+                  </div>
+                </div>
+              );
+            })()}
+
+            <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+              <span className="text-amber-900 dark:text-amber-300 text-center sm:text-left">
+                Deseja complementar sua solicitação? Fale conosco:
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleFalarComClinica}
+                className="text-xs border-amber-400 dark:border-amber-700 text-amber-800 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-950/40 w-full sm:w-auto gap-1.5"
+              >
+                <MessageCircle className="h-3.5 w-3.5" />
+                Falar sobre o Ajuste no WhatsApp
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Banner 2: Nova Proposta Disponível para Avaliação */}
+        {orcamento.status === 'nova_proposta_enviada' && !isAprovado && (
+          <div className="rounded-2xl border-2 border-indigo-500/30 bg-indigo-500/10 p-5 sm:p-6 space-y-3 shadow-xs">
+            <div className="flex items-start gap-3.5">
+              <div className="h-10 w-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                <Sparkles className="h-6 w-6" />
+              </div>
+              <div className="space-y-1 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="font-bold text-base sm:text-lg text-indigo-950 dark:text-indigo-200">
+                    Nova Proposta Atualizada Disponível!
+                  </h3>
+                  <Badge className="bg-indigo-600 text-white text-[10px]">
+                    Versão {orcamento.versao}
+                  </Badge>
+                </div>
+                <p className="text-xs text-indigo-900/90 dark:text-indigo-300/90 leading-relaxed">
+                  A clínica revisou os procedimentos e condições de pagamento com base na negociação. Confira os novos valores e parcelamentos abaixo e aprove online quando estiver de acordo.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Banner de Sucesso / Próximo Passo quando Já Aprovado */}
         {isAprovado && (
@@ -684,29 +844,42 @@ export default function VisualizarOrcamento() {
               </div>
             </div>
 
-            {/* SEÇÃO 5: Botão de Aprovação Online pelo Paciente */}
+            {/* SEÇÃO 5: Botões de Ação do Paciente (Aprovação ou Solicitação de Ajuste) */}
             {!isAprovado && (
               <div className="p-4 sm:p-6 rounded-2xl bg-gradient-to-br from-primary/5 via-card to-primary/10 border border-primary/20 space-y-4 text-center sm:text-left">
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="flex flex-col lg:flex-row items-center justify-between gap-4">
                   <div className="space-y-1">
                     <h3 className="font-bold text-base text-foreground flex items-center justify-center sm:justify-start gap-2">
                       <HeartHandshake className="h-5 w-5 text-primary" />
                       Pronto para iniciar seu novo sorriso?
                     </h3>
                     <p className="text-xs text-muted-foreground leading-relaxed max-w-xl">
-                      Revise os procedimentos e a opção de pagamento selecionada. Ao aprovar, seu planejamento é formalizado e a equipe da clínica dará início às etapas de agendamento e confecção do seu contrato digital.
+                      Revise os procedimentos e a opção de pagamento selecionada. Se estiver de acordo, aprove online. Se preferir negociar valores, entrada ou opções de parcelamento, solicite um ajuste para que a clínica avalie.
                     </p>
                   </div>
 
-                  <Button
-                    size="lg"
-                    onClick={() => setModalConfirmarOpen(true)}
-                    disabled={!condicaoAtiva}
-                    className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-6 px-8 text-sm sm:text-base shadow-md shrink-0 gap-2"
-                  >
-                    <CheckCircle2 className="h-5 w-5" />
-                    Aprovar Orçamento Online
-                  </Button>
+                  <div className="flex flex-col sm:flex-row items-center gap-2.5 w-full lg:w-auto shrink-0">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="lg"
+                      onClick={() => setModalAjusteOpen(true)}
+                      className="w-full sm:w-auto border-border bg-card/90 hover:bg-muted text-foreground py-6 px-5 text-xs sm:text-sm font-semibold gap-2 shadow-xs"
+                    >
+                      <SlidersHorizontal className="h-4 w-4 text-primary" />
+                      Solicitar ajuste no orçamento
+                    </Button>
+
+                    <Button
+                      size="lg"
+                      onClick={() => setModalConfirmarOpen(true)}
+                      disabled={!condicaoAtiva}
+                      className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-6 px-7 text-xs sm:text-sm shadow-md gap-2"
+                    >
+                      <CheckCircle2 className="h-5 w-5" />
+                      Aprovar Orçamento Online
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="flex items-center justify-center sm:justify-start gap-4 text-[11px] text-muted-foreground flex-wrap pt-1">
@@ -899,6 +1072,113 @@ export default function VisualizarOrcamento() {
             {copiouPix ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
             {copiouPix ? 'Código Copiado!' : 'Copiar Código Copia e Cola'}
           </Button>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL 4: Solicitar Ajuste no Orçamento pelo Paciente */}
+      <Dialog open={modalAjusteOpen} onOpenChange={setModalAjusteOpen}>
+        <DialogContent className="max-w-lg w-full p-5 sm:p-6 space-y-4">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-bold text-foreground">
+              <SlidersHorizontal className="h-5 w-5 text-primary" />
+              Solicitar Ajuste no Orçamento
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Conte-nos como podemos adequar esta proposta às suas preferências. Nossa equipe preparará uma nova versão sob medida para você.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 text-xs">
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold text-foreground">
+                Qual o principal motivo da sua solicitação?
+              </Label>
+              <div className="space-y-1.5">
+                {OPCOES_MOTIVO_AJUSTE.map((opt) => {
+                  const isSel = motivoAjuste === opt;
+                  return (
+                    <div
+                      key={opt}
+                      onClick={() => setMotivoAjuste(opt)}
+                      className={cn(
+                        'flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all text-xs select-none',
+                        isSel
+                          ? 'border-primary bg-primary/5 text-foreground font-semibold ring-1 ring-primary/20'
+                          : 'border-border/80 hover:bg-muted/50 text-muted-foreground'
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          'h-4 w-4 rounded-full border flex items-center justify-center shrink-0 transition-colors',
+                          isSel ? 'border-primary bg-primary text-white' : 'border-muted-foreground/40'
+                        )}
+                      >
+                        {isSel && <div className="h-1.5 w-1.5 rounded-full bg-white" />}
+                      </div>
+                      <span className="flex-1">{opt}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="msgAjuste" className="text-xs font-semibold text-foreground">
+                Explique com mais detalhes sua proposta (opcional):
+              </Label>
+              <Textarea
+                id="msgAjuste"
+                value={mensagemAjuste}
+                onChange={(e) => setMensagemAjuste(e.target.value)}
+                placeholder="Ex: Gostaria de dar R$ 1.500 de entrada e parcelar o saldo em 10x sem juros..."
+                rows={3}
+                maxLength={600}
+                className="text-xs resize-none"
+              />
+              <p className="text-[10px] text-muted-foreground text-right">
+                {mensagemAjuste.length}/600 caracteres
+              </p>
+            </div>
+
+            <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-[11px] text-blue-900 dark:text-blue-200 flex items-start gap-2">
+              <Info className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
+              <p className="leading-snug">
+                Ao enviar, seu orçamento permanece salvo com o mesmo link. Nossa equipe analisará sua solicitação e notificará você assim que a nova proposta estiver disponível.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter className="flex-col sm:flex-row gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setModalAjusteOpen(false)}
+              disabled={enviandoAjuste}
+              className="text-xs w-full sm:w-auto"
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleEnviarSolicitacaoAjuste}
+              disabled={enviandoAjuste || !motivoAjuste}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs gap-1.5 shadow-sm w-full sm:w-auto"
+            >
+              {enviandoAjuste ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Gravando solicitação...
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4" />
+                  Enviar solicitação de ajuste
+                </>
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

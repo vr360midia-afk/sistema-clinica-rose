@@ -4,6 +4,17 @@ import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
 import { registrarAuditoria } from './useAuditLog';
 
+export type StatusOrcamento =
+  | 'rascunho'
+  | 'enviado'
+  | 'aguardando_aprovacao'
+  | 'ajuste_solicitado'
+  | 'em_revisao'
+  | 'nova_proposta_enviada'
+  | 'aprovado'
+  | 'recusado'
+  | 'expirado';
+
 export interface OrcamentoItem {
   nome: string;
   quantidade: number;
@@ -19,7 +30,10 @@ export interface Orcamento {
   itens: OrcamentoItem[];
   desconto: number;
   total: number;
-  status: 'rascunho' | 'enviado' | 'aprovado' | 'recusado';
+  status: StatusOrcamento;
+  versao?: number;
+  solicitacoesAjuste?: any[];
+  historicoVersoes?: any[];
   validade?: string | null;
   observacoes?: string | null;
   formasPagamento?: string | null;
@@ -52,7 +66,10 @@ const rowToOrcamento = (row: any): Orcamento | null => {
     itens: Array.isArray(row.itens) ? row.itens : [],
     desconto: Number(row.desconto || 0),
     total: Number(row.total || 0),
-    status: row.status || 'rascunho',
+    status: (row.status || snap.status || 'rascunho') as StatusOrcamento,
+    versao: Number(row.versao || snap.versao || 1),
+    solicitacoesAjuste: Array.isArray(row.solicitacoes_ajuste) ? row.solicitacoes_ajuste : (snap.solicitacoesAjuste || []),
+    historicoVersoes: Array.isArray(row.historico_versoes) ? row.historico_versoes : (snap.historicoVersoes || []),
     validade: row.validade,
     observacoes: row.observacoes,
     formasPagamento: (row as any).formas_pagamento ?? null,
@@ -130,6 +147,9 @@ export const useOrcamentos = (pacienteId?: string) => {
       fotosPlanejamento: o.fotosPlanejamento,
       contratoId: o.contratoId,
       contratoToken: o.contratoToken,
+      versao: o.versao || 1,
+      solicitacoesAjuste: o.solicitacoesAjuste || [],
+      historicoVersoes: o.historicoVersoes || [],
     };
     payload.assinatura_paciente = snapAssinatura;
 
@@ -142,6 +162,9 @@ export const useOrcamentos = (pacienteId?: string) => {
     if (o.fotosPlanejamento) payload.fotos_planejamento = o.fotosPlanejamento;
     if (o.contratoId) payload.contrato_id = o.contratoId;
     if (o.contratoToken) payload.contrato_token = o.contratoToken;
+    if (o.versao !== undefined) payload.versao = o.versao;
+    if (o.solicitacoesAjuste) payload.solicitacoes_ajuste = o.solicitacoesAjuste;
+    if (o.historicoVersoes) payload.historico_versoes = o.historicoVersoes;
 
     let { error } = o.id
       ? await supabase.from('orcamentos').update(payload).eq('id', o.id)
@@ -155,6 +178,9 @@ export const useOrcamentos = (pacienteId?: string) => {
       delete payload.contrato_id;
       delete payload.contrato_token;
       delete payload.aprovado_em;
+      delete payload.versao;
+      delete payload.solicitacoes_ajuste;
+      delete payload.historico_versoes;
 
       const retry = o.id
         ? await supabase.from('orcamentos').update(payload).eq('id', o.id)

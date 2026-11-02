@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ClipboardList, Plus, Trash2, MessageCircle, Check, X, Handshake, FileText, Pencil, FileSignature, Sparkles, CalendarDays, Link as LinkIcon, Layers, CreditCard, Wallet, CheckCircle2, RefreshCw, Search, ChevronsUpDown, Calculator, Eye, DollarSign, Lock } from 'lucide-react';
+import { ClipboardList, Plus, Trash2, MessageCircle, Check, X, Handshake, FileText, Pencil, FileSignature, Sparkles, CalendarDays, Link as LinkIcon, Layers, CreditCard, Wallet, CheckCircle2, RefreshCw, Search, ChevronsUpDown, Calculator, Eye, DollarSign, Lock, AlertCircle, Clock } from 'lucide-react';
 import ModalApresentarOrcamento from '@/components/orcamentos/ModalApresentarOrcamento';
 import { Switch } from '@/components/ui/switch';
 import { useOrcamentos, OrcamentoItem, Orcamento } from '@/hooks/useOrcamentos';
@@ -24,6 +24,7 @@ import {
   garantirOrcamentoPersistidoComToken,
   gerarContratoDoOrcamentoAprovado,
   construirUrlPublicaOrcamento,
+  enviarNovaPropostaOrcamento,
 } from '@/utils/orcamentoEngine';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import { mapearDadosContrato, gerarLinkAssinaturaContrato, parseBrMoney, garantirContratoPersistido, emitirContratoPersistido } from '@/utils/contratoEngine';
@@ -92,7 +93,7 @@ interface Props {
 }
 
 const PatientOrcamentos = ({ patient }: Props) => {
-  const { orcamentos, loading, saveOrcamento, updateStatus, deleteOrcamento } = useOrcamentos(patient?.id);
+  const { orcamentos, loading, saveOrcamento, updateStatus, deleteOrcamento, reload } = useOrcamentos(patient?.id);
   const { procedimentos } = useProcedimentos();
   const { parceiros, addParceiro, refetch: refetchParceiros } = useParceiros();
   const { configuracoes } = useConfiguracoes();
@@ -113,7 +114,12 @@ const PatientOrcamentos = ({ patient }: Props) => {
   const [modalEdicaoCondicaoOpen, setModalEdicaoCondicaoOpen] = useState(false);
   const [condicaoEmEdicao, setCondicaoEmEdicao] = useState<Partial<CondicaoPagamento> | null>(null);
   const [selectKey, setSelectKey] = useState(0);
-  const [statusEdicao, setStatusEdicao] = useState<'rascunho' | 'enviado' | 'aprovado' | 'recusado'>('rascunho');
+  const [statusEdicao, setStatusEdicao] = useState<any>('rascunho');
+  const [modalDetalhesAjusteOpen, setModalDetalhesAjusteOpen] = useState(false);
+  const [orcamentoVisualizandoAjuste, setOrcamentoVisualizandoAjuste] = useState<Orcamento | null>(null);
+  const [modalEnviarNovaPropostaOpen, setModalEnviarNovaPropostaOpen] = useState(false);
+  const [orcamentoParaNovaProposta, setOrcamentoParaNovaProposta] = useState<Orcamento | null>(null);
+  const [salvandoNovaProposta, setSalvandoNovaProposta] = useState(false);
   const [contratoModalOpen, setContratoModalOpen] = useState(false);
   const [contratoOrcamento, setContratoOrcamento] = useState<Orcamento | null>(null);
   const [apresentarOrcamento, setApresentarOrcamento] = useState<Orcamento | null>(null);
@@ -2017,6 +2023,108 @@ const PatientOrcamentos = ({ patient }: Props) => {
     });
   };
 
+  const renderStatusBadge = (status?: string, versao?: number) => {
+    const v = versao && versao > 1 ? ` (v${versao})` : '';
+    switch (status) {
+      case 'aprovado':
+        return (
+          <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1 shrink-0">
+            <CheckCircle2 className="h-3 w-3" /> Aprovado{v}
+          </Badge>
+        );
+      case 'ajuste_solicitado':
+        return (
+          <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 flex items-center gap-1 shrink-0 font-semibold animate-pulse">
+            <Clock className="h-3 w-3 text-amber-600" /> Ajuste Solicitado{v}
+          </Badge>
+        );
+      case 'em_revisao':
+        return (
+          <Badge className="bg-blue-500/15 text-blue-700 dark:text-blue-400 border border-blue-500/30 flex items-center gap-1 shrink-0 font-semibold">
+            <Pencil className="h-3 w-3 text-blue-600" /> Em Revisão{v}
+          </Badge>
+        );
+      case 'nova_proposta_enviada':
+        return (
+          <Badge className="bg-indigo-500/15 text-indigo-700 dark:text-indigo-400 border border-indigo-500/30 flex items-center gap-1 shrink-0 font-semibold">
+            <Sparkles className="h-3 w-3 text-indigo-600" /> Nova Proposta Enviada{v}
+          </Badge>
+        );
+      case 'recusado':
+        return (
+          <Badge variant="destructive" className="flex items-center gap-1 shrink-0">
+            <X className="h-3 w-3" /> Recusado{v}
+          </Badge>
+        );
+      case 'expirado':
+        return (
+          <Badge variant="outline" className="text-muted-foreground border-muted-foreground/30 flex items-center gap-1 shrink-0">
+            <Clock className="h-3 w-3" /> Expirado{v}
+          </Badge>
+        );
+      case 'enviado':
+      case 'aguardando_aprovacao':
+        return (
+          <Badge variant="secondary" className="flex items-center gap-1 shrink-0 text-muted-foreground">
+            <Clock className="h-3 w-3" /> Aguardando Aprovação{v}
+          </Badge>
+        );
+      default:
+        return (
+          <Badge variant="secondary" className="capitalize flex-shrink-0">
+            {status || 'rascunho'}{v}
+          </Badge>
+        );
+    }
+  };
+
+  const handleSalvarComoNovaProposta = async () => {
+    if (!editingId) return;
+    if (itens.length === 0) {
+      toast.error('Adicione ao menos um procedimento');
+      return;
+    }
+    try {
+      setSalvandoNovaProposta(true);
+      const formasParaSalvar =
+        modoFormaPagamento === 'propostas' && condicoesNegociacao.length > 0
+          ? serializarCondicoesPagamento(condicoesNegociacao, condicaoAtivaId)
+          : formasPagamento;
+
+      const res = await enviarNovaPropostaOrcamento({
+        orcamentoId: editingId,
+        novosItens: itens,
+        novoDesconto: desconto,
+        novasFormasPagamento: formasParaSalvar,
+        usuarioNome: configuracoes?.dentistaResponsavel || 'Clínica',
+        motivoAjuste: 'Nova versão revisada pela clínica',
+      });
+
+      if (res.ok) {
+        toast.success(`Nova proposta (Versão ${res.novaVersao}) emitida com sucesso!`, {
+          description: 'O paciente já pode acessar o link e aprovar as novas condições.',
+        });
+        setOpen(false);
+        setEditingId(null);
+        if (reload) reload();
+
+        const tel = patient?.telefone?.trim() || patient?.whatsapp?.trim() || '';
+        if (tel) {
+          const primNome = patient?.nome ? patient.nome.split(' ')[0] : 'tudo bem';
+          const msg = `Olá, ${primNome}! Atualizamos sua proposta de tratamento com novas condições. Você pode conferir os detalhes e aprovar online através deste link seguro: ${res.link}`;
+          openWhatsApp(tel, msg);
+        }
+      } else {
+        toast.error(res.error || 'Erro ao enviar nova proposta.');
+      }
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Erro ao enviar nova proposta');
+    } finally {
+      setSalvandoNovaProposta(false);
+    }
+  };
+
 
   return (
     <Card>
@@ -2056,13 +2164,104 @@ const PatientOrcamentos = ({ patient }: Props) => {
                     {(o.itens || []).length} procedimento(s) • {formatMoney(o.total || 0)}
                   </p>
                 </div>
-                <Badge
-                  variant={o?.status === 'aprovado' ? 'default' : o?.status === 'recusado' ? 'destructive' : 'secondary'}
-                  className="capitalize flex-shrink-0"
-                >
-                  {o?.status || 'rascunho'}
-                </Badge>
+                {renderStatusBadge(o?.status, o?.versao)}
               </div>
+
+              {o.status === 'ajuste_solicitado' && (() => {
+                const ultAjuste = Array.isArray(o.solicitacoesAjuste) && o.solicitacoesAjuste.length > 0
+                  ? o.solicitacoesAjuste[o.solicitacoesAjuste.length - 1]
+                  : null;
+
+                return (
+                  <div className="p-3.5 rounded-xl bg-amber-500/10 border-2 border-amber-500/30 text-amber-950 dark:text-amber-200 space-y-2.5 my-2">
+                    <div className="flex items-start justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <div className="h-7 w-7 rounded-lg bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+                          <AlertCircle className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-xs sm:text-sm text-amber-900 dark:text-amber-200">
+                            Paciente solicitou ajuste no orçamento
+                          </h4>
+                          <span className="text-[10px] text-amber-800/80 dark:text-amber-300/80 block">
+                            {ultAjuste?.solicitadaEm ? `Recebido em ${new Date(ultAjuste.solicitadaEm).toLocaleString('pt-BR')}` : 'Solicitação recente'} • Versão {ultAjuste?.versaoOrcamento || o.versao || 1}
+                          </span>
+                        </div>
+                      </div>
+                      <Badge className="bg-amber-600 text-white text-[9px] px-2 py-0.5 font-bold">
+                        Ação Comercial Necessária
+                      </Badge>
+                    </div>
+
+                    <div className="p-2.5 rounded-lg bg-background/90 border border-amber-500/20 text-xs space-y-1">
+                      <div>
+                        <span className="text-muted-foreground">Motivo selecionado:</span>{' '}
+                        <strong className="text-foreground">{ultAjuste?.motivo || 'Ajuste solicitado pelo paciente'}</strong>
+                      </div>
+                      {ultAjuste?.mensagem && (
+                        <div className="pt-1 border-t border-border/50">
+                          <span className="text-muted-foreground">Mensagem:</span>{' '}
+                          <span className="text-foreground italic">"{ultAjuste.mensagem}"</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 4 Botões Administrativos */}
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs border-amber-400 text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-950/40"
+                        onClick={() => {
+                          setOrcamentoVisualizandoAjuste(o);
+                          setModalDetalhesAjusteOpen(true);
+                        }}
+                      >
+                        <Eye className="h-3.5 w-3.5 mr-1 text-amber-600" /> Visualizar solicitação
+                      </Button>
+
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs border-amber-400 text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-950/40"
+                        onClick={() => {
+                          updateStatus(o.id, 'em_revisao');
+                          abrirEdicao(o);
+                        }}
+                      >
+                        <Pencil className="h-3.5 w-3.5 mr-1 text-primary" /> Revisar orçamento
+                      </Button>
+
+                      <Button
+                        size="sm"
+                        className="h-7 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-semibold gap-1 shadow-xs"
+                        onClick={() => {
+                          setOrcamentoParaNovaProposta(o);
+                          setModalEnviarNovaPropostaOpen(true);
+                        }}
+                      >
+                        <Sparkles className="h-3.5 w-3.5" /> Enviar nova proposta
+                      </Button>
+
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs border-emerald-400 text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 font-semibold gap-1"
+                        onClick={() => {
+                          const tel = patient?.telefone || patient?.whatsapp || '';
+                          const primNome = patient?.nome ? patient.nome.split(' ')[0] : 'Olá';
+                          const ref = o.identificador || `ORC-${o.id.slice(0, 8).toUpperCase()}`;
+                          const mot = ultAjuste?.motivo || 'sua proposta';
+                          const msg = `Olá, ${primNome}! Recebemos seu pedido de ajuste sobre "${mot}" referente ao orçamento ${ref}. Nossa equipe está avaliando as melhores condições e em breve enviaremos a nova proposta!`;
+                          openWhatsApp(tel, msg);
+                        }}
+                      >
+                        <MessageCircle className="h-3.5 w-3.5 text-emerald-600" /> Responder ao paciente
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })()}
               {o.parceiroNome && (
                 <p className="text-xs text-muted-foreground">
                   Parceiro: <span className="text-foreground">{o.parceiroNome}</span>
@@ -4425,8 +4624,20 @@ const PatientOrcamentos = ({ patient }: Props) => {
               <Textarea value={observacoes} onChange={(e) => setObservacoes(e.target.value)} maxLength={1000} />
             </div>
 
-            <div className="flex justify-end gap-2">
+            <div className="flex justify-end gap-2 flex-wrap">
               <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
+              {editingId && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleSalvarComoNovaProposta}
+                  disabled={salvandoNovaProposta}
+                  className="border-indigo-400 text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 font-semibold gap-1.5"
+                >
+                  <Sparkles className="h-4 w-4 text-indigo-600" />
+                  Salvar e Enviar Nova Proposta
+                </Button>
+              )}
               <Button onClick={handleSave}>Salvar orçamento</Button>
             </div>
           </div>
@@ -6456,6 +6667,189 @@ const PatientOrcamentos = ({ patient }: Props) => {
                 </Button>
                 <Button size="sm" onClick={handleSalvarCondicaoEmEdicaoOrcamento} className="font-bold">
                   Salvar Condição
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL: Visualizar Detalhes das Solicitações de Ajuste */}
+      <Dialog open={modalDetalhesAjusteOpen} onOpenChange={setModalDetalhesAjusteOpen}>
+        <DialogContent className="max-w-lg w-full p-5 space-y-4">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-bold text-foreground">
+              <Eye className="h-5 w-5 text-amber-600" />
+              Solicitações de Ajuste do Paciente
+            </DialogTitle>
+          </DialogHeader>
+
+          {orcamentoVisualizandoAjuste && (
+            <div className="space-y-3 text-xs">
+              <div className="p-3 rounded-xl bg-muted/60 border border-border/80 flex justify-between items-center">
+                <div>
+                  <span className="font-bold text-foreground text-sm block">
+                    {orcamentoVisualizandoAjuste.titulo}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground font-mono">
+                    Ref: #{orcamentoVisualizandoAjuste.identificador || orcamentoVisualizandoAjuste.id.slice(0, 8).toUpperCase()} • Versão Atual: {orcamentoVisualizandoAjuste.versao || 1}
+                  </span>
+                </div>
+                <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30">
+                  {orcamentoVisualizandoAjuste.status}
+                </Badge>
+              </div>
+
+              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                {(orcamentoVisualizandoAjuste.solicitacoesAjuste || []).length === 0 ? (
+                  <p className="text-muted-foreground text-center py-4">Nenhuma solicitação registrada.</p>
+                ) : (
+                  (orcamentoVisualizandoAjuste.solicitacoesAjuste || []).map((sol: any, idx: number) => (
+                    <div key={sol.id || idx} className="p-3 rounded-xl border border-border/70 bg-card space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <Badge variant="outline" className="text-[10px] bg-primary/5 text-primary border-primary/20">
+                          Versão {sol.versaoOrcamento || 1}
+                        </Badge>
+                        <span className="text-[10px] text-muted-foreground">
+                          {sol.solicitadaEm ? new Date(sol.solicitadaEm).toLocaleString('pt-BR') : ''}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground font-semibold">Motivo:</span>{' '}
+                        <strong className="text-foreground">{sol.motivo}</strong>
+                      </div>
+                      {sol.mensagem && (
+                        <div className="p-2 rounded bg-muted/40 text-foreground italic border-l-2 border-primary/40">
+                          "{sol.mensagem}"
+                        </div>
+                      )}
+                      <div className="pt-1 flex items-center justify-between text-[10px]">
+                        <span className={sol.atendida ? 'text-emerald-600 font-bold' : 'text-amber-600 font-bold'}>
+                          {sol.atendida ? '✓ Atendida em nova proposta' : '⏳ Aguardando revisão da clínica'}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-border">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    const ult = (orcamentoVisualizandoAjuste.solicitacoesAjuste || [])[orcamentoVisualizandoAjuste.solicitacoesAjuste!.length - 1];
+                    const tel = patient?.telefone || patient?.whatsapp || '';
+                    const primNome = patient?.nome ? patient.nome.split(' ')[0] : 'Olá';
+                    const ref = orcamentoVisualizandoAjuste.identificador || `ORC-${orcamentoVisualizandoAjuste.id.slice(0, 8).toUpperCase()}`;
+                    const msg = `Olá, ${primNome}! Recebemos seu pedido de ajuste no orçamento ${ref}. Gostaria de entender mais detalhadamente o que você prefere.`;
+                    openWhatsApp(tel, msg);
+                  }}
+                  className="text-xs text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 border-emerald-300 gap-1"
+                >
+                  <MessageCircle className="h-3.5 w-3.5" /> Falar no WhatsApp
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setModalDetalhesAjusteOpen(false);
+                    updateStatus(orcamentoVisualizandoAjuste.id, 'em_revisao');
+                    abrirEdicao(orcamentoVisualizandoAjuste);
+                  }}
+                  className="text-xs gap-1"
+                >
+                  <Pencil className="h-3.5 w-3.5" /> Revisar Orçamento
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL: Enviar Nova Proposta Rápida */}
+      <Dialog open={modalEnviarNovaPropostaOpen} onOpenChange={setModalEnviarNovaPropostaOpen}>
+        <DialogContent className="max-w-md w-full p-5 space-y-4">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-bold text-foreground">
+              <Sparkles className="h-5 w-5 text-indigo-600" />
+              Enviar Nova Versão da Proposta
+            </DialogTitle>
+          </DialogHeader>
+
+          {orcamentoParaNovaProposta && (
+            <div className="space-y-3 text-xs">
+              <p className="text-muted-foreground leading-relaxed">
+                Esta ação gerará a <strong>Versão {(orcamentoParaNovaProposta.versao || 1) + 1}</strong> deste orçamento. O histórico da versão atual será arquivado e o paciente poderá aprovar as novas condições diretamente no <strong>mesmo link</strong> oficial já compartilhado.
+              </p>
+
+              <div className="p-3 rounded-xl bg-muted/60 border border-border/80 space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Plano:</span>
+                  <strong className="text-foreground">{orcamentoParaNovaProposta.titulo}</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Valor Total Atual:</span>
+                  <strong className="text-foreground font-mono">{formatMoney(orcamentoParaNovaProposta.total)}</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Versão:</span>
+                  <Badge variant="outline">v{(orcamentoParaNovaProposta.versao || 1) + 1} (Nova)</Badge>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-950 dark:text-indigo-200 text-[11px]">
+                Deseja alterar os procedimentos ou condições antes de enviar? Você pode abrir a tela de edição completa.
+              </div>
+
+              <div className="flex flex-col sm:flex-row justify-end gap-2 pt-2 border-t border-border">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setModalEnviarNovaPropostaOpen(false);
+                    abrirEdicao(orcamentoParaNovaProposta);
+                  }}
+                  className="text-xs w-full sm:w-auto"
+                >
+                  <Pencil className="h-3.5 w-3.5 mr-1" /> Editar Valores / Condições
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={async () => {
+                    try {
+                      setSalvandoNovaProposta(true);
+                      const res = await enviarNovaPropostaOrcamento({
+                        orcamentoId: orcamentoParaNovaProposta.id,
+                        novosItens: orcamentoParaNovaProposta.itens,
+                        novoDesconto: orcamentoParaNovaProposta.desconto,
+                        novasFormasPagamento: orcamentoParaNovaProposta.formasPagamento,
+                        usuarioNome: configuracoes?.dentistaResponsavel || 'Clínica',
+                        motivoAjuste: 'Nova proposta comercial formalizada',
+                      });
+                      if (res.ok) {
+                        toast.success(`Versão ${res.novaVersao} emitida com sucesso!`);
+                        setModalEnviarNovaPropostaOpen(false);
+                        if (reload) reload();
+
+                        const tel = patient?.telefone || patient?.whatsapp || '';
+                        if (tel) {
+                          const primNome = patient?.nome ? patient.nome.split(' ')[0] : 'tudo bem';
+                          const msg = `Olá, ${primNome}! Atualizamos sua proposta de tratamento com novas condições. Você pode conferir os detalhes e aprovar online através deste link seguro: ${res.link}`;
+                          openWhatsApp(tel, msg);
+                        }
+                      } else {
+                        toast.error(res.error || 'Erro ao emitir nova proposta.');
+                      }
+                    } catch (e: any) {
+                      toast.error('Erro ao emitir nova versão');
+                    } finally {
+                      setSalvandoNovaProposta(false);
+                    }
+                  }}
+                  disabled={salvandoNovaProposta}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs gap-1.5 shadow-sm w-full sm:w-auto"
+                >
+                  <Sparkles className="h-3.5 w-3.5" /> Confirmar e Enviar v{(orcamentoParaNovaProposta.versao || 1) + 1}
                 </Button>
               </div>
             </div>

@@ -8,7 +8,9 @@ import {
   filtrarApenasCondicaoEscolhida,
 } from './orcamentoCondicoes';
 import { mapearDadosContrato, emitirContratoPersistido, ContratoSnapshot } from './contratoEngine';
-import type { Orcamento, OrcamentoItem } from '@/hooks/useOrcamentos';
+import type { Orcamento, OrcamentoItem, StatusOrcamento } from '@/hooks/useOrcamentos';
+
+export type { StatusOrcamento };
 
 export interface FotoPlanejamento {
   id: string;
@@ -21,6 +23,31 @@ export interface FotoPlanejamento {
   criadaEm?: string;
 }
 
+export interface SolicitacaoAjuste {
+  id: string;
+  orcamentoId?: string;
+  pacienteId?: string | null;
+  pacienteNome?: string;
+  versaoOrcamento: number;
+  motivo: string;
+  mensagem?: string;
+  solicitadaEm: string;
+  atendida?: boolean;
+}
+
+export interface VersaoHistoricoOrcamento {
+  versao: number;
+  titulo?: string;
+  total: number;
+  subtotal?: number;
+  desconto: number;
+  itens: OrcamentoItem[];
+  formasPagamento?: string | null;
+  alteradaEm: string;
+  alteradaPor?: string;
+  motivoAjuste?: string;
+}
+
 export interface OrcamentoPublicoDados {
   id: string;
   identificador: string;
@@ -29,7 +56,10 @@ export interface OrcamentoPublicoDados {
   subtotal: number;
   desconto: number;
   total: number;
-  status: 'rascunho' | 'enviado' | 'aprovado' | 'recusado';
+  status: StatusOrcamento;
+  versao: number;
+  solicitacoesAjuste: SolicitacaoAjuste[];
+  historicoVersoes: VersaoHistoricoOrcamento[];
   validade?: string | null;
   observacoes?: string | null;
   formasPagamentoRaw?: string | null;
@@ -142,9 +172,16 @@ export async function garantirOrcamentoPersistidoComToken(
     );
     const total = Math.max(0, subtotal - Number(orcamento.desconto || 0));
 
+    const versao = Number((orcamento as any).versao || 1);
+    const solicitacoesAjuste = (orcamento as any).solicitacoesAjuste || (orcamento as any).solicitacoes_ajuste || [];
+    const historicoVersoes = (orcamento as any).historicoVersoes || (orcamento as any).historico_versoes || [];
+
     const snapAssinatura = {
       identificador,
       token,
+      versao,
+      solicitacoesAjuste,
+      historicoVersoes,
       dataExpiracaoLink: dataExpiracao,
       fotosPlanejamento: (orcamento as any).fotosPlanejamento || (orcamento as any).fotos_planejamento || [],
     };
@@ -161,6 +198,9 @@ export async function garantirOrcamentoPersistidoComToken(
       formas_pagamento: orcamento.formasPagamento || null,
       observacoes: orcamento.observacoes || null,
       validade: orcamento.validade || null,
+      versao,
+      solicitacoes_ajuste: solicitacoesAjuste,
+      historico_versoes: historicoVersoes,
       assinatura_paciente: snapAssinatura,
       atualizado_em: new Date().toISOString(),
     };
@@ -183,6 +223,9 @@ export async function garantirOrcamentoPersistidoComToken(
 
       if (updErr && (updErr.code === 'PGRST204' || updErr.message?.includes('column'))) {
         delete payloadUpdate.identificador;
+        delete payloadUpdate.versao;
+        delete payloadUpdate.solicitacoes_ajuste;
+        delete payloadUpdate.historico_versoes;
         const retry = await supabase
           .from('orcamentos')
           .update(payloadUpdate)
@@ -327,6 +370,9 @@ export async function obterOrcamentoPublico(
           desconto: Number(orc.desconto || 0),
           total: Number(orc.total || 0),
           status: orc.status,
+          versao: Number(orc.versao || 1),
+          solicitacoesAjuste: Array.isArray(orc.solicitacoesAjuste) ? orc.solicitacoesAjuste : [],
+          historicoVersoes: Array.isArray(orc.historicoVersoes) ? orc.historicoVersoes : [],
           validade: orc.validade,
           observacoes: orc.observacoes,
           formasPagamentoRaw: orc.formasPagamento,
@@ -478,6 +524,14 @@ export async function obterOrcamentoPublico(
       } catch (_) {}
     }
 
+    const effectiveVersao = Number(row.versao || snapAssinatura.versao || 1);
+    const effectiveSolicitacoes = Array.isArray(row.solicitacoes_ajuste) && row.solicitacoes_ajuste.length > 0
+      ? row.solicitacoes_ajuste
+      : (snapAssinatura.solicitacoesAjuste || []);
+    const effectiveHistorico = Array.isArray(row.historico_versoes) && row.historico_versoes.length > 0
+      ? row.historico_versoes
+      : (snapAssinatura.historicoVersoes || []);
+
     return {
       ok: true,
       orcamento: {
@@ -492,6 +546,9 @@ export async function obterOrcamentoPublico(
         desconto: Number(row.desconto || 0),
         total: Number(row.total || 0),
         status: row.status as any,
+        versao: effectiveVersao,
+        solicitacoesAjuste: effectiveSolicitacoes,
+        historicoVersoes: effectiveHistorico,
         validade: row.validade,
         observacoes: row.observacoes,
         formasPagamentoRaw: row.formas_pagamento,
@@ -515,8 +572,357 @@ export async function obterOrcamentoPublico(
 }
 
 /**
+ * Registra a solicitação de ajuste do orçamento pelo paciente
+ * - Valida identificador e token de acesso
+ * - Registra motivo, mensagem livre, data e versão atual
+ * - Atualiza status para 'ajuste_solicitado'
+ * - NÃO permite ao paciente alterar procedimentos ou valores diretamente
+ * - Mantém o mesmo link público para futura aprovação da nova proposta
+ */
+export async function solicitarAjusteOrcamentoPublico(params: {
+  identificador: string;
+  token: string;
+  motivo: string;
+  mensagem?: string;
+}): Promise<{
+  ok: boolean;
+  solicitacao?: SolicitacaoAjuste;
+  error?: string;
+}> {
+  const { identificador, token, motivo, mensagem } = params;
+
+  if (!identificador || !token) {
+    return { ok: false, error: 'Identificador e token são obrigatórios.' };
+  }
+  if (!motivo || !motivo.trim()) {
+    return { ok: false, error: 'Selecione o motivo da solicitação de ajuste.' };
+  }
+
+  const cleanId = identificador.trim();
+  const cleanToken = token.trim();
+  const nowIso = new Date().toISOString();
+
+  // 1. Tenta RPC segura do PostgreSQL
+  try {
+    const { data: rpcData, error: rpcErr } = await (supabase.rpc as any)('solicitar_ajuste_orcamento_publico', {
+      p_identificador: cleanId,
+      p_token: cleanToken,
+      p_motivo: motivo.trim(),
+      p_mensagem: mensagem?.trim() || null,
+    });
+
+    if (!rpcErr && rpcData?.ok) {
+      // Atualiza cache local
+      if (typeof window !== 'undefined' && window.localStorage) {
+        try {
+          const cachedKey = `orcamento_${cleanId}`;
+          const prev = window.localStorage.getItem(cachedKey);
+          if (prev) {
+            const parsed = JSON.parse(prev);
+            parsed.status = 'ajuste_solicitado';
+            parsed.solicitacoesAjuste = [...(parsed.solicitacoesAjuste || []), rpcData.solicitacao];
+            window.localStorage.setItem(cachedKey, JSON.stringify(parsed));
+          }
+        } catch (_) {}
+      }
+
+      return {
+        ok: true,
+        solicitacao: rpcData.solicitacao,
+      };
+    } else if (rpcData && !rpcData.ok && rpcData.error) {
+      return { ok: false, error: rpcData.error };
+    }
+  } catch (_) {}
+
+  // 2. Fallback: Gravação direta no Supabase com integridade
+  try {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanId);
+    let query = supabase.from('orcamentos').select('*');
+    if (isUuid) {
+      query = query.or(`id.eq.${cleanId},identificador.eq.${cleanId.toUpperCase()},identificador.eq.${cleanId}`);
+    } else {
+      query = query.or(`identificador.eq.${cleanId.toUpperCase()},identificador.eq.${cleanId},id.eq.${cleanId}`);
+    }
+
+    const { data: rows } = await query.limit(1);
+    const orc = rows?.[0];
+
+    if (!orc) {
+      return { ok: false, error: 'Orçamento não encontrado no sistema.' };
+    }
+
+    if (orc.token_assinatura !== cleanToken) {
+      return { ok: false, error: 'Token de segurança inválido. Acesso não autorizado.' };
+    }
+
+    if (orc.status === 'aprovado') {
+      return { ok: false, error: 'Este orçamento já foi aprovado e não pode receber solicitações de ajuste.' };
+    }
+
+    const snap = (orc.assinatura_paciente || {}) as any;
+    const versaoAtual = Number(orc.versao || snap.versao || 1);
+
+    const novaSolicitacao: SolicitacaoAjuste = {
+      id: `ajuste-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      orcamentoId: orc.id,
+      pacienteId: orc.paciente_id,
+      pacienteNome: orc.paciente_nome,
+      versaoOrcamento: versaoAtual,
+      motivo: motivo.trim(),
+      mensagem: mensagem?.trim() || undefined,
+      solicitadaEm: nowIso,
+      atendida: false,
+    };
+
+    const solicitacoesExistentes = Array.isArray(orc.solicitacoes_ajuste) && orc.solicitacoes_ajuste.length > 0
+      ? orc.solicitacoes_ajuste
+      : (snap.solicitacoesAjuste || []);
+
+    const novasSolicitacoes = [...solicitacoesExistentes, novaSolicitacao];
+
+    const updPayload: Record<string, any> = {
+      status: 'ajuste_solicitado',
+      solicitacoes_ajuste: novasSolicitacoes,
+      assinatura_paciente: {
+        ...snap,
+        status: 'ajuste_solicitado',
+        solicitacoesAjuste: novasSolicitacoes,
+      },
+      atualizado_em: nowIso,
+    };
+
+    let { error: updErr } = await supabase
+      .from('orcamentos')
+      .update(updPayload)
+      .eq('id', orc.id);
+
+    if (updErr && (updErr.code === 'PGRST204' || updErr.message?.includes('column'))) {
+      delete updPayload.solicitacoes_ajuste;
+      const retry = await supabase
+        .from('orcamentos')
+        .update(updPayload)
+        .eq('id', orc.id);
+      updErr = retry.error;
+    }
+
+    if (updErr) {
+      throw updErr;
+    }
+
+    // Atualiza cache local
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        const cachedKey = `orcamento_${orc.identificador || cleanId}`;
+        const prev = window.localStorage.getItem(cachedKey);
+        if (prev) {
+          const parsed = JSON.parse(prev);
+          parsed.status = 'ajuste_solicitado';
+          parsed.solicitacoesAjuste = novasSolicitacoes;
+          window.localStorage.setItem(cachedKey, JSON.stringify(parsed));
+        }
+      } catch (_) {}
+    }
+
+    return {
+      ok: true,
+      solicitacao: novaSolicitacao,
+    };
+  } catch (err: any) {
+    console.error('[OrcamentoEngine] Erro ao registrar solicitação de ajuste:', err);
+    return { ok: false, error: err?.message || 'Falha ao registrar solicitação de ajuste.' };
+  }
+}
+
+/**
+ * Envia uma nova proposta revisada pela clínica para o paciente
+ * - Incrementa a versão do orçamento
+ * - Preserva histórico completo da versão anterior
+ * - Registra quem alterou e data no servidor
+ * - Atualiza status para 'nova_proposta_enviada'
+ * - Mantém o MESMO link público ativo
+ * - Marca solicitações de ajuste anteriores como atendidas
+ */
+export async function enviarNovaPropostaOrcamento(params: {
+  orcamentoId: string;
+  novosItens: OrcamentoItem[];
+  novoDesconto: number;
+  novasFormasPagamento?: string | null;
+  usuarioNome?: string;
+  motivoAjuste?: string;
+}): Promise<{
+  ok: boolean;
+  novaVersao: number;
+  link: string;
+  identificador: string;
+  error?: string;
+}> {
+  const { orcamentoId, novosItens, novoDesconto, novasFormasPagamento, usuarioNome, motivoAjuste } = params;
+
+  if (!orcamentoId) {
+    return { ok: false, novaVersao: 1, link: '', identificador: '', error: 'ID do orçamento é obrigatório.' };
+  }
+
+  try {
+    const { data: rows, error: fetchErr } = await supabase
+      .from('orcamentos')
+      .select('*')
+      .eq('id', orcamentoId)
+      .limit(1);
+
+    const row = rows?.[0];
+    if (fetchErr || !row) {
+      return { ok: false, novaVersao: 1, link: '', identificador: '', error: 'Orçamento não encontrado para revisão.' };
+    }
+
+    const snap = (row.assinatura_paciente || {}) as any;
+    const versaoAtual = Number(row.versao || snap.versao || 1);
+    const novaVersao = versaoAtual + 1;
+    const nowIso = new Date().toISOString();
+
+    const subtotalNovo = novosItens.reduce(
+      (acc, i) => acc + (Number(i.valor || 0) * Number(i.quantidade || 1)),
+      0
+    );
+    const totalNovo = Math.max(0, subtotalNovo - Number(novoDesconto || 0));
+
+    // Snapshot da versão anterior arquivado no histórico
+    const snapshotVersaoAnterior: VersaoHistoricoOrcamento = {
+      versao: versaoAtual,
+      titulo: row.titulo,
+      subtotal: (row.itens || []).reduce(
+        (acc: number, i: any) => acc + (Number(i.valor || 0) * Number(i.quantidade || 1)),
+        0
+      ),
+      desconto: Number(row.desconto || 0),
+      total: Number(row.total || 0),
+      itens: row.itens || [],
+      formasPagamento: row.formas_pagamento,
+      alteradaEm: nowIso,
+      alteradaPor: usuarioNome || 'Clínica',
+      motivoAjuste: motivoAjuste || 'Revisão e envio de nova proposta',
+    };
+
+    const historicoExistente = Array.isArray(row.historico_versoes) && row.historico_versoes.length > 0
+      ? row.historico_versoes
+      : (snap.historicoVersoes || []);
+
+    const novoHistorico = [...historicoExistente, snapshotVersaoAnterior];
+
+    // Marca solicitações anteriores como atendidas
+    const solicitacoesExistentes = Array.isArray(row.solicitacoes_ajuste) && row.solicitacoes_ajuste.length > 0
+      ? row.solicitacoes_ajuste
+      : (snap.solicitacoesAjuste || []);
+
+    const solicitacoesAtendidas = solicitacoesExistentes.map((s: any) => ({
+      ...s,
+      atendida: true,
+      respondidaEm: nowIso,
+      respondidaPor: usuarioNome || 'Clínica',
+    }));
+
+    const identificador = row.identificador || snap.identificador || `ORC-${row.id.slice(0, 8).toUpperCase()}`;
+    const token = row.token_assinatura || snap.tokenAssinatura || snap.token;
+
+    const payload: Record<string, any> = {
+      itens: novosItens,
+      desconto: novoDesconto,
+      total: totalNovo,
+      formas_pagamento: novasFormasPagamento !== undefined ? novasFormasPagamento : row.formas_pagamento,
+      status: 'nova_proposta_enviada',
+      versao: novaVersao,
+      historico_versoes: novoHistorico,
+      solicitacoes_ajuste: solicitacoesAtendidas,
+      condicao_escolhida: null,
+      aprovado_em: null,
+      snapshot_aprovacao: null,
+      atualizado_em: nowIso,
+      assinatura_paciente: {
+        ...snap,
+        status: 'nova_proposta_enviada',
+        versao: novaVersao,
+        historicoVersoes: novoHistorico,
+        solicitacoesAjuste: solicitacoesAtendidas,
+        condicaoEscolhida: null,
+        aprovadoEm: null,
+        snapshotAprovacao: null,
+      },
+    };
+
+    let { error: updErr } = await supabase
+      .from('orcamentos')
+      .update(payload)
+      .eq('id', orcamentoId);
+
+    if (updErr && (updErr.code === 'PGRST204' || updErr.message?.includes('column'))) {
+      delete payload.versao;
+      delete payload.historico_versoes;
+      delete payload.solicitacoes_ajuste;
+      delete payload.condicao_escolhida;
+      delete payload.snapshot_aprovacao;
+      delete payload.aprovado_em;
+
+      const retry = await supabase
+        .from('orcamentos')
+        .update(payload)
+        .eq('id', orcamentoId);
+      updErr = retry.error;
+    }
+
+    if (updErr) {
+      throw updErr;
+    }
+
+    const link = construirUrlPublicaOrcamento({
+      pacienteNome: row.paciente_nome,
+      identificador,
+      token,
+    });
+
+    // Atualiza cache local
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        const cachedKey = `orcamento_${identificador}`;
+        const prev = window.localStorage.getItem(cachedKey);
+        if (prev) {
+          const parsed = JSON.parse(prev);
+          parsed.status = 'nova_proposta_enviada';
+          parsed.versao = novaVersao;
+          parsed.itens = novosItens;
+          parsed.desconto = novoDesconto;
+          parsed.total = totalNovo;
+          parsed.formasPagamento = payload.formas_pagamento;
+          parsed.historicoVersoes = novoHistorico;
+          parsed.solicitacoesAjuste = solicitacoesAtendidas;
+          parsed.condicaoEscolhida = null;
+          parsed.aprovadoEm = null;
+          window.localStorage.setItem(cachedKey, JSON.stringify(parsed));
+        }
+      } catch (_) {}
+    }
+
+    return {
+      ok: true,
+      novaVersao,
+      link,
+      identificador,
+    };
+  } catch (err: any) {
+    console.error('[OrcamentoEngine] Erro ao enviar nova proposta:', err);
+    return {
+      ok: false,
+      novaVersao: 1,
+      link: '',
+      identificador: '',
+      error: err?.message || 'Falha ao enviar nova proposta.',
+    };
+  }
+}
+
+/**
  * Registra a aprovação online do orçamento pelo paciente
  * - Bloqueia aprovações duplicadas
+ * - Valida se a versão aprovada é a mais recente
  * - Salva snapshot imutável da versão aprovada
  * - Registra data/hora e condição escolhida
  * - Atualiza status no painel administrativo
@@ -526,6 +932,7 @@ export async function aprovarOrcamentoPublico(params: {
   identificador: string;
   token: string;
   condicaoEscolhida: CondicaoPagamento;
+  versaoAprovada?: number;
   evidencias?: {
     ip?: string;
     userAgent?: string;
@@ -537,7 +944,7 @@ export async function aprovarOrcamentoPublico(params: {
   error?: string;
   jaAprovado?: boolean;
 }> {
-  const { identificador, token, condicaoEscolhida, evidencias } = params;
+  const { identificador, token, condicaoEscolhida, versaoAprovada, evidencias } = params;
 
   if (!identificador || !token) {
     return { ok: false, error: 'Identificador e token são obrigatórios.' };
@@ -553,6 +960,7 @@ export async function aprovarOrcamentoPublico(params: {
       p_token: token.trim(),
       p_condicao: condicaoEscolhida,
       p_evidencias: evidencias || {},
+      p_versao_aprovada: versaoAprovada || null,
     });
 
     if (!rpcErr && rpcData?.ok) {
@@ -561,6 +969,8 @@ export async function aprovarOrcamentoPublico(params: {
         aprovadoEm: rpcData.aprovadoEm,
         jaAprovado: rpcData.jaAprovado,
       };
+    } else if (rpcData && !rpcData.ok && rpcData.error) {
+      return { ok: false, error: rpcData.error };
     }
   } catch (_) {}
 
@@ -595,6 +1005,17 @@ export async function aprovarOrcamentoPublico(params: {
       };
     }
 
+    const snapAssinatura = (orc.assinatura_paciente || {}) as any;
+    const versaoAtual = Number(orc.versao || snapAssinatura.versao || 1);
+
+    // Validação de versão: impede aprovação de versão antiga se a clínica tiver enviado uma nova
+    if (versaoAprovada !== undefined && versaoAprovada < versaoAtual) {
+      return {
+        ok: false,
+        error: 'Uma nova proposta foi enviada pela clínica. Por favor, atualize a página para visualizar e aprovar a versão mais recente.',
+      };
+    }
+
     const nowIso = new Date().toISOString();
     const subtotalItens = (orc.itens || []).reduce(
       (acc: number, it: any) => acc + (Number(it.valor || 0) * Number(it.quantidade || 1)),
@@ -612,6 +1033,7 @@ export async function aprovarOrcamentoPublico(params: {
     const snapshot = {
       orcamentoId: orc.id,
       identificador: orc.identificador,
+      versaoAprovada: versaoAtual,
       titulo: orc.titulo,
       itens: orc.itens,
       subtotal: subtotalItens,
@@ -633,11 +1055,12 @@ export async function aprovarOrcamentoPublico(params: {
       condicao_escolhida: condicaoEscolhida as never,
       snapshot_aprovacao: snapshot as never,
       assinatura_paciente: {
-        ...(orc.assinatura_paciente || {}),
+        ...snapAssinatura,
         status: 'aprovado',
         aprovadoEm: nowIso,
         condicaoEscolhida,
         snapshotAprovacao: snapshot,
+        versaoAprovada: versaoAtual,
       },
       atualizado_em: nowIso,
     };
