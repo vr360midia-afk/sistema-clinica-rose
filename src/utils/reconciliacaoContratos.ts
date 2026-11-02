@@ -109,6 +109,7 @@ export async function reconciliarContratosEOrcamentos(pacienteId?: string): Prom
             const { error: updOrcErr } = await supabase
               .from('orcamentos')
               .update({
+                contrato_id: identificador,
                 assinatura_paciente: updatedSnap,
                 data_assinatura: currentSnap.data_assinatura || formalizadoEm,
                 atualizado_em: nowIso,
@@ -133,22 +134,35 @@ export async function reconciliarContratosEOrcamentos(pacienteId?: string): Prom
               .maybeSingle();
 
             if (!existingDp) {
-              const { error: insDpErr } = await supabase
-                .from('documentos_paciente')
-                .insert({
-                  user_id: doc.user_id || orcMatch?.user_id || 'clinica',
-                  paciente_id: targetPacId,
-                  nome: `Contrato Odontológico Assinado - ${identificador}`,
-                  tipo: 'contrato',
-                  url: canonicalPath,
-                  tamanho: 50000,
-                  criado_em: formalizadoEm,
-                  atualizado_em: nowIso,
-                });
+              const isUuid = (val: any): boolean => typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+              let docPacUserId = isUuid(doc.user_id) ? doc.user_id : (isUuid(orcMatch?.user_id) ? orcMatch.user_id : null);
+              if (!docPacUserId && targetPacId) {
+                const { data: pRow } = await supabase.from('pacientes').select('user_id').eq('id', targetPacId).maybeSingle();
+                if (isUuid(pRow?.user_id)) docPacUserId = pRow.user_id;
+              }
+              if (!docPacUserId) {
+                const { data: s } = await supabase.auth.getSession();
+                if (isUuid(s?.session?.user?.id)) docPacUserId = s.session.user.id;
+              }
 
-              if (!insDpErr) {
-                documentosArquivados++;
-                detalhes.push(`Documento do paciente arquivado: ${identificador}`);
+              if (docPacUserId) {
+                const { error: insDpErr } = await supabase
+                  .from('documentos_paciente')
+                  .insert({
+                    user_id: docPacUserId,
+                    paciente_id: targetPacId,
+                    nome: `Contrato Odontológico Assinado - ${identificador}`,
+                    tipo: 'contrato',
+                    url: canonicalPath,
+                    tamanho: 50000,
+                    criado_em: formalizadoEm,
+                    atualizado_em: nowIso,
+                  });
+
+                if (!insDpErr) {
+                  documentosArquivados++;
+                  detalhes.push(`Documento do paciente arquivado: ${identificador}`);
+                }
               }
             }
           } catch (dpErr) {
@@ -156,6 +170,18 @@ export async function reconciliarContratosEOrcamentos(pacienteId?: string): Prom
           }
         }
       }
+    }
+
+    // 4. Mecanismo de reprocessamento autônomo da fila_arquivamento_pdf no servidor
+    try {
+      const { data: qData, error: qErr } = await supabase.functions.invoke('contrato-publico', {
+        body: { action: 'processar_fila_pdf' },
+      });
+      if (!qErr && qData?.ok && qData.total > 0) {
+        detalhes.push(`Fila de arquivamento reprocessada: ${qData.total} tarefa(s) executada(s) com sucesso`);
+      }
+    } catch (qEx) {
+      console.warn('[reconciliarContratos] Aviso ao reprocessar fila_arquivamento_pdf:', qEx);
     }
 
     return {
@@ -174,3 +200,29 @@ export async function reconciliarContratosEOrcamentos(pacienteId?: string): Prom
     };
   }
 }
+
+/**
+ * Aciona o reprocessamento explícito da fila de arquivamento de PDF no servidor.
+ * Protegido com o token de autenticação do usuário logado ou token específico do contrato.
+ */
+export async function processarFilaArquivamentoPdf(
+  contratoId?: string,
+  tokenContrato?: string
+): Promise<{ ok: boolean; total?: number; error?: string }> {
+  try {
+    const payload: Record<string, any> = { action: 'processar_fila_pdf' };
+    if (contratoId) payload.contratoId = contratoId;
+    if (tokenContrato) payload.token = tokenContrato;
+
+    const { data, error } = await supabase.functions.invoke('contrato-publico', {
+      body: payload,
+    });
+
+    if (error) throw error;
+    return { ok: Boolean(data?.ok), total: data?.total || 0 };
+  } catch (err: any) {
+    console.warn('[processarFilaArquivamentoPdf] Erro:', err);
+    return { ok: false, error: err?.message || 'Falha ao acionar processamento da fila' };
+  }
+}
+

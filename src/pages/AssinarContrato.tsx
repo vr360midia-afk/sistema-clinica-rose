@@ -545,6 +545,11 @@ export default function AssinarContrato() {
                   nome: doc.assinante_nome || foundSnapshot.paciente?.nome || 'Paciente',
                   dataHora: doc.assinado_em,
                 };
+              } else if (foundSnapshot.assinaturaPaciente) {
+                const curSig = foundSnapshot.assinaturaPaciente.assinaturaData;
+                if ((!curSig || !curSig.startsWith('data:image/')) && doc?.assinatura_data && doc.assinatura_data.startsWith('data:image/')) {
+                  foundSnapshot.assinaturaPaciente.assinaturaData = doc.assinatura_data;
+                }
               }
             }
           } catch (_) { }
@@ -843,7 +848,7 @@ export default function AssinarContrato() {
               action: 'sign',
               id: contractId,
               token: contractToken,
-              signature: dataHoraIso,
+              signature: sigData.signature,
               signerName: sigData.signerName || snapshot.paciente.nome,
               selfie: sigData.selfie,
               signerInfo: sigData.signerInfo,
@@ -928,15 +933,19 @@ export default function AssinarContrato() {
         }
       }
 
-      setSnapshot(sanitizarSnapshotContrato(updatedSnapshot));
-      setShowSignatureModal(false);
-      toast.success('Contrato assinado digitalmente com sucesso!');
+      if (persistiuRemoto) {
+        setSnapshot(sanitizarSnapshotContrato(updatedSnapshot));
+        setShowSignatureModal(false);
+        toast.success('Contrato assinado digitalmente com sucesso!');
 
-      // Sincroniza em segundo plano a geração e o upload do PDF assinado para o Supabase Storage
-      const activeToken = token || contractToken;
-      const activeId = contractId || docDbId || targetId || updatedSnapshot.contratoId;
-      if (activeToken && activeId) {
-        sincronizarArmazenamentoPdf(updatedSnapshot, activeId, activeToken);
+        // Sincroniza em segundo plano a geração e o upload do PDF assinado para o Supabase Storage
+        const activeToken = token || contractToken;
+        const activeId = contractId || docDbId || targetId || updatedSnapshot.contratoId;
+        if (activeToken && activeId) {
+          sincronizarArmazenamentoPdf(updatedSnapshot, activeId, activeToken);
+        }
+      } else {
+        toast.error('Não foi possível confirmar o registro da sua assinatura no servidor. Por favor, tente novamente.');
       }
     } catch (err: any) {
       console.error(err);

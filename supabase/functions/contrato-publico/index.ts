@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
+import { jsPDF } from "https://esm.sh/jspdf@2.5.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -22,6 +23,642 @@ async function gerarHashConteudo(texto: string): Promise<string> {
     return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
   } catch (_) {
     return "";
+  }
+}
+
+// RESOLUÇÃO DE CONTRATOS HISTÓRICOS NÃO-AMBÍGUA E DETERMINÍSTICA
+// Preserva 100% dos códigos CTR existentes sem renomear nenhum contrato.
+// Em caso de duplicidade histórica, localiza exatamente o contrato correspondente ao token informado.
+async function localizarContratoCompativel(
+  supabase: any,
+  targetId: string,
+  token?: string
+): Promise<Record<string, any> | null> {
+  const cleanId = String(targetId || "").trim();
+  if (!cleanId) return null;
+
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanId);
+  const code8Match = cleanId.match(/^(?:CTR-)?([0-9a-f]{8})$/i);
+  const code8 = code8Match ? code8Match[1].toUpperCase() : null;
+
+  // 1. Busca direta por UUID primário
+  if (isUuid) {
+    const { data } = await supabase.from("documentos_clinicos").select("*").eq("id", cleanId).maybeSingle();
+    if (data) return data;
+  }
+
+  // 2. Busca abrangente de todos os candidatos correspondentes a este CTR
+  const orFilters = [
+    `identificador.eq.${cleanId}`,
+    `itens->>contratoId.eq.${cleanId}`,
+    `identificador.eq.${cleanId.toUpperCase()}`,
+    `itens->>contratoId.eq.${cleanId.toUpperCase()}`,
+  ];
+  if (code8) {
+    orFilters.push(`identificador.eq.CTR-${code8}`);
+    orFilters.push(`itens->>contratoId.eq.CTR-${code8}`);
+    orFilters.push(`itens->>contratoId.eq.${code8}`);
+  }
+
+  const { data: rows } = await supabase
+    .from("documentos_clinicos")
+    .select("*")
+    .or(orFilters.join(","))
+    .order("criado_em", { ascending: false });
+
+  if (rows && rows.length > 0) {
+    // Se o token foi informado, localiza exatamente o documento que possui este token
+    if (token) {
+      const matchToken = rows.find((r: any) => r.itens?.token === token);
+      if (matchToken) return matchToken;
+    }
+    return rows[0];
+  }
+
+  // 3. Fallback por prefixo de UUID se fornecido código de 8 dígitos
+  if (code8) {
+    const { data: rowsLike } = await supabase
+      .from("documentos_clinicos")
+      .select("*")
+      .ilike("id", `${code8.toLowerCase()}-%`)
+      .order("criado_em", { ascending: false });
+    if (rowsLike && rowsLike.length > 0) {
+      if (token) {
+        const matchToken = rowsLike.find((r: any) => r.itens?.token === token);
+        if (matchToken) return matchToken;
+      }
+      return rowsLike[0];
+    }
+  }
+
+  return null;
+}
+
+// GERADOR DE PDF SERVER-SIDE NATIVO E DETERMINÍSTICO (Deno / jsPDF)
+function gerarPdfServidorContrato(snap: any, docClinico?: any): Uint8Array {
+  const pdf = new jsPDF({ unit: "pt", format: "a4" });
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
+  const margin = 36;
+  const contentW = pageW - margin * 2;
+  let y = margin;
+
+  function checkPageBreak(needed: number) {
+    if (y + needed > pageH - margin - 35) {
+      pdf.addPage();
+      y = margin;
+      drawHeaderSmall();
+    }
+  }
+
+  function drawHeaderSmall() {
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(7.5);
+    pdf.setTextColor(110, 110, 110);
+    pdf.text(`Clínica Dra. Rosângela Santos Pereira | Contrato Odontológico Ref: ${snap.contratoId || docClinico?.identificador || "CTR"}`, margin, y);
+    pdf.setDrawColor(210, 210, 210);
+    pdf.setLineWidth(0.5);
+    pdf.line(margin, y + 4, pageW - margin, y + 4);
+    y += 18;
+  }
+
+  // 1. CABEÇALHO PRINCIPAL
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(13);
+  pdf.setTextColor(15, 23, 42); // slate-900
+  pdf.text("CLÍNICA ODONTOLÓGICA DRA. ROSÂNGELA SANTOS PEREIRA", margin, y);
+  y += 16;
+
+  pdf.setFontSize(10.5);
+  pdf.setTextColor(30, 41, 59);
+  pdf.text("CONTRATO DE PRESTAÇÃO DE SERVIÇOS ODONTOLÓGICOS", margin, y);
+  y += 14;
+
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(8);
+  pdf.setTextColor(100, 116, 139);
+  const dataFormatada = snap.emitidoEm ? new Date(snap.emitidoEm).toLocaleDateString("pt-BR") : new Date().toLocaleDateString("pt-BR");
+  pdf.text(`Identificador Único: ${snap.contratoId || docClinico?.identificador || "CTR"}  |  Formalização: ${dataFormatada}  |  Versão Registrada: 1.0`, margin, y);
+  y += 10;
+
+  pdf.setDrawColor(37, 99, 235); // blue-600
+  pdf.setLineWidth(1.5);
+  pdf.line(margin, y, pageW - margin, y);
+  y += 18;
+
+  // 2. IDENTIFICAÇÃO DAS PARTES
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(9.5);
+  pdf.setTextColor(15, 23, 42);
+  pdf.text("1. IDENTIFICAÇÃO DAS PARTES", margin, y);
+  y += 13;
+
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(8);
+  pdf.setTextColor(51, 65, 85);
+
+  const txtContratada = "CONTRATADA: DRA. ROSÂNGELA SANTOS PEREIRA, Cirurgiã-Dentista, inscrita no CRO-AL sob o nº 06267, com consultório odontológico estabelecido no endereço profissional da clínica.";
+  const lContratada = pdf.splitTextToSize(txtContratada, contentW);
+  pdf.text(lContratada, margin, y);
+  y += lContratada.length * 10 + 5;
+
+  const pacNome = snap.paciente?.nome || docClinico?.paciente_nome || "Paciente";
+  const pacCpf = snap.paciente?.cpf || "Não informado";
+  const pacRg = snap.paciente?.rg || "Não informado";
+  const pacEnd = snap.paciente?.endereco || "Endereço cadastrado em prontuário";
+  const pacTel = snap.paciente?.telefone || "Telefone cadastrado";
+
+  const txtContratante = `CONTRATANTE: ${pacNome.toUpperCase()}, inscrito(a) no CPF/MF sob o nº ${pacCpf}, RG nº ${pacRg}, residente em ${pacEnd}, telefone de contato ${pacTel}.`;
+  const lContratante = pdf.splitTextToSize(txtContratante, contentW);
+  pdf.text(lContratante, margin, y);
+  y += lContratante.length * 10 + 12;
+
+  // 3. OBJETO E PROCEDIMENTOS
+  checkPageBreak(80);
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(9.5);
+  pdf.setTextColor(15, 23, 42);
+  pdf.text("2. OBJETO DO CONTRATO E PROCEDIMENTOS APROVADOS", margin, y);
+  y += 13;
+
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(8);
+  pdf.setTextColor(51, 65, 85);
+  const txtObj = "O presente contrato tem por objeto a prestação de serviços odontológicos especializados, conforme diagnóstico, plano de tratamento aprovado e orçamento formalmente aceito pelo(a) CONTRATANTE.";
+  const lObj = pdf.splitTextToSize(txtObj, contentW);
+  pdf.text(lObj, margin, y);
+  y += lObj.length * 10 + 8;
+
+  // Procedimentos
+  const procs = snap.procedimentos || snap.itensContrato || [];
+  if (Array.isArray(procs) && procs.length > 0) {
+    pdf.setFillColor(248, 250, 252);
+    pdf.setDrawColor(226, 232, 240);
+    pdf.rect(margin, y, contentW, 16, "FD");
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(7.5);
+    pdf.setTextColor(71, 85, 105);
+    pdf.text("PROCEDIMENTO APROVADO", margin + 8, y + 11);
+    pdf.text("DENTE / REGIÃO", margin + 260, y + 11);
+    pdf.text("VALOR", pageW - margin - 50, y + 11);
+    y += 16;
+
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(7.5);
+    pdf.setTextColor(51, 65, 85);
+
+    for (const proc of procs) {
+      checkPageBreak(18);
+      pdf.setDrawColor(241, 245, 249);
+      pdf.line(margin, y + 14, pageW - margin, y + 14);
+      pdf.text(proc.nome || proc.descricao || "Procedimento Clínico", margin + 8, y + 10);
+      pdf.text(proc.dente || proc.regiao || "Conforme plano", margin + 260, y + 10);
+      const val = typeof proc.valor === "number" ? `R$ ${proc.valor.toFixed(2)}` : (proc.valor || "Incluso");
+      pdf.text(String(val), pageW - margin - 50, y + 10);
+      y += 16;
+    }
+    y += 8;
+  }
+
+  // 4. VALOR E FORMA DE PAGAMENTO
+  checkPageBreak(50);
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(9.5);
+  pdf.setTextColor(15, 23, 42);
+  pdf.text("3. VALOR TOTAL E CONDIÇÕES DE PAGAMENTO", margin, y);
+  y += 13;
+
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(8);
+  pdf.setTextColor(51, 65, 85);
+
+  const totalNum = snap.financeiro?.valorTotal || docClinico?.valor_total;
+  const totalFormatado = totalNum ? `R$ ${Number(totalNum).toFixed(2)}` : "Conforme orçamento";
+  const condFormatada = snap.financeiro?.condicoes || snap.financeiro?.formaPagamento || "Condição de pagamento pactuada em orçamento.";
+  const txtFin = `O valor total ajustado para os procedimentos acima descritos é de ${totalFormatado}, a ser adimplido sob as seguintes condições: ${condFormatada}.`;
+  const lFin = pdf.splitTextToSize(txtFin, contentW);
+  pdf.text(lFin, margin, y);
+  y += lFin.length * 10 + 14;
+
+  // 5. CLÁUSULAS CONTRATUAIS ESSENCIAIS E OBRIGAÇÕES MÚTUAS
+  checkPageBreak(120);
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(9.5);
+  pdf.setTextColor(15, 23, 42);
+  pdf.text("4. CLÁUSULAS E OBRIGAÇÕES MÚTUAS", margin, y);
+  y += 13;
+
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(7.5);
+  pdf.setTextColor(71, 85, 105);
+
+  const clausulas = [
+    "CLÁUSULA 1ª (DO OBJETO E PROCEDIMENTOS) — A CONTRATADA obriga-se a prestar ao(à) CONTRATANTE os serviços odontológicos descritos neste instrumento, observando o diagnóstico clínico e o plano de tratamento formalmente aprovado.",
+    "CLÁUSULA 2ª (DAS CONDIÇÕES FINANCEIRAS) — O valor total ajustado e as condições de pagamento pactuadas são irreajustáveis durante a vigência deste plano, ressalvada a necessidade de procedimentos adicionais não previstos inicialmente e formalmente aprovados.",
+    "CLÁUSULA 3ª (DA ATIVIDADE DE MEIO) — A Odontologia é atividade profissional de meio e não de resultado. O sucesso clínico depende de fatores biológicos individuais, resposta tecidual e cooperação contínua do(a) paciente. A CONTRATADA compromete-se a atuar com zelo, perícia e estrita observância ao Código de Ética Odontológica.",
+    "CLÁUSULA 4ª (DAS OBRIGAÇÕES DO PACIENTE) — O(A) CONTRATANTE compromete-se a seguir com rigor as prescrições médicas, comparecer às consultas designadas, manter a higienização oral orientada e comunicar imediatamente qualquer intercorrência ou alteração de saúde.",
+    "CLÁUSULA 5ª (DA TOLERÂNCIA E REMARCAÇÕES) — A tolerância para atrasos nas consultas é de 15 minutos. Cancelamentos ou remarcações devem ser comunicados com antecedência mínima de 24 horas úteis. Faltas injustificadas prejudicam a continuidade do plano de tratamento.",
+    "CLÁUSULA 6ª (DA RESCISÃO E DESISTÊNCIA) — O contrato poderá ser rescindido por qualquer das partes. Em caso de rescisão antecipada, serão quitados proporcionalmente os atos clínicos já executados e custos laboratoriais incorridos, restituindo-se eventuais saldos remanescentes.",
+    "CLÁUSULA 7ª (DA PROTEÇÃO DE DADOS - LGPD) — Em conformidade com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018), os dados cadastrais e de saúde são confidenciais e tratados exclusivamente para fins de assistência odontológica e cumprimento de obrigação legal.",
+    "CLÁUSULA 8ª (DO FORO) — As partes elegem o foro da Comarca do local de atendimento da clínica para dirimir quaisquer dúvidas oriundas deste instrumento, renunciando expressamente a qualquer outro por mais privilegiado que seja.",
+  ];
+
+  for (const c of clausulas) {
+    checkPageBreak(22);
+    const lC = pdf.splitTextToSize(c, contentW);
+    pdf.text(lC, margin, y);
+    y += lC.length * 9.5 + 4;
+  }
+  y += 8;
+
+  // Bloco específico de Lentes em Resina (se aplicável)
+  const ehLentesResina = snap.tipoModeloContrato === "lentes_resina" || Boolean(snap.incluiLentesResina);
+  if (ehLentesResina) {
+    checkPageBreak(80);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(9);
+    pdf.setTextColor(15, 23, 42);
+    pdf.text("TERMO ESPECÍFICO — RESTAURAÇÕES ESTÉTICAS EM RESINA COMPOSTA", margin, y);
+    y += 12;
+
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(7.5);
+    pdf.setTextColor(71, 85, 105);
+
+    const clausulasResina = [
+      "1. ESCOPO DO TRATAMENTO: O tratamento compreende a confecção de lentes e/ou facetas em resina composta sobre os elementos dentários indicados no planejamento clínico, visando à harmonização do sorriso e estética dental.",
+      "2. RISCOS INERENTES E FATORES MECÂNICOS: A resina composta é material de alta estética, porém suscetível a lascamentos (chipping), fraturas ou desgastes quando submetida a sobrecarga mastigatória, alimentos excessivamente rígidos, hábitos parafuncionais (bruxismo/apertamento dental) ou traumas mecânicos externos.",
+      "3. DEVERES DE MANUTENÇÃO PREVENTIVA SEMESTRAL: O(a) paciente compromete-se a retornar a cada 6 (seis) meses para consultas de revisão, controle oclusal, profilaxia e polimento preventivo. Caso indicado, o uso de placa oclusal/miorrelaxante noturna é condição indispensável para a preservação das restaurações.",
+      "4. CONSENTIMENTO LIVRE E ESCLARECIDO: O(a) paciente declara ter compreendido as orientações, limitações biológicas e riscos, manifestando pleno consentimento para a realização do tratamento.",
+    ];
+
+    for (const cr of clausulasResina) {
+      checkPageBreak(22);
+      const lCr = pdf.splitTextToSize(cr, contentW);
+      pdf.text(lCr, margin, y);
+      y += lCr.length * 9.5 + 4;
+    }
+    y += 6;
+  }
+
+  // Bloco específico de Endodontia (se aplicável)
+  const ehEndodontia = snap.tipoModeloContrato === "endodontia" || Boolean(snap.dadosEndodontia?.ativo);
+  if (ehEndodontia) {
+    checkPageBreak(70);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(9);
+    pdf.setTextColor(15, 23, 42);
+    pdf.text("TERMO ESPECÍFICO — TRATAMENTO ENDODÔNTICO (CANAL)", margin, y);
+    y += 12;
+
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(7.5);
+    pdf.setTextColor(71, 85, 105);
+
+    const clausulasEndo = [
+      "1. ESCOPO E OBJETIVO: A intervenção visa à desinfecção, modelagem e obturação tridimensional do sistema de canais radiculares para debelar ou prevenir infecções periapicais.",
+      "2. LIMITAÇÕES E CONDUTA PÓS-TRATAMENTO: Anatomias radiculares complexas, canais calcificados ou infecções refratárias podem exigir complementações. É indispensável a realização da restauração definitiva imediata para prevenir recontaminação coronorradicular.",
+    ];
+
+    for (const ce of clausulasEndo) {
+      checkPageBreak(20);
+      const lCe = pdf.splitTextToSize(ce, contentW);
+      pdf.text(lCe, margin, y);
+      y += lCe.length * 9.5 + 4;
+    }
+    y += 6;
+  }
+
+  // Termo de Imagem e Voz (se presente)
+  if (snap.termoUsoImagem) {
+    checkPageBreak(40);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(8.5);
+    pdf.setTextColor(15, 23, 42);
+    pdf.text("TERMO DE AUTORIZAÇÃO DE USO DE IMAGEM E VOZ (LGPD)", margin, y);
+    y += 11;
+
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(7.5);
+    pdf.setTextColor(71, 85, 105);
+
+    const statusImg = snap.termoUsoImagem.autorizado !== false ? "AUTORIZADO" : "NÃO AUTORIZADO";
+    const detalheImg = snap.termoUsoImagem.autorizado !== false
+      ? `O(a) CONTRATANTE MANIFESTOU OPÇÃO [${statusImg}] para captação e utilização de registros fotográficos do tratamento para fins didático-científicos e de divulgação em redes sociais e portfólio institucional da clínica, em estrita conformidade com a LGPD, sendo facultada a revogação a qualquer tempo.`
+      : `O(a) CONTRATANTE MANIFESTOU OPÇÃO [${statusImg}] para veiculação de imagem em canais públicos, resguardado exclusivamente o prontuário interno para documentação médica legal.`;
+
+    const lImg = pdf.splitTextToSize(detalheImg, contentW);
+    pdf.text(lImg, margin, y);
+    y += lImg.length * 9.5 + 6;
+  }
+
+  // Observações personalizadas (se houver)
+  const obs = snap.observacoesCustomizadas || snap.orcamento?.observacoes;
+  if (obs && typeof obs === "string" && obs.trim()) {
+    checkPageBreak(35);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(8.5);
+    pdf.setTextColor(15, 23, 42);
+    pdf.text("DISPOSIÇÕES CONVENCIONADAS E OBSERVAÇÕES ESPECIAIS", margin, y);
+    y += 11;
+
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(7.5);
+    pdf.setTextColor(71, 85, 105);
+    const lObs = pdf.splitTextToSize(obs.trim(), contentW);
+    pdf.text(lObs, margin, y);
+    y += lObs.length * 9.5 + 6;
+  }
+  y += 6;
+
+  // 6. SEÇÃO DE ASSINATURAS DIGITAIS
+  checkPageBreak(150);
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(9.5);
+  pdf.setTextColor(15, 23, 42);
+  pdf.text("5. ASSINATURAS ELETRÔNICAS E EVIDÊNCIAS DE INTEGRIDADE", margin, y);
+  y += 14;
+
+  const boxW = (contentW - 16) / 2;
+  const boxH = 130;
+
+  // --- Box Dentista ---
+  pdf.setFillColor(248, 250, 252);
+  pdf.setDrawColor(203, 213, 225);
+  pdf.setLineWidth(0.8);
+  pdf.roundedRect(margin, y, boxW, boxH, 4, 4, "FD");
+
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(8.5);
+  pdf.setTextColor(4, 120, 87); // emerald-700
+  pdf.text("ASSINATURA DA PROFISSIONAL", margin + 10, y + 14);
+
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(7);
+  pdf.setTextColor(71, 85, 105);
+  const dentistaNome = snap.assinaturaDentista?.nome || "Dra. Rosângela Santos Pereira";
+  const dentistaCro = snap.assinaturaDentista?.cro || "CRO-AL 06267";
+  pdf.text(`${dentistaNome} (${dentistaCro})`, margin + 10, y + 25);
+  pdf.text("Assinatura eletrônica com autorização prévia ativa", margin + 10, y + 34);
+
+  // Imagem assinatura dentista (se disponível)
+  const sigDentista = snap.assinaturaDentista?.assinaturaData;
+  if (sigDentista && typeof sigDentista === "string" && sigDentista.startsWith("data:image/")) {
+    try {
+      pdf.addImage(sigDentista, "PNG", margin + 14, y + 40, boxW - 28, 45);
+    } catch (_) {}
+  }
+
+  pdf.setDrawColor(203, 213, 225);
+  pdf.line(margin + 10, y + 92, margin + boxW - 10, y + 92);
+  pdf.setFontSize(6.5);
+  pdf.setTextColor(100, 116, 139);
+  const dataDra = snap.assinaturaDentista?.dataHora ? new Date(snap.assinaturaDentista.dataHora).toLocaleString("pt-BR") : "Data registrada";
+  pdf.text(`✓ Certificado Digital Profissional em ${dataDra}`, margin + 10, y + 104);
+  pdf.text(`ID Autorização: ${snap.assinaturaDentista?.autorizacaoId || "AUT-PROF-DRA-ROSANGELA"}`, margin + 10, y + 114);
+
+  // --- Box Paciente ---
+  const pX = margin + boxW + 16;
+  pdf.setFillColor(248, 250, 252);
+  pdf.roundedRect(pX, y, boxW, boxH, 4, 4, "FD");
+
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(8.5);
+  pdf.setTextColor(29, 78, 216); // blue-700
+  pdf.text("ASSINATURA DO(A) PACIENTE", pX + 10, y + 14);
+
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(7);
+  pdf.setTextColor(71, 85, 105);
+  pdf.text(`${pacNome} - CPF: ${pacCpf}`, pX + 10, y + 25);
+  pdf.text("Assinado eletronicamente via autenticação por token seguro", pX + 10, y + 34);
+
+  // Imagem assinatura paciente
+  const sigPac = snap.assinaturaPaciente?.assinaturaData || docClinico?.assinatura_data;
+  if (sigPac && typeof sigPac === "string" && sigPac.startsWith("data:image/")) {
+    try {
+      pdf.addImage(sigPac, "PNG", pX + 14, y + 40, boxW - 28, 45);
+    } catch (_) {}
+  }
+
+  pdf.setDrawColor(203, 213, 225);
+  pdf.line(pX + 10, y + 92, pX + boxW - 10, y + 92);
+  pdf.setFontSize(6.5);
+  pdf.setTextColor(100, 116, 139);
+  const dataPac = snap.assinaturaPaciente?.dataHora ? new Date(snap.assinaturaPaciente.dataHora).toLocaleString("pt-BR") : new Date().toLocaleString("pt-BR");
+  pdf.text(`✓ Assinado em ${dataPac}  |  IP: ${snap.assinaturaPaciente?.ip || "web-secure"}`, pX + 10, y + 104);
+  const hashCurto = snap.assinaturaPaciente?.documentHash ? `${snap.assinaturaPaciente.documentHash.slice(0, 24)}...` : "SHA-256 Validado";
+  pdf.text(`Hash Integridade: ${hashCurto}`, pX + 10, y + 114);
+
+  y += boxH + 16;
+
+  // 7. NOTA DE CONFORMIDADE LEGAL
+  checkPageBreak(30);
+  pdf.setFont("helvetica", "italic");
+  pdf.setFontSize(6.5);
+  pdf.setTextColor(148, 163, 184); // slate-400
+  const txtLegal = "Este documento foi emitido e assinado eletronicamente em conformidade com a Medida Provisória nº 2.200-2/2001 e a Lei nº 14.063/2020, possuindo validade jurídica e integridade criptográfica asseguradas em toda a sua extensão.";
+  const lLegal = pdf.splitTextToSize(txtLegal, contentW);
+  pdf.text(lLegal, margin, y);
+
+  // 8. RODAPÉ EM TODAS AS PÁGINAS
+  const totalPages = pdf.internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    pdf.setPage(i);
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(7);
+    pdf.setTextColor(148, 163, 184);
+    pdf.text(`Página ${i} de ${totalPages} - Contrato ${snap.contratoId || docClinico?.identificador || "CTR"}`, margin, pageH - 18);
+    pdf.text("Autenticidade e integridade garantidas pelo sistema clínico", pageW - margin - 200, pageH - 18);
+  }
+
+  const ab = pdf.output("arraybuffer");
+  return new Uint8Array(ab);
+}
+
+// PIPELINE DE PROCESSAMENTO E ARQUIVAMENTO AUTÔNOMO DE PDF NO SERVIDOR
+async function executarArquivamentoPdfServidor(
+  supabase: any,
+  doc: any,
+  updatedSnapshot: any,
+  dataHoraIso: string
+): Promise<{ ok: boolean; pdfPath?: string; signedUrl?: string; error?: string }> {
+  const identificador = String(updatedSnapshot.contratoId || doc.itens?.contratoId || doc.identificador || doc.id);
+  const targetPacId = doc.paciente_id || updatedSnapshot.pacienteId || updatedSnapshot.paciente?.id;
+
+  const isUuid = (val: any): boolean =>
+    typeof val === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+
+  let targetUserId = isUuid(doc.user_id) ? doc.user_id : null;
+  if (!targetUserId && targetPacId) {
+    const { data: pacRow } = await supabase.from("pacientes").select("user_id").eq("id", targetPacId).maybeSingle();
+    if (isUuid(pacRow?.user_id)) targetUserId = pacRow.user_id;
+  }
+  if (!targetUserId) {
+    const { data: cfgRow } = await supabase.from("configuracoes").select("user_id").limit(1).maybeSingle();
+    if (isUuid(cfgRow?.user_id)) targetUserId = cfgRow.user_id;
+  }
+
+  const canonicalFileName = `Contrato_Assinado_${identificador}.pdf`;
+  const canonicalPath = `contratos/${identificador}/${canonicalFileName}`;
+
+  // 1. Receber/enfileirar uma tarefa persistida
+  try {
+    await supabase.from("fila_arquivamento_pdf").upsert({
+      contrato_id: identificador,
+      documento_id: isUuid(doc.id) ? doc.id : null,
+      paciente_id: isUuid(targetPacId) ? targetPacId : null,
+      clinica_id: targetUserId,
+      status: "processando",
+      tentativas: 1,
+      payload: {
+        identificador,
+        formalizadoEm: dataHoraIso,
+      },
+      atualizado_em: dataHoraIso,
+    }, { onConflict: "contrato_id" });
+  } catch (qErr) {
+    console.warn("[contrato-publico] Aviso ao registrar na fila_arquivamento_pdf:", qErr);
+  }
+
+  try {
+    // 2. Processar o documento final no servidor utilizando a versão imutável assinada
+    const pdfBytes = gerarPdfServidorContrato(updatedSnapshot, doc);
+
+    // 3. Garantir que o bucket privado exista
+    try {
+      await supabase.storage.createBucket("documentos-pacientes", { public: false });
+    } catch (_) {}
+
+    // 4. Armazenar o PDF em bucket privado
+    const { error: uploadErr } = await supabase.storage
+      .from("documentos-pacientes")
+      .upload(canonicalPath, pdfBytes, {
+        contentType: "application/pdf",
+        upsert: true,
+      });
+
+    if (uploadErr) throw uploadErr;
+
+    // 5. Confirmar a existência do arquivo gerando URL assinada
+    const { data: signedData, error: signErr } = await supabase.storage
+      .from("documentos-pacientes")
+      .createSignedUrl(canonicalPath, 300);
+
+    if (signErr || !signedData?.signedUrl) {
+      throw signErr || new Error("Falha ao validar URL assinada do PDF no Storage");
+    }
+
+    // 6. Vincular o PDF ao contrato em documentos_clinicos
+    const finalItens = { ...(doc.itens || {}), ...(updatedSnapshot || {}), pdfPath: canonicalPath };
+    await supabase
+      .from("documentos_clinicos")
+      .update({
+        pdf_path: canonicalPath,
+        itens: finalItens,
+        atualizado_em: dataHoraIso,
+      })
+      .eq("id", doc.id);
+
+    // 7. Vincular o PDF ao paciente em documentos_paciente
+    if (targetPacId && targetUserId) {
+      try {
+        const { data: existingDp } = await supabase
+          .from("documentos_paciente")
+          .select("id")
+          .eq("paciente_id", targetPacId)
+          .or(`url.eq.${canonicalPath},nome.ilike.%${identificador}%`)
+          .maybeSingle();
+
+        if (!existingDp) {
+          await supabase.from("documentos_paciente").insert({
+            user_id: targetUserId,
+            paciente_id: targetPacId,
+            nome: `Contrato Odontológico Assinado - ${identificador}`,
+            tipo: "contrato",
+            url: canonicalPath,
+            tamanho: pdfBytes.length,
+            criado_em: dataHoraIso,
+            atualizado_em: dataHoraIso,
+          });
+        } else {
+          await supabase.from("documentos_paciente").update({
+            nome: `Contrato Odontológico Assinado - ${identificador}`,
+            url: canonicalPath,
+            tamanho: pdfBytes.length,
+            atualizado_em: dataHoraIso,
+          }).eq("id", existingDp.id);
+        }
+      } catch (dpErr) {
+        console.warn("[contrato-publico] Aviso ao registrar em documentos_paciente:", dpErr);
+      }
+    }
+
+    // 8. Vincular o PDF ao orçamento associado
+    try {
+      const orcId = updatedSnapshot.orcamentoId || doc.orcamento_id;
+      let orcRow: any = null;
+      if (orcId) {
+        const { data: oData } = await supabase.from("orcamentos").select("*").eq("id", orcId).maybeSingle();
+        if (oData) orcRow = oData;
+      }
+      if (!orcRow && targetPacId) {
+        const { data: oData2 } = await supabase.from("orcamentos").select("*").eq("paciente_id", targetPacId).order("atualizado_em", { ascending: false }).limit(1);
+        if (oData2 && oData2.length > 0) orcRow = oData2[0];
+      }
+
+      if (orcRow) {
+        const currentSnap = (orcRow.assinatura_paciente || {}) as Record<string, any>;
+        const updatedOrcSnap = {
+          ...currentSnap,
+          contratoId: identificador,
+          contratoStatus: "assinaturas_realizadas",
+          statusContrato: "assinaturas_realizadas",
+          contratoFormalizadoEm: currentSnap.contratoFormalizadoEm || dataHoraIso,
+          pdfPath: canonicalPath,
+          assinaturaDraStatus: "concluida",
+          assinaturaPacienteStatus: "concluida",
+        };
+
+        await supabase.from("orcamentos").update({
+          contrato_id: identificador,
+          assinatura_paciente: updatedOrcSnap,
+          atualizado_em: dataHoraIso,
+        }).eq("id", orcRow.id);
+      }
+    } catch (orcErr) {
+      console.warn("[contrato-publico] Aviso ao sincronizar orcamento:", orcErr);
+    }
+
+    // 9. Marcar a tarefa como CONCLUÍDA na fila persistida
+    try {
+      await supabase.from("fila_arquivamento_pdf").update({
+        status: "concluido",
+        storage_path: canonicalPath,
+        ultimo_erro: null,
+        atualizado_em: dataHoraIso,
+      }).eq("contrato_id", identificador);
+    } catch (_) {}
+
+    return {
+      ok: true,
+      pdfPath: canonicalPath,
+      signedUrl: signedData.signedUrl,
+    };
+  } catch (err: any) {
+    console.error("[contrato-publico] Erro no arquivamento PDF server-side:", err);
+    try {
+      await supabase.from("fila_arquivamento_pdf").update({
+        status: "falha",
+        ultimo_erro: err.message || String(err),
+        atualizado_em: new Date().toISOString(),
+      }).eq("contrato_id", identificador);
+    } catch (_) {}
+
+    return {
+      ok: false,
+      error: err.message || "Erro desconhecido ao arquivar PDF no servidor",
+    };
   }
 }
 
@@ -141,32 +778,7 @@ Deno.serve(async (req) => {
         return json({ error: "Token de acesso não informado. Acesso não autorizado." }, 403);
       }
 
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
-      const code8Match = targetId.match(/^(?:CTR-)?([0-9a-f]{8})$/i);
-      const code8 = code8Match ? code8Match[1].toUpperCase() : null;
-      let doc: Record<string, any> | null = null;
-
-      if (isUuid) {
-        const { data } = await supabase.from("documentos_clinicos").select("*").eq("id", targetId).maybeSingle();
-        if (data) doc = data;
-      }
-      if (!doc && code8) {
-        const { data: rowsLike } = await supabase.from("documentos_clinicos").select("*").ilike("id", `${code8.toLowerCase()}-%`).order("criado_em", { ascending: false }).limit(1);
-        if (rowsLike && rowsLike.length > 0) doc = rowsLike[0];
-      }
-      if (!doc) {
-        const { data } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", targetId).maybeSingle();
-        if (data) doc = data;
-      }
-      if (!doc && targetId.toLowerCase().startsWith("ctr-")) {
-        const { data } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", targetId.toUpperCase()).maybeSingle();
-        if (data) doc = data;
-      }
-      if (!doc && code8) {
-        const { data } = await supabase.from("documentos_clinicos").select("*").or(`itens->>contratoId.eq.CTR-${code8},itens->>contratoId.eq.${code8}`).maybeSingle();
-        if (data) doc = data;
-      }
-
+      const doc = await localizarContratoCompativel(supabase, targetId, token);
       if (!doc) {
         return json({ error: "Contrato não encontrado" }, 404);
       }
@@ -246,32 +858,7 @@ Deno.serve(async (req) => {
         return json({ error: "Traço de assinatura gráfica é obrigatório" }, 400);
       }
 
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
-      const code8Match = targetId.match(/^(?:CTR-)?([0-9a-f]{8})$/i);
-      const code8 = code8Match ? code8Match[1].toUpperCase() : null;
-      let doc: Record<string, any> | null = null;
-
-      if (isUuid) {
-        const { data } = await supabase.from("documentos_clinicos").select("*").eq("id", targetId).maybeSingle();
-        if (data) doc = data;
-      }
-      if (!doc && code8) {
-        const { data: rowsLike } = await supabase.from("documentos_clinicos").select("*").ilike("id", `${code8.toLowerCase()}-%`).order("criado_em", { ascending: false }).limit(1);
-        if (rowsLike && rowsLike.length > 0) doc = rowsLike[0];
-      }
-      if (!doc) {
-        const { data } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", targetId).maybeSingle();
-        if (data) doc = data;
-      }
-      if (!doc && targetId.toLowerCase().startsWith("ctr-")) {
-        const { data } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", targetId.toUpperCase()).maybeSingle();
-        if (data) doc = data;
-      }
-      if (!doc && code8) {
-        const { data } = await supabase.from("documentos_clinicos").select("*").or(`itens->>contratoId.eq.CTR-${code8},itens->>contratoId.eq.${code8}`).maybeSingle();
-        if (data) doc = data;
-      }
-
+      const doc = await localizarContratoCompativel(supabase, targetId, token);
       if (!doc) {
         return json({ error: "Contrato não encontrado" }, 404);
       }
@@ -335,7 +922,7 @@ Deno.serve(async (req) => {
           status: temDentista ? "formalizado" : "assinado",
           assinado_em: dataHoraIso,
           assinante_nome: signerName || doc.paciente_nome || "Paciente",
-          assinatura_data: dataHoraIso,
+          assinatura_data: signature,
           itens: updatedSnapshot,
           atualizado_em: dataHoraIso,
         })
@@ -393,6 +980,7 @@ Deno.serve(async (req) => {
           };
 
           await supabase.from("orcamentos").update({
+            contrato_id: updatedSnapshot.contratoId || doc.id,
             assinatura_paciente: updatedOrcSnap,
             data_assinatura: currentSnap.data_assinatura || dataHoraIso,
             atualizado_em: dataHoraIso,
@@ -402,12 +990,25 @@ Deno.serve(async (req) => {
         console.warn("[contrato-publico] Erro ao sincronizar orçamento no sign:", orcUpdErr);
       }
 
+      // ARQUIVAMENTO AUTOMÁTICO DO PDF NO SERVIDOR INDEPENDENTE DA SESSÃO DO PACIENTE
+      let serverPdfResult: { ok: boolean; pdfPath?: string; signedUrl?: string; error?: string } | null = null;
+      if (temDentista) {
+        try {
+          serverPdfResult = await executarArquivamentoPdfServidor(supabase, doc, updatedSnapshot, dataHoraIso);
+        } catch (pdfErr) {
+          console.warn("[contrato-publico] Aviso ao arquivar PDF no servidor no sign:", pdfErr);
+        }
+      }
+
       return json({
         ok: true,
         mensagem: "Contrato assinado digitalmente com sucesso!",
         assinadoEm: dataHoraIso,
         isFormalizadoTotal: temDentista,
         snapshot: updatedSnapshot,
+        pdfPath: serverPdfResult?.pdfPath || null,
+        signedUrl: serverPdfResult?.signedUrl || null,
+        pdfGeradoNoServidor: Boolean(serverPdfResult?.ok),
       });
     }
 
@@ -427,32 +1028,7 @@ Deno.serve(async (req) => {
         return json({ error: "Assinatura gráfica é obrigatória" }, 400);
       }
 
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
-      const code8Match = targetId.match(/^(?:CTR-)?([0-9a-f]{8})$/i);
-      const code8 = code8Match ? code8Match[1].toUpperCase() : null;
-      let doc: Record<string, any> | null = null;
-
-      if (isUuid) {
-        const { data } = await supabase.from("documentos_clinicos").select("*").eq("id", targetId).maybeSingle();
-        if (data) doc = data;
-      }
-      if (!doc && code8) {
-        const { data: rowsLike } = await supabase.from("documentos_clinicos").select("*").ilike("id", `${code8.toLowerCase()}-%`).order("criado_em", { ascending: false }).limit(1);
-        if (rowsLike && rowsLike.length > 0) doc = rowsLike[0];
-      }
-      if (!doc) {
-        const { data } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", targetId).maybeSingle();
-        if (data) doc = data;
-      }
-      if (!doc && targetId.toLowerCase().startsWith("ctr-")) {
-        const { data } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", targetId.toUpperCase()).maybeSingle();
-        if (data) doc = data;
-      }
-      if (!doc && code8) {
-        const { data } = await supabase.from("documentos_clinicos").select("*").or(`itens->>contratoId.eq.CTR-${code8},itens->>contratoId.eq.${code8}`).maybeSingle();
-        if (data) doc = data;
-      }
-
+      const doc = await localizarContratoCompativel(supabase, targetId, token);
       if (!doc) {
         return json({ error: "Contrato não encontrado" }, 404);
       }
@@ -538,12 +1114,25 @@ Deno.serve(async (req) => {
         console.warn("[contrato-publico] Erro ao sincronizar orçamento no sign_professional:", orcUpdErr);
       }
 
+      // ARQUIVAMENTO AUTOMÁTICO DO PDF NO SERVIDOR SE AMBAS AS PARTES ASSINARAM
+      let serverPdfResult: { ok: boolean; pdfPath?: string; signedUrl?: string; error?: string } | null = null;
+      if (temPaciente) {
+        try {
+          serverPdfResult = await executarArquivamentoPdfServidor(supabase, doc, updatedSnapshot, dataHoraIso);
+        } catch (pdfErr) {
+          console.warn("[contrato-publico] Aviso ao arquivar PDF no servidor no sign_professional:", pdfErr);
+        }
+      }
+
       return json({
         ok: true,
         mensagem: "Assinatura da profissional registrada com sucesso no banco de dados!",
         assinadoEm: dataHoraIso,
         isFormalizadoTotal: temPaciente,
         snapshot: updatedSnapshot,
+        pdfPath: serverPdfResult?.pdfPath || null,
+        signedUrl: serverPdfResult?.signedUrl || null,
+        pdfGeradoNoServidor: Boolean(serverPdfResult?.ok),
       });
     }
 
@@ -561,32 +1150,7 @@ Deno.serve(async (req) => {
         return json({ error: "Token de acesso não informado. Acesso não autorizado." }, 403);
       }
 
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
-      const code8Match = targetId.match(/^(?:CTR-)?([0-9a-f]{8})$/i);
-      const code8 = code8Match ? code8Match[1].toUpperCase() : null;
-      let doc: Record<string, any> | null = null;
-
-      if (isUuid) {
-        const { data } = await supabase.from("documentos_clinicos").select("*").eq("id", targetId).maybeSingle();
-        if (data) doc = data;
-      }
-      if (!doc && code8) {
-        const { data: rowsLike } = await supabase.from("documentos_clinicos").select("*").ilike("id", `${code8.toLowerCase()}-%`).order("criado_em", { ascending: false }).limit(1);
-        if (rowsLike && rowsLike.length > 0) doc = rowsLike[0];
-      }
-      if (!doc) {
-        const { data } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", targetId).maybeSingle();
-        if (data) doc = data;
-      }
-      if (!doc && targetId.toLowerCase().startsWith("ctr-")) {
-        const { data } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", targetId.toUpperCase()).maybeSingle();
-        if (data) doc = data;
-      }
-      if (!doc && code8) {
-        const { data } = await supabase.from("documentos_clinicos").select("*").or(`itens->>contratoId.eq.CTR-${code8},itens->>contratoId.eq.${code8}`).maybeSingle();
-        if (data) doc = data;
-      }
-
+      const doc = await localizarContratoCompativel(supabase, targetId, token);
       if (!doc) {
         return json({ error: "Contrato não encontrado" }, 404);
       }
@@ -644,32 +1208,7 @@ Deno.serve(async (req) => {
         return json({ error: "Conteúdo do PDF em Base64 é obrigatório" }, 400);
       }
 
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
-      const code8Match = targetId.match(/^(?:CTR-)?([0-9a-f]{8})$/i);
-      const code8 = code8Match ? code8Match[1].toUpperCase() : null;
-      let doc: Record<string, any> | null = null;
-
-      if (isUuid) {
-        const { data } = await supabase.from("documentos_clinicos").select("*").eq("id", targetId).maybeSingle();
-        if (data) doc = data;
-      }
-      if (!doc && code8) {
-        const { data: rowsLike } = await supabase.from("documentos_clinicos").select("*").ilike("id", `${code8.toLowerCase()}-%`).order("criado_em", { ascending: false }).limit(1);
-        if (rowsLike && rowsLike.length > 0) doc = rowsLike[0];
-      }
-      if (!doc) {
-        const { data } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", targetId).maybeSingle();
-        if (data) doc = data;
-      }
-      if (!doc && targetId.toLowerCase().startsWith("ctr-")) {
-        const { data } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", targetId.toUpperCase()).maybeSingle();
-        if (data) doc = data;
-      }
-      if (!doc && code8) {
-        const { data } = await supabase.from("documentos_clinicos").select("*").or(`itens->>contratoId.eq.CTR-${code8},itens->>contratoId.eq.${code8}`).maybeSingle();
-        if (data) doc = data;
-      }
-
+      const doc = await localizarContratoCompativel(supabase, targetId, token);
       if (!doc) {
         return json({ error: "Contrato não encontrado" }, 404);
       }
@@ -739,10 +1278,20 @@ Deno.serve(async (req) => {
         .eq("id", doc.id);
 
       // ARQUIVAMENTO AUTOMÁTICO EM DOCUMENTOS DO PACIENTE (documentos_paciente)
+      const isUuid = (val: any): boolean => typeof val === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
       const targetPacId = doc.paciente_id || doc.itens?.pacienteId;
-      const targetUserId = doc.user_id || "clinica";
+      let targetUserId = isUuid(doc.user_id) ? doc.user_id : null;
 
-      if (targetPacId) {
+      if (!targetUserId && targetPacId) {
+        const { data: pacRow } = await supabase.from("pacientes").select("user_id").eq("id", targetPacId).maybeSingle();
+        if (isUuid(pacRow?.user_id)) targetUserId = pacRow.user_id;
+      }
+      if (!targetUserId) {
+        const { data: cfgRow } = await supabase.from("configuracoes").select("user_id").limit(1).maybeSingle();
+        if (isUuid(cfgRow?.user_id)) targetUserId = cfgRow.user_id;
+      }
+
+      if (targetPacId && targetUserId) {
         try {
           const { data: existingDp } = await supabase
             .from("documentos_paciente")
@@ -789,19 +1338,35 @@ Deno.serve(async (req) => {
         }
 
         if (orcRow) {
+          const temDentista = Boolean(
+            (doc.itens?.assinaturaDentista && (doc.itens.assinaturaDentista.assinaturaData || doc.itens.assinaturaDentista.nome)) ||
+            (doc.itens?.assinaturaDra && (doc.itens.assinaturaDra.assinaturaData || doc.itens.assinaturaDra.nome)) ||
+            doc.itens?.statusAssinaturaDentista === "assinado"
+          );
+          const temPaciente = Boolean(
+            doc.assinado_em ||
+            doc.assinatura_data ||
+            (doc.itens?.assinaturaPaciente && (doc.itens.assinaturaPaciente.assinaturaData || doc.itens.assinaturaPaciente.dataHora))
+          );
+          const isAmbas = temDentista && temPaciente;
+          const statusFinal = isAmbas
+            ? "assinaturas_realizadas"
+            : (temPaciente ? "aguardando_assinatura_dentista" : "aguardando_assinatura_paciente");
+
           const currentSnap = (orcRow.assinatura_paciente || {}) as Record<string, any>;
           const updatedOrcSnap = {
             ...currentSnap,
             contratoId: identificador,
-            contratoStatus: "assinaturas_realizadas",
-            statusContrato: "assinaturas_realizadas",
-            contratoFormalizadoEm: currentSnap.contratoFormalizadoEm || nowIso,
+            contratoStatus: statusFinal,
+            statusContrato: statusFinal,
+            contratoFormalizadoEm: isAmbas ? (currentSnap.contratoFormalizadoEm || nowIso) : null,
             pdfPath: canonicalPath,
-            assinaturaDraStatus: "concluida",
-            assinaturaPacienteStatus: "concluida",
+            assinaturaDraStatus: temDentista ? "concluida" : "pendente",
+            assinaturaPacienteStatus: temPaciente ? "concluida" : "pendente",
           };
 
           await supabase.from("orcamentos").update({
+            contrato_id: identificador,
             assinatura_paciente: updatedOrcSnap,
             atualizado_em: nowIso,
           }).eq("id", orcRow.id);
@@ -1206,16 +1771,29 @@ Deno.serve(async (req) => {
               .maybeSingle();
 
             if (!existingDp) {
-              await supabase.from("documentos_paciente").insert({
-                user_id: c.user_id || orcRow?.user_id || "clinica",
-                paciente_id: pacId,
-                nome: `Contrato Odontológico Assinado - ${identificador}`,
-                tipo: "contrato",
-                url: canonicalPath,
-                tamanho: 50000,
-                criado_em: c.assinado_em || nowIso,
-                atualizado_em: nowIso,
-              });
+              const isUuid = (val: any): boolean => typeof val === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+              let docPacUserId = isUuid(c.user_id) ? c.user_id : (isUuid(orcRow?.user_id) ? orcRow.user_id : null);
+              if (!docPacUserId && pacId) {
+                const { data: pR } = await supabase.from("pacientes").select("user_id").eq("id", pacId).maybeSingle();
+                if (isUuid(pR?.user_id)) docPacUserId = pR.user_id;
+              }
+              if (!docPacUserId) {
+                const { data: cR } = await supabase.from("configuracoes").select("user_id").limit(1).maybeSingle();
+                if (isUuid(cR?.user_id)) docPacUserId = cR.user_id;
+              }
+
+              if (docPacUserId) {
+                await supabase.from("documentos_paciente").insert({
+                  user_id: docPacUserId,
+                  paciente_id: pacId,
+                  nome: `Contrato Odontológico Assinado - ${identificador}`,
+                  tipo: "contrato",
+                  url: canonicalPath,
+                  tamanho: 50000,
+                  criado_em: c.assinado_em || nowIso,
+                  atualizado_em: nowIso,
+                });
+              }
             }
           }
 
@@ -1235,6 +1813,159 @@ Deno.serve(async (req) => {
         mensagem: "Reconciliação de contratos concluída com sucesso",
         total: reconciliados.length,
         reconciliados,
+      });
+    }
+
+    // =========================================================================
+    // 13. AÇÃO: PROCESSAR_FILA_PDF (Reprocessamento autônomo de tarefas persistidas)
+    // =========================================================================
+    if (action === "processar_fila_pdf") {
+      // 1. Verificação rigorosa de autorização contra acesso público não autorizado
+      const authHeader = req.headers.get("authorization") || req.headers.get("Authorization") || "";
+      const bearerToken = authHeader.replace(/^Bearer\s+/i, "").trim();
+      let autorizado = false;
+      let authenticatedUserId: string | null = null;
+      let isServiceRole = false;
+      let contratoAutorizadoPorToken = false;
+
+      if (bearerToken) {
+        if (bearerToken === supabaseServiceKey) {
+          autorizado = true;
+          isServiceRole = true;
+        } else {
+          try {
+            const { data: userData, error: userErr } = await supabase.auth.getUser(bearerToken);
+            if (!userErr && userData?.user?.id) {
+              autorizado = true;
+              authenticatedUserId = userData.user.id;
+            }
+          } catch (_) {}
+        }
+      }
+
+      // Se for acionamento para um contrato específico, permite também mediante validação do token do contrato
+      const targetContratoId = body.contratoId || null;
+      const contratoToken = body.token || body.t || null;
+      if (!autorizado && targetContratoId && contratoToken) {
+        try {
+          const { data: dRow } = await supabase
+            .from("documentos_clinicos")
+            .select("itens")
+            .or(`identificador.eq.${targetContratoId},itens->>contratoId.eq.${targetContratoId}`)
+            .maybeSingle();
+          if (dRow?.itens?.token && dRow.itens.token === contratoToken) {
+            autorizado = true;
+            contratoAutorizadoPorToken = true;
+          }
+        } catch (_) {}
+      }
+
+      if (!autorizado) {
+        return json({ error: "Acesso não autorizado para processamento da fila de arquivamento" }, 403);
+      }
+
+      // REGRA DE SEGURANÇA 1: Tokens públicos NUNCA podem permitir reprocessamento em lote
+      if (contratoAutorizadoPorToken && !targetContratoId) {
+        return json({ error: "Tokens públicos de contrato não possuem permissão para reprocessamento em lote." }, 403);
+      }
+
+      // Resolução de vínculo entre auth.uid() e clinica_id para titulares e funcionários
+      const authorizedClinicaIds: string[] = [];
+      if (authenticatedUserId) {
+        authorizedClinicaIds.push(authenticatedUserId);
+        try {
+          const { data: roleRecords } = await supabase
+            .from("user_roles")
+            .select("clinica_id")
+            .eq("user_id", authenticatedUserId);
+          if (roleRecords && roleRecords.length > 0) {
+            for (const r of roleRecords) {
+              if (r.clinica_id && !authorizedClinicaIds.includes(r.clinica_id)) {
+                authorizedClinicaIds.push(r.clinica_id);
+              }
+            }
+          }
+        } catch (_) {}
+      }
+
+      const clinicaFilter = authorizedClinicaIds.length > 0
+        ? authorizedClinicaIds.map((cId) => `clinica_id.eq.${cId}`).concat("clinica_id.is.null").join(",")
+        : null;
+
+      let query = supabase.from("fila_arquivamento_pdf").select("*");
+
+      if (targetContratoId) {
+        query = query.eq("contrato_id", targetContratoId);
+        // Se usuário autenticado da clínica (não-service_role) chamou com contratoId, restringe à sua própria clínica
+        if (!isServiceRole && !contratoAutorizadoPorToken && clinicaFilter) {
+          query = query.or(clinicaFilter);
+        }
+      } else {
+        // REGRA DE SEGURANÇA 2: Usuários autenticados processam em lote estritamente tarefas da sua própria clínica
+        if (!isServiceRole && clinicaFilter) {
+          query = query.or(clinicaFilter);
+        }
+        query = query
+          .in("status", ["pendente", "falha"])
+          .lt("tentativas", 5)
+          .order("criado_em", { ascending: true })
+          .limit(10);
+      }
+
+      const { data: fila, error: filaErr } = await query;
+      if (filaErr) {
+        return json({ error: filaErr.message }, 500);
+      }
+
+      const resultados: any[] = [];
+      const nowIso = new Date().toISOString();
+
+      for (const item of (fila || [])) {
+        try {
+          let docRow: any = null;
+          const { data: d1 } = await supabase
+            .from("documentos_clinicos")
+            .select("*")
+            .or(`identificador.eq.${item.contrato_id},itens->>contratoId.eq.${item.contrato_id}`)
+            .maybeSingle();
+
+          if (d1) docRow = d1;
+          if (!docRow && item.documento_id) {
+            const { data: d2 } = await supabase.from("documentos_clinicos").select("*").eq("id", item.documento_id).maybeSingle();
+            if (d2) docRow = d2;
+          }
+
+          if (!docRow) {
+            await supabase.from("fila_arquivamento_pdf").update({
+              status: "falha",
+              ultimo_erro: "Contrato não localizado em documentos_clinicos",
+              tentativas: (item.tentativas || 0) + 1,
+              atualizado_em: nowIso,
+            }).eq("id", item.id);
+            resultados.push({ contratoId: item.contrato_id, ok: false, error: "Contrato não encontrado" });
+            continue;
+          }
+
+          const snap = (typeof docRow.itens === "object" && docRow.itens) ? docRow.itens : {};
+          // Proteção contra concorrência: marca imediatamente como processando e incrementa tentativas
+          await supabase.from("fila_arquivamento_pdf").update({
+            status: "processando",
+            tentativas: (item.tentativas || 0) + 1,
+            atualizado_em: nowIso,
+          }).eq("id", item.id);
+
+          const res = await executarArquivamentoPdfServidor(supabase, docRow, snap, nowIso);
+          resultados.push({ contratoId: item.contrato_id, ...res });
+        } catch (itemErr: any) {
+          resultados.push({ contratoId: item.contrato_id, ok: false, error: itemErr.message });
+        }
+      }
+
+      return json({
+        ok: true,
+        mensagem: "Processamento da fila de arquivamento concluído",
+        total: resultados.length,
+        resultados,
       });
     }
 

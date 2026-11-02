@@ -1,0 +1,17 @@
+{
+  "dataHora": "2026-11-02T16:05:52.428Z",
+  "versaoCli": "3.0.0",
+  "tabelasIncluidas": [
+    "documentos_clinicos",
+    "orcamentos",
+    "pacientes",
+    "documentos_paciente",
+    "assinaturas",
+    "autorizacoes_assinatura_profissional",
+    "historico_autorizacoes_assinatura",
+    "fila_arquivamento_pdf"
+  ],
+  "arquivosStorageBaixados": 0,
+  "arquivosDetalhes": [],
+  "status": "concluido"
+}

@@ -2238,13 +2238,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
               (contObj?.itens as any)?.status === 'formalizado'
             );
 
-            const isContratoTotalmenteAssinado = Boolean(
-              (temAssinaturaDra && temAssinaturaPaciente) ||
-              (o as any).contratoStatus === 'assinaturas_realizadas' ||
-              (o.assinaturaPaciente as any)?.contratoStatus === 'assinaturas_realizadas' ||
-              (contObj?.itens as any)?.status === 'formalizado' ||
-              (contObj?.itens as any)?.isFormalizadoTotal
-            );
+            const isContratoTotalmenteAssinado = Boolean(temAssinaturaDra && temAssinaturaPaciente);
 
             const temContratoEmitido = Boolean(o.contratoId || contObj);
             const idContratoExibicao = o.contratoId || contObj?.identificador || contObj?.id || 'Emitido';
@@ -2677,6 +2671,18 @@ const PatientOrcamentos = ({ patient }: Props) => {
                       variant="outline"
                       className="border-emerald-500/50 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 gap-1"
                       onClick={async () => {
+                        const pdfPath = contObj?.pdfPath || (contObj?.itens as any)?.pdfPath || (o.assinaturaPaciente as any)?.pdfPath;
+                        if (pdfPath) {
+                          try {
+                            const { data: sData } = await supabase.storage
+                              .from('documentos-pacientes')
+                              .createSignedUrl(pdfPath, 300, { download: `Contrato_Assinado_${idContratoExibicao}.pdf` });
+                            if (sData?.signedUrl) {
+                              window.open(sData.signedUrl, '_blank');
+                              return;
+                            }
+                          } catch (_) {}
+                        }
                         if (contObj?.itens) {
                           const html = gerarHtmlContrato(contObj.itens);
                           await downloadHtmlAsPdf(html, `Contrato_Assinado_${idContratoExibicao}.pdf`);
@@ -2687,7 +2693,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
                       }}
                       title="Baixar PDF oficial do contrato formalizado"
                     >
-                      <Download className="h-4 w-4" /> Baixar PDF
+                      <Download className="h-4 w-4" /> Baixar PDF Assinado
                     </Button>
                   </>
                 ) : temContratoEmitido ? (
@@ -2699,9 +2705,10 @@ const PatientOrcamentos = ({ patient }: Props) => {
                       setContratoOrcamento(o);
                       setContratoModalOpen(true);
                     }}
-                    title="Ver contrato emitido - aguardando assinatura"
+                    title={temAssinaturaDra ? "Ver contrato emitido com assinatura profissional - aguardando paciente" : "Ver contrato emitido - aguardando assinatura da profissional"}
                   >
-                    <Clock className="h-4 w-4 text-amber-600" /> Ver Contrato — Aguardando assinatura
+                    <Clock className="h-4 w-4 text-amber-600" />
+                    {temAssinaturaDra ? "Ver Contrato — Aguardando Paciente" : "Ver Contrato — Aguardando Profissional"}
                   </Button>
                 ) : (
                   <Button
@@ -2745,7 +2752,8 @@ const PatientOrcamentos = ({ patient }: Props) => {
                 </Button>
               </div>
             </div>
-          ))
+          );
+        })
         )}
       </CardContent>
 

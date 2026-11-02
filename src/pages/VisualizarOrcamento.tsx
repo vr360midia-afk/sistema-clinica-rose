@@ -563,7 +563,7 @@ export default function VisualizarOrcamento() {
                 </span>
               </div>
 
-              (() => {
+              {(() => {
                 const linkContratoFinal = orcamento.contratoLink || (orcamento.contratoId && orcamento.contratoToken ? construirUrlPublicaContrato({ pacienteNome: orcamento.pacienteNome, identificador: orcamento.contratoId, token: orcamento.contratoToken }) : orcamento.contratoIdentificador && orcamento.contratoToken ? construirUrlPublicaContrato({ pacienteNome: orcamento.pacienteNome, identificador: orcamento.contratoIdentificador, token: orcamento.contratoToken }) : null);
 
                 return linkContratoFinal ? (
