@@ -800,16 +800,31 @@ Deno.serve(async (req) => {
         }
 
         if (orcRow) {
+          const temDentista = Boolean(
+            (doc.itens?.assinaturaDentista && (doc.itens.assinaturaDentista.assinaturaData || doc.itens.assinaturaDentista.nome)) ||
+            (doc.itens?.assinaturaDra && (doc.itens.assinaturaDra.assinaturaData || doc.itens.assinaturaDra.nome)) ||
+            doc.itens?.statusAssinaturaDentista === "assinado"
+          );
+          const temPaciente = Boolean(
+            doc.assinado_em ||
+            doc.assinatura_data ||
+            (doc.itens?.assinaturaPaciente && (doc.itens.assinaturaPaciente.assinaturaData || doc.itens.assinaturaPaciente.dataHora))
+          );
+          const isAmbas = temDentista && temPaciente;
+          const statusFinal = isAmbas
+            ? "assinaturas_realizadas"
+            : (temPaciente ? "aguardando_assinatura_dentista" : "aguardando_assinatura_paciente");
+
           const currentSnap = (orcRow.assinatura_paciente || {}) as Record<string, any>;
           const updatedOrcSnap = {
             ...currentSnap,
             contratoId: identificador,
-            contratoStatus: "assinaturas_realizadas",
-            statusContrato: "assinaturas_realizadas",
-            contratoFormalizadoEm: currentSnap.contratoFormalizadoEm || nowIso,
+            contratoStatus: statusFinal,
+            statusContrato: statusFinal,
+            contratoFormalizadoEm: isAmbas ? (currentSnap.contratoFormalizadoEm || nowIso) : null,
             pdfPath: canonicalPath,
-            assinaturaDraStatus: "concluida",
-            assinaturaPacienteStatus: "concluida",
+            assinaturaDraStatus: temDentista ? "concluida" : "pendente",
+            assinaturaPacienteStatus: temPaciente ? "concluida" : "pendente",
           };
 
           await supabase.from("orcamentos").update({

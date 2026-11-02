@@ -523,3 +523,4 @@ GRANT ALL ON public.fila_arquivamento_pdf TO authenticated, service_role;
 -- 7. RECARREGA SCHEMA DO POSTGREST
 -- ------------------------------------------------------------------------------
 NOTIFY pgrst, 'reload schema';
+

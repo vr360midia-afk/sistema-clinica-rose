@@ -2238,13 +2238,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
               (contObj?.itens as any)?.status === 'formalizado'
             );
 
-            const isContratoTotalmenteAssinado = Boolean(
-              (temAssinaturaDra && temAssinaturaPaciente) ||
-              (o as any).contratoStatus === 'assinaturas_realizadas' ||
-              (o.assinaturaPaciente as any)?.contratoStatus === 'assinaturas_realizadas' ||
-              (contObj?.itens as any)?.status === 'formalizado' ||
-              (contObj?.itens as any)?.isFormalizadoTotal
-            );
+            const isContratoTotalmenteAssinado = Boolean(temAssinaturaDra && temAssinaturaPaciente);
 
             const temContratoEmitido = Boolean(o.contratoId || contObj);
             const idContratoExibicao = o.contratoId || contObj?.identificador || contObj?.id || 'Emitido';

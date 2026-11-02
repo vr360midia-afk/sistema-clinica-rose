@@ -145,3 +145,4 @@ if (process.argv[1]?.endsWith('diagnostico-contratos-historicos.ts')) {
       process.exit(1);
     });
 }
+
