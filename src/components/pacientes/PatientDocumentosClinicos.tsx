@@ -255,7 +255,14 @@ const PatientDocumentosClinicos = ({ patient }: Props) => {
                   <Badge variant="outline">
                     {doc.tipo === 'atestado' ? 'Atestado' : doc.tipo === 'contrato' ? 'Contrato' : 'Prescrição'}
                   </Badge>
-                  {doc.assinadoEm ? (
+                  {doc.tipo === 'contrato' && (doc.versao || 1) > 1 && (
+                    <Badge variant="outline">Versão {doc.versao} (vigente)</Badge>
+                  )}
+                  {doc.tipo === 'contrato' && doc.assinadoEm && !(doc.itens as any)?.isFormalizadoTotal ? (
+                    <Badge className="bg-amber-500 hover:bg-amber-500">Aguardando assinatura da profissional</Badge>
+                  ) : doc.tipo === 'contrato' && doc.assinadoEm ? (
+                    <Badge className="bg-green-600 hover:bg-green-600">Assinaturas realizadas</Badge>
+                  ) : doc.assinadoEm ? (
                     <Badge className="bg-green-600 hover:bg-green-600">Assinado</Badge>
                   ) : (
                     <Badge variant="secondary">Sem assinatura</Badge>
@@ -289,6 +296,21 @@ const PatientDocumentosClinicos = ({ patient }: Props) => {
                 <div className="text-sm text-muted-foreground bg-muted/40 p-2.5 rounded border border-border/60">
                   <p className="font-medium text-foreground">Contrato de Prestação de Serviços Odontológicos</p>
                   <p className="text-xs">Documento jurídico emitido com termos e valores arquivados imutavelmente.</p>
+                  {!!doc.versoesAnteriores?.length && (
+                    <details className="mt-2 text-xs">
+                      <summary className="cursor-pointer text-foreground">
+                        Histórico: {doc.versoesAnteriores.length} versão(ões) anterior(es) preservada(s)
+                      </summary>
+                      <ul className="mt-1 space-y-1 pl-4 list-disc">
+                        {doc.versoesAnteriores.map((v) => (
+                          <li key={v.id}>
+                            Versão {v.versao || 1} — emitida em {v.criadoEm.toLocaleDateString('pt-BR')} —{' '}
+                            {v.assinadoEm ? 'assinada pelo paciente' : 'sem assinatura do paciente'} (substituída, imutável)
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
                 </div>
               )}
               <div className="flex flex-wrap gap-2">

@@ -111,10 +111,99 @@ function formatarTelefone(v?: string | null): string {
   return String(v).trim();
 }
 
+// VERSIONAMENTO DE CONTRATOS (compatível com o schema existente, sem migrations)
+// Uma nova versão referencia a anterior em itens->>contratoAnteriorId. A versão anterior
+// permanece intacta (o trigger de imutabilidade impede alterá-la); a versão vigente é a
+// última da cadeia V1 -> V2 -> ... que não possui sucessora.
+async function resolverVersaoVigente(supabase: any, doc: Record<string, any> | null): Promise<Record<string, any> | null> {
+  let atual = doc;
+  for (let i = 0; i < 10 && atual?.id; i++) {
+    const { data: sucessores } = await supabase
+      .from("documentos_clinicos")
+      .select("*")
+      .eq("tipo", "contrato")
+      .filter("itens->>contratoAnteriorId", "eq", String(atual.id))
+      .order("criado_em", { ascending: true })
+      .limit(1);
+    if (!sucessores || sucessores.length === 0) break;
+    atual = sucessores[0];
+  }
+  return atual;
+}
+
+// UUID determinístico (formato v5) derivado de uma semente. Usado como chave primária da
+// nova versão: tentativas repetidas/concorrentes geram o MESMO id e a chave primária impede
+// a criação de versões duplicadas, sem necessidade de índice único ou migration.
+async function gerarUuidDeterministico(seed: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(seed));
+  const b = new Uint8Array(digest).slice(0, 16);
+  b[6] = (b[6] & 0x0f) | 0x50;
+  b[8] = (b[8] & 0x3f) | 0x80;
+  const h = Array.from(b).map((x) => x.toString(16).padStart(2, "0")).join("");
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
+// Consulta a autorização VIGENTE da profissional pelo mecanismo seguro existente
+// (RPC obter_autorizacao_ativa_profissional, executada com service_role). Fallback para a
+// leitura direta da tabela somente se a RPC estiver indisponível. Retorna null se revogada/ausente.
+async function obterAutorizacaoVigenteServidor(
+  supabase: any,
+  clinicaId: string | null,
+  cro = "06267-AL"
+): Promise<Record<string, any> | null> {
+  try {
+    const { data, error } = await supabase.rpc("obter_autorizacao_ativa_profissional", {
+      p_cro: cro,
+      p_clinica_id: clinicaId || null,
+    });
+    if (!error && data && data.ok === true) {
+      return data.temAutorizacao ? data : null;
+    }
+  } catch (_) {}
+
+  try {
+    const { data: rows } = await supabase
+      .from("autorizacoes_assinatura_profissional")
+      .select("*")
+      .eq("ativo", true)
+      .is("revogado_em", null)
+      .order("autorizado_em", { ascending: false })
+      .limit(1);
+    const r = rows && rows[0];
+    if (!r) return null;
+    if (clinicaId && r.clinica_id && r.clinica_id !== clinicaId) return null;
+    return {
+      ok: true,
+      temAutorizacao: true,
+      id: r.id,
+      profissionalNome: r.profissional_nome || r.nome_profissional,
+      profissionalCro: r.profissional_cro || r.cro,
+      profissionalDocumento: r.profissional_documento,
+      autorizacaoExpressa: r.autorizacao_expressa,
+      modelosAutorizados: r.modelos_autorizados,
+      assinaturaGrafica: r.assinatura_grafica || r.assinatura_base64 || null,
+      ativo: r.ativo,
+      autorizadoEm: r.autorizado_em || r.concedido_em,
+    };
+  } catch (_) {}
+  return null;
+}
+
+// Localiza o contrato e devolve SEMPRE a versão vigente da cadeia de versões.
+async function localizarContratoCompativel(
+  supabase: any,
+  targetId: string,
+  token?: string
+): Promise<Record<string, any> | null> {
+  const base = await localizarContratoCompativelBase(supabase, targetId, token);
+  if (!base) return null;
+  return await resolverVersaoVigente(supabase, base);
+}
+
 // RESOLUÇÃO DE CONTRATOS HISTÓRICOS NÃO-AMBÍGUA E DETERMINÍSTICA
 // Preserva 100% dos códigos CTR existentes sem renomear nenhum contrato.
 // Em caso de duplicidade histórica, localiza exatamente o contrato correspondente ao token informado.
-async function localizarContratoCompativel(
+async function localizarContratoCompativelBase(
   supabase: any,
   targetId: string,
   token?: string
@@ -653,8 +742,8 @@ async function executarArquivamentoPdfServidor(
       })
       .eq("id", doc.id);
 
-    // 7. Vincular o PDF ao paciente em documentos_paciente
-    if (targetPacId && targetUserId) {
+    // 7. Vincular o PDF ao paciente em documentos_paciente (garante disponibilidade no prontuário)
+    if (targetPacId) {
       try {
         const { data: existingDp } = await supabase
           .from("documentos_paciente")
@@ -665,7 +754,7 @@ async function executarArquivamentoPdfServidor(
 
         if (!existingDp) {
           await supabase.from("documentos_paciente").insert({
-            user_id: targetUserId,
+            user_id: targetUserId || null,
             paciente_id: targetPacId,
             nome: `Contrato Odontológico Assinado - ${identificador}`,
             tipo: "contrato",
@@ -826,13 +915,18 @@ Deno.serve(async (req) => {
         const { data: ex } = await supabase.from("documentos_clinicos").select("*").eq("id", identificador).maybeSingle();
         if (ex?.id) existingDoc = ex;
       }
+      // Com versionamento, o mesmo contratoId pode existir em V1 e V2: busca ordenada (sem
+      // maybeSingle, que falharia com múltiplas linhas e provocaria a criação de duplicata).
       if (!existingDoc) {
-        const { data: ex2 } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", identificador).maybeSingle();
-        if (ex2?.id) existingDoc = ex2;
+        const { data: ex2 } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", identificador).order("criado_em", { ascending: true }).limit(1);
+        if (ex2 && ex2[0]?.id) existingDoc = ex2[0];
       }
       if (!existingDoc && identificador.toLowerCase().startsWith("ctr-")) {
-        const { data: ex3 } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", identificador.toUpperCase()).maybeSingle();
-        if (ex3?.id) existingDoc = ex3;
+        const { data: ex3 } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", identificador.toUpperCase()).order("criado_em", { ascending: true }).limit(1);
+        if (ex3 && ex3[0]?.id) existingDoc = ex3[0];
+      }
+      if (existingDoc) {
+        existingDoc = await resolverVersaoVigente(supabase, existingDoc);
       }
 
       if (existingDoc) {
@@ -978,6 +1072,8 @@ Deno.serve(async (req) => {
         signedPdfUrl,
         assinadoEm: doc.assinado_em,
         assinanteNome: doc.assinante_nome,
+        versao: Number(doc.itens?.versao) || 1,
+        contratoAnteriorId: doc.itens?.contratoAnteriorId || null,
         snapshot: snapshotRetorno,
       });
     }
@@ -1015,9 +1111,10 @@ Deno.serve(async (req) => {
           ok: false,
           error: "Contrato já assinado! Sua assinatura digital foi registrada com sucesso anteriormente e não é permitido assinar novamente.",
           jaAssinado: true,
+          documentoId: doc.id,
           assinadoEm: doc.assinado_em,
           snapshot: doc.itens,
-        }, 400);
+        }, 200); // HTTP 200: o cliente precisa ler o corpo (jaAssinado) e NÃO acionar fallbacks
       }
 
       const dataHoraIso = new Date().toISOString();
@@ -1079,9 +1176,63 @@ Deno.serve(async (req) => {
         }, 400);
       }
 
-      const temDentista = !!updatedSnapshot.assinaturaDentista;
+      let temDentista = !!updatedSnapshot.assinaturaDentista;
 
-      updatedSnapshot.status = temDentista ? "formalizado" : "assinado";
+      // Se o contrato possuía pré-assinatura profissional e os dados cadastrais (ex: endereço)
+      // foram completados/corrigidos no cadastro, o trigger de imutabilidade v3 impede modificar
+      // os dados do paciente no documento antigo in-place.
+      // Em conformidade estrita com as regras jurídicas e de integridade:
+      // Emite uma nova versão formalizada preservando integralmente o documento prévio no histórico!
+      const dadosCadastraisAlterados = JSON.stringify(updatedSnapshot.paciente || {}) !== JSON.stringify(existingItens.paciente || {});
+      const precisaNovaVersao = temDentista && dadosCadastraisAlterados;
+      let novaVersaoId: string | null = null;
+      let novaVersaoNumero: number | null = null;
+
+      if (precisaNovaVersao) {
+        novaVersaoNumero = (Number(existingItens.versao) || 1) + 1;
+        novaVersaoId = await gerarUuidDeterministico(`contrato:${doc.id}:versao:${novaVersaoNumero}`);
+
+        // A assinatura profissional da versão anterior NÃO é copiada para a nova versão.
+        // A nova versão só recebe assinatura profissional se a autorização estiver vigente agora.
+        delete updatedSnapshot.assinaturaDentista;
+        delete updatedSnapshot.assinaturaDra;
+
+        const croDra = String(existingItens.assinaturaDentista?.cro || "06267-AL");
+        const modeloContrato = String(existingItens.tipoModeloContrato || "geral");
+        const autorizacao = await obterAutorizacaoVigenteServidor(supabase, doc.clinica_id || null, croDra);
+        const modelosAut = Array.isArray(autorizacao?.modelosAutorizados) ? autorizacao!.modelosAutorizados : null;
+        const modeloCoberto = !modelosAut || modelosAut.includes(modeloContrato);
+
+        if (autorizacao && autorizacao.ativo !== false && modeloCoberto) {
+          updatedSnapshot.assinaturaDentista = {
+            nome: autorizacao.profissionalNome || "Dra. Rosângela Santos Pereira",
+            cro: autorizacao.profissionalCro || croDra,
+            documento: autorizacao.profissionalDocumento || null,
+            assinaturaData: autorizacao.assinaturaGrafica || null,
+            dataHora: dataHoraIso,
+            tipo: "automatica_por_autorizacao",
+            autorizacaoId: autorizacao.id,
+            autorizacaoExpressa: autorizacao.autorizacaoExpressa || null,
+            autorizadoEm: autorizacao.autorizadoEm || null,
+            autorizacaoVerificadaEm: dataHoraIso,
+            aplicadaNaVersao: novaVersaoNumero,
+            origem: "contrato-publico:sign:nova_versao",
+          };
+          updatedSnapshot.statusAssinaturaDentista = "assinado";
+          delete updatedSnapshot.assinaturaProfissionalPendente;
+        } else {
+          updatedSnapshot.statusAssinaturaDentista = "pendente";
+          updatedSnapshot.assinaturaProfissionalPendente = {
+            motivo: autorizacao
+              ? "Modelo de contrato não abrangido pela autorização vigente da profissional"
+              : "Autorização da profissional revogada ou ausente no momento da emissão da nova versão",
+            verificadoEm: dataHoraIso,
+          };
+        }
+        temDentista = !!updatedSnapshot.assinaturaDentista;
+      }
+
+      updatedSnapshot.status = temDentista ? "formalizado" : "aguardando_assinatura_dentista";
       updatedSnapshot.statusAssinaturaPaciente = "assinado";
       updatedSnapshot.isFormalizadoTotal = temDentista;
       updatedSnapshot.assinaturaPaciente = {
@@ -1101,23 +1252,80 @@ Deno.serve(async (req) => {
         updatedSnapshot.termoUsoImagem = body.termoUsoImagem;
       }
 
-      const { error: updateErr } = await supabase
-        .from("documentos_clinicos")
-        .update({
+      let docAlvoId = doc.id;
+      let finalDoc = doc;
+
+      if (precisaNovaVersao && novaVersaoId) {
+        updatedSnapshot.versao = novaVersaoNumero;
+        updatedSnapshot.contratoAnteriorId = doc.id;
+        updatedSnapshot.motivoNovaVersao = "Emissão de nova versão com dados cadastrais completos atualizados, preservando integridade imutável da versão anterior";
+
+        const novoDocPayload: Record<string, any> = {
+          id: novaVersaoId,
+          paciente_id: targetPacId || doc.paciente_id,
+          paciente_nome: finalNome,
+          tipo: "contrato",
+          titulo: doc.titulo || `Contrato Odontológico - ${finalNome} (${doc.identificador || updatedSnapshot.contratoId || "CTR"})`,
+          conteudo: doc.conteudo,
+          dentista: doc.dentista || updatedSnapshot.clinica?.dentistaResponsavel || "Cirurgião(ã)-Dentista Responsável",
+          identificador: doc.identificador || updatedSnapshot.contratoId,
+          clinica_id: doc.clinica_id,
+          valor_total: doc.valor_total,
+          user_id: doc.user_id,
           assinado_em: dataHoraIso,
-          assinante_nome: signerName || doc.paciente_nome || "Paciente",
+          assinante_nome: finalNome,
           assinatura_data: signature,
           itens: updatedSnapshot,
+          criado_em: dataHoraIso,
           atualizado_em: dataHoraIso,
-        })
-        .eq("id", doc.id);
+        };
 
-      if (updateErr) throw updateErr;
+        const { data: newDocCreated, error: insErr } = await supabase
+          .from("documentos_clinicos")
+          .insert(novoDocPayload)
+          .select("*")
+          .single();
 
-      // Grava na tabela assinaturas com registro separado
+        if (insErr) {
+          // Chave primária determinística: outra tentativa (F5 / clique repetido) já criou esta versão.
+          if (String(insErr.code) === "23505") {
+            const { data: existente } = await supabase
+              .from("documentos_clinicos")
+              .select("*")
+              .eq("id", novaVersaoId)
+              .maybeSingle();
+            return json({
+              ok: false,
+              error: "Contrato já assinado! Sua assinatura digital foi registrada com sucesso anteriormente e não é permitido assinar novamente.",
+              jaAssinado: true,
+              documentoId: novaVersaoId,
+              assinadoEm: existente?.assinado_em || null,
+              snapshot: existente?.itens || null,
+            }, 200);
+          }
+          throw insErr;
+        }
+        docAlvoId = newDocCreated.id;
+        finalDoc = newDocCreated;
+      } else {
+        const { error: updateErr } = await supabase
+          .from("documentos_clinicos")
+          .update({
+            assinado_em: dataHoraIso,
+            assinante_nome: signerName || doc.paciente_nome || "Paciente",
+            assinatura_data: signature,
+            itens: updatedSnapshot,
+            atualizado_em: dataHoraIso,
+          })
+          .eq("id", doc.id);
+
+        if (updateErr) throw updateErr;
+      }
+
+      // Grava na tabela assinaturas com registro separado vinculado ao documento formalizado
       try {
         await supabase.from("assinaturas").insert({
-          documento_id: String(doc.id),
+          documento_id: String(docAlvoId),
           documento_tipo: "contrato",
           tipo: "paciente",
           nome: signerName || doc.paciente_nome || "Paciente",
@@ -1155,7 +1363,9 @@ Deno.serve(async (req) => {
           const currentSnap = (orcRow.assinatura_paciente || {}) as Record<string, any>;
           const updatedOrcSnap = {
             ...currentSnap,
-            contratoId: updatedSnapshot.contratoId || doc.id,
+            contratoId: updatedSnapshot.contratoId || docAlvoId,
+            contratoDocumentoId: docAlvoId,
+            contratoVersao: Number(updatedSnapshot.versao) || 1,
             contratoStatus: temDentista ? "assinaturas_realizadas" : "aguardando_assinatura_dentista",
             statusContrato: temDentista ? "assinaturas_realizadas" : "aguardando_assinatura_dentista",
             contratoFormalizadoEm: temDentista ? dataHoraIso : (currentSnap.contratoFormalizadoEm || null),
@@ -1164,7 +1374,7 @@ Deno.serve(async (req) => {
           };
 
           await supabase.from("orcamentos").update({
-            contrato_id: updatedSnapshot.contratoId || doc.id,
+            contrato_id: updatedSnapshot.contratoId || docAlvoId,
             assinatura_paciente: updatedOrcSnap,
             data_assinatura: currentSnap.data_assinatura || dataHoraIso,
             atualizado_em: dataHoraIso,
@@ -1178,7 +1388,7 @@ Deno.serve(async (req) => {
       let serverPdfResult: { ok: boolean; pdfPath?: string; signedUrl?: string; error?: string } | null = null;
       if (temDentista) {
         try {
-          serverPdfResult = await executarArquivamentoPdfServidor(supabase, doc, updatedSnapshot, dataHoraIso);
+          serverPdfResult = await executarArquivamentoPdfServidor(supabase, finalDoc, updatedSnapshot, dataHoraIso);
         } catch (pdfErr) {
           console.warn("[contrato-publico] Aviso ao arquivar PDF no servidor no sign:", pdfErr);
         }
@@ -1189,6 +1399,9 @@ Deno.serve(async (req) => {
         mensagem: "Contrato assinado digitalmente com sucesso!",
         assinadoEm: dataHoraIso,
         isFormalizadoTotal: temDentista,
+        documentoId: docAlvoId,
+        versao: Number(updatedSnapshot.versao) || 1,
+        assinaturaProfissionalPendente: !temDentista,
         snapshot: updatedSnapshot,
         pdfPath: serverPdfResult?.pdfPath || null,
         signedUrl: serverPdfResult?.signedUrl || null,

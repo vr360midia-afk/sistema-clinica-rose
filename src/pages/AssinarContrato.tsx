@@ -732,15 +732,25 @@ export default function AssinarContrato() {
       if (foundSnapshot) {
         // Se encontrou, garante que a URL exibida no navegador esteja limpa sem c=
         limparUrlNavegador();
-        // Se encontramos uma versão já assinada salva no localStorage deste navegador, mescla
+        // Se encontramos uma versão salva no localStorage deste navegador, mescla
+        // APENAS se o contrato no servidor já confirmar a assinatura ou se estivermos em contingência offline
         if (typeof window !== 'undefined' && window.localStorage) {
           try {
             const cid = foundSnapshot.contratoId || targetId;
             const signedLocal = cid ? localStorage.getItem(`contrato_assinado_${cid}`) : null;
             if (signedLocal) {
               const parsedSigned = JSON.parse(signedLocal);
+              // Validação rigorosa: se o servidor carregou o contrato oficial como pendente,
+              // NUNCA permita que um rascunho local de erro anterior engane a interface
               if (parsedSigned?.assinaturaPaciente?.assinaturaData) {
-                foundSnapshot = parsedSigned;
+                if (foundSnapshot.assinaturaPaciente?.assinaturaData || foundSnapshot.status === 'assinado' || foundSnapshot.status === 'formalizado') {
+                  foundSnapshot = { ...foundSnapshot, ...parsedSigned };
+                } else {
+                  // O servidor é a autoridade máxima: se lá está pendente, limpa o cache local stale
+                  localStorage.removeItem(`contrato_assinado_${cid}`);
+                  if (targetId) localStorage.removeItem(`contrato_assinado_${targetId}`);
+                  if (rawSlug) localStorage.removeItem(`contrato_assinado_${rawSlug}`);
+                }
               }
             }
           } catch (_) { }
@@ -867,19 +877,14 @@ export default function AssinarContrato() {
       const contractId = docDbId || targetId || snapshot.contratoId;
       const contractToken = token || snapshot.token || (snapshot as any)?.token || '';
 
-      // Salva imediatamente no cache local do navegador para garantia absoluta de persistência
-      if (typeof window !== 'undefined' && window.localStorage) {
-        try {
-          const snapJson = JSON.stringify(updatedSnapshot);
-          if (snapshot.contratoId) localStorage.setItem(`contrato_assinado_${snapshot.contratoId}`, snapJson);
-          if (contractId) localStorage.setItem(`contrato_assinado_${contractId}`, snapJson);
-          if (targetId) localStorage.setItem(`contrato_assinado_${targetId}`, snapJson);
-          if (rawSlug) localStorage.setItem(`contrato_assinado_${rawSlug}`, snapJson);
-        } catch (_) { }
-      }
-
-      // 1. Persistência prioritária via Edge Function pública
+      // 1. Persistência prioritária via Edge Function pública (sem marcar assinado localmente antes do servidor)
       let persistiuRemoto = false;
+      let erroServidorDetalhe = '';
+      // Se o servidor respondeu com uma recusa (ex.: dados obrigatórios ausentes), os fallbacks
+      // NÃO podem ser usados: eles gravariam a assinatura contornando a validação do servidor.
+      let servidorRespondeu = false;
+      let snapshotConfirmado: any = null;
+      let documentoConfirmadoId: string | null = null;
       if (contractId && contractToken) {
         try {
           // 1. Formaliza a assinatura definitiva no backend (action: 'sign' bloqueia reassinatura e atualiza assinado_em)
@@ -906,18 +911,41 @@ export default function AssinarContrato() {
                 assinaturaData: sigData.signature || updatedSnapshot.assinaturaPaciente.assinaturaData,
               },
             };
+            snapshotConfirmado = finalSnap;
+            documentoConfirmadoId = signRes.documentoId || null;
             setSnapshot(sanitizarSnapshotContrato(finalSnap));
           } else if (signRes && !signRes.ok && signRes.jaAssinado) {
             toast.info('Este contrato já consta como assinado no sistema.');
             persistiuRemoto = true;
+            snapshotConfirmado = signRes.snapshot || null;
+            documentoConfirmadoId = signRes.documentoId || null;
+          } else {
+            erroServidorDetalhe = signRes?.error || signErr?.message || '';
+            if (signRes && signRes.ok === false) servidorRespondeu = true;
+            const ctx = (signErr as any)?.context;
+            if (ctx && typeof ctx.json === 'function') {
+              servidorRespondeu = true;
+              try {
+                const corpo = await ctx.json();
+                if (corpo?.jaAssinado) {
+                  persistiuRemoto = true;
+                  snapshotConfirmado = corpo.snapshot || null;
+                  documentoConfirmadoId = corpo.documentoId || null;
+                } else if (corpo?.error) {
+                  erroServidorDetalhe = corpo.error;
+                }
+              } catch (_) { }
+            }
           }
-        } catch (edgeErr) {
+        } catch (edgeErr: any) {
           console.warn('Erro ao assinar via Edge function:', edgeErr);
+          erroServidorDetalhe = edgeErr?.message || '';
         }
       }
 
       // 2. Fallback 1: RPC segura assinar_contrato_publico (atômico com FOR UPDATE e bloqueio de reassinatura)
-      if (!persistiuRemoto && contractId && contractToken) {
+      // Usado somente quando a Edge Function estiver inacessível (sem resposta do servidor).
+      if (!persistiuRemoto && !servidorRespondeu && contractId && contractToken) {
         try {
           const { data: rpcRes, error: rpcErr } = await (supabase.rpc as any)('assinar_contrato_publico', {
             p_identificador: contractId,
@@ -947,7 +975,7 @@ export default function AssinarContrato() {
       }
 
       // 3. Fallback 2: Persistência direta em documentos_clinicos (garantindo que assinado_em ainda é NULL)
-      if (!persistiuRemoto && contractId) {
+      if (!persistiuRemoto && !servidorRespondeu && contractId) {
         try {
           const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(contractId);
           const idUpper = String(contractId).toUpperCase();
@@ -974,18 +1002,36 @@ export default function AssinarContrato() {
       }
 
       if (persistiuRemoto) {
-        setSnapshot(sanitizarSnapshotContrato(updatedSnapshot));
+        // Exibe o estado CONFIRMADO pelo servidor (ex.: versão vigente V2 e status real da
+        // assinatura profissional), e não o snapshot montado localmente.
+        const snapshotFinal = (snapshotConfirmado || updatedSnapshot) as ContratoSnapshot;
+        setSnapshot(sanitizarSnapshotContrato(snapshotFinal));
         setShowSignatureModal(false);
         toast.success('Contrato assinado digitalmente com sucesso!');
 
+        // Salva no cache local do dispositivo SOMENTE após confirmação efetiva do servidor
+        if (typeof window !== 'undefined' && window.localStorage) {
+          try {
+            const snapJson = JSON.stringify(snapshotFinal);
+            if (snapshot.contratoId) localStorage.setItem(`contrato_assinado_${snapshot.contratoId}`, snapJson);
+            if (contractId) localStorage.setItem(`contrato_assinado_${contractId}`, snapJson);
+            if (targetId) localStorage.setItem(`contrato_assinado_${targetId}`, snapJson);
+            if (rawSlug) localStorage.setItem(`contrato_assinado_${rawSlug}`, snapJson);
+          } catch (_) { }
+        }
+
         // Sincroniza em segundo plano a geração e o upload do PDF assinado para o Supabase Storage
         const activeToken = token || contractToken;
-        const activeId = contractId || docDbId || targetId || updatedSnapshot.contratoId;
+        const activeId = documentoConfirmadoId || contractId || docDbId || targetId || updatedSnapshot.contratoId;
         if (activeToken && activeId) {
-          sincronizarArmazenamentoPdf(updatedSnapshot, activeId, activeToken);
+          sincronizarArmazenamentoPdf(snapshotFinal, activeId, activeToken);
         }
       } else {
-        toast.error('Não foi possível confirmar o registro da sua assinatura no servidor. Por favor, tente novamente.');
+        toast.error(
+          erroServidorDetalhe
+            ? `Não foi possível confirmar o registro da sua assinatura: ${erroServidorDetalhe}`
+            : 'Não foi possível confirmar o registro da sua assinatura no servidor. Por favor, tente novamente.'
+        );
       }
     } catch (err: any) {
       console.error(err);
@@ -1017,16 +1063,6 @@ export default function AssinarContrato() {
 
       const finalDocId = docDbId || targetId || snapshot.contratoId;
       const contractToken = token || snapshot.token || (snapshot as any)?.token || '';
-
-      // Salva imediatamente no cache local do dispositivo
-      if (typeof window !== 'undefined' && window.localStorage) {
-        try {
-          const snapJson = JSON.stringify(updatedSnapshot);
-          if (snapshot.contratoId) localStorage.setItem(`contrato_assinado_${snapshot.contratoId}`, snapJson);
-          if (finalDocId) localStorage.setItem(`contrato_assinado_${finalDocId}`, snapJson);
-          if (targetId) localStorage.setItem(`contrato_assinado_${targetId}`, snapJson);
-        } catch (_) { }
-      }
 
       // 1. Persistência prioritária via RPC atômica assinar_contrato_profissional
       let persistiuRemoto = false;

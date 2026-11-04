@@ -1632,18 +1632,27 @@ export async function gerarContratoDoOrcamentoAprovado(params: {
         body: { action: 'get', id: existingContratoId, token: existingContratoToken },
       });
       if (checkDoc?.ok && checkDoc?.snapshot) {
-        const link = construirUrlPublicaContrato({
-          pacienteNome: ('pacienteNome' in orcamento ? orcamento.pacienteNome : (orcamento as any).paciente_nome) || patient?.nome,
-          identificador: existingContratoId,
-          token: existingContratoToken,
-        });
-        return {
-          ok: true,
-          contratoId: existingContratoId,
-          contratoToken: existingContratoToken,
-          contratoLink: link,
-          snapshot: checkDoc.snapshot,
-        };
+        const isJaAssinadoPac = Boolean(checkDoc.jaAssinadoPaciente || checkDoc.snapshot?.assinaturaPaciente?.assinaturaData);
+        const pacSnap = checkDoc.snapshot?.paciente || {};
+        const isIncompleto = !temValorValido(pacSnap.endereco) || !temValorValido(pacSnap.cpf) || !temValorValido(pacSnap.telefone);
+
+        // Se já está formalizado pelo paciente OU se já possui todos os dados cadastrais completos, preserva
+        if (isJaAssinadoPac || !isIncompleto) {
+          const link = construirUrlPublicaContrato({
+            pacienteNome: ('pacienteNome' in orcamento ? orcamento.pacienteNome : (orcamento as any).paciente_nome) || patient?.nome,
+            identificador: existingContratoId,
+            token: existingContratoToken,
+          });
+          return {
+            ok: true,
+            contratoId: existingContratoId,
+            contratoToken: existingContratoToken,
+            contratoLink: link,
+            snapshot: checkDoc.snapshot,
+          };
+        }
+        // Caso o contrato anterior tenha sido emitido com dados incompletos e o cadastro foi corrigido,
+        // prossegue para emitir uma nova versão atualizada sem sobrescrever silenciosamente o documento prévio!
       }
     } catch (_) {}
   }

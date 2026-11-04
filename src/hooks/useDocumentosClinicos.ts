@@ -36,6 +36,11 @@ export interface DocumentoClinico {
   cfoCodigoValidacao?: string | null;
   cfoEmitidoEm?: Date | null;
   criadoEm: Date;
+  /** Versionamento de contratos (itens.versao / itens.contratoAnteriorId) */
+  versao?: number;
+  contratoAnteriorId?: string | null;
+  /** Versões anteriores (históricas e imutáveis) da versão vigente, da mais recente para a mais antiga */
+  versoesAnteriores?: DocumentoClinico[];
 }
 
 const parseJsonField = (field: any) => {
@@ -78,7 +83,35 @@ const rowToDoc = (row: any): DocumentoClinico => {
     cfoCodigoValidacao: row.cfo_codigo_validacao ?? null,
     cfoEmitidoEm: row.cfo_emitido_em ? new Date(row.cfo_emitido_em) : null,
     criadoEm: new Date(row.criado_em),
+    versao: Number(snap.versao) || 1,
+    contratoAnteriorId: row.tipo === 'contrato' ? (snap.contratoAnteriorId || null) : null,
   };
+};
+
+/**
+ * Agrupa as versões de contratos: retorna somente a versão VIGENTE de cada cadeia
+ * (a que não foi substituída por outra via itens.contratoAnteriorId) e anexa as versões
+ * anteriores em `versoesAnteriores`, preservadas como histórico identificável.
+ */
+export const agruparVersoesContrato = (docs: DocumentoClinico[]): DocumentoClinico[] => {
+  const porId = new Map(docs.map((d) => [d.id, d]));
+  const substituidos = new Set(
+    docs.filter((d) => d.tipo === 'contrato' && d.contratoAnteriorId).map((d) => String(d.contratoAnteriorId))
+  );
+  return docs
+    .filter((d) => !(d.tipo === 'contrato' && substituidos.has(d.id)))
+    .map((d) => {
+      if (d.tipo !== 'contrato' || !d.contratoAnteriorId) return d;
+      const anteriores: DocumentoClinico[] = [];
+      let ant = porId.get(String(d.contratoAnteriorId));
+      const vistos = new Set<string>([d.id]);
+      while (ant && !vistos.has(ant.id)) {
+        vistos.add(ant.id);
+        anteriores.push(ant);
+        ant = ant.contratoAnteriorId ? porId.get(String(ant.contratoAnteriorId)) : undefined;
+      }
+      return { ...d, versoesAnteriores: anteriores };
+    });
 };
 
 const isUuid = (val: unknown): val is string =>
@@ -108,7 +141,7 @@ export const useDocumentosClinicos = (pacienteId?: string) => {
     }
     const { data, error } = await query;
     if (error) console.error('Erro ao carregar documentos clínicos:', error);
-    setDocumentos((data || []).map(rowToDoc));
+    setDocumentos(agruparVersoesContrato((data || []).map(rowToDoc)));
     setLoading(false);
   }, [user, pacienteId]);
 
