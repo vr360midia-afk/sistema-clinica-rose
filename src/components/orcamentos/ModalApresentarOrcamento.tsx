@@ -1185,7 +1185,13 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
               {/* Grid de Cards de Propostas de Negociação */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
                 {condicoes.map((c, index) => {
+                  const isAprovado = orcamento?.status === 'aprovado';
                   const isSelected = c.id === condicaoSelecionadaId;
+
+                  // Se o orçamento já foi formalmente aprovado, exibe exclusivamente a condição escolhida pelo paciente
+                  if (isAprovado && condicaoSelecionadaId && !isSelected) {
+                    return null;
+                  }
                   const isAVista = c.tipo === 'a_vista';
                   const isEntrada = c.tipo === 'entrada_saldo';
                   const isCartao = c.tipo === 'cartao';

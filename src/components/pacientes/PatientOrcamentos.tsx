@@ -1862,9 +1862,62 @@ const PatientOrcamentos = ({ patient }: Props) => {
       toast.error('Adicione pelo menos um procedimento');
       return;
     }
+
+    // Saneamento preventivo para garantir que propostas nunca sejam salvas com R$ 0,00 quando total > 0
+    const condicoesSaneadas = (condicoesNegociacao || []).map((c) => {
+      let vTotal = typeof c.valorTotal === 'number' && c.valorTotal > 0 ? c.valorTotal : total;
+      let dValor = c.descontoValor;
+      let vParcela = c.valorParcela;
+      let vEntrada = c.valorEntrada;
+      let vSaldoParc = c.saldoValorParcela;
+
+      if (c.tipo === 'a_vista') {
+        const perc = typeof c.descontoPercentual === 'number' ? c.descontoPercentual : 0;
+        if (perc > 0 && (!dValor || dValor === 0 || vTotal === total)) {
+          dValor = Number(((total * perc) / 100).toFixed(2));
+          vTotal = Math.max(0, Number((total - dValor).toFixed(2)));
+        }
+      } else if (c.tipo === 'cartao') {
+        const p = Math.max(1, c.parcelas || 1);
+        if (!vParcela || vParcela === 0) {
+          vParcela = Number((total / p).toFixed(2));
+        }
+        vTotal = total;
+      } else if (c.tipo === 'entrada_saldo') {
+        if (!vEntrada || vEntrada === 0) {
+          vEntrada = Number((total * 0.5).toFixed(2));
+        }
+        const saldoRestante = Math.max(0, Number((total - vEntrada).toFixed(2)));
+        const parcSaldo = Math.max(1, c.saldoParcelas || 1);
+        if (!vSaldoParc || vSaldoParc === 0) {
+          vSaldoParc = Number((saldoRestante / parcSaldo).toFixed(2));
+        }
+        vTotal = total;
+      }
+
+      const descSaneada = calcularDescricaoCondicao({
+        ...c,
+        valorTotal: vTotal,
+        descontoValor: dValor,
+        valorParcela: vParcela,
+        valorEntrada: vEntrada,
+        saldoValorParcela: vSaldoParc,
+      }, total);
+
+      return {
+        ...c,
+        valorTotal: vTotal,
+        descontoValor: dValor,
+        valorParcela: vParcela,
+        valorEntrada: vEntrada,
+        saldoValorParcela: vSaldoParc,
+        descricao: descSaneada,
+      };
+    });
+
     const formasParaSalvar =
-      modoFormaPagamento === 'propostas' && condicoesNegociacao.length > 0
-        ? serializarCondicoesPagamento(condicoesNegociacao, condicaoAtivaId)
+      modoFormaPagamento === 'propostas' && condicoesSaneadas.length > 0
+        ? serializarCondicoesPagamento(condicoesSaneadas, condicaoAtivaId)
         : formasPagamento;
 
     await saveOrcamento({
@@ -1913,6 +1966,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
   const baixarPdf = async (o: (typeof orcamentos)[number]) => {
     const t = toast.loading('Gerando PDF...');
     const dentistaResponsavel = dentistas.find((d) => d.ativo) || dentistas[0];
+    const snapAprovacao = (o.snapshotAprovacao || (o as any).snapshot_aprovacao || {}) as any;
     const ok = await gerarOrcamentoPdf(
       {
         titulo: o.titulo,
@@ -1927,6 +1981,13 @@ const PatientOrcamentos = ({ patient }: Props) => {
         formasPagamento: o.formasPagamento,
         validade: o.validade,
         criadoEm: o.criadoEm,
+        status: o.status,
+        condicaoEscolhida: o.condicaoEscolhida || snapAprovacao?.condicaoEscolhida || (o.assinaturaPaciente as any)?.condicaoEscolhida,
+        aprovadoEm: o.aprovadoEm || snapAprovacao?.aprovadoEm || (o.assinaturaPaciente as any)?.dataAprovacao,
+        snapshotAprovacao: o.snapshotAprovacao || (o as any).snapshot_aprovacao,
+        contratoId: o.contratoId || snapAprovacao?.contratoId || (o.assinaturaPaciente as any)?.contratoId,
+        identificador: (o as any).identificador || o.id,
+        versao: (o as any).versao || 1,
       },
       {
         nomeClinica: configuracoes?.nomeClinica,
@@ -2206,7 +2267,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
           <p className="text-sm text-muted-foreground">Nenhum orçamento criado para este paciente.</p>
         ) : (
           (orcamentos || []).filter(Boolean).map((o) => {
-            const contObj = (documentos || []).find(
+            const contratosCandidatos = (documentos || []).filter(
               (d) => d.tipo === 'contrato' && (
                 (o.contratoId && (d.id === o.contratoId || d.identificador === o.contratoId || (d.itens as any)?.contratoId === o.contratoId)) ||
                 (d.itens as any)?.orcamentoId === o.id ||
@@ -2214,6 +2275,25 @@ const PatientOrcamentos = ({ patient }: Props) => {
                 (d.pacienteId === o.pacienteId && (o.contratoId || o.status === 'aprovado'))
               )
             );
+
+            // Ordena os contratos para priorizar a versão VIGENTE formalizada (com ambas assinaturas) e mais recente (V2 > V1)
+            contratosCandidatos.sort((a, b) => {
+              const aSnap = (a.itens || {}) as any;
+              const bSnap = (b.itens || {}) as any;
+              const aFormalizado = Boolean(a.assinadoEm || aSnap.assinaturaPaciente?.assinaturaData || aSnap.status === 'formalizado' || a.status === 'formalizado');
+              const bFormalizado = Boolean(b.assinadoEm || bSnap.assinaturaPaciente?.assinaturaData || bSnap.status === 'formalizado' || b.status === 'formalizado');
+              if (aFormalizado !== bFormalizado) return aFormalizado ? -1 : 1;
+
+              const aVersao = Number(aSnap.versao || (a.titulo?.match(/v(\d+)/i) ? a.titulo.match(/v(\d+)/i)[1] : 1));
+              const bVersao = Number(bSnap.versao || (b.titulo?.match(/v(\d+)/i) ? b.titulo.match(/v(\d+)/i)[1] : 1));
+              if (aVersao !== bVersao) return bVersao - aVersao;
+
+              const aTime = new Date(a.assinadoEm || a.atualizadoEm || a.criadoEm || 0).getTime();
+              const bTime = new Date(b.assinadoEm || b.atualizadoEm || b.criadoEm || 0).getTime();
+              return bTime - aTime;
+            });
+
+            const contObj = contratosCandidatos[0] || null;
 
             const temAssinaturaDra = Boolean(
               (o as any).assinaturaDraStatus === 'concluida' ||
@@ -2672,24 +2752,73 @@ const PatientOrcamentos = ({ patient }: Props) => {
                       variant="outline"
                       className="border-emerald-500/50 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 gap-1"
                       onClick={async () => {
-                        const pdfPath = contObj?.pdfPath || (contObj?.itens as any)?.pdfPath || (o.assinaturaPaciente as any)?.pdfPath;
-                        if (pdfPath) {
-                          try {
-                            const { data: sData } = await supabase.storage
-                              .from('documentos-pacientes')
-                              .createSignedUrl(pdfPath, 300, { download: `Contrato_Assinado_${idContratoExibicao}.pdf` });
-                            if (sData?.signedUrl) {
-                              window.open(sData.signedUrl, '_blank');
-                              return;
-                            }
-                          } catch (_) {}
-                        }
-                        if (contObj?.itens) {
-                          const html = gerarHtmlContrato(contObj.itens);
-                          await downloadHtmlAsPdf(html, `Contrato_Assinado_${idContratoExibicao}.pdf`);
-                        } else {
-                          setContratoOrcamento(o);
-                          setContratoModalOpen(true);
+                        const t = toast.loading('Localizando PDF assinado oficial...');
+                        try {
+                          const candidatePaths = [
+                            contObj?.pdfPath,
+                            (contObj?.itens as any)?.pdfPath,
+                            (o.assinaturaPaciente as any)?.pdfPath,
+                            (o as any).pdfPath,
+                            `contratos/${idContratoExibicao}/Contrato_Assinado_${idContratoExibicao}.pdf`,
+                            contObj?.id ? `contratos/${contObj.id}/Contrato_Assinado_${contObj.id}.pdf` : null,
+                            (contObj?.itens as any)?.contratoId ? `contratos/${(contObj.itens as any).contratoId}/Contrato_Assinado_${(contObj.itens as any).contratoId}.pdf` : null,
+                          ].filter(Boolean) as string[];
+
+                          let blobDownloaded: Blob | null = null;
+                          let signedUrlFound: string | null = null;
+
+                          for (const p of candidatePaths) {
+                            try {
+                              const cleanPath = p.replace(/^.*?documentos-pacientes\//, '').replace(/^\/+/, '');
+                              const { data: blob, error: dlErr } = await supabase.storage
+                                .from('documentos-pacientes')
+                                .download(cleanPath);
+
+                              if (!dlErr && blob && blob.size > 1000) {
+                                blobDownloaded = blob;
+                                break;
+                              }
+
+                              const { data: sData } = await supabase.storage
+                                .from('documentos-pacientes')
+                                .createSignedUrl(cleanPath, 300, { download: `Contrato_Assinado_${idContratoExibicao}.pdf` });
+
+                              if (sData?.signedUrl) {
+                                signedUrlFound = sData.signedUrl;
+                                break;
+                              }
+                            } catch (_) {}
+                          }
+
+                          if (blobDownloaded) {
+                            const url = URL.createObjectURL(blobDownloaded);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `Contrato_Assinado_${idContratoExibicao}.pdf`;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            URL.revokeObjectURL(url);
+                            toast.dismiss(t);
+                            toast.success('PDF oficial assinado baixado com sucesso!');
+                            return;
+                          }
+
+                          if (signedUrlFound) {
+                            window.open(signedUrlFound, '_blank');
+                            toast.dismiss(t);
+                            toast.success('PDF oficial assinado aberto para download!');
+                            return;
+                          }
+
+                          // Se não foi localizado no Storage, nunca gera um documento sem assinaturas sob o nome 'PDF Assinado'
+                          toast.dismiss(t);
+                          toast.error('O PDF definitivo com as assinaturas arquivadas não foi localizado no Storage.', {
+                            description: 'Abra o contrato formalizado pelo botão "Ver Contrato Assinado" para visualizar ou revalidar.',
+                          });
+                        } catch (err) {
+                          toast.dismiss(t);
+                          toast.error('Erro ao baixar o PDF assinado oficial.');
                         }
                       }}
                       title="Baixar PDF oficial do contrato formalizado"

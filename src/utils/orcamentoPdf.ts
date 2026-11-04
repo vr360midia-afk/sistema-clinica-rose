@@ -17,7 +17,7 @@ interface OrcamentoItemPdf {
   valor: number;
 }
 
-interface OrcamentoPdf {
+export interface OrcamentoPdf {
   titulo: string;
   pacienteNome?: string | null;
   pacienteCpf?: string | null;
@@ -30,39 +30,84 @@ interface OrcamentoPdf {
   criadoEm?: Date | string;
   dentistaNome?: string | null;
   dentistaCro?: string | null;
+  status?: string | null;
+  condicaoEscolhida?: any;
+  aprovadoEm?: Date | string | null;
+  snapshotAprovacao?: any;
+  contratoId?: string | null;
+  identificador?: string | null;
+  versao?: number;
 }
 
 const money = (v: number) =>
   Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-export const gerarOrcamentoPdf = async (o: OrcamentoPdf, clinica: ClinicaInfo = {}) => {
+export const construirHtmlOrcamento = (o: OrcamentoPdf, clinica: ClinicaInfo = {}): string => {
   const emissor = clinica.nomeClinica || 'Clínica Odontológica';
   const data = o.criadoEm ? new Date(o.criadoEm) : new Date();
   const dataFmt = isNaN(data.getTime()) ? new Date().toLocaleDateString('pt-BR') : data.toLocaleDateString('pt-BR');
   const subtotal = o.itens.reduce((s, i) => s + (i.valor || 0) * (i.quantidade || 1), 0);
   const responsavel = o.dentistaNome || emissor;
 
+  const isAprovado = Boolean(
+    o.status === 'aprovado' ||
+    o.status === 'concluido' ||
+    o.aprovadoEm ||
+    o.snapshotAprovacao?.aprovadoEm ||
+    o.condicaoEscolhida
+  );
+
   const condicoes = parseCondicoesPagamento(o.formasPagamento, o.total);
+
+  // Determina a condição escolhida pelo paciente
+  const condicaoEscolhidaAtiva = (() => {
+    if (!isAprovado) return null;
+    if (o.condicaoEscolhida && typeof o.condicaoEscolhida === 'object') {
+      return o.condicaoEscolhida;
+    }
+    if (o.snapshotAprovacao?.condicaoEscolhida && typeof o.snapshotAprovacao.condicaoEscolhida === 'object') {
+      return o.snapshotAprovacao.condicaoEscolhida;
+    }
+    return condicoes.find((c) => c.selecionada) || condicoes[0] || null;
+  })();
+
   const blocoFormasPagamentoHtml = (() => {
     if (!o.formasPagamento || condicoes.length === 0) return '';
+
+    // SE APROVADO: Exibe EXCLUSIVAMENTE a condição escolhida pelo paciente, sem alternativas rejeitadas
+    if (isAprovado && condicaoEscolhidaAtiva) {
+      return `
+        <div class="bloco" style="border-left: 3px solid #16a34a; background: #f0fdf4;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <h3 style="color: #15803d; margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">Condição de Pagamento Aprovada</h3>
+            <span style="background: #dcfce7; color: #15803d; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 9999px; border: 1px solid #86efac;">
+              Opção Escolhida pelo Paciente
+            </span>
+          </div>
+          <div style="font-size: 13px; font-weight: bold; color: #14532d; margin-bottom: 4px;">
+            ${condicaoEscolhidaAtiva.titulo || 'Condição Selecionada'}
+          </div>
+          <div style="color: #166534; font-size: 11px; line-height: 1.5;">
+            ${condicaoEscolhidaAtiva.descricao || ''}
+          </div>
+        </div>
+      `;
+    }
+
+    // SE PENDENTE / ANTES DA APROVAÇÃO: Exibe todas as opções disponíveis
     if (condicoes.length > 1) {
       return `
         <div class="bloco">
-          <h3>Condições de Pagamento / Propostas de Negociação</h3>
+          <h3>Condições de Pagamento / Propostas Disponíveis</h3>
           <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
             ${condicoes
               .map(
-                (c) => `
+                (c, idx) => `
               <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 12px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">
-                  <strong style="color: #0f172a; font-size: 12px;">${c.titulo}</strong>
-                  ${
-                    (o.status === 'aprovado' || o.status === 'concluido') && c.selecionada
-                      ? `<span style="background: #dcfce7; color: #15803d; font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 9999px;">Opção Escolhida</span>`
-                      : ''
-                  }
+                  <strong style="color: #0f172a; font-size: 12px;">${c.titulo || `Opção ${idx + 1}`}</strong>
                 </div>
-                <div style="color: #334155; font-size: 11px; line-height: 1.4;">${c.descricao}</div>
+                <div style="color: #334155; font-size: 11px; line-height: 1.4;">${c.descricao || ''}</div>
               </div>
             `
               )
@@ -71,8 +116,64 @@ export const gerarOrcamentoPdf = async (o: OrcamentoPdf, clinica: ClinicaInfo = 
         </div>
       `;
     }
-    return `<div class="bloco"><h3>Formas de pagamento</h3>${String(condicoes[0]?.descricao || o.formasPagamento).replace(/\n/g, '<br/>')}</div>`;
+
+    return `<div class="bloco"><h3>Forma de pagamento</h3>${String(condicoes[0]?.descricao || o.formasPagamento).replace(/\n/g, '<br/>')}</div>`;
   })();
+
+  // Data de aprovação formatada se houver
+  const dataAprovacaoRaw = o.aprovadoEm || o.snapshotAprovacao?.aprovadoEm || o.snapshotAprovacao?.dataHora;
+  const dataAprovacaoFmt = dataAprovacaoRaw ? new Date(dataAprovacaoRaw).toLocaleString('pt-BR') : dataFmt;
+
+  // Bloco de Autenticação / Assinatura
+  const blocoAssinaturasHtml = isAprovado
+    ? `
+      <!-- Seção Oficial de Aprovação Eletrônica -->
+      <div style="margin-top: 32px; border: 1.5px solid #86efac; background: #f8fafc; border-radius: 8px; padding: 14px 18px; page-break-inside: avoid; break-inside: avoid;">
+        <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 10px;">
+          <span style="font-size: 11px; font-weight: 700; color: #0f172a; text-transform: uppercase; letter-spacing: 0.5px;">
+            Registro Oficial de Aprovação Eletrônica
+          </span>
+          <span style="color: #15803d; font-size: 11px; font-weight: 700;">
+            ✓ Aceite Registrado no Sistema
+          </span>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 11px; color: #334155; line-height: 1.6;">
+          <div><strong>Paciente:</strong> ${o.pacienteNome || 'Paciente'}</div>
+          <div><strong>CPF:</strong> ${o.pacienteCpf || 'Registrado no cadastro'}</div>
+          <div><strong>Data/Hora do Aceite:</strong> ${dataAprovacaoFmt}</div>
+          <div><strong>Identificador do Orçamento:</strong> ${o.identificador || o.titulo || 'ORC-APROVADO'}${o.versao ? ` (v${o.versao})` : ''}</div>
+          <div><strong>Condição Aprovada:</strong> ${condicaoEscolhidaAtiva?.titulo || 'Opção selecionada'}</div>
+          ${o.contratoId ? `<div><strong>Contrato Vinculado:</strong> #${o.contratoId}</div>` : ''}
+          ${o.snapshotAprovacao?.ip ? `<div><strong>IP de Registro:</strong> ${o.snapshotAprovacao.ip}</div>` : ''}
+        </div>
+        <div style="margin-top: 10px; font-size: 9.5px; color: #64748b; font-style: italic; border-top: 1px dashed #cbd5e1; padding-top: 6px;">
+          Documento aprovado eletronicamente pelo paciente via link seguro integrado. Os termos legais, direitos e obrigações foram formalizados no Contrato Odontológico Bilateral.
+        </div>
+      </div>
+
+      <div class="assinaturas" style="margin-top: 24px;">
+        <div style="margin-left: auto; max-width: 320px; width: 100%;">
+          <div class="linha"></div>
+          <div class="nome">${responsavel}</div>
+          ${o.dentistaCro ? `<div class="doc-id">Cirurgião(ã)-Dentista • CRO: ${o.dentistaCro}</div>` : ''}
+          <div class="doc-id">${emissor}</div>
+        </div>
+      </div>
+    `
+    : `
+      <div class="assinaturas">
+        <div>
+          <div class="linha"></div>
+          <div class="nome">${o.pacienteNome || 'Paciente'}</div>
+          ${o.pacienteCpf ? `<div class="doc-id">CPF: ${o.pacienteCpf}</div>` : ''}
+        </div>
+        <div>
+          <div class="linha"></div>
+          <div class="nome">${responsavel}</div>
+          ${o.dentistaCro ? `<div class="doc-id">CRO: ${o.dentistaCro}</div>` : ''}
+        </div>
+      </div>
+    `;
 
   const html = `<!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8" />
@@ -90,7 +191,7 @@ export const gerarOrcamentoPdf = async (o: OrcamentoPdf, clinica: ClinicaInfo = 
   .meta { text-align: right; font-size: 11px; color: #555; font-family: Helvetica, Arial, sans-serif; line-height: 1.6; white-space: nowrap; }
   .meta strong { color: #1a1a1a; font-size: 12px; }
   .titulo-bloco { text-align: center; margin: 22px 0 6px; page-break-inside: avoid; break-inside: avoid; }
-  h2 { display: inline-block; letter-spacing: 8px; font-size: 17px; margin: 0; padding: 6px 30px; border-top: 1px solid #1a1a1a; border-bottom: 1px solid #1a1a1a; font-weight: 600; }
+  h2 { display: inline-block; letter-spacing: 6px; font-size: 17px; margin: 0; padding: 6px 30px; border-top: 1px solid #1a1a1a; border-bottom: 1px solid #1a1a1a; font-weight: 600; }
   .sub { text-align: center; font-size: 12px; color: #666; margin: 10px 0 20px; font-family: Helvetica, Arial, sans-serif; }
   table { width: 100%; font-size: 13px; border-collapse: collapse; }
   thead th { text-align: left; font-size: 10px; font-family: Helvetica, Arial, sans-serif; text-transform: uppercase; letter-spacing: 1.5px; color: #555; border-bottom: 2px solid #1a1a1a; padding: 8px 4px; }
@@ -131,7 +232,14 @@ export const gerarOrcamentoPdf = async (o: OrcamentoPdf, clinica: ClinicaInfo = 
       </div>
     </div>
 
-    <div class="titulo-bloco"><h2>ORÇAMENTO</h2></div>
+    <div class="titulo-bloco">
+      <h2>${isAprovado ? 'ORÇAMENTO APROVADO' : 'ORÇAMENTO'}</h2>
+      ${
+        isAprovado
+          ? `<div style="margin-top: 8px;"><span style="background: #16a34a; color: #ffffff; font-size: 10px; font-weight: 700; padding: 3px 12px; border-radius: 9999px; letter-spacing: 1px; font-family: Helvetica, Arial, sans-serif;">✓ APROVADO ELETRONICAMENTE</span></div>`
+          : ''
+      }
+    </div>
     <div class="sub">${o.titulo}${o.pacienteNome ? ` — Paciente: <strong>${o.pacienteNome}</strong>` : ''}</div>
 
     <table>
@@ -155,22 +263,18 @@ export const gerarOrcamentoPdf = async (o: OrcamentoPdf, clinica: ClinicaInfo = 
     ${blocoFormasPagamentoHtml}
     ${o.observacoes ? `<div class="bloco"><h3>Observações</h3>${String(o.observacoes).replace(/\n/g, '<br/>')}</div>` : ''}
 
-    <div class="assinaturas">
-      <div>
-        <div class="linha"></div>
-        <div class="nome">${o.pacienteNome || 'Paciente'}</div>
-        ${o.pacienteCpf ? `<div class="doc-id">CPF: ${o.pacienteCpf}</div>` : ''}
-      </div>
-      <div>
-        <div class="linha"></div>
-        <div class="nome">${responsavel}</div>
-        ${o.dentistaCro ? `<div class="doc-id">CRO: ${o.dentistaCro}</div>` : ''}
-      </div>
-    </div>
+    ${blocoAssinaturasHtml}
 
     <div class="rodape">Documento gerado eletronicamente em ${new Date().toLocaleString('pt-BR')}.</div>
   </div>
 </body></html>`;
 
+  return html;
+};
+
+export const gerarOrcamentoPdf = async (o: OrcamentoPdf, clinica: ClinicaInfo = {}) => {
+  const data = o.criadoEm ? new Date(o.criadoEm) : new Date();
+  const dataFmt = isNaN(data.getTime()) ? new Date().toLocaleDateString('pt-BR') : data.toLocaleDateString('pt-BR');
+  const html = construirHtmlOrcamento(o, clinica);
   return downloadHtmlAsPdf(html, `orcamento-${o.pacienteNome || 'paciente'}-${dataFmt.replace(/\//g, '-')}`);
 };

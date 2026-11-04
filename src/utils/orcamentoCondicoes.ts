@@ -112,7 +112,9 @@ export function calcularDescricaoCondicao(
 
     case 'cartao': {
       const p = Math.max(1, cond.parcelas || 1);
-      const valP = total / p;
+      const valP = typeof cond.valorParcela === 'number' && cond.valorParcela > 0
+        ? cond.valorParcela
+        : (total > 0 ? Number((total / p).toFixed(2)) : 0);
       const isDebito = cond.tipoCartao === 'debito';
       if (isDebito) {
         return `Cartão de Débito à vista: ${formatMoney(total)}${tagDataSaldo}${tagSitSaldo}`;
@@ -124,7 +126,9 @@ export function calcularDescricaoCondicao(
     }
 
     case 'entrada_saldo': {
-      const ent = Math.max(0, cond.valorEntrada || 0);
+      const ent = (typeof cond.valorEntrada === 'number' && cond.valorEntrada > 0)
+        ? cond.valorEntrada
+        : (total > 0 ? Number((total * 0.5).toFixed(2)) : 0);
       const saldo = Math.max(0, total - ent);
       const percEnt = total > 0 ? Math.round((ent / total) * 100) : 0;
       const percSaldo = Math.max(0, 100 - percEnt);
@@ -482,34 +486,84 @@ export function parseCondicoesPagamento(
       try {
         const parsed = JSON.parse(jsonCandidate);
         if (Array.isArray(parsed.condicoes) && parsed.condicoes.length > 0) {
-          return parsed.condicoes.map((c: any, index: number) => ({
-            id: c.id || String(index + 1),
-            titulo: c.titulo || `Opção ${index + 1}`,
-            tipo: c.tipo || 'personalizado',
-            descontoPercentual: c.descontoPercentual,
-            descontoValor: c.descontoValor,
-            valorTotal: typeof c.valorTotal === 'number' ? c.valorTotal : totalBase,
-            parcelas: c.parcelas,
-            valorParcela: c.valorParcela,
-            operadoraCartaoId: c.operadoraCartaoId,
-            tipoCartao: c.tipoCartao,
-            valorEntrada: c.valorEntrada,
-            metodoEntrada: c.metodoEntrada,
-            saldoTipoPrazo: c.saldoTipoPrazo,
-            saldoPrazoDias: c.saldoPrazoDias,
-            saldoParcelas: c.saldoParcelas,
-            saldoMetodo: c.saldoMetodo,
-            saldoValorParcela: c.saldoValorParcela,
-            dataEntrada: c.dataEntrada,
-            situacaoEntrada: c.situacaoEntrada,
-            dataPrimeiroVencimento: c.dataPrimeiroVencimento,
-            situacaoSaldo: c.situacaoSaldo,
-            diaVencimento: c.diaVencimento,
-            formasCompostas: Array.isArray(c.formasCompostas) ? c.formasCompostas : undefined,
-            descricao: c.descricao || calcularDescricaoCondicao(c, totalBase),
-            selecionada: Boolean(parsed.selecionadaId && String(c.id) === String(parsed.selecionadaId)),
-            destaque: c.destaque,
-          }));
+          return parsed.condicoes.map((c: any, index: number) => {
+            const isSelecionada = Boolean(parsed.selecionadaId && String(c.id) === String(parsed.selecionadaId)) || Boolean(c.selecionada);
+
+            let vTotal = typeof c.valorTotal === 'number' && c.valorTotal > 0 ? c.valorTotal : (totalBase > 0 ? totalBase : (c.valorTotal ?? 0));
+            let dValor = c.descontoValor;
+            let vParcela = c.valorParcela;
+            let vEntrada = c.valorEntrada;
+            let vSaldoParc = c.saldoValorParcela;
+            let desc = c.descricao;
+
+            // Para orçamentos em aberto / rascunhos onde houve inicialização com total=0:
+            // Saneia os valores zerados usando o totalBase real, sem alterar orçamentos já aprovados/formalizados
+            if (!isSelecionada && totalBase > 0) {
+              if (c.tipo === 'a_vista') {
+                const perc = typeof c.descontoPercentual === 'number' ? c.descontoPercentual : 0;
+                if (perc > 0 && (!dValor || dValor === 0 || vTotal === totalBase)) {
+                  dValor = Number(((totalBase * perc) / 100).toFixed(2));
+                  vTotal = Math.max(0, Number((totalBase - dValor).toFixed(2)));
+                }
+              } else if (c.tipo === 'cartao') {
+                const p = Math.max(1, c.parcelas || 1);
+                if (!vParcela || vParcela === 0) {
+                  vParcela = Number((totalBase / p).toFixed(2));
+                }
+                vTotal = totalBase;
+              } else if (c.tipo === 'entrada_saldo') {
+                if (!vEntrada || vEntrada === 0) {
+                  vEntrada = Number((totalBase * 0.5).toFixed(2));
+                }
+                const saldoRestante = Math.max(0, Number((totalBase - vEntrada).toFixed(2)));
+                const parcSaldo = Math.max(1, c.saldoParcelas || 1);
+                if (!vSaldoParc || vSaldoParc === 0) {
+                  vSaldoParc = Number((saldoRestante / parcSaldo).toFixed(2));
+                }
+                vTotal = totalBase;
+              }
+
+              if (!desc || /R\$\s*0[,.]00/i.test(desc)) {
+                desc = calcularDescricaoCondicao({
+                  ...c,
+                  valorTotal: vTotal,
+                  descontoValor: dValor,
+                  valorParcela: vParcela,
+                  valorEntrada: vEntrada,
+                  saldoValorParcela: vSaldoParc,
+                }, totalBase);
+              }
+            }
+
+            return {
+              id: c.id || String(index + 1),
+              titulo: c.titulo || `Opção ${index + 1}`,
+              tipo: c.tipo || 'personalizado',
+              descontoPercentual: c.descontoPercentual,
+              descontoValor: dValor,
+              valorTotal: vTotal,
+              parcelas: c.parcelas,
+              valorParcela: vParcela,
+              operadoraCartaoId: c.operadoraCartaoId,
+              tipoCartao: c.tipoCartao,
+              valorEntrada: vEntrada,
+              metodoEntrada: c.metodoEntrada,
+              saldoTipoPrazo: c.saldoTipoPrazo,
+              saldoPrazoDias: c.saldoPrazoDias,
+              saldoParcelas: c.saldoParcelas,
+              saldoMetodo: c.saldoMetodo,
+              saldoValorParcela: vSaldoParc,
+              dataEntrada: c.dataEntrada,
+              situacaoEntrada: c.situacaoEntrada,
+              dataPrimeiroVencimento: c.dataPrimeiroVencimento,
+              situacaoSaldo: c.situacaoSaldo,
+              diaVencimento: c.diaVencimento,
+              formasCompostas: Array.isArray(c.formasCompostas) ? c.formasCompostas : undefined,
+              descricao: desc || calcularDescricaoCondicao(c, totalBase),
+              selecionada: isSelecionada,
+              destaque: c.destaque,
+            };
+          });
         }
       } catch (_) {
         // Falhou o parse JSON, prossegue para análise de texto

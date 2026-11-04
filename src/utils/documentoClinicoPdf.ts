@@ -1,6 +1,7 @@
 import { DocumentoClinico } from '@/hooks/useDocumentosClinicos';
 import { downloadHtmlAsPdf } from './pdfDownload';
 import { identificarTipoDocumento } from './documentoFormat';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface ClinicaInfo {
   nomeClinica?: string;
@@ -14,6 +15,30 @@ export interface ClinicaInfo {
 export const gerarDocumentoClinicoPdf = async (doc: DocumentoClinico, clinica: ClinicaInfo = {}) => {
   if (doc.tipo === 'contrato') {
     const filename = `${doc.titulo.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${(doc.pacienteNome || 'paciente').toLowerCase().replace(/[^a-z0-9]/g, '_')}.pdf`;
+
+    // Prioriza o PDF definitivo assinado e arquivado no Supabase Storage se disponível
+    const candidatePath = (doc as any).pdfPath || (doc.itens as any)?.pdfPath;
+    if (candidatePath) {
+      try {
+        const cleanPath = candidatePath.replace(/^.*?documentos-pacientes\//, '').replace(/^\/+/, '');
+        const { data: blob, error } = await supabase.storage
+          .from('documentos-pacientes')
+          .download(cleanPath);
+
+        if (!error && blob && blob.size > 1000) {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          return true;
+        }
+      } catch (_) {}
+    }
+
     return downloadHtmlAsPdf(doc.conteudo, filename);
   }
 

@@ -778,12 +778,13 @@ export default function VisualizarOrcamento() {
               {/* Grid de Cards de Pagamento */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {orcamento.condicoes.map((cond, idx) => {
+                  const condEscolhidaId = orcamento.condicaoEscolhida?.id || orcamento.condicoes.find((c) => c.selecionada)?.id || condicaoSelecionadaId;
                   const isSelected = isAprovado
-                    ? cond.id === orcamento.condicaoEscolhida?.id || cond.selecionada
+                    ? (cond.id === condEscolhidaId || cond.selecionada)
                     : cond.id === condicaoSelecionadaId;
 
-                  // Se já aprovado e não é a condição escolhida, podemos ocultar ou desabilitar
-                  if (isAprovado && !isSelected && orcamento.condicaoEscolhida) {
+                  // Se o orçamento já estiver aprovado, exibe EXCLUSIVAMENTE a condição de pagamento escolhida pelo paciente
+                  if (isAprovado && !isSelected) {
                     return null;
                   }
 

@@ -90,6 +90,7 @@ import { downloadHtmlAsPdf } from '@/utils/pdfDownload';
 import { openWhatsApp } from '@/lib/whatsapp';
 import { formatMoney } from '@/utils/exportCsv';
 import { carregarConfiguracoesMaquinasSync, calcularTaxaCartao, extrairDetalhesCartaoDeTexto } from '@/hooks/useMaquinasCartao';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ContratoModalProps {
   isOpen: boolean;
@@ -160,6 +161,38 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
       setSelectedOrcamentoId(orcamentosAprovados[0].id);
     }
   }, [initialOrcamento, orcamentosAprovados, selectedOrcamentoId]);
+
+  // Auto-seleciona contrato formalizado se já existir para o orçamento aberto
+  useEffect(() => {
+    const targetOrcId = initialOrcamento?.id || selectedOrcamentoId;
+    if (isOpen && targetOrcId && documentos.length > 0 && !contratoVisualizacao) {
+      const matchDoc = documentos.find(
+        (d) => d.tipo === 'contrato' && (
+          (d.itens as any)?.orcamentoId === targetOrcId ||
+          d.orcamentoId === targetOrcId ||
+          (initialOrcamento?.contratoId && (d.id === initialOrcamento.contratoId || d.identificador === initialOrcamento.contratoId || (d.itens as any)?.contratoId === initialOrcamento.contratoId))
+        ) && (
+          Boolean(d.assinadoEm || (d.itens as any)?.assinaturaPaciente?.assinaturaData || d.status === 'formalizado' || (d.itens as any)?.status === 'formalizado')
+        )
+      );
+      if (matchDoc) {
+        setContratoVisualizacao(matchDoc);
+      }
+    }
+  }, [isOpen, initialOrcamento, selectedOrcamentoId, documentos, contratoVisualizacao]);
+
+  // Identifica se o contrato exibido atualmente está formalizado bilateralmente com ambas as assinaturas
+  const isFormalizadoBilateral = useMemo(() => {
+    if (contratoVisualizacao) {
+      const snapItens = (contratoVisualizacao.itens || {}) as any;
+      const hasAssinaturaPaciente = Boolean(contratoVisualizacao.assinaturaData || contratoVisualizacao.assinadoEm || snapItens.assinaturaPaciente?.assinaturaData || snapItens.status === 'formalizado' || contratoVisualizacao.status === 'formalizado');
+      const hasAssinaturaProfissional = Boolean(snapItens.assinaturaDentista?.assinaturaData || snapItens.statusAssinaturaDentista === 'assinado');
+      return Boolean(hasAssinaturaPaciente && hasAssinaturaProfissional);
+    }
+    const hasAssinaturaPaciente = Boolean(snapshotAtual?.assinaturaPaciente?.assinaturaData || snapshotAtual?.status === 'assinado' || snapshotAtual?.status === 'formalizado');
+    const hasAssinaturaProfissional = Boolean(snapshotAtual?.assinaturaDentista?.assinaturaData);
+    return Boolean(hasAssinaturaPaciente && hasAssinaturaProfissional);
+  }, [contratoVisualizacao, snapshotAtual]);
 
   // Dentista responsável padrão
   useEffect(() => {
@@ -709,6 +742,30 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
         nomeArquivo ||
         `contrato_${patient?.nome ? patient.nome.replace(/\s+/g, '_') : 'paciente'}_orc_${snapshotAtual?.orcamento.numeroIdentificador || 'aprovado'}`;
 
+      // Se o contrato for formalizado e possuir PDF definitivo no Storage, baixa o binário oficial arquivado
+      const pdfPathCandidato = contratoVisualizacao?.pdfPath || (contratoVisualizacao?.itens as any)?.pdfPath || snapshotAtual?.pdfPath;
+      if (pdfPathCandidato) {
+        try {
+          const cleanPath = pdfPathCandidato.replace(/^.*?documentos-pacientes\//, '').replace(/^\/+/, '');
+          const { data: blob, error } = await supabase.storage
+            .from('documentos-pacientes')
+            .download(cleanPath);
+
+          if (!error && blob && blob.size > 1000) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${filename}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            toast.success('PDF oficial arquivado baixado com sucesso!');
+            return;
+          }
+        } catch (_) {}
+      }
+
       await downloadHtmlAsPdf(html, filename);
       toast.success('PDF do contrato baixado com sucesso!');
     } catch (err: any) {
@@ -996,6 +1053,15 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                   <div className="min-w-0">
                     <DialogTitle className="text-xs sm:text-sm font-bold text-slate-100 flex items-center gap-2 truncate">
                       <span>Visualização Oficial do Contrato</span>
+                      {isFormalizadoBilateral ? (
+                        <span className="hidden sm:inline-flex text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-medium">
+                          ✓ Formalizado Bilateralmente
+                        </span>
+                      ) : (
+                        <span className="hidden sm:inline-flex text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-medium">
+                          ⏳ Modelo em Elaboração
+                        </span>
+                      )}
                       <span className="hidden sm:inline-flex text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-medium">
                         Padrão A4
                       </span>
@@ -1100,9 +1166,15 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                   <div className="min-w-0">
                     <DialogTitle className="text-base sm:text-xl font-bold flex flex-wrap items-center gap-1.5 sm:gap-2 text-foreground">
                       <span>Contrato de Serviços</span>
-                      <Badge variant="outline" className="font-semibold text-[10px] sm:text-xs border-primary/30 text-primary bg-primary/10">
-                        Motor Integrado
-                      </Badge>
+                      {isFormalizadoBilateral ? (
+                        <Badge variant="outline" className="font-semibold text-[10px] sm:text-xs border-emerald-500/30 text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 dark:text-emerald-300">
+                          ✓ Contrato Formalizado e Assinado Bilateralmente
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="font-semibold text-[10px] sm:text-xs border-amber-500/30 text-amber-700 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-300">
+                          ⏳ Modelo em Elaboração — Aguardando Assinatura do Paciente
+                        </Badge>
+                      )}
                       {isManuallyEdited && (
                         <Badge variant="secondary" className="font-semibold text-[10px] sm:text-xs bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30">
                           Edição Manual
