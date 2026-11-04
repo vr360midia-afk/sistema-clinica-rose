@@ -166,6 +166,48 @@ async function runTests() {
 
   assert(contratos[0].id === 'ctr-v2-formalizado', `O contrato prioritário vigente deve ser o V2 formalizado (obtido: ${contratos[0].id})`);
 
+  console.log('\n--- 7. TESTE DE IDENTIFICAÇÃO E EXCLUSIVIDADE DA CONDIÇÃO APROVADA NO PRONTUÁRIO ---');
+
+  // Teste 7.1: Orçamento aprovado na Opção 1 (PIX)
+  const trioTeste = gerarTrioPropostasSugeridas(1000);
+  const jsonAprovadoOp1 = serializarCondicoesPagamento(trioTeste, '1');
+  const condsOp1 = parseCondicoesPagamento(jsonAprovadoOp1, 1000);
+  const escolhidaOp1 = condsOp1.find((c) => c.selecionada);
+  assert(escolhidaOp1?.id === '1', 'Deve identificar a Opção 1 como selecionada');
+  assert(escolhidaOp1?.tipo === 'a_vista', 'Opção 1 deve ser tipo a_vista');
+
+  // Teste 7.2: Orçamento aprovado na Opção 2 (Entrada 50% + Saldo)
+  const jsonAprovadoOp2 = serializarCondicoesPagamento(trioTeste, '2');
+  const condsOp2 = parseCondicoesPagamento(jsonAprovadoOp2, 1000);
+  const escolhidaOp2 = condsOp2.find((c) => c.selecionada);
+  assert(escolhidaOp2?.id === '2', 'Deve identificar a Opção 2 como selecionada');
+  assert(escolhidaOp2?.tipo === 'entrada_saldo', 'Opção 2 deve ser tipo entrada_saldo');
+  assert(escolhidaOp2?.valorEntrada === 500, 'Opção 2 deve ter entrada de R$ 500');
+
+  // Teste 7.3: Orçamento aprovado na Opção 3 (Cartão Parcelado)
+  const jsonAprovadoOp3 = serializarCondicoesPagamento(trioTeste, '3');
+  const condsOp3 = parseCondicoesPagamento(jsonAprovadoOp3, 1000);
+  const escolhidaOp3 = condsOp3.find((c) => c.selecionada);
+  assert(escolhidaOp3?.id === '3', 'Deve identificar a Opção 3 como selecionada');
+  assert(escolhidaOp3?.tipo === 'cartao', 'Opção 3 deve ser tipo cartao');
+
+  // Teste 7.4: Orçamento aprovado antigo SEM condição registrada (não deve escolher a Opção 1 automaticamente)
+  const jsonSemSelecao = JSON.stringify({
+    versao: 2,
+    condicoes: [
+      { id: '1', titulo: 'Opção 1', tipo: 'a_vista' },
+      { id: '2', titulo: 'Opção 2', tipo: 'cartao' }
+    ]
+  });
+  const condsSemSelecao = parseCondicoesPagamento(jsonSemSelecao, 1000);
+  const selecionadaSemRegistro = condsSemSelecao.find((c) => c.selecionada);
+  assert(selecionadaSemRegistro === undefined, 'Orçamento antigo sem seleção NÃO deve marcar a primeira opção automaticamente');
+
+  // Teste 7.5: Orçamento antigo com texto simples sem JSON
+  const textoSimples = 'Entrada R$ 500 via PIX + 5x no Cartão';
+  const condsTexto = parseCondicoesPagamento(textoSimples, 1000);
+  assert(condsTexto.length >= 1, 'Deve realizar parse do texto histórico simples');
+
   console.log('\n=======================================');
   console.log(`RESULTADO FINAL: ${sucessos} SUCESSOS, ${falhas} FALHAS`);
   console.log('=======================================\n');

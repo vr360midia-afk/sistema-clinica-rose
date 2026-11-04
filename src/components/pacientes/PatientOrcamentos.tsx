@@ -2604,6 +2604,153 @@ const PatientOrcamentos = ({ patient }: Props) => {
                 </div>
                 {o.formasPagamento && (() => {
                   const conds = parseCondicoesPagamento(o.formasPagamento, o.total);
+                  const isAprovado = o.status === 'aprovado' || o.status === 'concluido';
+
+                  // Orçamento Aprovado: exibe EXCLUSIVAMENTE a condição aprovada pelo paciente
+                  if (isAprovado) {
+                    const snapAprov = (o.snapshotAprovacao || (o as any).snapshot_aprovacao || {}) as any;
+                    const snapAssinatura = (o.assinaturaPaciente || (o as any).assinatura_paciente || {}) as any;
+
+                    // Busca condição aprovada persistida de forma confiável
+                    let condEscolhida: CondicaoPagamento | null = null;
+                    if (o.condicaoEscolhida && typeof o.condicaoEscolhida === 'object' && o.condicaoEscolhida.titulo) {
+                      condEscolhida = o.condicaoEscolhida;
+                    } else if (snapAprov?.condicaoEscolhida && typeof snapAprov.condicaoEscolhida === 'object' && snapAprov.condicaoEscolhida.titulo) {
+                      condEscolhida = snapAprov.condicaoEscolhida;
+                    } else if (snapAssinatura?.condicaoEscolhida && typeof snapAssinatura.condicaoEscolhida === 'object' && snapAssinatura.condicaoEscolhida.titulo) {
+                      condEscolhida = snapAssinatura.condicaoEscolhida;
+                    } else {
+                      const encontrada = conds.find((c) => c.selecionada);
+                      if (encontrada) {
+                        condEscolhida = encontrada;
+                      } else if (snapAprov?.condicaoEscolhidaId) {
+                        const matchId = conds.find((c) => String(c.id) === String(snapAprov.condicaoEscolhidaId));
+                        if (matchId) condEscolhida = matchId;
+                      } else if (snapAssinatura?.condicaoEscolhidaId) {
+                        const matchId = conds.find((c) => String(c.id) === String(snapAssinatura.condicaoEscolhidaId));
+                        if (matchId) condEscolhida = matchId;
+                      } else if (conds.length === 1 && !o.formasPagamento.includes('Opção 2') && !o.formasPagamento.includes('"id":"2"')) {
+                        // Se o orçamento só possui uma única condição configurada desde a criação, ela é a acordada
+                        condEscolhida = conds[0];
+                      }
+                    }
+
+                    // Se não existir identificação confiável da condição aprovada, exibe mensagem clara sem escolher automaticamente a primeira
+                    if (!condEscolhida) {
+                      return (
+                        <div className="pt-2 border-t border-border/60 space-y-1.5">
+                          <span className="text-[11px] font-bold text-foreground flex items-center gap-1.5">
+                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                            Condição de Pagamento Aprovada:
+                          </span>
+                          <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-50/50 dark:bg-amber-950/20 text-xs space-y-1">
+                            <p className="font-semibold text-amber-700 dark:text-amber-400">Condição aprovada não identificada</p>
+                            <p className="text-[11px] text-muted-foreground leading-relaxed">
+                              O orçamento foi marcado como aprovado, mas a opção específica não foi registrada nos metadados deste documento histórico.
+                            </p>
+                            {o.formasPagamento && !o.formasPagamento.includes('{') && (
+                              <p className="text-[11px] text-foreground font-medium pt-1">
+                                Registro original: {o.formasPagamento}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // Detalhamento financeiro da condição contratada
+                    const valFinal = typeof condEscolhida.valorTotal === 'number' && condEscolhida.valorTotal > 0
+                      ? condEscolhida.valorTotal
+                      : o.total;
+                    const temDesc = Boolean(
+                      (condEscolhida.descontoValor && condEscolhida.descontoValor > 0) ||
+                      (condEscolhida.descontoPercentual && condEscolhida.descontoPercentual > 0)
+                    );
+                    const descVal = condEscolhida.descontoValor || 0;
+                    const valOriginal = temDesc && descVal > 0 ? valFinal + descVal : (o.total > valFinal ? o.total : null);
+
+                    return (
+                      <div className="pt-2 border-t border-border/60 space-y-2">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <span className="text-[11px] font-bold text-foreground flex items-center gap-1.5">
+                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                            Condição de Pagamento Aprovada:
+                          </span>
+                          <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] px-2 py-0.5 font-semibold flex items-center gap-1 shadow-xs">
+                            <Check className="h-3 w-3 stroke-[3]" /> Opção Contratada pelo Paciente
+                          </Badge>
+                        </div>
+
+                        {/* Card Responsivo da Condição Aprovada */}
+                        <div className="p-3.5 rounded-xl border border-emerald-500/40 bg-emerald-500/5 dark:bg-emerald-950/30 text-xs space-y-2.5">
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 pb-2 border-b border-emerald-500/20">
+                            <div className="flex items-center gap-2">
+                              {condEscolhida.tipo === 'a_vista' && <Wallet className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />}
+                              {condEscolhida.tipo === 'cartao' && <CreditCard className="h-4 w-4 text-primary shrink-0" />}
+                              {condEscolhida.tipo === 'entrada_saldo' && <Layers className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />}
+                              <span className="font-bold text-sm text-foreground">{condEscolhida.titulo}</span>
+                            </div>
+
+                            <span className="text-xs font-mono font-extrabold text-emerald-700 dark:text-emerald-300">
+                              Valor Aprovado: {formatMoney(valFinal)}
+                            </span>
+                          </div>
+
+                          {/* Detalhamento Financeiro (Original, Desconto, Entrada / Parcelas) */}
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                            {valOriginal && valOriginal > valFinal && (
+                              <div className="p-2 rounded-lg bg-card/60 border border-border/60">
+                                <span className="text-[10px] text-muted-foreground block">Valor Original</span>
+                                <span className="line-through text-muted-foreground font-medium">{formatMoney(valOriginal)}</span>
+                              </div>
+                            )}
+
+                            {temDesc && (
+                              <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
+                                <span className="text-[10px] text-emerald-700 dark:text-emerald-400 block font-medium">Desconto Aplicado</span>
+                                <span className="font-bold text-emerald-700 dark:text-emerald-300">
+                                  {descVal > 0 ? `- ${formatMoney(descVal)}` : ''} {condEscolhida.descontoPercentual ? `(${condEscolhida.descontoPercentual}% OFF)` : ''}
+                                </span>
+                              </div>
+                            )}
+
+                            {condEscolhida.tipo === 'entrada_saldo' && (
+                              <>
+                                <div className="p-2 rounded-lg bg-card/60 border border-border/60">
+                                  <span className="text-[10px] text-muted-foreground block">Entrada</span>
+                                  <span className="font-semibold text-foreground">
+                                    {formatMoney(condEscolhida.valorEntrada || valFinal * 0.5)}
+                                  </span>
+                                </div>
+                                <div className="p-2 rounded-lg bg-card/60 border border-border/60">
+                                  <span className="text-[10px] text-muted-foreground block">Saldo Restante</span>
+                                  <span className="font-semibold text-foreground">
+                                    {formatMoney(valFinal - (condEscolhida.valorEntrada || valFinal * 0.5))}
+                                  </span>
+                                </div>
+                              </>
+                            )}
+
+                            {condEscolhida.tipo === 'cartao' && condEscolhida.parcelas && condEscolhida.parcelas > 1 && (
+                              <div className="p-2 rounded-lg bg-card/60 border border-border/60 col-span-2 sm:col-span-1">
+                                <span className="text-[10px] text-muted-foreground block">Parcelamento</span>
+                                <span className="font-semibold text-foreground">
+                                  {condEscolhida.parcelas}x de {formatMoney(condEscolhida.valorParcela || valFinal / condEscolhida.parcelas)}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Descrição Completa Registrada */}
+                          <p className="text-[11px] text-muted-foreground leading-relaxed pt-1.5 border-t border-emerald-500/15">
+                            {condEscolhida.descricao}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // Fluxo para orçamento NÃO aprovado (pendente, rascunho, enviado): exibe todas as opções
                   if (conds.length > 1) {
                     return (
                       <div className="pt-2 border-t border-border/60 space-y-1.5">
@@ -2612,52 +2759,40 @@ const PatientOrcamentos = ({ patient }: Props) => {
                           {conds.length} Condições de Pagamento Disponíveis:
                         </span>
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                          {conds.map((c, i) => {
-                            const isEscolhida = o.status === 'aprovado' && Boolean(c.selecionada);
-                            return (
-                              <div
-                                key={c.id || i}
-                                className={`p-2.5 rounded-xl border text-[11px] space-y-1.5 flex flex-col justify-between transition-all ${
-                                  isEscolhida
-                                    ? 'border-emerald-500 bg-emerald-500/10 text-foreground font-medium ring-1 ring-emerald-500/30'
-                                    : 'border-border/70 bg-card/60 text-foreground'
-                                }`}
-                              >
-                                <div className="space-y-1">
-                                  <div className="flex justify-between items-center gap-1">
-                                    <span className="font-bold text-foreground truncate">{c.titulo}</span>
-                                    {isEscolhida && (
-                                      <Badge className="bg-emerald-600 text-white text-[9px] px-1.5 py-0 h-4 shrink-0 flex items-center gap-0.5">
-                                        <Check className="h-2.5 w-2.5" /> Escolhida
-                                      </Badge>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center justify-between text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400">
-                                    <span>Total: {formatMoney(c.valorTotal || o.total)}</span>
-                                  </div>
-                                  <p className="line-clamp-2 text-[10px] text-muted-foreground leading-tight">{c.descricao}</p>
+                          {conds.map((c, i) => (
+                            <div
+                              key={c.id || i}
+                              className="p-2.5 rounded-xl border border-border/70 bg-card/60 text-foreground text-[11px] space-y-1.5 flex flex-col justify-between transition-all"
+                            >
+                              <div className="space-y-1">
+                                <div className="flex justify-between items-center gap-1">
+                                  <span className="font-bold text-foreground truncate">{c.titulo}</span>
                                 </div>
-
-                                {o.status !== 'aprovado' && o.status !== 'recusado' && (
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    onClick={() => handleIniciarAprovacao(o, c.id)}
-                                    className="w-full h-6 text-[10px] font-bold gap-1 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs mt-1"
-                                    title={`Aprovar este orçamento escolhendo a ${c.titulo}`}
-                                  >
-                                    <Check className="h-3 w-3" /> Aprovar esta opção
-                                  </Button>
-                                )}
+                                <div className="flex items-center justify-between text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400">
+                                  <span>Total: {formatMoney(c.valorTotal || o.total)}</span>
+                                </div>
+                                <p className="line-clamp-2 text-[10px] text-muted-foreground leading-tight">{c.descricao}</p>
                               </div>
-                            );
-                          })}
+
+                              {o.status !== 'recusado' && (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  onClick={() => handleIniciarAprovacao(o, c.id)}
+                                  className="w-full h-6 text-[10px] font-bold gap-1 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs mt-1"
+                                  title={`Aprovar este orçamento escolhendo a ${c.titulo}`}
+                                >
+                                  <Check className="h-3 w-3" /> Aprovar esta opção
+                                </Button>
+                              )}
+                            </div>
+                          ))}
                         </div>
                       </div>
                     );
                   }
                   return (
-                    <p className="text-muted-foreground pt-1">
+                    <p className="text-muted-foreground pt-1 text-xs">
                       Pagamento: <span className="text-foreground">{conds[0]?.descricao || o.formasPagamento}</span>
                     </p>
                   );

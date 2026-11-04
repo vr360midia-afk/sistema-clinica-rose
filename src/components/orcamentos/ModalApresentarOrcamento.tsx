@@ -1131,29 +1131,45 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 flex-wrap">
                 <div>
                   <h4 className="font-bold text-sm sm:text-base text-foreground flex items-center gap-2">
-                    <Wallet className="h-4 w-4 text-primary" />
-                    Condições & Propostas de Negociação
-                    <Badge variant="outline" className="text-[11px] font-normal border-primary/30 text-primary">
-                      {condicoes.length} {condicoes.length === 1 ? 'opção' : 'opções'} de pagamento
-                    </Badge>
+                    {orcamento?.status === 'aprovado' ? (
+                      <>
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                        Condição de Pagamento Aprovada
+                        <Badge className="bg-emerald-600 text-white text-[11px] font-semibold">
+                          Opção Contratada
+                        </Badge>
+                      </>
+                    ) : (
+                      <>
+                        <Wallet className="h-4 w-4 text-primary" />
+                        Condições & Propostas de Negociação
+                        <Badge variant="outline" className="text-[11px] font-normal border-primary/30 text-primary">
+                          {condicoes.length} {condicoes.length === 1 ? 'opção' : 'opções'} de pagamento
+                        </Badge>
+                      </>
+                    )}
                   </h4>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Apresente e compare condições diferentes para o paciente escolher na consulta (ex.: À Vista com desconto, Entrada facilitada, Parcelado).
+                    {orcamento?.status === 'aprovado'
+                      ? 'Este orçamento já se encontra aprovado, exibindo exclusivamente a condição de pagamento contratada pelo paciente.'
+                      : 'Apresente e compare condições diferentes para o paciente escolher na consulta (ex.: À Vista com desconto, Entrada facilitada, Parcelado).'}
                   </p>
                 </div>
 
                 <div className="flex items-center gap-2 flex-wrap">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={handleGerarTrioSugerido}
-                    className="h-8 text-xs gap-1.5 border-primary/40 text-primary hover:bg-primary/10"
-                    title="Gera automaticamente 3 opções recomendadas: À Vista com 10% OFF, Entrada Facilitada + 5x, e 10x sem juros"
-                  >
-                    <Sparkles className="h-3.5 w-3.5" />
-                    Sugerir 3 Opções Rápidas
-                  </Button>
+                  {orcamento?.status !== 'aprovado' && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={handleGerarTrioSugerido}
+                      className="h-8 text-xs gap-1.5 border-primary/40 text-primary hover:bg-primary/10"
+                      title="Gera automaticamente 3 opções recomendadas: À Vista com 10% OFF, Entrada Facilitada + 5x, e 10x sem juros"
+                    >
+                      <Sparkles className="h-3.5 w-3.5" />
+                      Sugerir 3 Opções Rápidas
+                    </Button>
+                  )}
                   <Button
                     type="button"
                     size="sm"
@@ -1170,15 +1186,17 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
                     <Lock className="h-3.5 w-3.5" />
                     {mostrarMargemInterna ? 'Ocultar Margem Interna' : '🔒 Margem Interna (Taxas)'}
                   </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={handleAbrirNovaCondicao}
-                    className="h-8 text-xs gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 font-medium"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Nova Condição
-                  </Button>
+                  {orcamento?.status !== 'aprovado' && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleAbrirNovaCondicao}
+                      className="h-8 text-xs gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 font-medium"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Nova Condição
+                    </Button>
+                  )}
                 </div>
               </div>
 
