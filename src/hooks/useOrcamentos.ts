@@ -77,7 +77,7 @@ const rowToOrcamento = (row: any): Orcamento | null => {
     historicoVersoes: Array.isArray(row.historico_versoes) ? row.historico_versoes : (snap.historicoVersoes || []),
     validade: row.validade,
     observacoes: row.observacoes,
-    formasPagamento: (row as any).formas_pagamento ?? null,
+    formasPagamento: (row as any).formas_pagamento ?? snap.formasPagamento ?? snap.formas_pagamento ?? null,
     tokenAssinatura: row.token_assinatura || snap.tokenAssinatura,
     dataExpiracaoLink: row.data_expiracao_link || snap.dataExpiracaoLink,
     aprovadoEm: row.aprovado_em || snap.aprovadoEm || row.data_assinatura,

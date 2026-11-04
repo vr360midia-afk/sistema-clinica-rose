@@ -2662,11 +2662,9 @@ const PatientOrcamentos = ({ patient }: Props) => {
                     const valFinal = typeof condEscolhida.valorTotal === 'number' && condEscolhida.valorTotal > 0
                       ? condEscolhida.valorTotal
                       : o.total;
-                    const temDesc = Boolean(
-                      (condEscolhida.descontoValor && condEscolhida.descontoValor > 0) ||
-                      (condEscolhida.descontoPercentual && condEscolhida.descontoPercentual > 0)
-                    );
-                    const descVal = condEscolhida.descontoValor || 0;
+                    const descVal = condEscolhida.descontoValor ?? (condEscolhida as any).valorDesconto ?? 0;
+                    const descPct = condEscolhida.descontoPercentual ?? (condEscolhida as any).percentualDesconto ?? 0;
+                    const temDesc = Boolean(descVal > 0 || descPct > 0);
                     const valOriginal = temDesc && descVal > 0 ? valFinal + descVal : (o.total > valFinal ? o.total : null);
 
                     return (
@@ -2709,7 +2707,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
                               <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
                                 <span className="text-[10px] text-emerald-700 dark:text-emerald-400 block font-medium">Desconto Aplicado</span>
                                 <span className="font-bold text-emerald-700 dark:text-emerald-300">
-                                  {descVal > 0 ? `- ${formatMoney(descVal)}` : ''} {condEscolhida.descontoPercentual ? `(${condEscolhida.descontoPercentual}% OFF)` : ''}
+                                  {descVal > 0 ? `- ${formatMoney(descVal)}` : ''} {descPct ? `(${descPct}% OFF)` : ''}
                                 </span>
                               </div>
                             )}
