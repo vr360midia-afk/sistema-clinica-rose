@@ -147,10 +147,38 @@ const PatientDocuments = ({ patient }: PatientDocumentsProps) => {
 
   const openDocument = async (documento: any, download = false) => {
     try {
-      if (documento.arquivo && (documento.arquivo.startsWith('http://') || documento.arquivo.startsWith('https://'))) { window.open(documento.arquivo, '_blank'); return; }
+      const filePath = documento.arquivo || documento.url;
+      if (filePath && (filePath.startsWith('http://') || filePath.startsWith('https://'))) {
+        window.open(filePath, '_blank');
+        return;
+      }
+      if (!filePath) {
+        toast.error('Caminho do arquivo não localizado');
+        return;
+      }
+
+      // Se for download direto, baixa o Blob oficial arquivado no Storage garantindo o binário idêntico
+      if (download) {
+        const { data: blob, error: dlErr } = await supabase.storage
+          .from(BUCKET)
+          .download(filePath);
+        if (!dlErr && blob) {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          const ext = filePath.endsWith('.pdf') ? '.pdf' : '';
+          a.download = documento.nome?.endsWith(ext) ? documento.nome : `${documento.nome}${ext}`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          return;
+        }
+      }
+
       const { data, error } = await supabase.storage
         .from(BUCKET)
-        .createSignedUrl(documento.arquivo, 300, download ? { download: documento.nome } : undefined);
+        .createSignedUrl(filePath, 300, download ? { download: documento.nome } : undefined);
       if (error || !data) throw error || new Error('Falha ao gerar link');
       window.open(data.signedUrl, '_blank');
     } catch (err: any) {

@@ -77,6 +77,11 @@ import { downloadHtmlAsPdf, generateHtmlPdfBase64 } from '@/utils/pdfDownload';
 import { openWhatsApp } from '@/lib/whatsapp';
 import { supabase } from '@/integrations/supabase/client';
 import { reconciliarContratosEOrcamentos } from '@/utils/reconciliacaoContratos';
+import {
+  obterPdfContratoOficialDefinitivo,
+  dispararDownloadPdfOficial,
+  auditarInconsistenciasContratoFormalizado,
+} from '@/utils/contratoPdfOficial';
 
 const Shell = ({ children }: { children: React.ReactNode }) => (
   <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-start py-8 px-3 sm:px-6">
@@ -789,6 +794,16 @@ export default function AssinarContrato() {
         setSnapshot(sanitizado);
         if (foundDocId) setDocDbId(foundDocId);
 
+        // Se o contrato for formalizado ou assinado, assegura a resolução do PDF oficial definitivo arquivado
+        if (isContratoJaAssinado) {
+          const docIdBusca = String(foundDocId || sanitizado.contratoId || targetId);
+          obterPdfContratoOficialDefinitivo(docIdBusca, sanitizado, token, signedPdfUrl).then((res) => {
+            if (res?.signedUrl || res?.blobUrl) {
+              setSignedPdfUrl(res.signedUrl || res.blobUrl);
+            }
+          }).catch(() => {});
+        }
+
         // Salva no cache local para contingência futura imediata
         if (typeof window !== 'undefined' && window.localStorage && sanitizado.contratoId) {
           try {
@@ -1145,17 +1160,48 @@ export default function AssinarContrato() {
     }
   };
 
-  // Download do PDF
+  // Download do PDF oficial definitivo arquivado
   const handleBaixarPdf = async () => {
     if (!snapshot) return;
     try {
       setBaixandoPdf(true);
+      const docId = String(snapshot.contratoId || targetId || 'contrato');
+      const isFormalizado = Boolean(
+        isTotalmenteAssinado ||
+        snapshot.status === 'formalizado' ||
+        snapshot.status === 'assinado' ||
+        (snapshot as any).isFormalizadoTotal ||
+        (snapshot.assinaturaPaciente?.assinaturaData && snapshot.assinaturaDentista?.assinaturaData)
+      );
+
+      // Se o contrato estiver formalizado ou já possuir URL assinada do Storage:
+      // OBRIGATORIAMENTE baixa o mesmo binário oficial arquivado (sem regeneração)
+      if (isFormalizado || signedPdfUrl) {
+        const canonicalName = `Contrato_Assinado_${docId}.pdf`;
+        const resPdf = await obterPdfContratoOficialDefinitivo(docId, snapshot, token, signedPdfUrl);
+
+        if (resPdf && (resPdf.blob || resPdf.signedUrl)) {
+          const ok = await dispararDownloadPdfOficial(resPdf, canonicalName);
+          if (ok) {
+            toast.success('Download do contrato oficial assinado concluído!');
+            return;
+          }
+        }
+
+        // Se o contrato foi formalizado mas o Storage não respondeu, JAMAIS regenera documento divergente
+        toast.error('O PDF definitivo bilateral arquivado no Storage não foi localizado.', {
+          description: 'Para garantir a segurança jurídica e integridade com fé pública, contratos formalizados não são regenerados.',
+        });
+        return;
+      }
+
+      // Apenas minutas e rascunhos prévios não formalizados podem gerar prévia temporária
       const html = gerarHtmlContrato(snapshot);
-      const filename = `contrato_${snapshot.paciente.nome.replace(/\s+/g, '_')}_${snapshot.contratoId}`;
+      const filename = `minuta_contrato_${snapshot.paciente.nome.replace(/\s+/g, '_')}_${snapshot.contratoId}`;
       await downloadHtmlAsPdf(html, filename);
-      toast.success('Download do contrato em PDF concluído!');
+      toast.success('Download da minuta do contrato concluído!');
     } catch (err) {
-      toast.error('Erro ao gerar PDF do contrato');
+      toast.error('Erro ao baixar PDF do contrato');
     } finally {
       setBaixandoPdf(false);
     }
@@ -1340,9 +1386,9 @@ export default function AssinarContrato() {
     );
   }
 
-  const isAssinado = !!snapshot.assinaturaPaciente?.assinaturaData;
-  const isAssinadoDentista = !!snapshot.assinaturaDentista?.assinaturaData;
-  const isTotalmenteAssinado = isAssinado && isAssinadoDentista;
+  const isAssinado = !!snapshot.assinaturaPaciente?.assinaturaData || snapshot.status === 'assinado' || snapshot.status === 'formalizado';
+  const isAssinadoDentista = !!snapshot.assinaturaDentista?.assinaturaData || !!(snapshot as any).assinaturaDra?.assinaturaData || snapshot.status === 'formalizado';
+  const isTotalmenteAssinado = (isAssinado && isAssinadoDentista) || snapshot.status === 'formalizado' || (snapshot as any).isFormalizadoTotal === true;
 
   return (
     <Shell>
@@ -1947,11 +1993,19 @@ export default function AssinarContrato() {
               className="p-2 sm:p-5 bg-slate-200/70 dark:bg-slate-950 flex justify-center items-start overflow-y-auto w-full min-h-[480px] h-[68vh] sm:h-[78vh]"
               style={{ WebkitOverflowScrolling: 'touch' }}
             >
-              <iframe
-                srcDoc={htmlContrato}
-                title="Contrato Completo na Íntegra"
-                className="w-full h-full max-w-[840px] rounded-lg border border-slate-300 dark:border-slate-800 bg-white shadow-xl min-h-[460px]"
-              />
+              {signedPdfUrl ? (
+                <iframe
+                  src={`${signedPdfUrl}#toolbar=1&navpanes=0`}
+                  title="Contrato Oficial Definitivo Arquivado"
+                  className="w-full h-full max-w-[840px] rounded-lg border border-slate-300 dark:border-slate-800 bg-white shadow-xl min-h-[460px]"
+                />
+              ) : (
+                <iframe
+                  srcDoc={htmlContrato}
+                  title="Contrato Completo na Íntegra"
+                  className="w-full h-full max-w-[840px] rounded-lg border border-slate-300 dark:border-slate-800 bg-white shadow-xl min-h-[460px]"
+                />
+              )}
             </div>
 
             <div className="bg-slate-50 dark:bg-slate-900/60 px-4 py-2 border-t border-border flex flex-wrap items-center justify-between text-xs text-muted-foreground gap-2">
@@ -2743,11 +2797,19 @@ export default function AssinarContrato() {
             className="flex-1 bg-slate-900/95 p-2 sm:p-6 flex justify-center items-start overflow-y-auto w-full"
             style={{ WebkitOverflowScrolling: 'touch' }}
           >
-            <iframe
-              srcDoc={htmlContrato}
-              title="Contrato Oficial Completo Tela Cheia"
-              className="w-full max-w-[860px] h-[calc(100vh-4.75rem)] rounded-md border border-slate-700/80 bg-white shadow-2xl"
-            />
+            {signedPdfUrl ? (
+              <iframe
+                src={`${signedPdfUrl}#toolbar=1&navpanes=0`}
+                title="Contrato Oficial Definitivo Arquivado Tela Cheia"
+                className="w-full max-w-[860px] h-[calc(100vh-4.75rem)] rounded-md border border-slate-700/80 bg-white shadow-2xl"
+              />
+            ) : (
+              <iframe
+                srcDoc={htmlContrato}
+                title="Contrato Oficial Completo Tela Cheia"
+                className="w-full max-w-[860px] h-[calc(100vh-4.75rem)] rounded-md border border-slate-700/80 bg-white shadow-2xl"
+              />
+            )}
           </div>
         </div>
       )}

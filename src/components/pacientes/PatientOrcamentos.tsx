@@ -33,6 +33,7 @@ import { useDentalSystem } from '@/context/DentalSystemContext';
 import { isContratoLenteResina, isContratoEndodontia, mapearDadosContrato, gerarLinkAssinaturaContrato, parseBrMoney, garantirContratoPersistido, emitirContratoPersistido, gerarHtmlContrato } from '@/utils/contratoEngine';
 import { downloadHtmlAsPdf } from '@/utils/pdfDownload';
 import { reconciliarContratosEOrcamentos } from '@/utils/reconciliacaoContratos';
+import { obterPdfContratoOficialDefinitivo } from '@/utils/contratoPdfOficial';
 import { somarMesesSeguro } from '@/utils/documentoFormat';
 import { downloadTcleLentesResinaPdf } from '@/utils/tcleLentesResina';
 import { useMaquinasCartao, calcularTaxaCartao, extrairDetalhesCartaoDeTexto } from '@/hooks/useMaquinasCartao';
@@ -2047,61 +2048,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
 
   // Recupera o PDF bilateral definitivo oficial arquivado no Supabase Storage (documentos-pacientes)
   const obterPdfContratoOficial = async (o: any, contObj: any, idContratoExibicao: string) => {
-    const candidatePaths = [
-      contObj?.pdfPath,
-      (contObj?.itens as any)?.pdfPath,
-      (o?.assinaturaPaciente as any)?.pdfPath,
-      (o as any)?.pdfPath,
-      `contratos/${idContratoExibicao}/Contrato_Assinado_${idContratoExibicao}.pdf`,
-      contObj?.id ? `contratos/${contObj.id}/Contrato_Assinado_${contObj.id}.pdf` : null,
-      (contObj?.itens as any)?.contratoId ? `contratos/${(contObj.itens as any).contratoId}/Contrato_Assinado_${(contObj.itens as any).contratoId}.pdf` : null,
-    ].filter(Boolean) as string[];
-
-    const uniquePaths = Array.from(new Set(candidatePaths));
-
-    for (const p of uniquePaths) {
-      try {
-        const cleanPath = p.replace(/^.*?documentos-pacientes\//, '').replace(/^\/+/, '');
-
-        // 1. Tenta download autenticado do binário (Blob)
-        const { data: blob, error: dlErr } = await supabase.storage
-          .from('documentos-pacientes')
-          .download(cleanPath);
-
-        if (!dlErr && blob && blob.size > 1000) {
-          let signedViewUrl: string | null = null;
-          try {
-            const { data: sData } = await supabase.storage
-              .from('documentos-pacientes')
-              .createSignedUrl(cleanPath, 3600);
-            if (sData?.signedUrl) signedViewUrl = sData.signedUrl;
-          } catch (_) {}
-
-          return {
-            blob,
-            blobUrl: URL.createObjectURL(blob),
-            signedUrl: signedViewUrl,
-            path: cleanPath,
-          };
-        }
-
-        // 2. Tenta createSignedUrl caso o download direto não retorne blob
-        const { data: sData, error: sErr } = await supabase.storage
-          .from('documentos-pacientes')
-          .createSignedUrl(cleanPath, 3600);
-
-        if (!sErr && sData?.signedUrl) {
-          return {
-            blob: null,
-            blobUrl: null,
-            signedUrl: sData.signedUrl,
-            path: cleanPath,
-          };
-        }
-      } catch (_) {}
-    }
-
-    return null;
+    return await obterPdfContratoOficialDefinitivo(idContratoExibicao, contObj || o);
   };
 
   // Abre visualizador dedicado com o PDF oficial bilateralmente assinado do Storage

@@ -318,11 +318,15 @@ const PatientDocumentosClinicos = ({ patient }: Props) => {
                   size="sm"
                   variant="outline"
                   onClick={async () => {
-                    const t = toast.loading('Gerando PDF...');
+                    const isContratoFormalizado = Boolean(
+                      doc.tipo === 'contrato' &&
+                      (doc.assinadoEm || (doc.itens as any)?.assinaturaPaciente || doc.status === 'formalizado' || doc.status === 'assinado')
+                    );
+                    const t = toast.loading(isContratoFormalizado ? 'Localizando PDF oficial assinado...' : 'Gerando PDF...');
                     const ok = await gerarDocumentoClinicoPdf(doc, clinica);
                     toast.dismiss(t);
-                    if (ok) toast.success('PDF baixado');
-                    else toast.error('Não foi possível gerar o PDF');
+                    if (ok) toast.success(isContratoFormalizado ? 'PDF oficial assinado baixado com sucesso!' : 'PDF baixado');
+                    else toast.error('Não foi possível obter o PDF do documento');
                   }}
                 >
                   <Printer className="h-4 w-4 mr-2" /> PDF

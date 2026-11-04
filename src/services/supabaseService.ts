@@ -805,15 +805,15 @@ class SupabaseService {
         .from('documentos_clinicos')
         .select('*')
         .eq('tipo', 'contrato')
-        .not('pdf_path', 'is', null)
         .order('criado_em', { ascending: false });
 
       if (clinicos && clinicos.length > 0) {
         const existingUrls = new Set(docs.map((d: any) => d.arquivo || d.url));
         for (const c of clinicos) {
-          const pdfPath = c.pdf_path || (c.itens && (c.itens as any).pdfPath);
+          const ident = c.identificador || (c.itens && (c.itens as any).contratoId) || (c.id ? c.id.slice(0, 8) : '');
+          const isFormalizado = Boolean(c.assinado_em || (c.itens && (c.itens as any).assinaturaPaciente));
+          const pdfPath = c.pdf_path || (c.itens && (c.itens as any).pdfPath) || (isFormalizado && ident ? `contratos/${ident}/Contrato_Assinado_${ident}.pdf` : null);
           if (pdfPath && !existingUrls.has(pdfPath)) {
-            const ident = c.identificador || (c.id ? c.id.slice(0, 8) : '');
             docs.push({
               id: `doc-clinico-${c.id}`,
               userId: c.user_id || userId,

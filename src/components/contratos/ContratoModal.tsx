@@ -91,6 +91,10 @@ import { openWhatsApp } from '@/lib/whatsapp';
 import { formatMoney } from '@/utils/exportCsv';
 import { carregarConfiguracoesMaquinasSync, calcularTaxaCartao, extrairDetalhesCartaoDeTexto } from '@/hooks/useMaquinasCartao';
 import { supabase } from '@/integrations/supabase/client';
+import {
+  obterPdfContratoOficialDefinitivo,
+  dispararDownloadPdfOficial,
+} from '@/utils/contratoPdfOficial';
 
 interface ContratoModalProps {
   isOpen: boolean;
@@ -743,27 +747,29 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
         `contrato_${patient?.nome ? patient.nome.replace(/\s+/g, '_') : 'paciente'}_orc_${snapshotAtual?.orcamento.numeroIdentificador || 'aprovado'}`;
 
       // Se o contrato for formalizado e possuir PDF definitivo no Storage, baixa o binário oficial arquivado
-      const pdfPathCandidato = contratoVisualizacao?.pdfPath || (contratoVisualizacao?.itens as any)?.pdfPath || snapshotAtual?.pdfPath;
-      if (pdfPathCandidato) {
-        try {
-          const cleanPath = pdfPathCandidato.replace(/^.*?documentos-pacientes\//, '').replace(/^\/+/, '');
-          const { data: blob, error } = await supabase.storage
-            .from('documentos-pacientes')
-            .download(cleanPath);
+      const docId = String(snapshotAtual?.contratoId || contratoVisualizacao?.identificador || contratoVisualizacao?.id || 'contrato');
+      const resPdf = await obterPdfContratoOficialDefinitivo(docId, contratoVisualizacao || snapshotAtual);
+      if (resPdf && (resPdf.blob || resPdf.signedUrl)) {
+        const canonicalName = `Contrato_Assinado_${docId}.pdf`;
+        const ok = await dispararDownloadPdfOficial(resPdf, canonicalName);
+        if (ok) {
+          toast.success('PDF oficial arquivado baixado com sucesso!');
+          return;
+        }
+      }
 
-          if (!error && blob && blob.size > 1000) {
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${filename}.pdf`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            toast.success('PDF oficial arquivado baixado com sucesso!');
-            return;
-          }
-        } catch (_) {}
+      const isFormalizado = Boolean(
+        snapshotAtual?.status === 'formalizado' ||
+        snapshotAtual?.status === 'assinado' ||
+        (snapshotAtual?.assinaturaPaciente?.assinaturaData && snapshotAtual?.assinaturaDentista?.assinaturaData) ||
+        contratoVisualizacao?.assinadoEm
+      );
+
+      if (isFormalizado) {
+        toast.error('O PDF bilateral formalizado arquivado no Storage não foi localizado.', {
+          description: 'Para preservar a segurança jurídica, contratos formalizados não são regenerados.',
+        });
+        return;
       }
 
       await downloadHtmlAsPdf(html, filename);
