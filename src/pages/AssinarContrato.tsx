@@ -982,7 +982,7 @@ export default function AssinarContrato() {
           const idLower = String(contractId).toLowerCase();
 
           const updatePayload = {
-            assinatura_data: sigData.signature,
+            assinatura_data: dataHoraIso,
             assinante_nome: sigData.signerName || snapshot.paciente.nome,
             assinado_em: dataHoraIso,
             itens: updatedSnapshot as any,

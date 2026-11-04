@@ -204,7 +204,7 @@ export const useDocumentosClinicos = (pacienteId?: string) => {
     const { error } = await supabase
       .from('documentos_clinicos')
       .update({
-        assinatura_data: params.assinaturaData,
+        assinatura_data: new Date().toISOString(),
         assinante_nome: params.assinanteNome,
         assinatura_id: params.assinaturaId || null,
         assinado_em: new Date().toISOString(),

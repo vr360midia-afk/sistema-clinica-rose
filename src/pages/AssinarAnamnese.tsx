@@ -455,7 +455,7 @@ const AssinarAnamnese = () => {
               respostas: updatePayload.respostas,
               queixaPrincipal: updatePayload.queixa_principal,
             } as never,
-            assinatura_data: sigImg || null,
+            assinatura_data: new Date().toISOString(),
             assinante_nome: sigName,
             assinado_em: new Date().toISOString(),
           });

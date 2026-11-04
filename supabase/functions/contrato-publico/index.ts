@@ -1274,7 +1274,7 @@ Deno.serve(async (req) => {
           user_id: doc.user_id,
           assinado_em: dataHoraIso,
           assinante_nome: finalNome,
-          assinatura_data: signature,
+          assinatura_data: dataHoraIso,
           itens: updatedSnapshot,
           criado_em: dataHoraIso,
           atualizado_em: dataHoraIso,
@@ -1313,7 +1313,7 @@ Deno.serve(async (req) => {
           .update({
             assinado_em: dataHoraIso,
             assinante_nome: signerName || doc.paciente_nome || "Paciente",
-            assinatura_data: signature,
+            assinatura_data: dataHoraIso,
             itens: updatedSnapshot,
             atualizado_em: dataHoraIso,
           })
@@ -1376,7 +1376,7 @@ Deno.serve(async (req) => {
           await supabase.from("orcamentos").update({
             contrato_id: updatedSnapshot.contratoId || docAlvoId,
             assinatura_paciente: updatedOrcSnap,
-            data_assinatura: currentSnap.data_assinatura || dataHoraIso,
+            data_assinatura: (typeof currentSnap.data_assinatura === "string" && !currentSnap.data_assinatura.startsWith("data:") && !isNaN(Date.parse(currentSnap.data_assinatura))) ? currentSnap.data_assinatura : dataHoraIso,
             atualizado_em: dataHoraIso,
           }).eq("id", orcRow.id);
         }
