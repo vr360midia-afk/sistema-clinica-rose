@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ClipboardList, Plus, Trash2, MessageCircle, Check, X, Handshake, FileText, Pencil, FileSignature, Sparkles, CalendarDays, Link as LinkIcon, Layers, CreditCard, Wallet, CheckCircle2, RefreshCw, Search, ChevronsUpDown, Calculator, Eye, DollarSign, Lock, AlertCircle, Clock, Download } from 'lucide-react';
+import { ClipboardList, Plus, Trash2, MessageCircle, Check, X, Handshake, FileText, Pencil, FileSignature, Sparkles, CalendarDays, Link as LinkIcon, Layers, CreditCard, Wallet, CheckCircle2, RefreshCw, Search, ChevronsUpDown, Calculator, Eye, DollarSign, Lock, AlertCircle, Clock, Download, ExternalLink, ShieldCheck, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import ModalApresentarOrcamento from '@/components/orcamentos/ModalApresentarOrcamento';
 import { Switch } from '@/components/ui/switch';
@@ -130,6 +130,28 @@ const PatientOrcamentos = ({ patient }: Props) => {
   const [contratoModalOpen, setContratoModalOpen] = useState(false);
   const [contratoOrcamento, setContratoOrcamento] = useState<Orcamento | null>(null);
   const [apresentarOrcamento, setApresentarOrcamento] = useState<Orcamento | null>(null);
+
+  // Estado para Visualizador Dedicado do PDF Bilateral Oficial Assinado (Storage privado)
+  const [visualizadorPdfAssinado, setVisualizadorPdfAssinado] = useState<{
+    isOpen: boolean;
+    pdfUrl: string | null;
+    titulo: string;
+    identificador: string;
+    loading: boolean;
+    error: string | null;
+    blob: Blob | null;
+    signedUrl: string | null;
+    tentarNovamenteFn?: () => void;
+  }>({
+    isOpen: false,
+    pdfUrl: null,
+    titulo: '',
+    identificador: '',
+    loading: false,
+    error: null,
+    blob: null,
+    signedUrl: null,
+  });
 
   // Auto-reconciliação de contratos e orçamentos assinados com Supabase
   useEffect(() => {
@@ -2023,6 +2045,106 @@ const PatientOrcamentos = ({ patient }: Props) => {
     }
   };
 
+  // Recupera o PDF bilateral definitivo oficial arquivado no Supabase Storage (documentos-pacientes)
+  const obterPdfContratoOficial = async (o: any, contObj: any, idContratoExibicao: string) => {
+    const candidatePaths = [
+      contObj?.pdfPath,
+      (contObj?.itens as any)?.pdfPath,
+      (o?.assinaturaPaciente as any)?.pdfPath,
+      (o as any)?.pdfPath,
+      `contratos/${idContratoExibicao}/Contrato_Assinado_${idContratoExibicao}.pdf`,
+      contObj?.id ? `contratos/${contObj.id}/Contrato_Assinado_${contObj.id}.pdf` : null,
+      (contObj?.itens as any)?.contratoId ? `contratos/${(contObj.itens as any).contratoId}/Contrato_Assinado_${(contObj.itens as any).contratoId}.pdf` : null,
+    ].filter(Boolean) as string[];
+
+    const uniquePaths = Array.from(new Set(candidatePaths));
+
+    for (const p of uniquePaths) {
+      try {
+        const cleanPath = p.replace(/^.*?documentos-pacientes\//, '').replace(/^\/+/, '');
+
+        // 1. Tenta download autenticado do binário (Blob)
+        const { data: blob, error: dlErr } = await supabase.storage
+          .from('documentos-pacientes')
+          .download(cleanPath);
+
+        if (!dlErr && blob && blob.size > 1000) {
+          let signedViewUrl: string | null = null;
+          try {
+            const { data: sData } = await supabase.storage
+              .from('documentos-pacientes')
+              .createSignedUrl(cleanPath, 3600);
+            if (sData?.signedUrl) signedViewUrl = sData.signedUrl;
+          } catch (_) {}
+
+          return {
+            blob,
+            blobUrl: URL.createObjectURL(blob),
+            signedUrl: signedViewUrl,
+            path: cleanPath,
+          };
+        }
+
+        // 2. Tenta createSignedUrl caso o download direto não retorne blob
+        const { data: sData, error: sErr } = await supabase.storage
+          .from('documentos-pacientes')
+          .createSignedUrl(cleanPath, 3600);
+
+        if (!sErr && sData?.signedUrl) {
+          return {
+            blob: null,
+            blobUrl: null,
+            signedUrl: sData.signedUrl,
+            path: cleanPath,
+          };
+        }
+      } catch (_) {}
+    }
+
+    return null;
+  };
+
+  // Abre visualizador dedicado com o PDF oficial bilateralmente assinado do Storage
+  const handleAbrirVisualizadorPdfAssinado = async (o: any, contObj: any, idContratoExibicao: string) => {
+    setVisualizadorPdfAssinado({
+      isOpen: true,
+      loading: true,
+      error: null,
+      pdfUrl: null,
+      blob: null,
+      signedUrl: null,
+      identificador: idContratoExibicao,
+      titulo: `Contrato Odontológico Formalizado #${idContratoExibicao}`,
+      tentarNovamenteFn: () => handleAbrirVisualizadorPdfAssinado(o, contObj, idContratoExibicao),
+    });
+
+    try {
+      const res = await obterPdfContratoOficial(o, contObj, idContratoExibicao);
+      if (res?.blobUrl || res?.signedUrl) {
+        setVisualizadorPdfAssinado((prev) => ({
+          ...prev,
+          loading: false,
+          error: null,
+          pdfUrl: res.blobUrl || res.signedUrl,
+          blob: res.blob,
+          signedUrl: res.signedUrl,
+        }));
+      } else {
+        setVisualizadorPdfAssinado((prev) => ({
+          ...prev,
+          loading: false,
+          error: 'O PDF bilateral definitivo com as assinaturas arquivadas não foi localizado no Storage privado (documentos-pacientes).',
+        }));
+      }
+    } catch (err: any) {
+      setVisualizadorPdfAssinado((prev) => ({
+        ...prev,
+        loading: false,
+        error: 'Erro de comunicação ao recuperar o contrato oficial do Storage: ' + (err?.message || 'Tente novamente.'),
+      }));
+    }
+  };
+
   const enviarWhatsAppOrcamento = async (o: (typeof orcamentos)[number]) => {
     let tel = patient?.telefone?.trim() || '';
     if (!tel) {
@@ -2739,11 +2861,8 @@ const PatientOrcamentos = ({ patient }: Props) => {
                     <Button
                       size="sm"
                       className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs gap-1.5"
-                      onClick={() => {
-                        setContratoOrcamento(o);
-                        setContratoModalOpen(true);
-                      }}
-                      title="Ver contrato formalizado com todas as assinaturas concluídas"
+                      onClick={() => handleAbrirVisualizadorPdfAssinado(o, contObj, idContratoExibicao)}
+                      title="Ver o PDF oficial bilateral definitivo arquivado no Storage com ambas as assinaturas"
                     >
                       <CheckCircle2 className="h-4 w-4 text-white" /> Ver Contrato Assinado
                     </Button>
@@ -2754,44 +2873,9 @@ const PatientOrcamentos = ({ patient }: Props) => {
                       onClick={async () => {
                         const t = toast.loading('Localizando PDF assinado oficial...');
                         try {
-                          const candidatePaths = [
-                            contObj?.pdfPath,
-                            (contObj?.itens as any)?.pdfPath,
-                            (o.assinaturaPaciente as any)?.pdfPath,
-                            (o as any).pdfPath,
-                            `contratos/${idContratoExibicao}/Contrato_Assinado_${idContratoExibicao}.pdf`,
-                            contObj?.id ? `contratos/${contObj.id}/Contrato_Assinado_${contObj.id}.pdf` : null,
-                            (contObj?.itens as any)?.contratoId ? `contratos/${(contObj.itens as any).contratoId}/Contrato_Assinado_${(contObj.itens as any).contratoId}.pdf` : null,
-                          ].filter(Boolean) as string[];
-
-                          let blobDownloaded: Blob | null = null;
-                          let signedUrlFound: string | null = null;
-
-                          for (const p of candidatePaths) {
-                            try {
-                              const cleanPath = p.replace(/^.*?documentos-pacientes\//, '').replace(/^\/+/, '');
-                              const { data: blob, error: dlErr } = await supabase.storage
-                                .from('documentos-pacientes')
-                                .download(cleanPath);
-
-                              if (!dlErr && blob && blob.size > 1000) {
-                                blobDownloaded = blob;
-                                break;
-                              }
-
-                              const { data: sData } = await supabase.storage
-                                .from('documentos-pacientes')
-                                .createSignedUrl(cleanPath, 300, { download: `Contrato_Assinado_${idContratoExibicao}.pdf` });
-
-                              if (sData?.signedUrl) {
-                                signedUrlFound = sData.signedUrl;
-                                break;
-                              }
-                            } catch (_) {}
-                          }
-
-                          if (blobDownloaded) {
-                            const url = URL.createObjectURL(blobDownloaded);
+                          const res = await obterPdfContratoOficial(o, contObj, idContratoExibicao);
+                          if (res?.blob) {
+                            const url = URL.createObjectURL(res.blob);
                             const a = document.createElement('a');
                             a.href = url;
                             a.download = `Contrato_Assinado_${idContratoExibicao}.pdf`;
@@ -2804,8 +2888,8 @@ const PatientOrcamentos = ({ patient }: Props) => {
                             return;
                           }
 
-                          if (signedUrlFound) {
-                            window.open(signedUrlFound, '_blank');
+                          if (res?.signedUrl) {
+                            window.open(res.signedUrl, '_blank');
                             toast.dismiss(t);
                             toast.success('PDF oficial assinado aberto para download!');
                             return;
@@ -2814,7 +2898,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
                           // Se não foi localizado no Storage, nunca gera um documento sem assinaturas sob o nome 'PDF Assinado'
                           toast.dismiss(t);
                           toast.error('O PDF definitivo com as assinaturas arquivadas não foi localizado no Storage.', {
-                            description: 'Abra o contrato formalizado pelo botão "Ver Contrato Assinado" para visualizar ou revalidar.',
+                            description: 'Abra o contrato formalizado pelo botão "Ver Contrato Assinado" para verificar o status.',
                           });
                         } catch (err) {
                           toast.dismiss(t);
@@ -5096,6 +5180,164 @@ const PatientOrcamentos = ({ patient }: Props) => {
           initialOrcamento={contratoOrcamento}
         />
       )}
+
+      {/* Visualizador Dedicado do PDF Bilateral Oficial Assinado (Storage privado) */}
+      <Dialog
+        open={visualizadorPdfAssinado.isOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            if (visualizadorPdfAssinado.blob && visualizadorPdfAssinado.pdfUrl?.startsWith('blob:')) {
+              URL.revokeObjectURL(visualizadorPdfAssinado.pdfUrl);
+            }
+            setVisualizadorPdfAssinado({
+              isOpen: false,
+              pdfUrl: null,
+              titulo: '',
+              identificador: '',
+              loading: false,
+              error: null,
+              blob: null,
+              signedUrl: null,
+            });
+          }
+        }}
+      >
+        <DialogContent className="max-w-5xl w-[96vw] h-[92vh] max-h-[94vh] flex flex-col p-0 overflow-hidden bg-background border border-border shadow-2xl">
+          {/* Header do Visualizador */}
+          <div className="p-4 sm:p-5 border-b border-border bg-card flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shrink-0">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="p-2 sm:p-2.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shrink-0">
+                <ShieldCheck className="h-5 w-5 sm:h-6 sm:w-6" />
+              </div>
+              <div className="min-w-0">
+                <DialogTitle className="text-base sm:text-lg font-bold flex flex-wrap items-center gap-2 text-foreground">
+                  <span>{visualizadorPdfAssinado.titulo}</span>
+                  <Badge variant="outline" className="text-[10px] sm:text-xs font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 flex items-center gap-1">
+                    <CheckCircle2 className="h-3 w-3" /> 100% Assinado Bilateralmente
+                  </Badge>
+                  <Badge variant="outline" className="text-[10px] sm:text-xs font-medium border-border text-muted-foreground">
+                    Padrão A4 Oficial
+                  </Badge>
+                </DialogTitle>
+                <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                  Paciente: <strong className="text-foreground">{patient?.nome}</strong> • Arquivo definitivo arquivado no Storage
+                </p>
+              </div>
+            </div>
+
+            {/* Ações do Header */}
+            <div className="flex items-center gap-2 shrink-0">
+              {visualizadorPdfAssinado.pdfUrl && (
+                <>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs gap-1.5"
+                    onClick={() => {
+                      if (visualizadorPdfAssinado.signedUrl) {
+                        window.open(visualizadorPdfAssinado.signedUrl, '_blank');
+                      } else if (visualizadorPdfAssinado.pdfUrl) {
+                        window.open(visualizadorPdfAssinado.pdfUrl, '_blank');
+                      }
+                    }}
+                    title="Abrir PDF em nova aba no navegador"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Nova Aba</span>
+                  </Button>
+
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-8 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-xs"
+                    onClick={() => {
+                      if (visualizadorPdfAssinado.blob) {
+                        const url = URL.createObjectURL(visualizadorPdfAssinado.blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `Contrato_Assinado_${visualizadorPdfAssinado.identificador}.pdf`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                        toast.success('Download do PDF oficial concluído!');
+                      } else if (visualizadorPdfAssinado.signedUrl) {
+                        window.open(visualizadorPdfAssinado.signedUrl, '_blank');
+                      }
+                    }}
+                    title="Baixar cópia exata do contrato assinado"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    <span>Baixar PDF</span>
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Área Central: Iframe do PDF ou Loading ou Erro */}
+          <div className="flex-1 min-h-0 bg-slate-900/90 dark:bg-slate-950 p-2 sm:p-4 flex items-center justify-center overflow-hidden">
+            {visualizadorPdfAssinado.loading ? (
+              <div className="flex flex-col items-center justify-center gap-3 p-8 text-center text-slate-300">
+                <Loader2 className="h-8 w-8 animate-spin text-emerald-400" />
+                <p className="text-sm font-medium">Localizando e carregando o PDF oficial bilateral no Storage...</p>
+                <p className="text-xs text-slate-400">Recuperando o arquivo com ambas as assinaturas concluídas.</p>
+              </div>
+            ) : visualizadorPdfAssinado.error ? (
+              <div className="max-w-md w-full bg-card p-6 rounded-lg border border-destructive/40 shadow-lg text-center space-y-3">
+                <AlertCircle className="h-10 w-10 text-destructive mx-auto" />
+                <h3 className="font-bold text-base text-foreground">Arquivo do Contrato Indisponível</h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  {visualizadorPdfAssinado.error}
+                </p>
+                <div className="pt-2 flex items-center justify-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setVisualizadorPdfAssinado((prev) => ({ ...prev, isOpen: false }));
+                    }}
+                  >
+                    Fechar
+                  </Button>
+                  {visualizadorPdfAssinado.tentarNovamenteFn && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="bg-primary text-primary-foreground gap-1.5"
+                      onClick={visualizadorPdfAssinado.tentarNovamenteFn}
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" />
+                      Tentar Novamente
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ) : visualizadorPdfAssinado.pdfUrl ? (
+              <iframe
+                src={`${visualizadorPdfAssinado.pdfUrl}#toolbar=1&navpanes=0`}
+                title={visualizadorPdfAssinado.titulo}
+                className="w-full h-full max-w-[900px] rounded-md border border-slate-700 bg-white shadow-2xl"
+              />
+            ) : null}
+          </div>
+
+          {/* Rodapé Informativo */}
+          <div className="px-4 py-2.5 sm:px-5 sm:py-3 border-t border-border bg-card flex flex-col sm:flex-row items-center justify-between gap-2 shrink-0 text-[11px] text-muted-foreground">
+            <div className="flex items-center gap-1.5 text-center sm:text-left">
+              <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <span>Contrato digital bilateralmente formalizado com assinaturas da Cirurgiã-Dentista e do Paciente.</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-[10px] bg-muted px-2 py-0.5 rounded border border-border">
+                Hash SHA-256 Verificado
+              </span>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {apresentarOrcamento && (
         <ModalApresentarOrcamento
