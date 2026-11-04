@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { FileText, Plus, Trash2, PenTool, Printer, MessageCircle, ShieldCheck, ExternalLink, FileSignature, Link as LinkIcon, Copy } from 'lucide-react';
+import { FileText, Plus, Trash2, PenTool, Printer, MessageCircle, ShieldCheck, ExternalLink, FileSignature, Link as LinkIcon, Copy, Download } from 'lucide-react';
 import { useDocumentosClinicos, DocumentoClinico, DocumentoClinicoItem, DocumentoClinicoTipo } from '@/hooks/useDocumentosClinicos';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { useDentistas } from '@/hooks/useDentistas';
