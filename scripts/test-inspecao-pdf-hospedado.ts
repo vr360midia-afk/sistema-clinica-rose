@@ -247,16 +247,39 @@ async function main() {
 
   // 9. Inspecionar conteúdo do PDF
   const pdfString = pdfBuffer.toString("latin1");
-  console.log("\n--- VERIFICAÇÃO DE TEXTOS NO PDF GERADO PELO SERVIDOR ---");
-  console.log("Contém 'Santos & Duracenski'?", pdfString.includes("Santos & Duracenski"));
-  console.log("Contém '12.345.678/0001-90'?", pdfString.includes("12.345.678/0001-90"));
-  console.log("Contém 'Rosângela'?", pdfString.includes("Rosângela") || pdfString.includes("Rosngela") || pdfString.includes("Rosangela"));
-  console.log("Contém '3.500' ou '3500'?", pdfString.includes("3.500") || pdfString.includes("3500"));
-  console.log("Contém 'A combinar'?", /a\s+combinar/i.test(pdfString));
-  console.log("Contém 'A definir'?", /a\s+definir/i.test(pdfString));
-  console.log("Contém 'Nu Pagamentos'?", pdfString.includes("Nu Pagamentos"));
-  console.log("Contém '10/12/2026'?", pdfString.includes("10/12/2026"));
-  console.log("Contém '10/01/2027'?", pdfString.includes("10/01/2027"));
+  console.log("\n--- VERIFICAÇÃO DE TEXTOS NO PDF GERADO PELO SERVIDOR HOSPEDADO ---");
+  const hasSantos = pdfString.includes("Santos & Duracenski");
+  const hasCnpj = pdfString.includes("12.345.678/0001-90");
+  const hasDra = pdfString.includes("Rosângela") || pdfString.includes("Rosngela") || pdfString.includes("Rosangela");
+  const hasValor = pdfString.includes("3.500") || pdfString.includes("3500");
+  const hasSubtotal = pdfString.includes("3.800") || pdfString.includes("3800");
+  const hasDesconto = pdfString.includes("300");
+  const hasACombinar = /a\s+combinar/i.test(pdfString);
+  const hasADefinir = /a\s+definir/i.test(pdfString);
+  const hasBanco = pdfString.includes("Nu Pagamentos");
+  const hasVenc1 = pdfString.includes("10/12/2026");
+  const hasVenc2 = pdfString.includes("10/01/2027");
+  const hasParcela = pdfString.includes("PARCELA");
+
+  console.log("Contém 'Santos & Duracenski'?", hasSantos);
+  console.log("Contém '12.345.678/0001-90'?", hasCnpj);
+  console.log("Contém 'Rosângela'?", hasDra);
+  console.log("Contém '3.500'?", hasValor);
+  console.log("Contém '3.800' (original)?", hasSubtotal);
+  console.log("Contém '300' (desconto)?", hasDesconto);
+  console.log("Contém 'Nu Pagamentos'?", hasBanco);
+  console.log("Contém 'PARCELA' (tabela cronograma)?", hasParcela);
+  console.log("Contém '10/12/2026'?", hasVenc1);
+  console.log("Contém '10/01/2027'?", hasVenc2);
+  console.log("Contém 'A combinar'?", hasACombinar);
+  console.log("Contém 'A definir'?", hasADefinir);
+
+  if (!hasSantos || !hasCnpj || !hasDra || !hasValor || hasACombinar || hasADefinir || !hasBanco || !hasVenc1 || !hasVenc2 || !hasParcela) {
+    throw new Error("PDF do servidor falhou em uma ou mais verificações!");
+  }
+  console.log("\n>>> TODAS AS VERIFICAÇÕES DO PDF DEFINITIVO NO STORAGE PASSARAM COM 100% DE SUCESSO! <<<");
+  console.log("CONTRATO_ID_HOMOLOGACAO=" + contratoId);
+  console.log("TOKEN_HOMOLOGACAO=" + token);
 }
 
 main().catch((e) => {

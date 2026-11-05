@@ -110,3 +110,4 @@ console.log("Contém '10/12/2026'?", str.includes('10/12/2026'));
 console.log("Contém '10/01/2027'?", str.includes('10/01/2027'));
 console.log("Contém 'A combinar'?", /a\s+combinar/i.test(str));
 console.log("Contém 'A definir'?", /a\s+definir/i.test(str));
+

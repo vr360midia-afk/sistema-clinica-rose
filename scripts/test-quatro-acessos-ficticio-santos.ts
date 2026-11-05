@@ -9,8 +9,8 @@ const supabase = createClient(HOMOLOG_URL, HOMOLOG_SERVICE_KEY, {
   auth: { persistSession: false },
 });
 
-const contratoId = "CTR-SANTOS-145013";
-const token = "token_santos_1793847145013";
+const contratoId = "CTR-SANTOS-134659";
+const token = "token_santos_1793848134659";
 
 function sha256(buf: Buffer): string {
   return crypto.createHash("sha256").update(buf).digest("hex").toUpperCase();
@@ -67,3 +67,4 @@ async function main() {
 }
 
 main().catch(console.error);
+
