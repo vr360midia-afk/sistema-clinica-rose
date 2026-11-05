@@ -3,6 +3,132 @@
  */
 
 /**
+ * Valida rigorosamente um CPF calculando os dois dígitos verificadores (módulo 11).
+ */
+export const validarCPF = (cpf?: string | null): boolean => {
+  if (!cpf) return false;
+  const str = String(cpf).trim();
+  // Bloqueia e-mails ou caracteres alfanuméricos inadequados
+  if (/@|[a-zA-Z]/.test(str)) return false;
+  const digits = str.replace(/\D/g, '');
+  if (digits.length !== 11) return false;
+  // Bloqueia sequências repetidas (ex: 111.111.111-11)
+  if (/^(\d)\1{10}$/.test(digits)) return false;
+
+  // Primeiro dígito verificador
+  let soma = 0;
+  for (let i = 0; i < 9; i++) {
+    soma += parseInt(digits.charAt(i), 10) * (10 - i);
+  }
+  let resto = 11 - (soma % 11);
+  let dv1 = (resto === 10 || resto === 11) ? 0 : resto;
+  if (dv1 !== parseInt(digits.charAt(9), 10)) return false;
+
+  // Segundo dígito verificador
+  soma = 0;
+  for (let i = 0; i < 10; i++) {
+    soma += parseInt(digits.charAt(i), 10) * (11 - i);
+  }
+  resto = 11 - (soma % 11);
+  let dv2 = (resto === 10 || resto === 11) ? 0 : resto;
+  return dv2 === parseInt(digits.charAt(10), 10);
+};
+
+/**
+ * Valida rigorosamente um CNPJ calculando os dois dígitos verificadores (módulo 11).
+ */
+export const validarCNPJ = (cnpj?: string | null): boolean => {
+  if (!cnpj) return false;
+  const str = String(cnpj).trim();
+  // Bloqueia e-mails ou caracteres alfanuméricos inadequados
+  if (/@|[a-zA-Z]/.test(str)) return false;
+  const digits = str.replace(/\D/g, '');
+  if (digits.length !== 14) return false;
+  // Bloqueia sequências repetidas
+  if (/^(\d)\1{13}$/.test(digits)) return false;
+
+  // Primeiro dígito verificador (pesos: 5,4,3,2,9,8,7,6,5,4,3,2)
+  const pesos1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+  let soma = 0;
+  for (let i = 0; i < 12; i++) {
+    soma += parseInt(digits.charAt(i), 10) * pesos1[i];
+  }
+  let resto = soma % 11;
+  let dv1 = resto < 2 ? 0 : 11 - resto;
+  if (dv1 !== parseInt(digits.charAt(12), 10)) return false;
+
+  // Segundo dígito verificador (pesos: 6,5,4,3,2,9,8,7,6,5,4,3,2)
+  const pesos2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+  soma = 0;
+  for (let i = 0; i < 13; i++) {
+    soma += parseInt(digits.charAt(i), 10) * pesos2[i];
+  }
+  resto = soma % 11;
+  let dv2 = resto < 2 ? 0 : 11 - resto;
+  return dv2 === parseInt(digits.charAt(13), 10);
+};
+
+/**
+ * Validação abrangente de documento (CPF ou CNPJ) com diagnóstico descritivo.
+ */
+export const validarDocumento = (
+  doc?: string | null,
+  tipoEsperado?: 'cpf' | 'cnpj'
+): {
+  valido: boolean;
+  tipoDetectado: 'cpf' | 'cnpj' | 'invalido';
+  erro?: string;
+} => {
+  if (!doc || !String(doc).trim()) {
+    return { valido: false, tipoDetectado: 'invalido', erro: 'Documento não informado.' };
+  }
+  const str = String(doc).trim();
+  if (str.includes('@')) {
+    return {
+      valido: false,
+      tipoDetectado: 'invalido',
+      erro: 'E-mail inserido no campo de documento. Informe um CPF (11 dígitos) ou CNPJ (14 dígitos) válido.',
+    };
+  }
+  const digits = str.replace(/\D/g, '');
+  if (digits.length === 11) {
+    const ok = validarCPF(digits);
+    if (!ok) {
+      return { valido: false, tipoDetectado: 'cpf', erro: 'CPF inválido: os dígitos verificadores não conferem.' };
+    }
+    if (tipoEsperado === 'cnpj') {
+      return {
+        valido: false,
+        tipoDetectado: 'cpf',
+        erro: 'Documento informado é um CPF, mas a clínica foi configurada como Pessoa Jurídica (CNPJ de 14 dígitos esperado).',
+      };
+    }
+    return { valido: true, tipoDetectado: 'cpf' };
+  }
+
+  if (digits.length === 14) {
+    const ok = validarCNPJ(digits);
+    if (!ok) {
+      return { valido: false, tipoDetectado: 'cnpj', erro: 'CNPJ inválido: os dígitos verificadores não conferem.' };
+    }
+    if (tipoEsperado === 'cpf') {
+      return {
+        valido: false,
+        tipoDetectado: 'cnpj',
+        erro: 'Documento informado é um CNPJ, mas o profissional foi configurado como Pessoa Física (CPF de 11 dígitos esperado).',
+      };
+    }
+    return { valido: true, tipoDetectado: 'cnpj' };
+  }
+
+  return {
+    valido: false,
+    tipoDetectado: 'invalido',
+    erro: `Documento com quantidade de dígitos inválida (${digits.length} dígitos encontrados). Um CPF possui 11 dígitos e um CNPJ possui 14 dígitos.`,
+  };
+};
+
+/**
  * Identifica se um documento é CPF (11 dígitos ou menos) ou CNPJ (14 dígitos).
  */
 export const identificarTipoDocumento = (doc?: string | null): 'cpf' | 'cnpj' => {

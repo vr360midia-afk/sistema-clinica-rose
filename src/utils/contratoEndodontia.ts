@@ -473,7 +473,7 @@ export const gerarHtmlContratoEndodontia = (snapshot: ContratoSnapshot): string 
       <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 8px 12px; font-family: Arial, sans-serif; font-size: 11px; border-radius: 4px; margin: 4px 0 6px;">
         <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
           <span>Subtotal dos procedimentos:</span>
-          <strong>${formatMoney(financeiro.subtotal || financeiro.total)}</strong>
+          <strong>${formatMoney(financeiro.subtotal || financeiro.total || (financeiro as any).valorTotal || (financeiro as any).valor)}</strong>
         </div>
         ${financeiro.desconto > 0 ? `
           <div style="display: flex; justify-content: space-between; color: #059669; margin-bottom: 2px;">
@@ -483,7 +483,7 @@ export const gerarHtmlContratoEndodontia = (snapshot: ContratoSnapshot): string 
         ` : ''}
         <div style="display: flex; justify-content: space-between; font-weight: bold; border-top: 1px solid #cbd5e1; padding-top: 3px; color: #0f172a;">
           <span>VALOR TOTAL CONTRATADO:</span>
-          <span>${formatMoney(financeiro.total)}</span>
+          <span>${formatMoney(financeiro.total ?? (financeiro as any).valorTotal ?? (financeiro as any).valor ?? 0)}</span>
         </div>
         <div style="font-size: 10px; color: #4b5563; margin-top: 2px;">
           Valor por extenso: <em>${financeiro.totalExtenso}</em>
@@ -515,7 +515,7 @@ export const gerarHtmlContratoEndodontia = (snapshot: ContratoSnapshot): string 
           return f;
         })()}<br/>
         • <strong>Valor original:</strong> ${formatMoney(financeiro.subtotal || financeiro.total)}${financeiro.desconto > 0 ? ` • <strong>Desconto:</strong> ${formatMoney(financeiro.desconto)}` : ''}<br/>
-        • <strong>Valor final aprovado:</strong> ${formatMoney(financeiro.total)} (${financeiro.totalExtenso})<br/>
+        • <strong>Valor final aprovado:</strong> ${formatMoney(financeiro.total ?? (financeiro as any).valorTotal ?? (financeiro as any).valor ?? 0)} (${financeiro.totalExtenso})<br/>
         ${financeiro.entrada > 0 ? `• <strong>Entrada, quando aplicável:</strong> ${formatMoney(financeiro.entrada)}<br/>• <strong>Saldo a parcelar:</strong> ${formatMoney(financeiro.total - financeiro.entrada)}<br/>` : ''}
         • <strong>Parcelamento:</strong> ${financeiro.quantidadeParcelas}x de ${formatMoney(financeiro.valorParcela)}${financeiro.metodoParcelamento ? ` (${financeiro.metodoParcelamento})` : ''}<br/>
         • <strong>Primeiro vencimento:</strong> ${primeiroVencimento}<br/>
@@ -643,7 +643,7 @@ export const gerarHtmlContratoEndodontia = (snapshot: ContratoSnapshot): string 
               <td><strong>Única</strong></td>
               <td>${limparFormaPagamentoParaContrato(financeiro.formaPagamento)}</td>
               <td>À vista / Na contratação</td>
-              <td><strong>${formatMoney(financeiro.total)}</strong></td>
+              <td><strong>${formatMoney(financeiro.total ?? (financeiro as any).valorTotal ?? (financeiro as any).valor ?? 0)}</strong></td>
               <td>A vencer</td>
             </tr>
           `}

@@ -46,7 +46,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { useConfiguracoesContrato, ConfiguracoesContrato, carregarConfiguracoesContratoSync } from '@/hooks/useConfiguracoesContrato';
-import { identificarTipoDocumento } from '@/utils/documentoFormat';
+import { identificarTipoDocumento, formatarDocumento, validarDocumento } from '@/utils/documentoFormat';
 import DigitalSignature from '@/components/signature/DigitalSignature';
 import { gerarRubricaPadraoDra, validarAutorizacaoAssinatura } from '@/utils/contratoEngine';
 
@@ -89,9 +89,36 @@ export const ConfiguracaoContratoManager: React.FC = () => {
   };
 
   const handleSalvar = async () => {
-    if (form) {
-      await salvarConfiguracoesContrato(form);
+    if (!form) return;
+
+    // 1. Validação estrita do CPF ou CNPJ da contratada (bloqueia emails, digitos errados, etc)
+    if (form.cnpjClinicaContrato) {
+      const valDoc = validarDocumento(form.cnpjClinicaContrato);
+      if (!valDoc.valido) {
+        toast.error('Documento da clínica/profissional inválido', {
+          description: valDoc.erro || 'Informe um CPF ou CNPJ válido com dígitos verificadores corretos.',
+        });
+        return;
+      }
+    } else {
+      toast.error('Documento obrigatório', {
+        description: 'Informe o CPF ou CNPJ da contratada antes de salvar as configurações.',
+      });
+      return;
     }
+
+    // 2. Validação do Documento do Titular Favorecido PIX (se informado)
+    if (form.cnpjCpfFavorecidoPix) {
+      const valFav = validarDocumento(form.cnpjCpfFavorecidoPix);
+      if (!valFav.valido) {
+        toast.error('Documento do favorecido PIX inválido', {
+          description: valFav.erro || 'Informe um CPF ou CNPJ válido para o titular da chave PIX.',
+        });
+        return;
+      }
+    }
+
+    await salvarConfiguracoesContrato(form);
   };
 
   const handleCopiarChave = () => {
@@ -296,18 +323,39 @@ export const ConfiguracaoContratoManager: React.FC = () => {
                 <div>
                   <div className="flex items-center justify-between">
                     <Label className="text-xs font-semibold">CNPJ ou CPF do Favorecido</Label>
-                    {form.cnpjCpfFavorecidoPix && (
-                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
-                        {identificarTipoDocumento(form.cnpjCpfFavorecidoPix) === 'cpf' ? 'CPF' : 'CNPJ'}
-                      </span>
-                    )}
+                    {form.cnpjCpfFavorecidoPix && (() => {
+                      const res = validarDocumento(form.cnpjCpfFavorecidoPix);
+                      if (!res.valido) {
+                        return (
+                          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300">
+                            Inválido
+                          </span>
+                        );
+                      }
+                      return (
+                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                          {res.tipoDetectado === 'cpf' ? 'CPF Válido' : 'CNPJ Válido'}
+                        </span>
+                      );
+                    })()}
                   </div>
                   <Input
                     value={form.cnpjCpfFavorecidoPix}
                     onChange={(e) => handleChange('cnpjCpfFavorecidoPix', e.target.value)}
+                    onBlur={(e) => {
+                      const dig = e.target.value.replace(/\D/g, '');
+                      if (dig.length === 11 || dig.length === 14) {
+                        handleChange('cnpjCpfFavorecidoPix', formatarDocumento(dig));
+                      }
+                    }}
                     placeholder="Ex: 032.663.962-43"
                     className="h-9 text-xs mt-1 font-mono"
                   />
+                  {form.cnpjCpfFavorecidoPix && !validarDocumento(form.cnpjCpfFavorecidoPix).valido && (
+                    <p className="text-[10px] text-red-600 font-medium mt-0.5">
+                      {validarDocumento(form.cnpjCpfFavorecidoPix).erro}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -361,21 +409,49 @@ export const ConfiguracaoContratoManager: React.FC = () => {
                 <div>
                   <div className="flex items-center justify-between">
                     <Label className="text-xs font-semibold">CPF ou CNPJ da Clínica / Profissional *</Label>
-                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-                      {identificarTipoDocumento(form.cnpjClinicaContrato) === 'cpf' ? 'CPF (Pessoa Física)' : 'CNPJ (Pessoa Jurídica)'}
-                    </span>
+                    {form.cnpjClinicaContrato ? (() => {
+                      const res = validarDocumento(form.cnpjClinicaContrato);
+                      if (!res.valido) {
+                        return (
+                          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300">
+                            Inválido
+                          </span>
+                        );
+                      }
+                      return (
+                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                          {res.tipoDetectado === 'cpf' ? 'CPF (Pessoa Física)' : 'CNPJ (Pessoa Jurídica)'}
+                        </span>
+                      );
+                    })() : (
+                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                        Obrigatório
+                      </span>
+                    )}
                   </div>
                   <Input
                     value={form.cnpjClinicaContrato}
                     onChange={(e) => handleChange('cnpjClinicaContrato', e.target.value)}
-                    placeholder="Ex: 032.663.962-43 ou 00.000.000/0001-00"
+                    onBlur={(e) => {
+                      const dig = e.target.value.replace(/\D/g, '');
+                      if (dig.length === 11 || dig.length === 14) {
+                        handleChange('cnpjClinicaContrato', formatarDocumento(dig));
+                      }
+                    }}
+                    placeholder="Ex: 032.663.962-43 ou 69.890.045/0001-85"
                     className="h-9 text-xs mt-1 font-mono"
                   />
-                  <p className="text-[10px] text-muted-foreground mt-0.5">
-                    {identificarTipoDocumento(form.cnpjClinicaContrato) === 'cpf'
-                      ? 'Identificado como CPF: no contrato será qualificado(a) como Cirurgião(ã)-Dentista inscrita(o) no CPF/MF.'
-                      : 'Identificado como CNPJ: no contrato será qualificada como Pessoa Jurídica de direito privado.'}
-                  </p>
+                  {form.cnpjClinicaContrato && !validarDocumento(form.cnpjClinicaContrato).valido ? (
+                    <p className="text-[10px] text-red-600 font-medium mt-0.5">
+                      {validarDocumento(form.cnpjClinicaContrato).erro}
+                    </p>
+                  ) : (
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      {identificarTipoDocumento(form.cnpjClinicaContrato) === 'cpf'
+                        ? 'Identificado como CPF: no contrato será qualificado(a) como Cirurgião(ã)-Dentista inscrita(o) no CPF/MF.'
+                        : 'Identificado como CNPJ: no contrato será qualificada como Pessoa Jurídica de direito privado.'}
+                    </p>
+                  )}
                 </div>
               </div>
 

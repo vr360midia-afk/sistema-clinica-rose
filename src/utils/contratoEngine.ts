@@ -1983,7 +1983,7 @@ export const mapearDadosContrato = ({
             ? `Saldo Restante (A combinar)`
             : `Parcela ${idx + 1} de ${qtdParcelas} (${metodoRestante})`;
 
-        const vencFinal = isSaldoACombinar ? 'A combinar' : vencimentoFormatado;
+        const vencFinal = isSaldoACombinar ? 'A combinar' : (qtdParcelas === 1 && entrada === 0 ? formatarData(hoje) : vencimentoFormatado);
 
         listaParcelas.push({
           numero: listaParcelas.length + 1,
@@ -2250,6 +2250,105 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
   const { paciente, clinica, orcamento, financeiro } = snapshot;
   const dataHojeExtenso = formatarDataPorExtenso(new Date(snapshot.emitidoEm), clinica.cidade || 'Local');
 
+  // Identificador seguro do orçamento: nunca produz #undefined
+  const numOrcamentoIdentificador =
+    orcamento?.numeroIdentificador ||
+    orcamento?.identificador ||
+    (orcamento?.id ? 'ORC-' + String(orcamento.id).slice(0, 8).toUpperCase() : '') ||
+    (snapshot.contratoId ? 'ORC-' + String(snapshot.contratoId).replace(/^CTR-/i, '').slice(0, 8).toUpperCase() : '') ||
+    'S/N';
+
+  // Resolução rigorosa do valor líquido aprovado no snapshot:
+  // Nunca utiliza R$ 0,00 como fallback silencioso se houver valores nas parcelas ou itens
+  const valorTotalReal = (() => {
+    const f = financeiro as any;
+    const o = orcamento as any;
+    const candF = [f?.total, f?.valorTotal, f?.valorLiquido, f?.valor];
+    for (const v of candF) {
+      if (typeof v === 'number' && !isNaN(v) && v > 0) return v;
+      if (typeof v === 'string' && v.trim()) {
+        const p = parseBrMoney(v);
+        if (!isNaN(p) && p > 0) return p;
+      }
+    }
+
+    const candO = [o?.total, o?.valorTotal, o?.valorLiquido, o?.valor];
+    for (const v of candO) {
+      if (typeof v === 'number' && !isNaN(v) && v > 0) return v;
+      if (typeof v === 'string' && v.trim()) {
+        const p = parseBrMoney(v);
+        if (!isNaN(p) && p > 0) return p;
+      }
+    }
+
+    if (Array.isArray(f?.parcelas) && f.parcelas.length > 0) {
+      const somaP = f.parcelas.reduce((acc: number, p: any) => acc + (Number(p?.valor) || 0), 0);
+      if (somaP > 0) return somaP;
+    }
+
+    if (Array.isArray(o?.itens) && o.itens.length > 0) {
+      const somaItens = o.itens.reduce((acc: number, item: any) => {
+        const q = Number(item.quantidade) || 1;
+        const v = Number(item.valorTotal) || (Number(item.valorUnitario) || Number(item.valor) || 0) * q;
+        return acc + v;
+      }, 0);
+      const desc = Number(f?.desconto ?? o?.desconto ?? 0);
+      const liq = Math.max(0, somaItens - desc);
+      if (liq > 0) return liq;
+    }
+
+    if (f?.total === 0 || o?.total === 0) return 0;
+    return null;
+  })();
+
+  if (valorTotalReal === null) {
+    throw new Error('Erro de integridade do contrato: valor líquido aprovado não localizado no snapshot. Emissão bloqueada para resguardar a validade jurídica.');
+  }
+
+  const valorSubtotalReal = (() => {
+    const f = financeiro as any;
+    const o = orcamento as any;
+    const cand = [f?.subtotal, o?.subtotal];
+    for (const v of cand) {
+      if (typeof v === 'number' && !isNaN(v) && v > 0) return v;
+      if (typeof v === 'string' && v.trim()) {
+        const p = parseBrMoney(v);
+        if (!isNaN(p) && p > 0) return p;
+      }
+    }
+    if (Array.isArray(o?.itens) && o.itens.length > 0) {
+      const soma = o.itens.reduce((acc: number, item: any) => {
+        const q = Number(item.quantidade) || 1;
+        const v = Number(item.valorTotal) || (Number(item.valorUnitario) || Number(item.valor) || 0) * q;
+        return acc + v;
+      }, 0);
+      if (soma > 0) return soma;
+    }
+    const desc = Number(f?.desconto ?? o?.desconto ?? 0);
+    return valorTotalReal + desc;
+  })();
+
+  const valorDescontoReal = Number(financeiro?.desconto ?? orcamento?.desconto ?? Math.max(0, valorSubtotalReal - valorTotalReal));
+  const valorTotalExtensoReal = financeiro?.totalExtenso || valorPorExtenso(valorTotalReal);
+
+  // Garante cronograma financeiro consistente com ao menos uma linha (inclusive para PIX à vista)
+  let parcelasEfetivas = Array.isArray(financeiro?.parcelas) ? [...financeiro.parcelas] : [];
+  if (parcelasEfetivas.length === 0 && valorTotalReal > 0) {
+    const formaTexto = limparFormaPagamentoParaContrato(financeiro?.formaPagamento || orcamento?.formasPagamento || 'PIX');
+    const isCartao = isMetodoCartao(formaTexto);
+    const dataVenc = snapshot.emitidoEm ? formatarData(new Date(snapshot.emitidoEm)) : formatarData(new Date());
+    parcelasEfetivas = [
+      {
+        numero: 1,
+        descricao: `Pagamento Único (${formaTexto || (isCartao ? 'Cartão' : 'PIX')})`,
+        vencimento: isCartao ? 'Fatura do Cartão' : dataVenc,
+        valor: valorTotalReal,
+        metodo: isCartao ? 'Cartão de Crédito' : 'PIX',
+        status: 'Pendente',
+      },
+    ];
+  }
+
   const incluiLentes = isContratoLenteResina(snapshot);
   let numeroClausula = 0;
   const numClausula = () => {
@@ -2257,7 +2356,7 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
     return `CLÁUSULA ${numeroClausula}ª`;
   };
 
-  const parcelasSemEntrada = financeiro.parcelas.filter(
+  const parcelasSemEntrada = parcelasEfetivas.filter(
     (p) => !(p?.descricao || '').toLowerCase().includes('entrada')
   );
   const todasIguais =
@@ -2266,16 +2365,16 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
       (p) => Math.abs(p.valor - parcelasSemEntrada[0].valor) < 0.05
     );
   const temAlgumPix =
-    financeiro.parcelas.some((p) =>
+    parcelasEfetivas.some((p) =>
       (p?.metodo || p?.descricao || '').toLowerCase().includes('pix')
     ) || /pix/i.test(financeiro.formaPagamento);
   const temAlgumCartao =
-    financeiro.parcelas.some((p) => isMetodoCartao(p.metodo, p.descricao)) ||
+    parcelasEfetivas.some((p) => isMetodoCartao(p.metodo, p.descricao)) ||
     isMetodoCartao(financeiro.formaPagamento);
   const apenasCartao =
     temAlgumCartao &&
     !temAlgumPix &&
-    !financeiro.parcelas.some((p) => /boleto|dinheiro|transfer/i.test(p.metodo || ''));
+    !parcelasEfetivas.some((p) => /boleto|dinheiro|transfer/i.test(p.metodo || ''));
 
   let tituloClausulaPagamento = 'DO PAGAMENTO, PARCELAMENTO E CONDIÇÕES ACORDADAS';
   if (apenasCartao) {
@@ -2654,7 +2753,7 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
       </div>
       <div class="cabecalho-doc-id">
         <div>Contrato Nº <strong>${snapshot.contratoId}</strong></div>
-        <div>Orçamento Ref.: <strong>#${orcamento.numeroIdentificador}</strong></div>
+        <div>Orçamento Ref.: <strong>#${numOrcamentoIdentificador}</strong></div>
         <div style="margin-top: 4px; font-size: 10px;">Versão ${snapshot.versao}</div>
       </div>
     </div>
@@ -2689,7 +2788,7 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
     <div class="clausula-bloco">
       <div class="clausula-titulo">${numClausula()} — DO OBJETO E PROCEDIMENTOS APROVADOS</div>
       <p class="paragrafo">
-        O presente contrato tem por objeto a prestação de serviços profissionais odontológicos pela <strong>CONTRATADA</strong> em favor do(a) <strong>CONTRATANTE</strong>, conforme diagnóstico clínico prévio e plano de tratamento formalmente aprovado no <strong>Orçamento nº #${orcamento.numeroIdentificador}</strong> (${orcamento.titulo}), compreendendo a realização dos seguintes atos e procedimentos clínicos:
+        O presente contrato tem por objeto a prestação de serviços profissionais odontológicos pela <strong>CONTRATADA</strong> em favor do(a) <strong>CONTRATANTE</strong>, conforme diagnóstico clínico prévio e plano de tratamento formalmente aprovado no <strong>Orçamento nº #${numOrcamentoIdentificador}</strong> (${orcamento.titulo || 'Plano de Tratamento Odontológico'}), compreendendo a realização dos seguintes atos e procedimentos clínicos:
       </p>
 
       <table class="tabela-dados">
@@ -2734,26 +2833,26 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
     <div class="clausula-bloco">
       <div class="clausula-titulo">${numClausula()} — DO VALOR TOTAL</div>
       <p class="paragrafo">
-        Pela execução integral dos procedimentos odontológicos pactuados na Cláusula 1ª, o(a) <strong>CONTRATANTE</strong> pagará à <strong>CONTRATADA</strong> o valor total global e líquido de <strong>${formatMoney(financeiro.total)}</strong> (<em>${financeiro.totalExtenso}</em>).
+        Pela execução integral dos procedimentos odontológicos pactuados na Cláusula 1ª, o(a) <strong>CONTRATANTE</strong> pagará à <strong>CONTRATADA</strong> o valor total global e líquido de <strong>${formatMoney(valorTotalReal)}</strong> (<em>${valorTotalExtensoReal}</em>).
       </p>
 
       <div class="totais-resumo">
         <div class="totais-linha">
           <span>Subtotal dos Procedimentos:</span>
-          <strong>${formatMoney(financeiro.subtotal)}</strong>
+          <strong>${formatMoney(valorSubtotalReal)}</strong>
         </div>
-        ${financeiro.desconto > 0 ? `
+        ${valorDescontoReal > 0 ? `
           <div class="totais-linha" style="color: #059669;">
             <span>Desconto Concedido:</span>
-            <strong>- ${formatMoney(financeiro.desconto)}</strong>
+            <strong>- ${formatMoney(valorDescontoReal)}</strong>
           </div>
         ` : ''}
         <div class="totais-linha destaque">
           <span>VALOR TOTAL APROVADO:</span>
-          <span>${formatMoney(financeiro.total)}</span>
+          <span>${formatMoney(valorTotalReal)}</span>
         </div>
         <div style="font-size: 11px; color: #374151; margin-top: 4px; font-weight: 500;">
-          Valor por extenso: ${financeiro.totalExtenso}
+          Valor por extenso: ${valorTotalExtensoReal}
         </div>
       </div>
 
@@ -2766,7 +2865,7 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
     <div class="clausula-bloco">
       <div class="clausula-titulo">${numClausula()} — ${tituloClausulaPagamento}</div>
       <p class="paragrafo">
-        O adimplemento do valor total avençado na Cláusula 2ª dar-se-á estritamente em conformidade com o acordado no <strong>Orçamento nº #${orcamento.numeroIdentificador}</strong> e com as formas de pagamento convencionadas entre as partes, registradas como: <strong>"${(() => {
+        O adimplemento do valor total avençado na Cláusula 2ª dar-se-á estritamente em conformidade com o acordado no <strong>Orçamento nº #${numOrcamentoIdentificador}</strong> e com as formas de pagamento convencionadas entre as partes, registradas como: <strong>"${(() => {
           let f = limparFormaPagamentoParaContrato(financeiro.formaPagamento);
           if (!f || /^condi[çc][aã]o de pagamento$/i.test(f) || /a\s*combinar/i.test(f) || /a\s*definir/i.test(f)) {
             f = (orcamento.formasPagamento && !/^condi[çc][aã]o de pagamento$/i.test(orcamento.formasPagamento) && !/a\s*combinar/i.test(orcamento.formasPagamento))
@@ -2902,7 +3001,7 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
       `;
     })() : ''}
 
-      ${financeiro.parcelas && financeiro.parcelas.length > 0 ? `
+      ${parcelasEfetivas && parcelasEfetivas.length > 0 ? `
       <p class="paragrafo">
         Segue o cronograma oficial com as parcelas, vencimentos e formas de pagamento estabelecidas:
       </p>
@@ -2919,7 +3018,7 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
           </tr>
         </thead>
         <tbody>
-          ${financeiro.parcelas.map((parc) => {
+          ${parcelasEfetivas.map((parc) => {
       const isCartao = isMetodoCartao(parc.metodo, parc.descricao) || (parc.vencimento && /fatura/i.test(parc.vencimento));
       const vencTexto = isCartao ? 'Fatura do Cartão' : (parc.vencimento || '-');
       const isPix = !isCartao && (isMetodoPix(parc.metodo, parc.descricao) || temAlgumPix);

@@ -86,7 +86,7 @@ export async function reconciliarContratosEOrcamentos(pacienteId?: string): Prom
         // B. Reconcilia o Orçamento associado
         let orcMatch = (orcamentos || []).find((o) => 
           (orcId && o.id === orcId) ||
-          (targetPacId && o.paciente_id === targetPacId && (o.status === 'aprovado' || o.contrato_id === identificador || o.assinatura_paciente?.contratoId === identificador))
+          (targetPacId && o.paciente_id === targetPacId && (o.contrato_id === identificador || o.assinatura_paciente?.contratoId === identificador))
         );
 
         if (orcMatch) {

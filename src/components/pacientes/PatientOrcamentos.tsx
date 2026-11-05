@@ -2363,33 +2363,67 @@ const PatientOrcamentos = ({ patient }: Props) => {
           <p className="text-sm text-muted-foreground">Nenhum orçamento criado para este paciente.</p>
         ) : (
           (orcamentos || []).filter(Boolean).map((o) => {
-            const contratosCandidatos = (documentos || []).filter(
-              (d) => d.tipo === 'contrato' && (
-                (o.contratoId && (d.id === o.contratoId || d.identificador === o.contratoId || (d.itens as any)?.contratoId === o.contratoId)) ||
-                (d.itens as any)?.orcamentoId === o.id ||
-                d.orcamentoId === o.id ||
-                (d.pacienteId === o.pacienteId && (o.contratoId || o.status === 'aprovado'))
+            // Vínculo rigoroso e exclusivo: contrato vinculado diretamente ao orçamento selecionado
+            const isContratoDoOrcamento = (d: any) => {
+              if (d.tipo !== 'contrato') return false;
+
+              const currentOrcId = String(o.id || '').trim().toLowerCase();
+              const dOrcId = String(d.orcamentoId || d.orcamento_id || '').trim().toLowerCase();
+              const snapOrcId = String((d.itens as any)?.orcamentoId || (d.itens as any)?.orcamento_id || (d.itens as any)?.orcamento?.id || '').trim().toLowerCase();
+
+              // 1. Vínculo direto por ID do orçamento registrado no documento ou snapshot
+              if (currentOrcId && (dOrcId === currentOrcId || snapOrcId === currentOrcId)) {
+                return true;
+              }
+
+              // 2. Vínculo direto por identificador/ID do contrato registrado no orçamento
+              if (o.contratoId) {
+                const cid = String(o.contratoId).trim().toLowerCase();
+                const dId = String(d.id || '').trim().toLowerCase();
+                const dIdent = String(d.identificador || '').trim().toLowerCase();
+                const snapContratoId = String((d.itens as any)?.contratoId || '').trim().toLowerCase();
+                const snapIdent = String((d.itens as any)?.identificador || '').trim().toLowerCase();
+
+                if (dId === cid || dIdent === cid || snapContratoId === cid || snapIdent === cid) {
+                  return true;
+                }
+              }
+
+              return false;
+            };
+
+            const contratosCandidatos = (documentos || []).filter(isContratoDoOrcamento);
+
+            // Identifica ambiguidade real (múltiplos contratos com IDs distintos vinculados a este mesmo orçamento)
+            const idsDistintosContratos = Array.from(
+              new Set(
+                contratosCandidatos
+                  .map((d) => (d.itens as any)?.contratoId || d.identificador || d.id)
+                  .filter(Boolean)
               )
             );
+            const temAmbiguidadeContrato = idsDistintosContratos.length > 1;
 
-            // Ordena os contratos para priorizar a versão VIGENTE formalizada (com ambas assinaturas) e mais recente (V2 > V1)
-            contratosCandidatos.sort((a, b) => {
-              const aSnap = (a.itens || {}) as any;
-              const bSnap = (b.itens || {}) as any;
-              const aFormalizado = Boolean(a.assinadoEm || aSnap.assinaturaPaciente?.assinaturaData || aSnap.status === 'formalizado' || a.status === 'formalizado');
-              const bFormalizado = Boolean(b.assinadoEm || bSnap.assinaturaPaciente?.assinaturaData || bSnap.status === 'formalizado' || b.status === 'formalizado');
-              if (aFormalizado !== bFormalizado) return aFormalizado ? -1 : 1;
+            // Se não houver ambiguidade, ordena para priorizar a versão VIGENTE formalizada (com ambas assinaturas) e mais recente (V2 > V1)
+            if (!temAmbiguidadeContrato && contratosCandidatos.length > 1) {
+              contratosCandidatos.sort((a, b) => {
+                const aSnap = (a.itens || {}) as any;
+                const bSnap = (b.itens || {}) as any;
+                const aFormalizado = Boolean(a.assinadoEm || aSnap.assinaturaPaciente?.assinaturaData || aSnap.status === 'formalizado' || a.status === 'formalizado');
+                const bFormalizado = Boolean(b.assinadoEm || bSnap.assinaturaPaciente?.assinaturaData || bSnap.status === 'formalizado' || b.status === 'formalizado');
+                if (aFormalizado !== bFormalizado) return aFormalizado ? -1 : 1;
 
-              const aVersao = Number(aSnap.versao || (a.titulo?.match(/v(\d+)/i) ? a.titulo.match(/v(\d+)/i)[1] : 1));
-              const bVersao = Number(bSnap.versao || (b.titulo?.match(/v(\d+)/i) ? b.titulo.match(/v(\d+)/i)[1] : 1));
-              if (aVersao !== bVersao) return bVersao - aVersao;
+                const aVersao = Number(aSnap.versao || (a.titulo?.match(/v(\d+)/i) ? a.titulo.match(/v(\d+)/i)[1] : 1));
+                const bVersao = Number(bSnap.versao || (b.titulo?.match(/v(\d+)/i) ? b.titulo.match(/v(\d+)/i)[1] : 1));
+                if (aVersao !== bVersao) return bVersao - aVersao;
 
-              const aTime = new Date(a.assinadoEm || a.atualizadoEm || a.criadoEm || 0).getTime();
-              const bTime = new Date(b.assinadoEm || b.atualizadoEm || b.criadoEm || 0).getTime();
-              return bTime - aTime;
-            });
+                const aTime = new Date(a.assinadoEm || a.atualizadoEm || a.criadoEm || 0).getTime();
+                const bTime = new Date(b.assinadoEm || b.atualizadoEm || b.criadoEm || 0).getTime();
+                return bTime - aTime;
+              });
+            }
 
-            const contObj = contratosCandidatos[0] || null;
+            const contObj = temAmbiguidadeContrato ? null : (contratosCandidatos[0] || null);
 
             const temAssinaturaDra = Boolean(
               (o as any).assinaturaDraStatus === 'concluida' ||
@@ -2442,7 +2476,11 @@ const PatientOrcamentos = ({ patient }: Props) => {
                   </div>
                   <div className="flex items-center gap-1.5 flex-wrap justify-end">
                     {renderStatusBadge(o?.status, o?.versao)}
-                    {isContratoTotalmenteAssinado && (
+                    {temAmbiguidadeContrato ? (
+                      <Badge className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] px-2 py-0.5 flex items-center gap-1" title="Múltiplos contratos encontrados para este orçamento. Verifique na aba Documentos.">
+                        <AlertTriangle className="h-3 w-3" /> Ambiguidade de Contratos
+                      </Badge>
+                    ) : isContratoTotalmenteAssinado && (
                       <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] px-2 py-0.5 flex items-center gap-1">
                         <CheckCircle2 className="h-3 w-3" /> Assinaturas realizadas
                       </Badge>
@@ -2963,7 +3001,22 @@ const PatientOrcamentos = ({ patient }: Props) => {
                 </Button>
 
                 {/* Botão Dinâmico de Contrato conforme Estado Real */}
-                {isContratoTotalmenteAssinado ? (
+                {temAmbiguidadeContrato ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-amber-500 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-700 font-semibold gap-1.5"
+                    onClick={() => {
+                      toast.warning('Ambiguidade de contratos detectada para este orçamento', {
+                        description: `Existem múltiplos contratos distintos vinculados (${idsDistintosContratos.join(', ')}). Por segurança jurídica, acesse e baixe o contrato correto diretamente na aba Documentos do Paciente.`,
+                        duration: 8000,
+                      });
+                    }}
+                    title="Ambiguidade detectada: múltiplos contratos distintos associados a este orçamento. Clique para orientações."
+                  >
+                    <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" /> Ambiguidade de Contratos
+                  </Button>
+                ) : isContratoTotalmenteAssinado ? (
                   <>
                     <Button
                       size="sm"
