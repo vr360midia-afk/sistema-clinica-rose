@@ -1299,39 +1299,80 @@ export function gerarParcelasCronogramaFinanceiro(params: ParamsGerarParcelasCro
     }
 
     case 'pix_parcelado': {
-      const qtd = Math.max(1, condicao.parcelas || 1);
+      const entVal = Number(condicao.valorEntrada || 0);
+      const saldoTotal = Math.max(0, Number((total - entVal).toFixed(2)));
+      const qtd = Math.max(1, Math.min(10, condicao.parcelas || condicao.saldoParcelas || 1));
+
+      const entComprovada = Boolean(condicao.entradaConfirmada || condicao.pagamentoConfirmado || condicao.pago || (condicao.situacaoEntrada === 'Quitada' && condicao.comprovado));
+      const sitEntrada = entComprovada ? 'Quitada' : 'Pendente';
+
       const pixSaldoPago = Boolean(condicao.saldoConfirmado || condicao.pagamentoConfirmado || condicao.pago || (condicao.situacaoSaldo === 'Quitado' && condicao.comprovado));
-      const sitPadrao = pixSaldoPago ? 'Quitada' : 'Pendente';
+      const sitSaldoPadrao = pixSaldoPago ? 'Quitada' : 'Pendente';
 
-      // Arredondamento monetário seguro
-      const valBase = Math.floor((total / qtd) * 100) / 100;
-      const centavos = Math.round((total - (valBase * qtd)) * 100);
-
-      entrada = 0;
+      entrada = entVal;
       parcelas = [];
+
+      // 1. Linha de entrada via PIX se houver
+      if (entVal > 0) {
+        const pEntrada: ContratoParcela = {
+          numero: 1,
+          descricao: 'Entrada Inicial (PIX)',
+          vencimento: condicao.dataEntrada ? formatarData(condicao.dataEntrada) : formatarData(hoje),
+          valor: entVal,
+          metodo: 'PIX',
+          status: sitEntrada,
+        };
+
+        if (sitEntrada !== 'Quitada' && clinica?.chavePix && clinica.chavePix !== 'Chave da clínica sob consulta' && entVal > 0) {
+          const pay = gerarPayloadPix({
+            chave: clinica.chavePix,
+            tipoChave: clinica.tipoChavePix,
+            nomeFavorecido: clinica.favorecidoPix || clinica.nome,
+            cidade: (clinica.cidade && !clinica.cidade.toUpperCase().includes('SAO PAULO')) ? clinica.cidade : 'MACEIO',
+            valor: entVal,
+            descricao: `Entrada CTR-${contratoId}`.slice(0, 25),
+          });
+          pEntrada.payloadPix = pay || undefined;
+          pEntrada.qrCodePixUrl = pay ? gerarQrCodePixUrl(pay, 280) : undefined;
+        }
+
+        parcelas.push(pEntrada);
+      }
+
+      // 2. Parcelas do Saldo (ou Total se sem entrada)
+      const baseParaParcelar = entVal > 0 ? saldoTotal : total;
+      const valBase = Math.floor((baseParaParcelar / qtd) * 100) / 100;
+      const centavos = Math.round((baseParaParcelar - (valBase * qtd)) * 100);
+
+      const offsetNumero = entVal > 0 ? 1 : 0;
       for (let i = 0; i < qtd; i++) {
         const valParc = Number((valBase + (i < centavos ? 0.01 : 0)).toFixed(2));
         const venc = condicao.dataPrimeiroVencimento && i === 0
           ? formatarData(condicao.dataPrimeiroVencimento)
           : formatarData(somarMesesSeguro(dataBaseVenc, i + 1, diaVencPadrao));
 
+        const numParc = i + 1 + offsetNumero;
         const pItem: ContratoParcela = {
-          numero: i + 1,
-          descricao: `Parcela ${i + 1} de ${qtd} (PIX Parcelado)`,
+          numero: numParc,
+          descricao: qtd === 1 && entVal === 0
+            ? 'Pagamento Único via PIX'
+            : (entVal > 0
+                ? (qtd === 1 ? 'Saldo via PIX Parcelado' : `Parcela ${i + 1} de ${qtd} do Saldo (PIX Parcelado)`)
+                : `Parcela ${i + 1} de ${qtd} (PIX Parcelado)`),
           vencimento: venc,
           valor: valParc,
           metodo: 'PIX Parcelado',
-          status: sitPadrao,
+          status: sitSaldoPadrao,
         };
 
-        if (sitPadrao !== 'Quitada' && clinica?.chavePix && clinica.chavePix !== 'Chave da clínica sob consulta' && valParc > 0) {
+        if (sitSaldoPadrao !== 'Quitada' && clinica?.chavePix && clinica.chavePix !== 'Chave da clínica sob consulta' && valParc > 0) {
           const pay = gerarPayloadPix({
             chave: clinica.chavePix,
             tipoChave: clinica.tipoChavePix,
             nomeFavorecido: clinica.favorecidoPix || clinica.nome,
             cidade: (clinica.cidade && !clinica.cidade.toUpperCase().includes('SAO PAULO')) ? clinica.cidade : 'MACEIO',
             valor: valParc,
-            descricao: `Parc ${i + 1} CTR-${contratoId}`.slice(0, 25),
+            descricao: `Parc ${numParc} CTR-${contratoId}`.slice(0, 25),
           });
           pItem.payloadPix = pay || undefined;
           pItem.qrCodePixUrl = pay ? gerarQrCodePixUrl(pay, 280) : undefined;
@@ -1339,8 +1380,9 @@ export function gerarParcelasCronogramaFinanceiro(params: ParamsGerarParcelasCro
 
         parcelas.push(pItem);
       }
+
       quantidadeParcelas = qtd;
-      valorParcela = parcelas[0]?.valor || Number((total / qtd).toFixed(2));
+      valorParcela = (entVal > 0 ? parcelas[1]?.valor : parcelas[0]?.valor) || Number((baseParaParcelar / qtd).toFixed(2));
       metodoParcelamento = 'PIX Parcelado';
       break;
     }

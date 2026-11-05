@@ -122,8 +122,8 @@ export function ModalConciliarOrcamento({
       return;
     }
 
-    // Exige autorização administrativa com Senha Mestra
-    requireMasterPassword(async () => {
+    // Exige autorização administrativa segura validada no servidor
+    requireMasterPassword('Confirme sua senha de acesso administrativo para conciliar e vincular este orçamento à ficha do paciente.', async () => {
       setProcessando(true);
       try {
         const snapExistente = (orcamento as any).assinatura_paciente || (orcamento as any).assinaturaPaciente || {};
@@ -334,7 +334,7 @@ export function ModalConciliarOrcamento({
               </>
             ) : (
               <>
-                <Lock className="h-3.5 w-3.5" /> Confirmar com Senha Mestra
+                <Lock className="h-3.5 w-3.5" /> Confirmar com Senha Administrativa
               </>
             )}
           </Button>

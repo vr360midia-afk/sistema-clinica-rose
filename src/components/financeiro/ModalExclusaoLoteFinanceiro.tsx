@@ -244,7 +244,7 @@ export const ModalExclusaoLoteFinanceiro: React.FC<Props> = ({
           <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground bg-muted/20 p-2 rounded">
             <Lock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
             <span>
-              Ação restrita a administradores com confirmação por Senha Mestra. Nenhum paciente ou prontuário clínico é excluído.
+              Ação restrita a administradores com confirmação por Senha Administrativa. Nenhum paciente ou prontuário clínico é excluído.
             </span>
           </div>
         </div>

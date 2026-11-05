@@ -75,7 +75,7 @@ export const ModalExcluirRegistroFinanceiro: React.FC<Props> = ({
       return;
     }
 
-    // Solicitação de Senha Mestra via Security Gate
+    // Solicitação de Senha Administrativa via Security Gate
     const autorizado = await requireMasterPassword(
       `Confirmação de segurança para ${
         analise.podeExcluirDireto ? 'excluir' : 'cancelar/arquivar'
@@ -225,7 +225,7 @@ export const ModalExcluirRegistroFinanceiro: React.FC<Props> = ({
           <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground bg-muted/20 p-2 rounded">
             <Lock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
             <span>
-              Ação restrita a administradores. A confirmação exigirá a Senha Mestra do sistema.
+              Ação restrita a administradores. A confirmação exigirá a Senha Administrativa do sistema.
             </span>
           </div>
         </div>

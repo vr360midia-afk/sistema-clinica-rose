@@ -184,13 +184,16 @@ export function calcularDescricaoCondicao(
     }
 
     case 'pix_parcelado': {
-      const p = Math.max(1, cond.parcelas || cond.saldoParcelas || 3);
+      const p = Math.max(1, Math.min(10, cond.parcelas || cond.saldoParcelas || 3));
       const ent = Math.max(0, cond.valorEntrada || 0);
       const saldo = Math.max(0, total - ent);
       const valP = saldo / p;
       const dia = cond.diaVencimento || 10;
       if (ent > 0) {
         return `Entrada de ${formatMoney(ent)} via PIX${tagDataEnt}${tagSitEnt} + ${p}x de ${formatMoney(valP)} via PIX Parcelado (Vencimento todo dia ${dia})${tagSitSaldo}`;
+      }
+      if (p === 1) {
+        return `Plano em 1x de ${formatMoney(valP)} via PIX (Vencimento todo dia ${dia})${tagSitSaldo}`;
       }
       return `Plano em ${p}x de ${formatMoney(valP)} via PIX Parcelado (Vencimento todo dia ${dia})${tagSitSaldo}`;
     }

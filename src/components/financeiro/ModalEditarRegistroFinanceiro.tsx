@@ -73,33 +73,36 @@ export function ModalEditarRegistroFinanceiro({
       return;
     }
 
-    requireMasterPassword(async () => {
-      setSalvando(true);
-      try {
-        const res = await executarEdicaoRegistroFinanceiro({
-          orcamento,
-          dadosAtualizados: {
-            titulo: titulo.trim(),
-            observacoes: observacoes.trim(),
-            total: validacao.podeEditarValores ? Number(total) : orcamento.total,
-          },
-          motivo: motivo.trim(),
-          usuarioEmail: user?.email || null,
-        });
+    const autorizado = await requireMasterPassword(
+      'Confirme sua senha de acesso administrativo para salvar as alterações do lançamento financeiro.'
+    );
+    if (!autorizado) return;
 
-        if (res.ok) {
-          toast.success(res.mensagem);
-          onOpenChange(false);
-          onSuccess?.();
-        } else {
-          toast.error(res.mensagem);
-        }
-      } catch (err: any) {
-        toast.error(`Falha ao editar lançamento: ${err?.message || 'Erro desconhecido'}`);
-      } finally {
-        setSalvando(false);
+    setSalvando(true);
+    try {
+      const res = await executarEdicaoRegistroFinanceiro({
+        orcamento,
+        dadosAtualizados: {
+          titulo: titulo.trim(),
+          observacoes: observacoes.trim(),
+          total: validacao.podeEditarValores ? Number(total) : orcamento.total,
+        },
+        motivo: motivo.trim(),
+        usuarioEmail: user?.email || null,
+      });
+
+      if (res.ok) {
+        toast.success(res.mensagem);
+        onOpenChange(false);
+        onSuccess?.();
+      } else {
+        toast.error(res.mensagem);
       }
-    });
+    } catch (err: any) {
+      toast.error(`Falha ao editar lançamento: ${err?.message || 'Erro desconhecido'}`);
+    } finally {
+      setSalvando(false);
+    }
   };
 
   return (
@@ -230,7 +233,7 @@ export function ModalEditarRegistroFinanceiro({
               </>
             ) : (
               <>
-                <Lock className="h-3.5 w-3.5" /> Salvar com Senha Mestra
+                <Lock className="h-3.5 w-3.5" /> Salvar com Senha Administrativa
               </>
             )}
           </Button>
