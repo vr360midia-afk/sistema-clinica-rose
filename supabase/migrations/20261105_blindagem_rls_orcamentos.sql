@@ -255,7 +255,7 @@ CREATE OR REPLACE FUNCTION public.obter_orcamento_publico(
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_clean_id text;
@@ -383,7 +383,7 @@ CREATE OR REPLACE FUNCTION public.aprovar_orcamento_publico(
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_clean_id text;
@@ -475,8 +475,8 @@ BEGIN
     )
   );
 
-  -- Define flag de autorização segura exclusiva desta transação validada por token
-  PERFORM set_config('app.fluxo_aprovacao_publica', 'true', true);
+  -- Define flag de autorização segura exclusiva desta transação validada por token para este orçamento
+  PERFORM set_config('app.aprovacao_orcamento_id', v_orc.id::text, true);
 
   UPDATE public.orcamentos
   SET
@@ -515,7 +515,7 @@ CREATE OR REPLACE FUNCTION public.solicitar_ajuste_orcamento_publico(
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_clean_id text;
@@ -599,8 +599,8 @@ BEGIN
     'solicitacoesAjuste', v_novas_solicitacoes
   );
 
-  -- Define flag de autorização segura exclusiva desta transação validada por token
-  PERFORM set_config('app.fluxo_ajuste_publico', 'true', true);
+  -- Define flag de autorização segura exclusiva desta transação validada por token para este orçamento
+  PERFORM set_config('app.ajuste_orcamento_id', v_orc.id::text, true);
 
   UPDATE public.orcamentos
   SET
@@ -784,9 +784,51 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  -- 3. Se estiver no fluxo legítimo de aprovação pública ou ajuste (RPC com token criptográfico validado)
-  IF current_setting('app.fluxo_aprovacao_publica', true) = 'true'
-     OR current_setting('app.fluxo_ajuste_publico', true) = 'true' THEN
+  -- 3. Fluxo de aprovação pública (apenas para o orçamento cujo token foi criptograficamente validado nesta transação)
+  IF current_setting('app.aprovacao_orcamento_id', true) = OLD.id::text THEN
+    -- Validações de integridade invioláveis mesmo no fluxo de aprovação legítimo:
+    -- O paciente NUNCA pode transferir paciente_id
+    IF NEW.paciente_id IS DISTINCT FROM OLD.paciente_id THEN
+      RAISE EXCEPTION 'Aprovação pública não tem permissão para alterar paciente_id.'
+        USING ERRCODE = '42501';
+    END IF;
+
+    -- O paciente NUNCA pode alterar o token de segurança
+    IF NEW.token_assinatura IS DISTINCT FROM OLD.token_assinatura THEN
+      RAISE EXCEPTION 'Aprovação pública não tem permissão para alterar token_assinatura.'
+        USING ERRCODE = '42501';
+    END IF;
+
+    -- O paciente NUNCA pode alterar contratos vinculados
+    IF (NEW.contrato_id IS DISTINCT FROM OLD.contrato_id)
+       OR (NEW.contrato_token IS DISTINCT FROM OLD.contrato_token) THEN
+      RAISE EXCEPTION 'Aprovação pública não tem permissão para alterar contrato_id ou contrato_token.'
+        USING ERRCODE = '42501';
+    END IF;
+
+    -- O status DEVE ser exclusivamente 'aprovado'
+    IF NEW.status IS DISTINCT FROM 'aprovado' THEN
+      RAISE EXCEPTION 'Fluxo de aprovação pública só pode definir status como aprovado.'
+        USING ERRCODE = '42501';
+    END IF;
+
+    RETURN NEW;
+  END IF;
+
+  -- 4. Fluxo de ajuste público (apenas para o orçamento validado por token nesta transação)
+  IF current_setting('app.ajuste_orcamento_id', true) = OLD.id::text THEN
+    IF NEW.paciente_id IS DISTINCT FROM OLD.paciente_id THEN
+      RAISE EXCEPTION 'Ajuste público não tem permissão para alterar paciente_id.'
+        USING ERRCODE = '42501';
+    END IF;
+    IF NEW.token_assinatura IS DISTINCT FROM OLD.token_assinatura THEN
+      RAISE EXCEPTION 'Ajuste público não tem permissão para alterar token_assinatura.'
+        USING ERRCODE = '42501';
+    END IF;
+    IF NEW.status IS DISTINCT FROM 'ajuste_solicitado' THEN
+      RAISE EXCEPTION 'Fluxo de ajuste público só pode definir status como ajuste_solicitado.'
+        USING ERRCODE = '42501';
+    END IF;
     RETURN NEW;
   END IF;
 
@@ -853,6 +895,18 @@ CREATE TRIGGER trg_proteger_colunas_orcamentos_equipe
   BEFORE UPDATE ON public.orcamentos
   FOR EACH ROW
   EXECUTE FUNCTION public.fn_proteger_colunas_orcamentos_equipe();
+
+-- Revoga explicitamente a execução de funções internas por anon e public
+REVOKE ALL ON FUNCTION public.fn_proteger_colunas_orcamentos_equipe() FROM public, anon;
+REVOKE ALL ON FUNCTION public.usuario_is_admin_clinica(uuid) FROM public, anon;
+REVOKE ALL ON FUNCTION public.usuario_possui_perfil_clinica(uuid, uuid, text) FROM public, anon;
+REVOKE ALL ON FUNCTION public.clinica_id() FROM public, anon;
+REVOKE ALL ON FUNCTION public.contrato_obter_clinica_id() FROM public, anon;
+
+GRANT EXECUTE ON FUNCTION public.usuario_is_admin_clinica(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.usuario_possui_perfil_clinica(uuid, uuid, text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.clinica_id() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.contrato_obter_clinica_id() TO authenticated;
 
 -- Notifica o PostgREST para recarregar o schema cache imediatamente
 NOTIFY pgrst, 'reload schema';

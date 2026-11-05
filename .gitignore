@@ -27,6 +27,7 @@ supabase/.temp/
 .temp/
 
 backups/db/
+supabase/backups/
 backups/storage/
 *.sql.dump
 
