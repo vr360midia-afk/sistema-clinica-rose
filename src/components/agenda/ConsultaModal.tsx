@@ -430,77 +430,24 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
                         )}
                       </div>
 
-                      <div className="flex items-center gap-1.5">
-                        <FormControl>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => setIsCalendarOpen((prev) => !prev)}
-                            className={cn(
-                              'w-full justify-between text-left font-normal h-9 text-xs border-input transition-colors',
-                              !field.value && 'text-muted-foreground',
-                              isCalendarOpen && 'border-primary ring-1 ring-primary bg-primary/5 font-semibold text-primary'
-                            )}
-                            title="Clique para abrir ou fechar o calendário de datas dentro do popup"
-                          >
-                            <span className="truncate">
-                              {field.value ? format(field.value, 'dd/MM/yyyy') : 'Selecione uma data'}
-                            </span>
-                            <CalendarIcon className="h-3.5 w-3.5 text-primary opacity-80 shrink-0 ml-1" />
-                          </Button>
-                        </FormControl>
-
-                        {/* Seletor nativo para mobile */}
-                        <div className="relative shrink-0" title="Abrir calendário nativo">
-                          <Input
-                            type="date"
-                            value={field.value ? format(field.value, 'yyyy-MM-dd') : ''}
-                            onChange={(e) => {
-                              if (!e.target.value) return;
-                              const [y, m, d] = e.target.value.split('-').map(Number);
-                              field.onChange(new Date(y, m - 1, d, 9, 0, 0));
-                              setIsCalendarOpen(false);
-                            }}
-                            className="w-9 h-9 p-0 text-center text-xs opacity-75 hover:opacity-100 cursor-pointer"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Calend�rio Visual Aberto Diretamente abaixo da Data */}
-                      {isCalendarOpen && (
-                        <div className="mt-2 p-3 border rounded-xl bg-card shadow-md flex flex-col items-center justify-center animate-in fade-in-50 zoom-in-95 border-primary/40 bg-muted/30 w-full z-10">
-                          <div className="flex items-center justify-between w-full pb-2 mb-1 border-b border-border/80 text-xs">
-                            <span className="font-semibold text-foreground flex items-center gap-1.5">
-                              <CalendarIcon className="h-4 w-4 text-primary" />
-                              Escolha o Dia no Calend�rio
-                            </span>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setIsCalendarOpen(false)}
-                              className="h-6 px-2 text-[11px] text-muted-foreground hover:text-foreground"
-                            >
-                              Fechar
-                            </Button>
-                          </div>
-                          <Calendar
-                            mode="single"
-                            selected={form.watch('data')}
-                            onSelect={(date) => {
-                              if (!date) return;
-                              form.setValue('data', new Date(date.getFullYear(), date.getMonth(), date.getDate(), 9, 0, 0), {
-                                shouldValidate: true,
-                                shouldDirty: true,
-                              });
-                              setIsCalendarOpen(false);
-                            }}
-                            locale={ptBR}
-                            className="p-1 pointer-events-auto"
-                          />
-                        </div>
-                      )}
-
+                      <FormControl>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => setIsCalendarOpen((prev) => !prev)}
+                          className={cn(
+                            'w-full justify-between text-left font-normal h-9 text-xs border-input transition-colors',
+                            !field.value && 'text-muted-foreground',
+                            isCalendarOpen && 'border-primary ring-1 ring-primary bg-primary/5 font-semibold text-primary'
+                          )}
+                          title="Clique para abrir ou fechar o calendário de datas dentro do popup"
+                        >
+                          <span className="truncate">
+                            {field.value ? format(field.value, 'dd/MM/yyyy') : 'Selecione uma data'}
+                          </span>
+                          <CalendarIcon className="h-3.5 w-3.5 text-primary opacity-80 shrink-0 ml-1" />
+                        </Button>
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -533,9 +480,9 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
                 />
               </div>
 
-              {/* Calendário Visual Aberto Diretamente Dentro do Popup */}
+              {/* Calendário Visual Aberto Diretamente Dentro do Popup (Único e Responsivo) */}
               {isCalendarOpen && (
-                <div className="p-3 border rounded-xl bg-card shadow-sm flex flex-col items-center justify-center animate-in fade-in-50 zoom-in-95 border-primary/30 bg-muted/20">
+                <div className="p-3 sm:p-4 border rounded-xl bg-card shadow-sm flex flex-col items-center justify-center animate-in fade-in-50 zoom-in-95 border-primary/30 bg-muted/20 w-full transition-all">
                   <div className="flex items-center justify-between w-full pb-2 mb-1 border-b border-border/80 text-xs">
                     <span className="font-semibold text-foreground flex items-center gap-1.5">
                       <CalendarIcon className="h-4 w-4 text-primary" />
@@ -563,7 +510,7 @@ const ConsultaModal = ({ isOpen, onClose, selectedDate, selectedTime, initialPat
                       setIsCalendarOpen(false);
                     }}
                     locale={ptBR}
-                    className="p-1 pointer-events-auto"
+                    className="p-1 pointer-events-auto max-w-full"
                   />
                 </div>
               )}
