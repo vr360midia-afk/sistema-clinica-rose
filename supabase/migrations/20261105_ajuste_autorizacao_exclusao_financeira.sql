@@ -40,7 +40,8 @@ BEGIN
     RETURN true;
   END IF;
 
-  -- 4. Se possui permissão de admin ou gestão plena (configurações + financeiro) em equipe
+  -- 4. Se possui autorização administrativa explícita em equipe
+  -- (Acesso operacional a configurações ou financeiro NÃO concede autorização administrativa)
   IF EXISTS (
     SELECT 1 FROM public.equipe eq
     WHERE eq.usuario_id = v_caller
@@ -48,10 +49,8 @@ BEGIN
       AND (
         lower(coalesce(eq.permissoes->>'role', '')) = 'admin'
         OR (eq.permissoes->>'admin')::boolean = true
-        OR (
-          (eq.permissoes->>'configuracoes')::boolean = true
-          AND (eq.permissoes->>'financeiro')::boolean = true
-        )
+        OR (eq.permissoes->>'exclusao_financeira')::boolean = true
+        OR (eq.permissoes->>'admin_financeiro')::boolean = true
       )
   ) THEN
     RETURN true;

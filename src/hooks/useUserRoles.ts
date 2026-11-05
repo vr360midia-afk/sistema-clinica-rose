@@ -67,7 +67,7 @@ export const useUserRoles = () => {
 
         if (equipeData?.permissoes) {
           const p = equipeData.permissoes as any;
-          if (p.admin === true || p.role === 'admin' || (p.configuracoes === true && p.financeiro === true)) {
+          if (p.admin === true || p.role === 'admin' || p.exclusao_financeira === true || p.admin_financeiro === true) {
             if (!parsedRoles.includes('admin')) {
               parsedRoles.push('admin');
             }
