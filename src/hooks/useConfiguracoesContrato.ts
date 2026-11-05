@@ -48,23 +48,23 @@ export const getStorageKey = (clinicaId?: string | null): string => {
 
 export const getDefaultConfigContrato = (configGerais?: any): ConfiguracoesContrato => {
   return {
-    chavePix: configGerais?.telefone || '82974002213',
-    tipoChavePix: 'telefone',
-    favorecidoPix: configGerais?.nomeClinica || 'Dra. Rosangela Santos',
-    cnpjCpfFavorecidoPix: configGerais?.cnpj || '032.663.962-43',
-    bancoPix: '',
+    chavePix: configGerais?.cnpj || '12345678000190',
+    tipoChavePix: 'cnpj',
+    favorecidoPix: configGerais?.nomeClinica || 'Santos & Duracenski Odontologia LTDA',
+    cnpjCpfFavorecidoPix: configGerais?.cnpj || '12.345.678/0001-90',
+    bancoPix: 'Nu Pagamentos S.A. (260)',
     instrucoesPix:
       'O(A) CONTRATANTE poderá utilizar a câmera do smartphone para leitura do QR Code acima ou efetuar a transferência direta para a chave informada, encaminhando o comprovante para confirmação da baixa da parcela.',
 
-    nomeClinicaContrato: configGerais?.nomeClinica || 'DRA. ROSANGELA SANTOS',
-    cnpjClinicaContrato: configGerais?.cnpj || '032.663.962-43',
-    croResponsavelContrato: configGerais?.croResponsavel || '06267-AL',
-    dentistaResponsavelContrato: configGerais?.dentistaResponsavel || 'Dra. Rosangela Santos',
+    nomeClinicaContrato: configGerais?.nomeClinica || 'Santos & Duracenski Odontologia LTDA',
+    cnpjClinicaContrato: configGerais?.cnpj || '12.345.678/0001-90',
+    croResponsavelContrato: configGerais?.croResponsavel || 'CRO-AL 06267',
+    dentistaResponsavelContrato: configGerais?.dentistaResponsavel || 'Dra. Rosângela Santos Pereira',
     enderecoContrato:
       configGerais?.endereco ||
-      'JTR - Edificio Espanha - R. Comerc. José Pontes de Magalhães, 70 - Sl 405 - Jatiúca, Maceió - AL, 57036-250',
-    telefoneContrato: configGerais?.telefone || '82974002213',
-    emailContrato: configGerais?.email || 'drarosesantosexpert@gmail.com',
+      'Av. Fernandes Lima, 1000, Sala 401, Farol, Maceió - AL, CEP 57055-000',
+    telefoneContrato: configGerais?.telefone || '(82) 99999-8888',
+    emailContrato: configGerais?.email || 'contato@santosduracenski.com.br',
     cidadeForoContrato: 'Maceió - AL',
 
     multaAtrasoPercentual: 2,

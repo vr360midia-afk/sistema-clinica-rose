@@ -413,6 +413,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     orcamentoAtual,
     transacoesOrcamento,
     configuracoes,
+    configContrato,
     selectedDentistaNome,
     dentistaAtual,
     cidadeLocal,

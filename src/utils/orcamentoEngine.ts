@@ -1689,7 +1689,9 @@ export async function gerarContratoDoOrcamentoAprovado(params: {
     formasPagamento: formasPagamentoFinal,
     criadoEm: new Date(),
     atualizadoEm: new Date(),
-  };
+    condicoes,
+    condicaoEscolhida,
+  } as any;
 
   // 3. Valida se a profissional Dra. Rosângela Santos Pereira (CRO 06267-AL) possui autorização expressa ativa
   const autorizacaoAtiva = await obterAutorizacaoAtivaProfissional('06267-AL');
@@ -1729,6 +1731,7 @@ export async function gerarContratoDoOrcamentoAprovado(params: {
     patient: pacienteCompleto,
     orcamento: orcamentoAprovadoParaContrato,
     configuracoes,
+    configuracoesContrato: configContrato,
     configContrato,
     tipoModeloContrato: modeloId,
     dadosRestauracoesPreexistentes: pacienteCompleto?.restauracoesPreexistentes || patient?.restauracoesPreexistentes,

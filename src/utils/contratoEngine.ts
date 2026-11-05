@@ -1101,8 +1101,9 @@ export const mapearDadosContrato = ({
   const emitidoEm = emitidoEmData.toISOString();
   const contratoId = `CTR-${orcamento?.id ? orcamento.id.slice(0, 8).toUpperCase() : Date.now().toString(36).toUpperCase()}`;
 
-  const cfgContrato = (configuracoesContrato && Object.keys(configuracoesContrato).length > 0)
-    ? configuracoesContrato
+  const cfgParam = configuracoesContrato || (arguments[0] as any)?.configContrato;
+  const cfgContrato = (cfgParam && Object.keys(cfgParam).length > 0)
+    ? cfgParam
     : carregarConfiguracoesContratoSync(null, configuracoes);
 
   // 1. Dados cadastrais do Paciente
