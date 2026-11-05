@@ -2,8 +2,13 @@ import {
   ContratoSnapshot,
   formatarDataPorExtenso,
   isMetodoCartao,
+  isMetodoPix,
   limparFormaPagamentoParaContrato,
 } from './contratoEngine';
+import {
+  gerarPayloadPix,
+  gerarQrCodePixUrl,
+} from './pixPayload';
 import {
   identificarTipoDocumento,
   temValorValido,
@@ -29,19 +34,27 @@ export const gerarHtmlContratoEndodontia = (snapshot: ContratoSnapshot): string 
   const dataHojeExtenso = formatarDataPorExtenso(new Date(snapshot.emitidoEm || new Date()), cidade);
   const labelDocPaciente = identificarTipoDocumento(paciente.cpf) === 'cnpj' ? 'CNPJ' : 'CPF';
 
-  // Dados da Dra. Rosângela Santos Pereira (Contratada Principal)
-  const dentistaNomeContratada = 'Dra. Rosângela Santos Pereira';
-  const dentistaCroContratada = 'CRO-AL 06267';
-  const dentistaCpfContratada = '032.663.962-43';
-  const enderecoProfissional = clinica?.endereco && clinica?.endereco !== 'Endereço da clínica'
-    ? clinica.endereco
-    : 'JTR — Edifício Espanha, Rua Comerciante José Pontes de Magalhães, nº 70, Sala 405, Jatiúca, Maceió/AL, CEP 57036-250';
+  // 1. Identificação da Contratada extraída exclusivamente de Configurações → Contrato & PIX
+  const tipoDocClinica = identificarTipoDocumento(clinica.cnpj);
+  const labelDocClinica = tipoDocClinica === 'cpf' ? 'CPF' : 'CNPJ';
+  const nomeContratada = (clinica.nome || 'Clínica Odontológica').trim();
+  const docContratada = temValorValido(clinica.cnpj) ? formatarDocumento(clinica.cnpj) : (clinica.cnpj || 'Não informado');
+  const croContratada = (clinica.cro || 'CRO sob consulta').trim();
+  const responsavelTecnica = (clinica.dentistaResponsavel || clinica.nome || 'Cirurgião-Dentista Responsável').trim();
+  const enderecoProfissional = (clinica.endereco || 'Endereço da clínica').trim();
+  const telefoneContratada = temValorValido(clinica.telefone) ? formatarTelefone(clinica.telefone) : (clinica.telefone || 'Não informado');
+  const emailContratada = (clinica.email || 'Não informado').trim();
 
-  // Chave PIX oficial da Dra. Rosângela Santos Pereira
-  const chavePixOficial = (clinica?.chavePix && typeof clinica.chavePix === 'string' && clinica.chavePix.includes('@'))
-    ? clinica.chavePix
-    : 'drarosesantosexpert@gmail.com';
-  const titularPixOficial = 'Rosangela Santos Pereira';
+  // Dados do PIX extraídos exclusivamente de Configurações → Contrato & PIX
+  const chavePixOficial = (clinica?.chavePix && clinica.chavePix !== 'Chave da clínica sob consulta') ? clinica.chavePix.trim() : '';
+  const titularPixOficial = (clinica?.favorecidoPix || clinica?.nome || 'Titular da Conta').trim();
+  const bancoPixOficial = (clinica?.bancoPix || '').trim();
+  const docFavorecidoPix = clinica?.cnpjCpfFavorecidoPix ? formatarDocumento(clinica.cnpjCpfFavorecidoPix) : '';
+  const instrucoesPixOficial = clinica?.instrucoesPix || 'O(A) CONTRATANTE poderá utilizar a câmera do smartphone ou app bancário para leitura do QR Code acima ou copiar o código PIX.';
+
+  const temAlgumPix = financeiro.parcelas.some((p) =>
+    (p?.metodo || p?.descricao || '').toLowerCase().includes('pix')
+  ) || /pix/i.test(financeiro.formaPagamento);
 
   // Parceiro Executor: se houver parceiro selecionado e ativo
   const temParceiro = dadosEndo.executorTipo === 'parceiro' && !!dadosEndo.parceiro?.nome;
@@ -312,8 +325,8 @@ export const gerarHtmlContratoEndodontia = (snapshot: ContratoSnapshot): string 
     <!-- Cabeçalho -->
     <div class="cabecalho">
       <div class="cabecalho-clinica">
-        <h1>${clinica.nome || 'Dra. Rosângela Santos Pereira'}</h1>
-        <p>Cirurgiã-Dentista • CRO: ${clinica.cro || dentistaCroContratada} • CPF: ${dentistaCpfContratada}</p>
+        <h1>${nomeContratada}</h1>
+        <p>${tipoDocClinica === 'cnpj' ? `Pessoa Jurídica • CNPJ: ${docContratada} • Responsável Técnica: ${responsavelTecnica} (CRO: ${croContratada})` : `Cirurgiã(o)-Dentista • CRO: ${croContratada} • CPF: ${docContratada}`}</p>
         <p>${enderecoProfissional}</p>
       </div>
       ${clinica.logoUrl ? `
@@ -337,11 +350,21 @@ export const gerarHtmlContratoEndodontia = (snapshot: ContratoSnapshot): string 
         <!-- CONTRATADA -->
         <div class="bloco-parte">
           <strong style="text-transform: uppercase; color: #0369a1; display: block; margin-bottom: 3px;">CONTRATADA</strong>
-          <strong>${dentistaNomeContratada}</strong><br/>
-          Cirurgiã-Dentista — ${dentistaCroContratada}<br/>
-          CPF: ${dentistaCpfContratada}<br/>
-          Telefone/WhatsApp: ${clinica.telefone || 'Não informado'}<br/>
-          Endereço profissional: ${enderecoProfissional}
+          ${tipoDocClinica === 'cnpj' ? `
+            <strong>${nomeContratada}</strong><br/>
+            Pessoa Jurídica de Direito Privado — CNPJ: ${docContratada}<br/>
+            Responsável Técnica: <strong>${responsavelTecnica}</strong> (CRO: ${croContratada})<br/>
+            Telefone/WhatsApp: ${telefoneContratada}<br/>
+            E-mail: ${emailContratada}<br/>
+            Endereço: ${enderecoProfissional}
+          ` : `
+            <strong>${nomeContratada}</strong><br/>
+            Cirurgiã(o)-Dentista — CRO: ${croContratada}<br/>
+            CPF: ${docContratada}<br/>
+            Telefone/WhatsApp: ${telefoneContratada}<br/>
+            E-mail: ${emailContratada}<br/>
+            Endereço profissional: ${enderecoProfissional}
+          `}
         </div>
 
         <!-- CONTRATANTE - PACIENTE -->
@@ -364,7 +387,7 @@ export const gerarHtmlContratoEndodontia = (snapshot: ContratoSnapshot): string 
           PROFISSIONAL EXECUTOR DO TRATAMENTO
         </strong>
         ${temParceiro ? `
-          <div>( ) Dra. Rosângela Santos Pereira — CRO-AL 06267</div>
+          <div>( ) ${responsavelTecnica} — CRO: ${croContratada}</div>
           <div style="font-weight: bold; margin-top: 2px;">(X) Cirurgião-dentista parceiro cadastrado</div>
           <div style="margin-top: 4px; padding-left: 10px; border-left: 2px solid #16a34a;">
             <strong>Nome do parceiro executor:</strong> ${parceiro.nome}<br/>
@@ -373,9 +396,9 @@ export const gerarHtmlContratoEndodontia = (snapshot: ContratoSnapshot): string 
             ${parceiro.especialidade ? `<strong>Especialidade:</strong> ${parceiro.especialidade}<br/>` : ''}
           </div>
         ` : `
-          <div style="font-weight: bold;">(X) Dra. Rosângela Santos Pereira — CRO-AL 06267 (Cirurgiã-Dentista Responsável)</div>
+          <div style="font-weight: bold;">(X) ${responsavelTecnica} — CRO: ${croContratada} (Cirurgiã-Dentista Responsável Técnica)</div>
           <div style="font-size: 10.5px; color: #4b5563; margin-top: 2px;">
-            Tratamento com execução clínica direta realizada pela profissional responsável contratada.
+            Tratamento com execução clínica direta realizada pela profissional responsável técnica contratada.
           </div>
         `}
       </div>
@@ -448,7 +471,23 @@ export const gerarHtmlContratoEndodontia = (snapshot: ContratoSnapshot): string 
         3.1. O valor total do tratamento será aquele constante do orçamento aprovado e da negociação financeira aceita pelo(a) <strong>CONTRATANTE</strong>:
       </p>
       <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 8px 12px; font-family: Arial, sans-serif; font-size: 11px; border-radius: 4px; margin: 4px 0 6px;">
-        <strong>Valor total contratado:</strong> ${formatMoney(financeiro.total)} (<em>${financeiro.totalExtenso}</em>)
+        <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+          <span>Subtotal dos procedimentos:</span>
+          <strong>${formatMoney(financeiro.subtotal || financeiro.total)}</strong>
+        </div>
+        ${financeiro.desconto > 0 ? `
+          <div style="display: flex; justify-content: space-between; color: #059669; margin-bottom: 2px;">
+            <span>Desconto concedido:</span>
+            <strong>- ${formatMoney(financeiro.desconto)}</strong>
+          </div>
+        ` : ''}
+        <div style="display: flex; justify-content: space-between; font-weight: bold; border-top: 1px solid #cbd5e1; padding-top: 3px; color: #0f172a;">
+          <span>VALOR TOTAL CONTRATADO:</span>
+          <span>${formatMoney(financeiro.total)}</span>
+        </div>
+        <div style="font-size: 10px; color: #4b5563; margin-top: 2px;">
+          Valor por extenso: <em>${financeiro.totalExtenso}</em>
+        </div>
       </div>
       <p class="paragrafo">
         3.2. O valor compreenderá somente os procedimentos expressamente incluídos no orçamento.
@@ -465,32 +504,105 @@ export const gerarHtmlContratoEndodontia = (snapshot: ContratoSnapshot): string 
     <div class="clausula-bloco">
       <div class="clausula-titulo">CLÁUSULA 4ª — DA FORMA DE PAGAMENTO</div>
       <p class="paragrafo">
-        4.1. O pagamento será realizado conforme a negociação financeira aprovada pelo paciente:
+        4.1. O pagamento será realizado estritamente conforme a negociação financeira aprovada pelo paciente:
       </p>
       <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 8px 12px; font-family: Arial, sans-serif; font-size: 11px; line-height: 1.5; border-radius: 4px; margin: 4px 0 6px;">
-        • <strong>Modalidade acordada:</strong> ${limparFormaPagamentoParaContrato(financeiro.formaPagamento)}<br/>
-        • <strong>Valor total:</strong> ${formatMoney(financeiro.total)}<br/>
-        • <strong>Entrada, quando aplicável:</strong> ${financeiro.entrada > 0 ? formatMoney(financeiro.entrada) : 'Não aplicável (sem entrada)'}<br/>
-        • <strong>Quantidade de parcelas:</strong> ${financeiro.quantidadeParcelas}x<br/>
-        • <strong>Valor das parcelas:</strong> ${formatMoney(financeiro.valorParcela)}<br/>
+        • <strong>Forma de pagamento selecionada:</strong> ${limparFormaPagamentoParaContrato(financeiro.formaPagamento)}<br/>
+        • <strong>Valor original:</strong> ${formatMoney(financeiro.subtotal || financeiro.total)}${financeiro.desconto > 0 ? ` • <strong>Desconto:</strong> ${formatMoney(financeiro.desconto)}` : ''}<br/>
+        • <strong>Valor final aprovado:</strong> ${formatMoney(financeiro.total)} (${financeiro.totalExtenso})<br/>
+        ${financeiro.entrada > 0 ? `• <strong>Entrada, quando aplicável:</strong> ${formatMoney(financeiro.entrada)}<br/>• <strong>Saldo a parcelar:</strong> ${formatMoney(financeiro.total - financeiro.entrada)}<br/>` : ''}
+        • <strong>Parcelamento:</strong> ${financeiro.quantidadeParcelas}x de ${formatMoney(financeiro.valorParcela)}${financeiro.metodoParcelamento ? ` (${financeiro.metodoParcelamento})` : ''}<br/>
         • <strong>Primeiro vencimento:</strong> ${primeiroVencimento}<br/>
         • <strong>Último vencimento:</strong> ${ultimoVencimento}
       </div>
+
+      ${temAlgumPix ? (() => {
+        const chavePixContrato = chavePixOficial;
+        const parcelaEntrada = financeiro.parcelas?.find((p) => /entrada|sinal/i.test(p.descricao || ''));
+        const isEntradaPaga = parcelaEntrada?.status ? /quitad|pago|paga/i.test(parcelaEntrada.status) : false;
+
+        const parcelasPixNaoPagas = (financeiro.parcelas || []).filter((p) => {
+          const isCartao = isMetodoCartao(p.metodo, p.descricao) || (p.vencimento && /fatura/i.test(p.vencimento));
+          const isPix = !isCartao && (isMetodoPix(p.metodo, p.descricao) || temAlgumPix);
+          const isPaga = Boolean(p.status && /paga|pago|quitad/i.test(p.status));
+          return isPix && !isPaga;
+        });
+
+        const todasPixPagas = (financeiro.parcelas || []).length > 0 && parcelasPixNaoPagas.length === 0;
+
+        if (todasPixPagas) {
+          return `
+          <div style="margin: 8px 0; padding: 8px 12px; border: 1.5px solid #10b981; background-color: #f0fdf4; border-radius: 4px; font-family: Arial, sans-serif; font-size: 11px; color: #065f46;">
+            <div style="font-weight: bold; text-transform: uppercase; display: flex; align-items: center; gap: 6px;">
+              <span>✔</span> <span>PAGAMENTO VIA PIX DEVIDAMENTE QUITADO</span>
+            </div>
+            <div style="margin-top: 2px; font-size: 10px; color: #047857;">
+              ${financeiro.entrada > 0 ? `A Entrada de <strong>${formatMoney(financeiro.entrada)}</strong> e os pagamentos via PIX constam como <strong>QUITADOS</strong>.` : 'Os pagamentos pactuados via PIX constam como <strong>QUITADOS</strong>.'}
+            </div>
+          </div>
+          `;
+        }
+
+        if (!chavePixContrato) return '';
+
+        const valorPixContrato = (!isEntradaPaga && financeiro.entrada && financeiro.entrada > 0)
+          ? financeiro.entrada
+          : (parcelasPixNaoPagas.length === 1 ? parcelasPixNaoPagas[0].valor : undefined);
+
+        const numIdContrato = orcamento?.numeroIdentificador || snapshot?.contratoId || '';
+        const payloadPixContrato = gerarPayloadPix({
+          chave: chavePixContrato,
+          tipoChave: clinica?.tipoChavePix,
+          nomeFavorecido: titularPixOficial,
+          cidade: (cidade && !cidade.toUpperCase().includes('SAO PAULO')) ? cidade : 'MACEIO',
+          valor: valorPixContrato,
+          descricao: `Contrato ${numIdContrato}`.trim(),
+        });
+        const qrCodeSrc = payloadPixContrato
+          ? gerarQrCodePixUrl(payloadPixContrato, 280)
+          : '';
+
+        return `
+        <!-- Quadro PIX Padrão Bacen -->
+        <div style="margin: 8px 0; padding: 10px 12px; border: 1.5px dashed #0284c7; background-color: #f0f9ff; border-radius: 4px; font-family: Arial, sans-serif; font-size: 11px; color: #0369a1; page-break-inside: avoid; break-inside: avoid;">
+          <div style="font-weight: bold; margin-bottom: 6px; text-transform: uppercase; font-size: 10.5px; display: flex; align-items: center; justify-content: space-between;">
+            <span>✦ Instruções e QR Code Oficial para Pagamento via PIX${isEntradaPaga ? ' (Entrada Quitada ✔)' : valorPixContrato ? ` (${formatMoney(valorPixContrato)})` : ''}</span>
+            <span style="font-size: 9px; font-weight: normal;">Padrão Oficial Banco Central (Bacen)</span>
+          </div>
+          <div style="display: flex; align-items: flex-start; gap: 12px;">
+            ${qrCodeSrc ? `
+            <div style="background: #ffffff; padding: 4px; border: 1.5px solid #bae6fd; border-radius: 4px; text-align: center; flex-shrink: 0;">
+              <img src="${qrCodeSrc}" alt="QR Code PIX Bacen" style="width: 80px; height: 80px; display: block;" />
+              <div style="font-size: 7px; color: #0284c7; font-weight: bold; margin-top: 2px;">QR CODE PIX</div>
+            </div>
+            ` : ''}
+            <div style="flex: 1;">
+              <div style="padding: 5px 8px; background-color: #ffffff; border-radius: 4px; border: 1px solid #bae6fd; font-size: 10px; color: #0c4a6e; line-height: 1.45;">
+                <strong>Chave PIX:</strong> <span style="font-family: monospace; font-weight: bold;">${chavePixContrato}</span><br/>
+                <strong>Favorecido:</strong> ${titularPixOficial} ${docFavorecidoPix ? `• CPF/CNPJ: ${docFavorecidoPix}` : ''}
+                ${bancoPixOficial ? `<br/><strong>Instituição / Banco:</strong> ${bancoPixOficial}` : ''}
+                ${valorPixContrato ? `<br/><strong>Valor Configurado:</strong> <span style="color: #059669; font-weight: bold;">${formatMoney(valorPixContrato)}</span>` : ''}
+                ${payloadPixContrato ? `
+                  <div style="margin-top: 4px; padding-top: 4px; border-top: 1px dashed #bae6fd;">
+                    <div style="font-size: 8.5px; font-weight: bold; color: #0369a1; margin-bottom: 2px;">Código PIX Copia e Cola:</div>
+                    <div style="font-family: monospace; font-size: 7.5px; color: #334155; word-break: break-all; background: #f8fafc; padding: 2px 4px; border: 1px solid #cbd5e1; border-radius: 3px;">${payloadPixContrato}</div>
+                  </div>
+                ` : ''}
+              </div>
+              <div style="margin-top: 4px; font-size: 9px; color: #0284c7;">
+                ${instrucoesPixOficial}
+              </div>
+            </div>
+          </div>
+        </div>
+        `;
+      })() : ''}
+
       <p class="paragrafo">
-        4.2. Quando o pagamento for realizado via PIX, serão utilizados os seguintes dados oficiais da clínica:
+        4.2. O pagamento via PIX será considerado efetuado após confirmação do crédito na conta indicada.
       </p>
-      <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; padding: 8px 12px; font-family: Arial, sans-serif; font-size: 11px; border-radius: 4px; margin: 4px 0 6px;">
-        Chave PIX: <strong>${chavePixOficial}</strong><br/>
-        Titular: <strong>${titularPixOficial}</strong>
-      </div>
       <p class="paragrafo">
-        4.3. O pagamento via PIX será considerado efetuado após confirmação do crédito na conta indicada.
-      </p>
-      <p class="paragrafo">
-        4.4. O sistema deverá apresentar somente as condições financeiras efetivamente negociadas e aprovadas, sem presumir parcelamento em dez meses quando a negociação for diferente.
-      </p>
-      <p class="paragrafo">
-        4.5. O orçamento aprovado e o cronograma de pagamentos integrarão este contrato.
+        4.3. O orçamento aprovado e o cronograma de pagamentos integrarão este contrato.
       </p>
     </div>
 
@@ -755,7 +867,7 @@ export const gerarHtmlContratoEndodontia = (snapshot: ContratoSnapshot): string 
         Declaro que li (ou foi lido para mim) e compreendi perfeitamente todas as informações contidas neste termo. Tive a oportunidade de fazer perguntas, esclarecer todas as minhas dúvidas com o cirurgião-dentista e fui informado(a) sobre as alternativas de tratamento (incluindo a extração do dente). Compreendo que na odontologia não é possível garantir 100% de sucesso em tratamentos biológicos, mas que o profissional empregará os melhores recursos e técnicas disponíveis. Assim, de livre e esclarecida vontade, AUTORIZO a realização do tratamento endodôntico no(s) dente(s) indicado(s), bem como a aplicação de anestesia local e a tomada de radiografias/exames necessários.
       </p>
       <p class="paragrafo-simples" style="font-size: 11px; color: #475569; margin-top: 6px;">
-        Declaro ainda estar ciente de que o tratamento de canal poderá ser realizado pela Dra. Rosângela Santos Pereira ou pelo profissional parceiro identificado neste instrumento, conforme avaliação técnica, e que as condições financeiras pactuadas seguirão rigorosamente o orçamento aprovado.
+        Declaro ainda estar ciente de que o tratamento de canal poderá ser realizado pelo(a) Cirurgião(ã)-Dentista ${responsavelTecnica} ou pelo profissional parceiro identificado neste instrumento, conforme avaliação técnica, e que as condições financeiras pactuadas seguirão rigorosamente o orçamento aprovado.
       </p>
     </div>
 
@@ -777,15 +889,15 @@ export const gerarHtmlContratoEndodontia = (snapshot: ContratoSnapshot): string 
           <div class="assinatura-detalhes">${labelDocPaciente}: ${snapshot.assinaturaPaciente?.cpf || paciente.cpf}${temValorValido(snapshot.assinaturaPaciente?.rg) ? ` • RG: ${snapshot.assinaturaPaciente.rg}` : (temValorValido(paciente.rg) ? ` • RG: ${paciente.rg}` : '')}</div>
         </div>
 
-        <!-- CONTRATADA (DRA. ROSÂNGELA) -->
+        <!-- CONTRATADA -->
         <div class="campo-assinatura">
           ${snapshot.assinaturaDentista?.assinaturaData ? `
             <img src="${snapshot.assinaturaDentista.assinaturaData}" alt="Assinatura Dentista" />
           ` : '<div style="height: 45px;"></div>'}
           <div class="linha-assinatura"></div>
-          <div class="assinatura-nome">${dentistaNomeContratada}</div>
-          <div class="assinatura-papel">Contratada — Cirurgiã-Dentista</div>
-          <div class="assinatura-detalhes">${dentistaCroContratada} • CPF: ${dentistaCpfContratada}</div>
+          <div class="assinatura-nome">${responsavelTecnica}</div>
+          <div class="assinatura-papel">${tipoDocClinica === 'cnpj' ? `Responsável Técnica / ${nomeContratada}` : 'Contratada — Cirurgiã-Dentista'}</div>
+          <div class="assinatura-detalhes">CRO: ${croContratada}${tipoDocClinica === 'cnpj' ? ` • CNPJ: ${docContratada}` : ` • CPF: ${docContratada}`}</div>
           ${snapshot.assinaturaDentista?.dataHora ? `
             <div class="assinatura-detalhes" style="color: #059669; font-weight: 500;">✓ Assinado digitalmente em ${new Date(snapshot.assinaturaDentista.dataHora).toLocaleString('pt-BR')}</div>
           ` : ''}

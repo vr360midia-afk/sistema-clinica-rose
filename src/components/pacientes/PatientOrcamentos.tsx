@@ -30,7 +30,7 @@ import {
   enviarNovaPropostaOrcamento,
 } from '@/utils/orcamentoEngine';
 import { useDentalSystem } from '@/context/DentalSystemContext';
-import { isContratoLenteResina, isContratoEndodontia, mapearDadosContrato, gerarLinkAssinaturaContrato, parseBrMoney, garantirContratoPersistido, emitirContratoPersistido, gerarHtmlContrato } from '@/utils/contratoEngine';
+import { isContratoLenteResina, isContratoEndodontia, mapearDadosContrato, gerarLinkAssinaturaContrato, parseBrMoney, garantirContratoPersistido, emitirContratoPersistido, gerarHtmlContrato, validarDadosContratada } from '@/utils/contratoEngine';
 import { downloadHtmlAsPdf } from '@/utils/pdfDownload';
 import { reconciliarContratosEOrcamentos } from '@/utils/reconciliacaoContratos';
 import { obterPdfContratoOficialDefinitivo } from '@/utils/contratoPdfOficial';
@@ -1015,6 +1015,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
           orcamento: orcamentoFinal,
           transacoes: [],
           configuracoes,
+          configuracoesContrato: configContrato,
         });
 
         const parcelas = snap.financeiro?.parcelas || [];
@@ -2138,10 +2139,18 @@ const PatientOrcamentos = ({ patient }: Props) => {
   };
 
   const copiarLinkContrato = async (o: (typeof orcamentos)[number]) => {
+    const valContratada = validarDadosContratada(configContrato);
+    if (!valContratada.valido) {
+      toast.warning('Atenção: complete os dados da clínica em Configurações → Contrato & PIX.', {
+        description: valContratada.erros[0],
+      });
+    }
+
     const snap = mapearDadosContrato({
       patient,
       orcamento: o,
       configuracoes,
+      configuracoesContrato: configContrato,
       dentistas,
       dadosRestauracoesPreexistentes: patient?.restauracoesPreexistentes,
     });
@@ -2176,10 +2185,18 @@ const PatientOrcamentos = ({ patient }: Props) => {
       o.observacoes || null,
     ];
 
+    const valContratadaWhats = validarDadosContratada(configContrato);
+    if (!valContratadaWhats.valido) {
+      toast.warning('Atenção: complete os dados da clínica em Configurações → Contrato & PIX.', {
+        description: valContratadaWhats.erros[0],
+      });
+    }
+
     const snap = mapearDadosContrato({
       patient,
       orcamento: o,
       configuracoes,
+      configuracoesContrato: configContrato,
       dentistas,
       dadosRestauracoesPreexistentes: patient?.restauracoesPreexistentes,
     });

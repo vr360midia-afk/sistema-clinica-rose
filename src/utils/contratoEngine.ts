@@ -23,7 +23,12 @@ import {
   downloadTcleEndodontiaPdf,
 } from './contratoEndodontia';
 import { slugifyNome } from './anamneseEngine';
-import { obterTextoCondicaoParaContrato } from './orcamentoCondicoes';
+import {
+  obterTextoCondicaoParaContrato,
+  parseCondicoesPagamento,
+  obterCondicaoAtiva,
+  type CondicaoPagamento,
+} from './orcamentoCondicoes';
 
 export {
   identificarTipoDocumento,
@@ -115,6 +120,55 @@ export interface ContratoDadosClinica {
   bancoPix?: string;
   instrucoesPix?: string;
 }
+
+export interface ValidacaoDadosContratadaResult {
+  valido: boolean;
+  erros: string[];
+}
+
+/**
+ * Valida os dados obrigatórios da Contratada cadastrados em Configurações → Contrato & PIX.
+ * Garante que razão social, CNPJ/CPF, endereço, contatos e responsável técnica estejam preenchidos.
+ */
+export const validarDadosContratada = (
+  clinica: Partial<ContratoDadosClinica> | Partial<ConfiguracoesContrato> | any
+): ValidacaoDadosContratadaResult => {
+  const erros: string[] = [];
+  const nome = (clinica?.nome || clinica?.nomeClinicaContrato || '').trim();
+  const cnpj = (clinica?.cnpj || clinica?.cnpjClinicaContrato || '').trim();
+  const endereco = (clinica?.endereco || clinica?.enderecoContrato || '').trim();
+  const telefone = (clinica?.telefone || clinica?.telefoneContrato || '').trim();
+  const email = (clinica?.email || clinica?.emailContrato || '').trim();
+  const dentista = (clinica?.dentistaResponsavel || clinica?.dentistaResponsavelContrato || '').trim();
+  const cro = (clinica?.cro || clinica?.croResponsavelContrato || '').trim();
+
+  if (!temValorValido(nome) || nome === 'Clínica Odontológica') {
+    erros.push('Razão Social / Nome da Contratada é obrigatório (Configurações → Contrato & PIX).');
+  }
+  if (!temValorValido(cnpj) || cnpj === 'Não informado') {
+    erros.push('CNPJ ou CPF da Contratada é obrigatório (Configurações → Contrato & PIX).');
+  }
+  if (!temValorValido(endereco) || endereco === 'Endereço da clínica') {
+    erros.push('Endereço completo da Contratada é obrigatório (Configurações → Contrato & PIX).');
+  }
+  if (!temValorValido(telefone) || telefone === 'Não informado') {
+    erros.push('Telefone / WhatsApp de contato é obrigatório (Configurações → Contrato & PIX).');
+  }
+  if (!temValorValido(email) || email === 'Não informado') {
+    erros.push('E-mail oficial de contato é obrigatório (Configurações → Contrato & PIX).');
+  }
+  if (!temValorValido(dentista) || dentista === 'Cirurgião-Dentista Responsável') {
+    erros.push('Cirurgião-Dentista Responsável Técnico(a) é obrigatório (Configurações → Contrato & PIX).');
+  }
+  if (!temValorValido(cro) || cro === 'CRO sob consulta') {
+    erros.push('Número do CRO do Responsável Técnico é obrigatório (Configurações → Contrato & PIX).');
+  }
+
+  return {
+    valido: erros.length === 0,
+    erros,
+  };
+};
 
 export interface ContratoDadosOrcamento {
   id: string;
@@ -1047,7 +1101,9 @@ export const mapearDadosContrato = ({
   const emitidoEm = emitidoEmData.toISOString();
   const contratoId = `CTR-${orcamento?.id ? orcamento.id.slice(0, 8).toUpperCase() : Date.now().toString(36).toUpperCase()}`;
 
-  const cfgContrato = configuracoesContrato || carregarConfiguracoesContratoSync(null, configuracoes);
+  const cfgContrato = (configuracoesContrato && Object.keys(configuracoesContrato).length > 0)
+    ? configuracoesContrato
+    : carregarConfiguracoesContratoSync(null, configuracoes);
 
   // 1. Dados cadastrais do Paciente
   const enderecoCompleto = formatarEnderecoCompleto(patient) || (typeof patient?.endereco === 'string' && temValorValido(patient.endereco) ? patient.endereco.trim() : '');
@@ -1072,23 +1128,23 @@ export const mapearDadosContrato = ({
     ? cidadeLimpa
     : 'Maceió';
 
-  // 2. Dados da Clínica / Responsável Técnico
+  // 2. Dados da Contratada extraídos obrigatoriamente de Configurações → Contrato & PIX
   const dadosClinica: ContratoDadosClinica = {
-    nome: cfgContrato.nomeClinicaContrato || configuracoes?.nomeClinica || 'Clínica Odontológica',
-    cnpj: cfgContrato.cnpjClinicaContrato || configuracoes?.cnpj || 'Não informado',
-    cro: dentistaCro || cfgContrato.croResponsavelContrato || configuracoes?.croResponsavel || configuracoes?.cro_responsavel || 'CRO sob consulta',
-    endereco: cfgContrato.enderecoContrato || configuracoes?.endereco || 'Endereço da clínica',
-    telefone: cfgContrato.telefoneContrato || configuracoes?.telefone || configuracoes?.whatsappNumero || 'Não informado',
-    email: cfgContrato.emailContrato || configuracoes?.email || 'Não informado',
+    nome: cfgContrato.nomeClinicaContrato?.trim() || configuracoes?.nomeClinica?.trim() || 'Clínica Odontológica',
+    cnpj: cfgContrato.cnpjClinicaContrato?.trim() || configuracoes?.cnpj?.trim() || 'Não informado',
+    cro: cfgContrato.croResponsavelContrato?.trim() || configuracoes?.croResponsavel?.trim() || dentistaCro?.trim() || 'CRO sob consulta',
+    endereco: cfgContrato.enderecoContrato?.trim() || configuracoes?.endereco?.trim() || 'Endereço da clínica',
+    telefone: cfgContrato.telefoneContrato?.trim() || configuracoes?.telefone?.trim() || configuracoes?.whatsappNumero?.trim() || 'Não informado',
+    email: cfgContrato.emailContrato?.trim() || configuracoes?.email?.trim() || 'Não informado',
     logoUrl: configuracoes?.logoUrl || undefined,
     cidade: cidadeDefinida,
-    dentistaResponsavel: dentistaNome || cfgContrato.dentistaResponsavelContrato || configuracoes?.croResponsavel || 'Cirurgião-Dentista Responsável',
-    chavePix: cfgContrato?.chavePix || configuracoes?.telefone || configuracoes?.cnpj || 'Chave da clínica sob consulta',
+    dentistaResponsavel: cfgContrato.dentistaResponsavelContrato?.trim() || configuracoes?.dentistaResponsavel?.trim() || dentistaNome?.trim() || 'Cirurgião-Dentista Responsável',
+    chavePix: cfgContrato?.chavePix?.trim() || '',
     tipoChavePix: cfgContrato?.tipoChavePix || 'telefone',
-    favorecidoPix: cfgContrato?.favorecidoPix || configuracoes?.nomeClinica || 'Titular da Conta',
-    cnpjCpfFavorecidoPix: cfgContrato?.cnpjCpfFavorecidoPix || configuracoes?.cnpj || '',
-    bancoPix: cfgContrato?.bancoPix || '',
-    instrucoesPix: cfgContrato?.instrucoesPix || 'O(A) CONTRATANTE poderá utilizar a câmera do smartphone para leitura do QR Code acima ou efetuar a transferência direta para a chave informada, encaminhando o comprovante para confirmação da baixa da parcela.',
+    favorecidoPix: cfgContrato?.favorecidoPix?.trim() || cfgContrato?.nomeClinicaContrato?.trim() || configuracoes?.nomeClinica?.trim() || 'Titular da Conta',
+    cnpjCpfFavorecidoPix: cfgContrato?.cnpjCpfFavorecidoPix?.trim() || cfgContrato?.cnpjClinicaContrato?.trim() || configuracoes?.cnpj?.trim() || '',
+    bancoPix: cfgContrato?.bancoPix?.trim() || '',
+    instrucoesPix: cfgContrato?.instrucoesPix?.trim() || 'O(A) CONTRATANTE poderá utilizar a câmera do smartphone para leitura do QR Code acima ou efetuar a transferência direta para a chave informada, encaminhando o comprovante para confirmação da baixa da parcela.',
   };
 
   // 3. Procedimentos aprovados do Orçamento
@@ -1134,7 +1190,7 @@ export const mapearDadosContrato = ({
   };
 
   // 4. Dados Financeiros e Cronograma de Parcelas
-  // Prioridade: buscar transações vinculadas ao orçamento (receitas)
+  // Prioridade 1: buscar transações vinculadas ao orçamento (receitas) consistentes
   const transacoesOrcamento = (transacoes || []).filter(
     (t: any) => t?.orcamentoId === orcamento?.id && t?.tipo === 'receita'
   );
@@ -1145,6 +1201,13 @@ export const mapearDadosContrato = ({
   let parcelamentoValorDetectado = 0;
   let parcelamentoMetodoDetectado = '';
 
+  // Extrai a condição de pagamento estruturada e aprovada
+  const formasRaw = orcamento?.formasPagamento || orcamento?.formas_pagamento || '';
+  const condicoesParsed = parseCondicoesPagamento(formasRaw, total);
+  const condicaoAtiva: CondicaoPagamento | null =
+    ('condicaoEscolhida' in orcamento && orcamento.condicaoEscolhida) ||
+    obterCondicaoAtiva(condicoesParsed);
+
   // Validação rigorosa de consistência das transações com o orçamento:
   const somaTransacoes = transacoesOrcamento.reduce((acc, t) => acc + (Number(t.valor) || 0), 0);
   const temValorZeradoOuSuspeito = transacoesOrcamento.some((t: any) => Number(t.valor) < 0.5 && total > 10);
@@ -1153,8 +1216,10 @@ export const mapearDadosContrato = ({
     Math.abs(somaTransacoes - total) < 0.5 &&
     !temValorZeradoOuSuspeito;
 
+  const hoje = new Date();
+
   if (transacoesConsistentes) {
-    // Ordena por vencimento / data
+    // 4.1 Utiliza transações consistentes sincronizadas no financeiro
     const ordenadas = [...transacoesOrcamento].sort(
       (a, b) => new Date(a.vencimento || a.data).getTime() - new Date(b.vencimento || b.data).getTime()
     );
@@ -1174,7 +1239,7 @@ export const mapearDadosContrato = ({
         descricao: t?.descricao || `Parcela ${idx + 1}`,
         vencimento: vencFormatado,
         valor,
-        metodo: t?.metodoPagamento || 'A definir',
+        metodo: t?.metodoPagamento || (isCartao ? 'Cartão de Crédito' : 'PIX'),
         status: isCartao
           ? (t?.status === 'pago' ? 'Quitada' : 'Autorizado')
           : (t?.status === 'pago' ? 'Quitada' : t?.status === 'vencido' ? 'Vencida' : 'A vencer'),
@@ -1187,9 +1252,196 @@ export const mapearDadosContrato = ({
       parcelamentoValorDetectado = parcelasSemEntradaLocal[0].valor;
       parcelamentoMetodoDetectado = parcelasSemEntradaLocal[0].metodo;
     }
+  } else if (condicaoAtiva) {
+    // 4.2 Utiliza exclusivamente a condição de pagamento estruturada aprovada pelo paciente
+    const diaVencPadrao = Math.min(28, Math.max(1, condicaoAtiva.diaVencimento || 10));
+    const dataBaseVenc = condicaoAtiva.dataPrimeiroVencimento ? new Date(condicaoAtiva.dataPrimeiroVencimento) : hoje;
+
+    switch (condicaoAtiva.tipo) {
+      case 'a_vista': {
+        const valFinal = typeof condicaoAtiva.valorTotal === 'number' && condicaoAtiva.valorTotal > 0
+          ? condicaoAtiva.valorTotal
+          : total;
+        const dataVencVista = condicaoAtiva.dataEntrada
+          ? formatarData(condicaoAtiva.dataEntrada)
+          : formatarData(orcamento?.atualizadoEm || hoje);
+        const sitVista = condicaoAtiva.situacaoEntrada === 'Quitada' ? 'Quitada' : 'A vencer';
+
+        parcelas = [{
+          numero: 1,
+          descricao: 'Pagamento Integral à Vista (PIX)',
+          vencimento: dataVencVista,
+          valor: valFinal,
+          metodo: 'PIX',
+          status: sitVista,
+        }];
+        entrada = 0;
+        parcelamentoQtdDetectada = 1;
+        parcelamentoValorDetectado = valFinal;
+        parcelamentoMetodoDetectado = 'PIX';
+        break;
+      }
+
+      case 'cartao': {
+        const qtd = Math.max(1, condicaoAtiva.parcelas || 1);
+        const isDebito = condicaoAtiva.tipoCartao === 'debito';
+        const metodoNome = isDebito ? 'Cartão de Débito' : 'Cartão de Crédito';
+        const valParc = typeof condicaoAtiva.valorParcela === 'number' && condicaoAtiva.valorParcela > 0
+          ? condicaoAtiva.valorParcela
+          : Number((total / qtd).toFixed(2));
+        const sitCartao = isDebito
+          ? (condicaoAtiva.situacaoSaldo === 'Quitado' ? 'Quitada' : 'Autorizado')
+          : 'Autorizado';
+
+        entrada = 0;
+        parcelas = [];
+        for (let i = 0; i < qtd; i++) {
+          parcelas.push({
+            numero: i + 1,
+            descricao: qtd === 1 ? `Pagamento em ${metodoNome}` : `Parcela ${i + 1} de ${qtd} (${metodoNome})`,
+            vencimento: 'Fatura do Cartão',
+            valor: valParc,
+            metodo: metodoNome,
+            status: sitCartao,
+          });
+        }
+        parcelamentoQtdDetectada = qtd;
+        parcelamentoValorDetectado = valParc;
+        parcelamentoMetodoDetectado = metodoNome;
+        break;
+      }
+
+      case 'entrada_saldo': {
+        const entVal = Number(condicaoAtiva.valorEntrada || 0);
+        const saldoTotal = Math.max(0, total - entVal);
+        const qtdSaldo = Math.max(1, condicaoAtiva.saldoParcelas || 1);
+        const valParcSaldo = typeof condicaoAtiva.saldoValorParcela === 'number' && condicaoAtiva.saldoValorParcela > 0
+          ? condicaoAtiva.saldoValorParcela
+          : (saldoTotal > 0 ? Number((saldoTotal / qtdSaldo).toFixed(2)) : 0);
+
+        let mEntrada = 'PIX';
+        if (condicaoAtiva.metodoEntrada === 'dinheiro') mEntrada = 'Dinheiro';
+        else if (condicaoAtiva.metodoEntrada === 'cartao_debito') mEntrada = 'Cartão de Débito';
+        else if (condicaoAtiva.metodoEntrada === 'cartao_credito') mEntrada = 'Cartão de Crédito';
+        else if (condicaoAtiva.metodoEntrada === 'transferencia') mEntrada = 'Transferência Bancária';
+
+        let mSaldo = 'Cartão de Crédito';
+        if (condicaoAtiva.saldoMetodo === 'pix_parcelado') mSaldo = 'PIX Parcelado';
+        else if (condicaoAtiva.saldoMetodo === 'boleto') mSaldo = 'Boleto Bancário';
+        else if (condicaoAtiva.saldoMetodo === 'conclusao') mSaldo = 'Na Conclusão do Tratamento';
+
+        const isCartaoSaldo = isMetodoCartao(mSaldo);
+        const dataEntradaFmt = condicaoAtiva.dataEntrada ? formatarData(condicaoAtiva.dataEntrada) : formatarData(hoje);
+        const sitEntrada = condicaoAtiva.situacaoEntrada === 'Quitada' ? 'Quitada' : 'A vencer';
+        const sitSaldoPadrao = isCartaoSaldo ? 'Autorizado' : (condicaoAtiva.situacaoSaldo === 'Quitado' ? 'Quitada' : 'A vencer');
+
+        entrada = entVal;
+        parcelas = [];
+        if (entVal > 0) {
+          parcelas.push({
+            numero: 1,
+            descricao: `Entrada Inicial (${mEntrada})`,
+            vencimento: dataEntradaFmt,
+            valor: entVal,
+            metodo: mEntrada,
+            status: sitEntrada,
+          });
+        }
+
+        for (let i = 0; i < qtdSaldo; i++) {
+          let venc = '';
+          if (isCartaoSaldo) {
+            venc = 'Fatura do Cartão';
+          } else if (mSaldo.toLowerCase().includes('conclus')) {
+            venc = 'Na Conclusão do Tratamento';
+          } else {
+            venc = formatarData(somarMesesSeguro(dataBaseVenc, i + 1, diaVencPadrao));
+          }
+
+          parcelas.push({
+            numero: parcelas.length + 1,
+            descricao: qtdSaldo === 1
+              ? `Saldo Restante (${mSaldo})`
+              : `Saldo Restante (${i + 1}/${qtdSaldo} - ${mSaldo})`,
+            vencimento: venc,
+            valor: valParcSaldo,
+            metodo: mSaldo,
+            status: sitSaldoPadrao,
+          });
+        }
+
+        parcelamentoQtdDetectada = qtdSaldo;
+        parcelamentoValorDetectado = valParcSaldo;
+        parcelamentoMetodoDetectado = mSaldo;
+        break;
+      }
+
+      case 'pix_parcelado': {
+        const qtd = Math.max(1, condicaoAtiva.parcelas || 1);
+        const valParc = typeof condicaoAtiva.valorParcela === 'number' && condicaoAtiva.valorParcela > 0
+          ? condicaoAtiva.valorParcela
+          : Number((total / qtd).toFixed(2));
+        const sitPadrao = condicaoAtiva.situacaoSaldo === 'Quitado' ? 'Quitada' : 'A vencer';
+
+        entrada = 0;
+        parcelas = [];
+        for (let i = 0; i < qtd; i++) {
+          parcelas.push({
+            numero: i + 1,
+            descricao: `Parcela ${i + 1} de ${qtd} (PIX Parcelado)`,
+            vencimento: formatarData(somarMesesSeguro(dataBaseVenc, i + 1, diaVencPadrao)),
+            valor: valParc,
+            metodo: 'PIX Parcelado',
+            status: sitPadrao,
+          });
+        }
+        parcelamentoQtdDetectada = qtd;
+        parcelamentoValorDetectado = valParc;
+        parcelamentoMetodoDetectado = 'PIX Parcelado';
+        break;
+      }
+
+      default: {
+        if (condicaoAtiva.formasCompostas && condicaoAtiva.formasCompostas.length > 0) {
+          parcelas = [];
+          entrada = 0;
+          for (const fc of condicaoAtiva.formasCompostas) {
+            const rotulo = fc.rotulo || 'Parcela';
+            const val = Number(fc.valor || 0);
+            const qtdP = Math.max(1, fc.parcelas || 1);
+            const valUnit = Number((val / qtdP).toFixed(2));
+            const isEnt = rotulo.toLowerCase().includes('entrada') || /entrada/i.test(fc.rotulo);
+            if (isEnt) entrada += val;
+
+            let m = 'PIX';
+            if (fc.metodo === 'cartao') m = fc.tipoCartao === 'debito' ? 'Cartão de Débito' : 'Cartão de Crédito';
+            else if (fc.metodo === 'dinheiro') m = 'Dinheiro';
+            else if (fc.metodo === 'boleto') m = 'Boleto Bancário';
+            else if (fc.metodo === 'pix_parcelado') m = 'PIX Parcelado';
+            else if (fc.metodo === 'transferencia') m = 'Transferência';
+
+            const isCart = isMetodoCartao(m);
+            for (let j = 0; j < qtdP; j++) {
+              const venc = isCart ? 'Fatura do Cartão' : formatarData(somarMesesSeguro(dataBaseVenc, j + 1, diaVencPadrao));
+              parcelas.push({
+                numero: parcelas.length + 1,
+                descricao: qtdP > 1 ? `${rotulo} (${j + 1}/${qtdP} - ${m})` : `${rotulo} (${m})`,
+                vencimento: venc,
+                valor: valUnit,
+                metodo: m,
+                status: isCart ? 'Autorizado' : (fc.situacao || 'A vencer'),
+              });
+            }
+          }
+          parcelamentoQtdDetectada = parcelas.length;
+          parcelamentoValorDetectado = parcelas[0]?.valor || total;
+          parcelamentoMetodoDetectado = parcelas[0]?.metodo || 'PIX';
+        }
+        break;
+      }
+    }
   } else {
-    // Se ainda não foram criadas transações consistentes no financeiro,
-    // extrai a negociação das opções de parcelamento do orçamento de forma infalível
+    // 4.3 Fallback histórico para orçamentos legados de texto livre
     const formas = obterTextoCondicaoParaContrato(orcamento?.formasPagamento || orcamento?.formas_pagamento || '');
     const hoje = new Date();
 
@@ -1538,18 +1790,37 @@ export const mapearDadosContrato = ({
     ? parcelamentoValorDetectado
     : (parcelasSemEntrada.length > 0 ? parcelasSemEntrada[0].valor : (parcelas.length > 0 ? parcelas[0].valor : total));
 
+  const textoFormaFinal = condicaoAtiva?.descricao && !condicaoAtiva.descricao.includes('{')
+    ? condicaoAtiva.descricao
+    : (condicaoAtiva?.titulo || obterTextoCondicaoParaContrato(formasRaw));
+
+  let formaLimpa = limparFormaPagamentoParaContrato(textoFormaFinal || 'Conforme acordado entre as partes');
+  if (condicaoAtiva && (/combinar/i.test(formaLimpa) || /definir/i.test(formaLimpa))) {
+    formaLimpa = condicaoAtiva.titulo || condicaoAtiva.descricao || 'Conforme negociação financeira aprovada';
+  }
+
   const dadosFinanceiro: ContratoDadosFinanceiro = {
     subtotal,
     desconto,
     total,
     totalExtenso,
-    formaPagamento: limparFormaPagamentoParaContrato(orcamento?.formasPagamento || orcamento?.formas_pagamento || 'A combinar'),
+    formaPagamento: formaLimpa,
     entrada,
-    parcelas: parcelas.map((p) => ({
-      ...p,
-      descricao: limparFormaPagamentoParaContrato(p.descricao),
-      metodo: p.metodo ? limparFormaPagamentoParaContrato(p.metodo) : p.metodo,
-    })),
+    parcelas: parcelas.map((p) => {
+      let m = p.metodo ? limparFormaPagamentoParaContrato(p.metodo) : p.metodo;
+      let d = limparFormaPagamentoParaContrato(p.descricao);
+      if (condicaoAtiva && (/combinar/i.test(m || '') || /definir/i.test(m || ''))) {
+        m = condicaoAtiva.tipo === 'cartao' ? 'Cartão de Crédito' : 'PIX';
+      }
+      if (condicaoAtiva && (/combinar/i.test(d || '') || /definir/i.test(d || ''))) {
+        d = d.replace(/a combinar|a definir/gi, m || 'PIX');
+      }
+      return {
+        ...p,
+        descricao: d,
+        metodo: m,
+      };
+    }),
     quantidadeParcelas,
     valorParcela,
     metodoParcelamento: parcelamentoMetodoDetectado ? limparFormaPagamentoParaContrato(parcelamentoMetodoDetectado) : undefined,
@@ -1659,8 +1930,8 @@ export const mapearDadosContrato = ({
     paciente: dadosPaciente,
     clinica: {
       ...dadosClinica,
-      dentistaResponsavel: profNome || dadosClinica.dentistaResponsavel,
-      cro: profCro || dadosClinica.cro,
+      dentistaResponsavel: dadosClinica.dentistaResponsavel || profNome,
+      cro: dadosClinica.cro || profCro,
     },
     orcamento: dadosOrcamento,
     financeiro: dadosFinanceiro,
