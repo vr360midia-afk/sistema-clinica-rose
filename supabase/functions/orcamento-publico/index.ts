@@ -25,13 +25,14 @@ function gerarParcelasServidor(cond: any, total: number, dataIso: string): any[]
   if (tipo === 'a_vista') {
     const val = typeof cond.valorTotal === 'number' && cond.valorTotal > 0 ? cond.valorTotal : total;
     const venc = cond.dataEntrada ? formatarDataBr(cond.dataEntrada) : formatarDataBr(dataIso);
+    const pixPago = Boolean(cond.pagamentoConfirmado || cond.pago || (cond.situacaoEntrada === 'Quitada' && cond.comprovado));
     return [{
       numero: 1,
       descricao: 'Pagamento Único via PIX',
       vencimento: venc,
       valor: val,
       metodo: 'PIX',
-      status: cond.situacaoEntrada === 'Quitada' ? 'Quitada' : 'A vencer',
+      status: pixPago ? 'Quitada' : 'Pendente',
     }];
   }
 
@@ -41,6 +42,8 @@ function gerarParcelasServidor(cond: any, total: number, dataIso: string): any[]
     const mNome = isDeb ? 'Cartão de Débito' : 'Cartão de Crédito';
     const valBase = Math.floor((total / qtd) * 100) / 100;
     const centavos = Math.round((total - (valBase * qtd)) * 100);
+    const cartaoAutorizado = Boolean(cond.cartaoAutorizado || cond.autorizacaoConfirmada || cond.nsu || cond.codigoAutorizacao);
+    const sit = cartaoAutorizado ? (isDeb ? 'Quitada' : 'Autorizado') : 'Pendente';
     const parcs: any[] = [];
     for (let i = 0; i < qtd; i++) {
       const v = Number((valBase + (i < centavos ? 0.01 : 0)).toFixed(2));
@@ -50,7 +53,7 @@ function gerarParcelasServidor(cond: any, total: number, dataIso: string): any[]
         vencimento: 'Fatura do Cartão',
         valor: v,
         metodo: mNome,
-        status: isDeb ? (cond.situacaoSaldo === 'Quitado' ? 'Quitada' : 'Autorizado') : 'Autorizado',
+        status: sit,
       });
     }
     return parcs;
@@ -72,6 +75,15 @@ function gerarParcelasServidor(cond: any, total: number, dataIso: string): any[]
     else if (cond.saldoMetodo === 'conclusao') mSal = 'Na Conclusão do Tratamento';
 
     const isCartaoSaldo = /cart[aã]o/i.test(mSal);
+    const entComprovada = Boolean(cond.entradaConfirmada || cond.pagamentoConfirmado || cond.pago || (cond.situacaoEntrada === 'Quitada' && cond.comprovado));
+    const sitEntrada = entComprovada ? 'Quitada' : 'Pendente';
+
+    const cartaoSaldoAut = isCartaoSaldo && Boolean(cond.cartaoAutorizado || cond.autorizacaoConfirmada || cond.nsu || cond.codigoAutorizacao);
+    const outroSaldoComprovado = !isCartaoSaldo && Boolean(cond.saldoConfirmado || cond.pagamentoConfirmado || cond.pago || (cond.situacaoSaldo === 'Quitado' && cond.comprovado));
+    const sitSaldo = isCartaoSaldo
+      ? (cartaoSaldoAut ? 'Autorizado' : 'Pendente')
+      : (outroSaldoComprovado ? 'Quitada' : 'Pendente');
+
     const parcs: any[] = [];
     if (entVal > 0) {
       parcs.push({
@@ -80,7 +92,7 @@ function gerarParcelasServidor(cond: any, total: number, dataIso: string): any[]
         vencimento: cond.dataEntrada ? formatarDataBr(cond.dataEntrada) : formatarDataBr(dataIso),
         valor: entVal,
         metodo: mEnt,
-        status: cond.situacaoEntrada === 'Quitada' ? 'Quitada' : 'A vencer',
+        status: sitEntrada,
       });
     }
 
@@ -96,7 +108,7 @@ function gerarParcelasServidor(cond: any, total: number, dataIso: string): any[]
         vencimento: venc,
         valor: v,
         metodo: mSal,
-        status: isCartaoSaldo ? 'Autorizado' : (cond.situacaoSaldo === 'Quitado' ? 'Quitada' : 'A vencer'),
+        status: sitSaldo,
       });
     }
     return parcs;
@@ -106,6 +118,8 @@ function gerarParcelasServidor(cond: any, total: number, dataIso: string): any[]
     const qtd = Math.max(1, cond.parcelas || 1);
     const valBase = Math.floor((total / qtd) * 100) / 100;
     const centavos = Math.round((total - (valBase * qtd)) * 100);
+    const pixSaldoPago = Boolean(cond.saldoConfirmado || cond.pagamentoConfirmado || cond.pago || (cond.situacaoSaldo === 'Quitado' && cond.comprovado));
+    const sit = pixSaldoPago ? 'Quitada' : 'Pendente';
     const parcs: any[] = [];
     for (let i = 0; i < qtd; i++) {
       const v = Number((valBase + (i < centavos ? 0.01 : 0)).toFixed(2));
@@ -116,7 +130,7 @@ function gerarParcelasServidor(cond: any, total: number, dataIso: string): any[]
         vencimento: venc,
         valor: v,
         metodo: 'PIX Parcelado',
-        status: cond.situacaoSaldo === 'Quitado' ? 'Quitada' : 'A vencer',
+        status: sit,
       });
     }
     return parcs;
@@ -129,7 +143,7 @@ function gerarParcelasServidor(cond: any, total: number, dataIso: string): any[]
     vencimento: formatarDataBr(dataIso),
     valor: total,
     metodo: 'PIX',
-    status: 'A vencer',
+    status: 'Pendente',
   }];
 }
 
@@ -480,7 +494,7 @@ Deno.serve(async (req) => {
     // 2. AÇÃO: APPROVE — Registro de aprovação do paciente com bloqueio atômico
     //                    e geração automática do contrato com assinatura autorizada
     // =========================================================================
-    if (action === "approve") {
+    if (action === "approve" || action === "aprovar") {
       const targetId = String(body.identificador || body.id || body.orcamentoId || "").trim();
       const token = String(body.token || body.t || "").trim();
       const condicaoEscolhida = body.condicaoEscolhida || body.condicao;
@@ -575,23 +589,37 @@ Deno.serve(async (req) => {
       }
 
       let clinicaDados: any = {
-        nome: "Dra. Rosangela Santos - Clínica Odontológica",
+        nome: "Santos & Duracenski Odontologia LTDA",
         dentistaResponsavel: "Dra. Rosângela Santos Pereira",
-        cro: "06267-AL",
-        documento: "032.663.962-43",
-        endereco: "JTR - Edifício Espanha, R. Comerc. José Pontes de Magalhães, 70 - Sl 405 - Jatiúca, Maceió - AL",
-        telefone: "82974002213",
+        cro: "CRO-AL 06267",
+        cnpj: "12.345.678/0001-90",
+        documento: "12.345.678/0001-90",
+        endereco: "Av. Fernandes Lima, 1000, Sala 401, Farol, Maceió - AL, CEP 57055-000",
+        telefone: "(82) 99999-8888",
+        email: "contato@santosduracenski.com.br",
+        chavePix: "12345678000190",
+        tipoChavePix: "cnpj",
+        favorecidoPix: "Santos & Duracenski Odontologia LTDA",
+        bancoPix: "Nu Pagamentos S.A. (260)",
+        instrucoesPix: "Pague via QR Code ou Copia e Cola no app do seu banco",
       };
       try {
         const { data: cRow } = await supabase.from("configuracoes").select("*").limit(1).maybeSingle();
         if (cRow) {
           clinicaDados = {
+            ...clinicaDados,
             nome: cRow.nome_clinica || clinicaDados.nome,
             dentistaResponsavel: cRow.dentista_responsavel || clinicaDados.dentistaResponsavel,
             cro: cRow.cro || clinicaDados.cro,
-            documento: cRow.cnpj || clinicaDados.documento,
+            cnpj: cRow.cnpj || clinicaDados.cnpj,
+            documento: cRow.cnpj || cRow.cpf || clinicaDados.documento,
             endereco: cRow.endereco || clinicaDados.endereco,
             telefone: cRow.telefone || cRow.whatsapp_numero || clinicaDados.telefone,
+            email: cRow.email || clinicaDados.email,
+            chavePix: cRow.chave_pix || cRow.chavePix || clinicaDados.chavePix,
+            favorecidoPix: cRow.favorecido_pix || cRow.favorecidoPix || clinicaDados.favorecidoPix,
+            bancoPix: cRow.banco_pix || cRow.bancoPix || clinicaDados.bancoPix,
+            tipoChavePix: cRow.tipo_chave_pix || cRow.tipoChavePix || clinicaDados.tipoChavePix,
           };
         }
       } catch (_) {}
@@ -783,13 +811,9 @@ Deno.serve(async (req) => {
         status: "aprovado",
         desconto: descontoFinal,
         total: totalFinal,
-        data_assinatura: nowIso,
-        aprovado_em: nowIso,
-        condicao_escolhida: condicaoEscolhida,
         contrato_id: contratoId,
-        contrato_token: contratoToken,
-        snapshot_aprovacao: snapshotAprovacao,
         assinatura_paciente: updatedSnap,
+        data_assinatura: nowIso,
         atualizado_em: nowIso,
       };
 

@@ -509,7 +509,7 @@ export const obterCardsResumoPagamento = (snapshot?: Partial<ContratoSnapshot> |
 
   let entradaValor = temEntradaNumerica ? financeiro.entrada : (parcelaEntrada ? parcelaEntrada.valor : 0);
   let metodoEntrada = 'PIX';
-  let isEntradaPaga = true; // Por padrão para a entrada do contrato exibida na assinatura, sinaliza com verde que está paga conforme solicitação
+  let isEntradaPaga = false; // Situação reflete comprovante ou registro real
 
   if (parcelaEntrada) {
     if (!entradaValor) entradaValor = parcelaEntrada.valor;
@@ -517,7 +517,7 @@ export const obterCardsResumoPagamento = (snapshot?: Partial<ContratoSnapshot> |
       metodoEntrada = parcelaEntrada.metodo.replace(/\s*\(Entrada\)/i, '').trim() || 'PIX';
     }
     if (parcelaEntrada.status) {
-      isEntradaPaga = /quitad|pago|paga|autoriz/i.test(parcelaEntrada.status);
+      isEntradaPaga = /quitad|pago|paga/i.test(parcelaEntrada.status);
     }
   }
 
@@ -1124,7 +1124,9 @@ export function gerarParcelasCronogramaFinanceiro(params: ParamsGerarParcelasCro
       const dataVencVista = condicao.dataEntrada
         ? formatarData(condicao.dataEntrada)
         : (condicao.dataPrimeiroVencimento ? formatarData(condicao.dataPrimeiroVencimento) : formatarData(dataAprovacao || hoje));
-      const sitVista = condicao.situacaoEntrada === 'Quitada' ? 'Quitada' : 'A vencer';
+      // Situação rigorosa: PIX não pode ser marcado como Quitada sem comprovação efetiva de pagamento
+      const pixComprovado = Boolean(condicao.pagamentoConfirmado || condicao.pago || (condicao.situacaoEntrada === 'Quitada' && condicao.comprovado));
+      const sitVista = pixComprovado ? 'Quitada' : 'Pendente';
 
       const p1: ContratoParcela = {
         numero: 1,
@@ -1160,9 +1162,9 @@ export function gerarParcelasCronogramaFinanceiro(params: ParamsGerarParcelasCro
       const qtd = Math.max(1, condicao.parcelas || 1);
       const isDebito = condicao.tipoCartao === 'debito';
       const metodoNome = isDebito ? 'Cartão de Débito' : 'Cartão de Crédito';
-      const sitCartao = isDebito
-        ? (condicao.situacaoSaldo === 'Quitado' ? 'Quitada' : 'Autorizado')
-        : 'Autorizado';
+      // Situação rigorosa: Cartão não pode ser marcado como Autorizado sem confirmação da operadora ou registro financeiro confiável
+      const cartaoAutorizado = Boolean(condicao.cartaoAutorizado || condicao.autorizacaoConfirmada || condicao.nsu || condicao.codigoAutorizacao);
+      const sitCartao = cartaoAutorizado ? (isDebito ? 'Quitada' : 'Autorizado') : 'Pendente';
 
       // Arredondamento monetário seguro: distribuição exata dos centavos
       const valBase = Math.floor((total / qtd) * 100) / 100;
@@ -1206,8 +1208,15 @@ export function gerarParcelasCronogramaFinanceiro(params: ParamsGerarParcelasCro
       const isCartaoSaldo = isMetodoCartao(mSaldo);
       const isPixSaldo = isMetodoPix(mSaldo);
       const dataEntradaFmt = condicao.dataEntrada ? formatarData(condicao.dataEntrada) : formatarData(hoje);
-      const sitEntrada = condicao.situacaoEntrada === 'Quitada' ? 'Quitada' : 'A vencer';
-      const sitSaldoPadrao = isCartaoSaldo ? 'Autorizado' : (condicao.situacaoSaldo === 'Quitado' ? 'Quitada' : 'A vencer');
+      // Situações refletindo pagamentos efetivamente registrados
+      const entComprovada = Boolean(condicao.entradaConfirmada || condicao.pagamentoConfirmado || condicao.pago || (condicao.situacaoEntrada === 'Quitada' && condicao.comprovado));
+      const sitEntrada = entComprovada ? 'Quitada' : 'Pendente';
+
+      const cartaoSaldoAut = isCartaoSaldo && Boolean(condicao.cartaoAutorizado || condicao.autorizacaoConfirmada || condicao.nsu || condicao.codigoAutorizacao);
+      const outroSaldoComprovado = !isCartaoSaldo && Boolean(condicao.saldoConfirmado || condicao.pagamentoConfirmado || condicao.pago || (condicao.situacaoSaldo === 'Quitado' && condicao.comprovado));
+      const sitSaldoPadrao = isCartaoSaldo
+        ? (cartaoSaldoAut ? 'Autorizado' : 'Pendente')
+        : (outroSaldoComprovado ? 'Quitada' : 'Pendente');
 
       entrada = entVal;
       parcelas = [];
@@ -1291,7 +1300,8 @@ export function gerarParcelasCronogramaFinanceiro(params: ParamsGerarParcelasCro
 
     case 'pix_parcelado': {
       const qtd = Math.max(1, condicao.parcelas || 1);
-      const sitPadrao = condicao.situacaoSaldo === 'Quitado' ? 'Quitada' : 'A vencer';
+      const pixSaldoPago = Boolean(condicao.saldoConfirmado || condicao.pagamentoConfirmado || condicao.pago || (condicao.situacaoSaldo === 'Quitado' && condicao.comprovado));
+      const sitPadrao = pixSaldoPago ? 'Quitada' : 'Pendente';
 
       // Arredondamento monetário seguro
       const valBase = Math.floor((total / qtd) * 100) / 100;
@@ -1366,7 +1376,9 @@ export function gerarParcelasCronogramaFinanceiro(params: ParamsGerarParcelasCro
               vencimento: venc,
               valor: valUnit,
               metodo: m,
-              status: isCart ? 'Autorizado' : (fc.situacao || 'A vencer'),
+              status: isCart
+                ? (Boolean(fc.cartaoAutorizado || fc.autorizacaoConfirmada || fc.nsu || fc.codigoAutorizacao) ? 'Autorizado' : 'Pendente')
+                : (Boolean(fc.pago || fc.quitado || (fc.situacao === 'Quitada' && fc.comprovado)) ? 'Quitada' : 'Pendente'),
             });
           }
         }
@@ -1784,7 +1796,7 @@ export const mapearDadosContrato = ({
                 venc = formatarData(dataVenc);
               }
             }
-            const sitFinal = situacoesIndividuais[i] || situacaoDetectada || (isCartao ? 'Autorizado' : 'A vencer');
+            const sitFinal = situacoesIndividuais[i] || situacaoDetectada || 'Pendente';
             listaMultiplas.push({
               numero: listaMultiplas.length + 1,
               descricao: `${rotulo} (${i + 1}/${qtdParc} - ${metodo})`,
@@ -1795,7 +1807,7 @@ export const mapearDadosContrato = ({
             });
           }
         } else {
-          const sitFinal = isACombinar ? 'A vencer' : (situacaoDetectada || (isCartao ? 'Autorizado' : 'A vencer'));
+          const sitFinal = isACombinar ? 'Pendente' : (situacaoDetectada || 'Pendente');
           const vencFinal = isACombinar ? 'A combinar' : (isCartao && !isEntrada ? 'Fatura do Cartão' : dataUnica);
           listaMultiplas.push({
             numero: listaMultiplas.length + 1,
@@ -1875,7 +1887,7 @@ export const mapearDadosContrato = ({
       const listaParcelas: ContratoParcela[] = [];
 
       const sitEntradaMatch = parteEntrada.match(/\[(?:situa[çc][aã]o:\s*)?([^\]]+)\]/i);
-      const sitEntrada = sitEntradaMatch && /quitad|pago|paga/i.test(sitEntradaMatch[1]) ? 'Quitada' : 'A vencer';
+      const sitEntrada = sitEntradaMatch && /quitad|pago|paga/i.test(sitEntradaMatch[1]) ? 'Quitada' : 'Pendente';
 
       if (entrada > 0) {
         listaParcelas.push({
@@ -1890,7 +1902,7 @@ export const mapearDadosContrato = ({
 
       const isCartaoRestante = isMetodoCartao(metodoRestante);
       const sitRestanteMatch = parteRestante.match(/\[(?:situa[çc][aã]o:\s*)?([^\]]+)\]/i);
-      let sitRestantePadrao = isCartaoRestante ? 'Autorizado' : 'A vencer';
+      let sitRestantePadrao = 'Pendente';
       const sitsRestanteIndividuais: string[] = [];
 
       if (sitRestanteMatch) {
@@ -2916,7 +2928,7 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
                   `}
                 </td>
               ` : ''}
-              <td style="text-align: center; font-size: 10.5px;">${isPaga ? `<strong style="color: #059669;">Quitada</strong>` : (parc.status || (isCartao ? 'Autorizado' : 'A vencer'))}</td>
+              <td style="text-align: center; font-size: 10.5px;">${isPaga ? `<strong style="color: #059669;">Quitada</strong>` : (parc.status === 'Autorizado' ? `<strong style="color: #0284c7;">Autorizado</strong>` : `<span style="color: #64748b;">${parc.status || 'Pendente'}</span>`)}</td>
             </tr>
           `;
     }).join('')}

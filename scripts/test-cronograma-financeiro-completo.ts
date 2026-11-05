@@ -67,7 +67,7 @@ async function executarTestesUnitariosLocais() {
   // -------------------------------------------------------------
   // Teste 1: PIX À VISTA
   // -------------------------------------------------------------
-  console.log("1. Testando PIX À VISTA...");
+  console.log("1. Testando PIX À VISTA (comprovado vs não comprovado)...");
   const condPixVista = {
     id: "cond-pix-vista",
     titulo: "Pagamento à Vista via PIX (10% OFF)",
@@ -77,6 +77,7 @@ async function executarTestesUnitariosLocais() {
     descontoValor: 350.0,
     dataEntrada: "2026-11-05",
     situacaoEntrada: "Quitada" as const,
+    pagamentoConfirmado: true,
     descricao: "Pagamento à vista via PIX com 10% de desconto especial: R$ 3.150,00",
     selecionada: true,
   };
@@ -101,7 +102,24 @@ async function executarTestesUnitariosLocais() {
   if (parcVista.status !== "Quitada") {
     throw new Error(`Situação esperada: 'Quitada', obteve: '${parcVista.status}'`);
   }
-  console.log("   ✓ PIX À VISTA: 1 parcela de R$ 3.150,00 com descrição 'Pagamento Único via PIX' e status 'Quitada'");
+
+  // Validação: PIX sem comprovação efetiva NÃO pode ser 'Quitada', deve ser 'Pendente'
+  const condPixNaoComprovado = {
+    ...condPixVista,
+    pagamentoConfirmado: false,
+    comprovado: false,
+    situacaoEntrada: undefined,
+  };
+  const cronoPixPendente = gerarParcelasCronogramaFinanceiro({
+    condicao: condPixNaoComprovado,
+    total: 3150.0,
+    clinica: configContrato,
+    contratoId: "CTR-PIX-PENDENTE",
+  });
+  if (cronoPixPendente.parcelas[0].status !== "Pendente") {
+    throw new Error(`PIX sem confirmação deve ter status 'Pendente', obteve: '${cronoPixPendente.parcelas[0].status}'`);
+  }
+  console.log("   ✓ PIX À VISTA: Comprovado = 'Quitada'; Sem confirmação = 'Pendente' (não marca Quitado apenas por aprovação)");
 
   // -------------------------------------------------------------
   // Teste 2: ENTRADA + SALDO COM ARREDONDAMENTO SEGURO
@@ -117,6 +135,8 @@ async function executarTestesUnitariosLocais() {
     metodoEntrada: "pix" as const,
     dataEntrada: "2026-11-05",
     situacaoEntrada: "Quitada" as const,
+    entradaConfirmada: true,
+    cartaoAutorizado: true,
     saldoParcelas: 3,
     saldoMetodo: "cartao" as const,
     diaVencimento: 10,
@@ -148,8 +168,9 @@ async function executarTestesUnitariosLocais() {
   // -------------------------------------------------------------
   // Teste 3: CARTÃO PARCELADO (10x de R$ 350,00)
   // -------------------------------------------------------------
-  console.log("3. Testando CARTÃO PARCELADO (10x)...");
-  const condCartao = {
+  console.log("3. Testando CARTÃO PARCELADO (10x) com e sem autorização da operadora...");
+  // Caso A: Sem autorização da operadora -> deve ser 'Pendente'
+  const condCartaoSemAut = {
     id: "cond-cartao-10x",
     titulo: "10x sem juros no Cartão de Crédito",
     tipo: "cartao" as const,
@@ -160,8 +181,29 @@ async function executarTestesUnitariosLocais() {
     selecionada: true,
   };
 
+  const cronoCartaoPendente = gerarParcelasCronogramaFinanceiro({
+    condicao: condCartaoSemAut,
+    total: 3500.0,
+    clinica: configContrato,
+    contratoId: "CTR-CARTAO-PEND",
+  });
+
+  for (const p of cronoCartaoPendente.parcelas) {
+    if (p.status !== "Pendente") {
+      throw new Error(`Sem autorização de operadora, cartão deve ser 'Pendente', obteve '${p.status}'`);
+    }
+  }
+
+  // Caso B: Com NSU / autorização registrada -> deve ser 'Autorizado'
+  const condCartaoAut = {
+    ...condCartaoSemAut,
+    nsu: "1234567890",
+    codigoAutorizacao: "AUT998877",
+    cartaoAutorizado: true,
+  };
+
   const cronoCartao = gerarParcelasCronogramaFinanceiro({
-    condicao: condCartao,
+    condicao: condCartaoAut,
     total: 3500.0,
     clinica: configContrato,
     contratoId: "CTR-CARTAO-10X",
@@ -179,7 +221,7 @@ async function executarTestesUnitariosLocais() {
     if (p.vencimento !== "Fatura do Cartão") throw new Error(`Vencimento esperado: 'Fatura do Cartão', obteve '${p.vencimento}'`);
     if (p.status !== "Autorizado") throw new Error(`Status esperado: 'Autorizado', obteve '${p.status}'`);
   }
-  console.log(`   ✓ CARTÃO PARCELADO: 10 parcelas de R$ 350,00 com indicação 'Cartão de Crédito' e 'Fatura do Cartão'`);
+  console.log(`   ✓ CARTÃO PARCELADO: Sem autorização = 'Pendente'; Com NSU/autorização = 'Autorizado' (10 parcelas de R$ 350,00)`);
 
   // -------------------------------------------------------------
   // Teste 4: PIX PARCELADO COM QR CODE
@@ -212,6 +254,7 @@ async function executarTestesUnitariosLocais() {
   }
   for (const p of cronoPixParc.parcelas) {
     if (p.metodo !== "PIX Parcelado") throw new Error(`Método incorreto: ${p.metodo}`);
+    if (p.status !== "Pendente") throw new Error(`Status esperado para PIX parcelado não pago: 'Pendente', obteve '${p.status}'`);
     if (!p.payloadPix || !p.qrCodePixUrl) {
       throw new Error(`Parcela ${p.numero} do PIX Parcelado está sem payloadPix ou qrCodePixUrl!`);
     }

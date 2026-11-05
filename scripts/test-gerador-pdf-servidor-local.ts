@@ -25,13 +25,14 @@ function gerarParcelasServidorContratoLocal(cond: any, total: number, dataIso = 
   if (tipo === 'a_vista') {
     const val = typeof cond.valorTotal === 'number' && cond.valorTotal > 0 ? cond.valorTotal : total;
     const venc = cond.dataEntrada ? formatarDataBrContratoLocal(cond.dataEntrada) : formatarDataBrContratoLocal(dataIso);
+    const pixPago = Boolean(cond.pagamentoConfirmado || cond.pago || (cond.situacaoEntrada === 'Quitada' && cond.comprovado));
     return [{
       numero: 1,
       descricao: 'Pagamento Único via PIX',
       vencimento: venc,
       valor: val,
       metodo: 'PIX',
-      status: cond.situacaoEntrada === 'Quitada' ? 'Quitada' : 'A vencer',
+      status: pixPago ? 'Quitada' : 'Pendente',
     }];
   }
 
@@ -41,6 +42,8 @@ function gerarParcelasServidorContratoLocal(cond: any, total: number, dataIso = 
     const mNome = isDeb ? 'Cartão de Débito' : 'Cartão de Crédito';
     const valBase = Math.floor((total / qtd) * 100) / 100;
     const centavos = Math.round((total - (valBase * qtd)) * 100);
+    const cartaoAutorizado = Boolean(cond.cartaoAutorizado || cond.autorizacaoConfirmada || cond.nsu || cond.codigoAutorizacao);
+    const sit = cartaoAutorizado ? (isDeb ? 'Quitada' : 'Autorizado') : 'Pendente';
     const parcs: any[] = [];
     for (let i = 0; i < qtd; i++) {
       const v = Number((valBase + (i < centavos ? 0.01 : 0)).toFixed(2));
@@ -50,7 +53,7 @@ function gerarParcelasServidorContratoLocal(cond: any, total: number, dataIso = 
         vencimento: 'Fatura do Cartão',
         valor: v,
         metodo: mNome,
-        status: isDeb ? (cond.situacaoSaldo === 'Quitado' ? 'Quitada' : 'Autorizado') : 'Autorizado',
+        status: sit,
       });
     }
     return parcs;
@@ -72,6 +75,15 @@ function gerarParcelasServidorContratoLocal(cond: any, total: number, dataIso = 
     else if (cond.saldoMetodo === 'conclusao') mSal = 'Na Conclusão do Tratamento';
 
     const isCartaoSaldo = /cart[aã]o/i.test(mSal);
+    const entComprovada = Boolean(cond.entradaConfirmada || cond.pagamentoConfirmado || cond.pago || (cond.situacaoEntrada === 'Quitada' && cond.comprovado));
+    const sitEntrada = entComprovada ? 'Quitada' : 'Pendente';
+
+    const cartaoSaldoAut = isCartaoSaldo && Boolean(cond.cartaoAutorizado || cond.autorizacaoConfirmada || cond.nsu || cond.codigoAutorizacao);
+    const outroSaldoComprovado = !isCartaoSaldo && Boolean(cond.saldoConfirmado || cond.pagamentoConfirmado || cond.pago || (cond.situacaoSaldo === 'Quitado' && cond.comprovado));
+    const sitSaldo = isCartaoSaldo
+      ? (cartaoSaldoAut ? 'Autorizado' : 'Pendente')
+      : (outroSaldoComprovado ? 'Quitada' : 'Pendente');
+
     const parcs: any[] = [];
     if (entVal > 0) {
       parcs.push({
@@ -80,7 +92,7 @@ function gerarParcelasServidorContratoLocal(cond: any, total: number, dataIso = 
         vencimento: cond.dataEntrada ? formatarDataBrContratoLocal(cond.dataEntrada) : formatarDataBrContratoLocal(dataIso),
         valor: entVal,
         metodo: mEnt,
-        status: cond.situacaoEntrada === 'Quitada' ? 'Quitada' : 'A vencer',
+        status: sitEntrada,
       });
     }
 
@@ -96,7 +108,7 @@ function gerarParcelasServidorContratoLocal(cond: any, total: number, dataIso = 
         vencimento: venc,
         valor: v,
         metodo: mSal,
-        status: isCartaoSaldo ? 'Autorizado' : (cond.situacaoSaldo === 'Quitado' ? 'Quitada' : 'A vencer'),
+        status: sitSaldo,
       });
     }
     return parcs;
@@ -106,6 +118,8 @@ function gerarParcelasServidorContratoLocal(cond: any, total: number, dataIso = 
     const qtd = Math.max(1, cond.parcelas || 1);
     const valBase = Math.floor((total / qtd) * 100) / 100;
     const centavos = Math.round((total - (valBase * qtd)) * 100);
+    const pixSaldoPago = Boolean(cond.saldoConfirmado || cond.pagamentoConfirmado || cond.pago || (cond.situacaoSaldo === 'Quitado' && cond.comprovado));
+    const sit = pixSaldoPago ? 'Quitada' : 'Pendente';
     const parcs: any[] = [];
     for (let i = 0; i < qtd; i++) {
       const v = Number((valBase + (i < centavos ? 0.01 : 0)).toFixed(2));
@@ -116,7 +130,7 @@ function gerarParcelasServidorContratoLocal(cond: any, total: number, dataIso = 
         vencimento: venc,
         valor: v,
         metodo: 'PIX Parcelado',
-        status: cond.situacaoSaldo === 'Quitado' ? 'Quitada' : 'A vencer',
+        status: sit,
       });
     }
     return parcs;
@@ -128,7 +142,7 @@ function gerarParcelasServidorContratoLocal(cond: any, total: number, dataIso = 
     vencimento: formatarDataBrContratoLocal(dataIso),
     valor: total,
     metodo: 'PIX',
-    status: 'A vencer',
+    status: 'Pendente',
   }];
 }
 
@@ -412,7 +426,7 @@ export function gerarPdfServidorContrato(snap: any, docClinico?: any, qrcodeFn?:
       pdf.text(String(p.vencimento || "Conforme plano"), margin + 260, y + 10);
       const valFmt = typeof p.valor === "number" ? formatarMoedaBr(p.valor) : String(p.valor || "-");
       pdf.text(valFmt, pageW - margin - 120, y + 10);
-      pdf.text(String(p.status || "A vencer"), pageW - margin - 55, y + 10);
+      pdf.text(String(p.status || "Pendente"), pageW - margin - 55, y + 10);
       y += 16;
     }
     y += 10;
