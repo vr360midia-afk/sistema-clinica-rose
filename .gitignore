@@ -31,3 +31,12 @@ backups/storage/
 *.sql.dump
 
 test-storage/
+
+.env.homolog
+.env.staging
+.env.test
+.env*.local
+.env
+
+scratch/
+

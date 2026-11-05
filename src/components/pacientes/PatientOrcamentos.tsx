@@ -3038,10 +3038,20 @@ const PatientOrcamentos = ({ patient }: Props) => {
                       setContratoOrcamento(o);
                       setContratoModalOpen(true);
                     }}
-                    title={temAssinaturaDra ? "Ver contrato emitido com assinatura profissional - aguardando paciente" : "Ver contrato emitido - aguardando assinatura da profissional"}
+                    title={
+                      temAssinaturaDra && !temAssinaturaPaciente
+                        ? "Ver contrato emitido com assinatura profissional - aguardando paciente"
+                        : temAssinaturaPaciente && !temAssinaturaDra
+                          ? "Ver contrato emitido com assinatura do paciente - aguardando profissional"
+                          : "Ver contrato emitido gravado - aguardando assinaturas"
+                    }
                   >
                     <Clock className="h-4 w-4 text-amber-600" />
-                    {temAssinaturaDra ? "Ver Contrato — Aguardando Paciente" : "Ver Contrato — Aguardando Profissional"}
+                    {temAssinaturaDra && !temAssinaturaPaciente
+                      ? "Ver Contrato — Aguardando Paciente"
+                      : temAssinaturaPaciente && !temAssinaturaDra
+                        ? "Ver Contrato — Aguardando Profissional"
+                        : "Ver Contrato — Aguardando Assinaturas"}
                   </Button>
                 ) : (
                   <Button

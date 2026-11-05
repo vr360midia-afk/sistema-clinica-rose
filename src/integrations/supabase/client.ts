@@ -3,8 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 import { brokeredPreviewStorage } from './previewAuthStorage';
 
-const SUPABASE_URL = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) || "https://skonxcdojbkbfnfemayz.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_PUBLISHABLE_KEY) || "sb_publishable_aldVR3R-4sj0Fs-l1-mFSA_9gPUF9YZ";
+const SUPABASE_URL = (typeof process !== 'undefined' && (process.env?.VITE_SUPABASE_URL || process.env?.HOMOLOG_URL)) || (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) || "https://skonxcdojbkbfnfemayz.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = (typeof process !== 'undefined' && (process.env?.VITE_SUPABASE_PUBLISHABLE_KEY || process.env?.HOMOLOG_SUPABASE_ANON_KEY)) || (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_PUBLISHABLE_KEY) || "sb_publishable_aldVR3R-4sj0Fs-l1-mFSA_9gPUF9YZ";
 
 
 function isNewSupabaseApiKey(value: string): boolean {

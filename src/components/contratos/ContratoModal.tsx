@@ -167,37 +167,105 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     }
   }, [initialOrcamento, orcamentosAprovados, selectedOrcamentoId]);
 
-  // Auto-seleciona contrato formalizado se já existir para o orçamento aberto
-  useEffect(() => {
+  // Localiza contrato oficial já persistido no banco para o orçamento selecionado (assinado ou pendente)
+  const contratoExistenteOrcamento = useMemo(() => {
     const targetOrcId = initialOrcamento?.id || selectedOrcamentoId;
-    if (isOpen && targetOrcId && documentos.length > 0 && !contratoVisualizacao) {
-      const matchDoc = documentos.find(
-        (d) => d.tipo === 'contrato' && (
-          (d.itens as any)?.orcamentoId === targetOrcId ||
-          d.orcamentoId === targetOrcId ||
-          (initialOrcamento?.contratoId && (d.id === initialOrcamento.contratoId || d.identificador === initialOrcamento.contratoId || (d.itens as any)?.contratoId === initialOrcamento.contratoId))
-        ) && (
-          Boolean(d.assinadoEm || (d.itens as any)?.assinaturaPaciente?.assinaturaData || d.status === 'formalizado' || (d.itens as any)?.status === 'formalizado')
-        )
-      );
-      if (matchDoc) {
-        setContratoVisualizacao(matchDoc);
-      }
-    }
-  }, [isOpen, initialOrcamento, selectedOrcamentoId, documentos, contratoVisualizacao]);
+    const targetContratoId = initialOrcamento?.contratoId || (orcamentos || []).find((o) => o?.id === targetOrcId)?.contratoId;
+    if ((!targetOrcId && !targetContratoId) || documentos.length === 0) return null;
 
-  // Identifica se o contrato exibido atualmente está formalizado bilateralmente com ambas as assinaturas
-  const isFormalizadoBilateral = useMemo(() => {
+    const candidatos = documentos.filter(
+      (d) =>
+        d.tipo === 'contrato' &&
+        ((targetOrcId && ((d.itens as any)?.orcamentoId === targetOrcId || d.orcamentoId === targetOrcId)) ||
+          (targetContratoId &&
+            (d.id === targetContratoId ||
+              d.identificador === targetContratoId ||
+              (d.itens as any)?.contratoId === targetContratoId)))
+    );
+
+    if (candidatos.length === 0) return null;
+
+    // Prioriza formalizado com ambas assinaturas > assinado por dentista > mais recente
+    candidatos.sort((a, b) => {
+      const aSnap = (a.itens || {}) as any;
+      const bSnap = (b.itens || {}) as any;
+      const aFormalizado = Boolean(a.assinadoEm || aSnap.assinaturaPaciente?.assinaturaData || aSnap.status === 'formalizado' || a.status === 'formalizado');
+      const bFormalizado = Boolean(b.assinadoEm || bSnap.assinaturaPaciente?.assinaturaData || bSnap.status === 'formalizado' || b.status === 'formalizado');
+      if (aFormalizado !== bFormalizado) return aFormalizado ? -1 : 1;
+
+      const aDra = Boolean(aSnap.assinaturaDentista?.assinaturaData || aSnap.statusAssinaturaDentista === 'assinado');
+      const bDra = Boolean(bSnap.assinaturaDentista?.assinaturaData || bSnap.statusAssinaturaDentista === 'assinado');
+      if (aDra !== bDra) return aDra ? -1 : 1;
+
+      const aTime = new Date(a.assinadoEm || a.atualizadoEm || a.criadoEm || 0).getTime();
+      const bTime = new Date(b.assinadoEm || b.atualizadoEm || b.criadoEm || 0).getTime();
+      return bTime - aTime;
+    });
+
+    return candidatos[0];
+  }, [documentos, initialOrcamento, selectedOrcamentoId, orcamentos]);
+
+  // Sincroniza contrato visualizado e snapshot oficial persistido ao abrir o modal
+  useEffect(() => {
+    if (!isOpen) {
+      setContratoVisualizacao(null);
+      setIsManuallyEdited(false);
+      setDocumentoIdSendoEditado(null);
+      return;
+    }
+
+    if (contratoExistenteOrcamento) {
+      setContratoVisualizacao(contratoExistenteOrcamento);
+      if (contratoExistenteOrcamento.itens && typeof contratoExistenteOrcamento.itens === 'object' && !isManuallyEdited) {
+        setSnapshotAtual(contratoExistenteOrcamento.itens as ContratoSnapshot);
+      }
+    } else {
+      setContratoVisualizacao(null);
+    }
+  }, [isOpen, contratoExistenteOrcamento, isManuallyEdited]);
+
+  // Checagens granulares de status de assinatura
+  const hasAssinaturaPaciente = useMemo(() => {
     if (contratoVisualizacao) {
       const snapItens = (contratoVisualizacao.itens || {}) as any;
-      const hasAssinaturaPaciente = Boolean(contratoVisualizacao.assinaturaData || contratoVisualizacao.assinadoEm || snapItens.assinaturaPaciente?.assinaturaData || snapItens.status === 'formalizado' || contratoVisualizacao.status === 'formalizado');
-      const hasAssinaturaProfissional = Boolean(snapItens.assinaturaDentista?.assinaturaData || snapItens.statusAssinaturaDentista === 'assinado');
-      return Boolean(hasAssinaturaPaciente && hasAssinaturaProfissional);
+      return Boolean(
+        contratoVisualizacao.assinaturaData ||
+        contratoVisualizacao.assinadoEm ||
+        snapItens.assinaturaPaciente?.assinaturaData ||
+        snapItens.status === 'formalizado' ||
+        contratoVisualizacao.status === 'formalizado'
+      );
     }
-    const hasAssinaturaPaciente = Boolean(snapshotAtual?.assinaturaPaciente?.assinaturaData || snapshotAtual?.status === 'assinado' || snapshotAtual?.status === 'formalizado');
-    const hasAssinaturaProfissional = Boolean(snapshotAtual?.assinaturaDentista?.assinaturaData);
-    return Boolean(hasAssinaturaPaciente && hasAssinaturaProfissional);
+    return Boolean(
+      snapshotAtual?.assinaturaPaciente?.assinaturaData ||
+      snapshotAtual?.status === 'assinado' ||
+      snapshotAtual?.status === 'formalizado'
+    );
   }, [contratoVisualizacao, snapshotAtual]);
+
+  const hasAssinaturaProfissional = useMemo(() => {
+    if (contratoVisualizacao) {
+      const snapItens = (contratoVisualizacao.itens || {}) as any;
+      return Boolean(
+        snapItens.assinaturaDentista?.assinaturaData ||
+        snapItens.statusAssinaturaDentista === 'assinado'
+      );
+    }
+    return Boolean(
+      snapshotAtual?.assinaturaDentista?.assinaturaData ||
+      snapshotAtual?.statusAssinaturaDentista === 'assinado'
+    );
+  }, [contratoVisualizacao, snapshotAtual]);
+
+  const isFormalizadoBilateral = useMemo(() => {
+    return Boolean(hasAssinaturaPaciente && hasAssinaturaProfissional);
+  }, [hasAssinaturaPaciente, hasAssinaturaProfissional]);
+
+  // Identifica se o contrato exibido já está oficialmente gravado e persistido no banco de dados
+  const isContratoGravado = useMemo(() => {
+    if (documentoIdSendoEditado) return false;
+    return Boolean(contratoVisualizacao?.id || contratoExistenteOrcamento?.id);
+  }, [documentoIdSendoEditado, contratoVisualizacao, contratoExistenteOrcamento]);
 
   // Dentista responsável padrão
   useEffect(() => {
@@ -387,9 +455,9 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     }
   };
 
-  // Inicializa ou atualiza o snapshot automaticamente (caso não tenha edições manuais ativas)
+  // Inicializa ou atualiza o snapshot automaticamente para novo contrato (caso não exista contrato gravado e não tenha edições manuais)
   useEffect(() => {
-    if (isManuallyEdited) return;
+    if (isManuallyEdited || contratoExistenteOrcamento || contratoVisualizacao) return;
     if (!patient || !orcamentoAtual) {
       setSnapshotAtual(null);
       return;
@@ -410,6 +478,8 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     setSnapshotAtual(snap);
   }, [
     isManuallyEdited,
+    contratoExistenteOrcamento,
+    contratoVisualizacao,
     patient,
     orcamentoAtual,
     transacoesOrcamento,
@@ -619,6 +689,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     setSelectedOrcamentoId(novoOrcamentoId);
     setIsManuallyEdited(false);
     setDocumentoIdSendoEditado(null);
+    setContratoVisualizacao(null);
   };
 
   // Restaura dados automáticos do sistema
@@ -643,6 +714,20 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
 
   // Carrega contrato do histórico para edição
   const handleCarregarContratoParaEdicao = (doc: DocumentoClinico) => {
+    const snapItens = (doc.itens || {}) as any;
+    const jaAssinado = Boolean(
+      doc.assinadoEm ||
+      doc.status === 'formalizado' ||
+      snapItens.status === 'formalizado' ||
+      snapItens.assinaturaPaciente?.assinaturaData
+    );
+    if (jaAssinado) {
+      toast.warning('Este contrato já possui assinaturas válidas registradas e não pode ser editado diretamente.', {
+        description: 'Para preservar a segurança jurídica, contratos formalizados ou assinados não podem ser sobrescritos.',
+      });
+      return;
+    }
+
     if (doc.itens && typeof doc.itens === 'object' && doc.itens.paciente) {
       const snap = { ...(doc.itens as ContratoSnapshot) };
       if (snap.financeiro) {
@@ -674,11 +759,41 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     }
   };
 
-  // Salva e emite o contrato (novo ou atualização)
+  // Salva e emite o contrato (novo ou atualização com versionamento)
   const handleEmitirContrato = async () => {
     if (!snapshotAtual) {
       toast.error('Nenhum dado de contrato para emitir.');
       return;
+    }
+
+    // Proteção 1: Se o contrato já está gravado e o usuário não está em modo de edição manual,
+    // não há alteração a fazer: preserva 100% o documento e snapshot já persistidos sem executar UPDATE
+    if (isContratoGravado && !documentoIdSendoEditado) {
+      toast.info('Este contrato já está gravado no sistema.', {
+        description: `Identificador: ${snapshotAtual.contratoId}`,
+      });
+      return;
+    }
+
+    // Proteção 2: Trava estrita de segurança jurídica - impede sobrescrever contrato formalizado ou assinado
+    const targetDocId = documentoIdSendoEditado || contratoVisualizacao?.id || contratoExistenteOrcamento?.id;
+    let docExistente: DocumentoClinico | undefined = undefined;
+    if (targetDocId) {
+      docExistente = documentos.find((d) => d.id === targetDocId);
+      const snapExistente = docExistente?.itens as any;
+      const jaAssinado = Boolean(
+        docExistente?.assinadoEm ||
+        docExistente?.status === 'formalizado' ||
+        snapExistente?.status === 'formalizado' ||
+        snapExistente?.assinaturaPaciente?.assinaturaData
+      );
+
+      if (jaAssinado) {
+        toast.error('Operação bloqueada: este contrato já possui assinaturas válidas registradas.', {
+          description: 'Para preservar a segurança jurídica, contratos formalizados ou assinados não podem ser sobrescritos.',
+        });
+        return;
+      }
     }
 
     try {
@@ -691,20 +806,46 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
           return p;
         });
       }
-      const htmlFinal = gerarHtmlContrato(snapshotAtual);
+
+      // Proteção 3: Versionamento estrito se for edição manual de contrato já emitido/compartilhado
+      // Preserva o snapshot anterior intacto no histórico (versoesAnteriores), gerando Versão (N+1)
+      let idParaGravar: string | undefined = undefined;
+      let snapshotParaSalvar = { ...snapshotAtual };
+
+      if (documentoIdSendoEditado && docExistente) {
+        const snapExistente = (docExistente.itens || {}) as any;
+        const versaoAnterior = Number(snapExistente.versao) || 1;
+        const novaVersao = versaoAnterior + 1;
+
+        snapshotParaSalvar = {
+          ...snapshotParaSalvar,
+          versao: String(novaVersao),
+          contratoAnteriorId: docExistente.id,
+          contratoId: snapExistente.contratoId || snapshotAtual.contratoId,
+          token: snapExistente.token || snapshotAtual.token,
+          tokenValidoAte: snapExistente.tokenValidoAte || snapshotAtual.tokenValidoAte,
+        } as any;
+
+        // Gera nova versão sem passar id existente, preservando o snapshot original intacto
+        idParaGravar = undefined;
+      } else {
+        idParaGravar = documentoIdSendoEditado || undefined;
+      }
+
+      const htmlFinal = gerarHtmlContrato(snapshotParaSalvar);
 
       const docCriado = await salvarDocumento({
-        id: documentoIdSendoEditado || undefined,
+        id: idParaGravar || undefined,
         pacienteId: patient?.id,
         pacienteNome: patient?.nome,
         tipo: 'contrato',
-        titulo: `Contrato Odontológico - Orçamento #${snapshotAtual.orcamento.numeroIdentificador}`,
+        titulo: `Contrato Odontológico - Orçamento #${snapshotParaSalvar.orcamento?.numeroIdentificador || (orcamentoAtual?.id ? orcamentoAtual.id.slice(0, 8) : 'Geral')}`,
         conteudo: htmlFinal,
-        itens: snapshotAtual as any,
-        dentista: snapshotAtual?.clinica?.dentistaResponsavel || selectedDentistaNome || null,
-        assinadoEm: snapshotAtual.assinaturaPaciente ? new Date() : null,
-        assinanteNome: snapshotAtual.assinaturaPaciente?.nome || null,
-        assinaturaData: snapshotAtual.assinaturaPaciente?.assinaturaData || null,
+        itens: snapshotParaSalvar as any,
+        dentista: snapshotParaSalvar?.clinica?.dentistaResponsavel || selectedDentistaNome || null,
+        assinadoEm: snapshotParaSalvar.assinaturaPaciente ? new Date() : null,
+        assinanteNome: snapshotParaSalvar.assinaturaPaciente?.nome || null,
+        assinaturaData: snapshotParaSalvar.assinaturaPaciente?.assinaturaData || null,
       });
 
       if (docCriado) {
@@ -813,7 +954,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
   // Copia link de assinatura pública (garantindo que o contrato esteja registrado no banco)
   const handleCopiarLinkAssinatura = async () => {
     if (!snapshotAtual) return;
-    let docId = contratoVisualizacao?.id || documentoIdSendoEditado;
+    let docId = contratoVisualizacao?.id || documentoIdSendoEditado || contratoExistenteOrcamento?.id;
 
     // Se ainda não foi emitido no banco, salva agora para gerar UUID permanente e listar no prontuário
     if (!docId) {
@@ -861,7 +1002,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
       });
       return;
     }
-    let docId = contratoVisualizacao?.id || documentoIdSendoEditado;
+    let docId = contratoVisualizacao?.id || documentoIdSendoEditado || contratoExistenteOrcamento?.id;
 
     if (!docId) {
       try {
@@ -1186,9 +1327,21 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                         <Badge variant="outline" className="font-semibold text-[10px] sm:text-xs border-emerald-500/30 text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 dark:text-emerald-300">
                           ✓ Contrato Formalizado e Assinado Bilateralmente
                         </Badge>
-                      ) : (
+                      ) : hasAssinaturaProfissional && !hasAssinaturaPaciente ? (
                         <Badge variant="outline" className="font-semibold text-[10px] sm:text-xs border-amber-500/30 text-amber-700 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-300">
-                          ⏳ Modelo em Elaboração — Aguardando Assinatura do Paciente
+                          ⏳ Contrato Emitido — Assinado pela Profissional / Aguardando Paciente
+                        </Badge>
+                      ) : hasAssinaturaPaciente && !hasAssinaturaProfissional ? (
+                        <Badge variant="outline" className="font-semibold text-[10px] sm:text-xs border-purple-500/30 text-purple-700 bg-purple-50 dark:bg-purple-950/40 dark:text-purple-300">
+                          ⏳ Assinado pelo Paciente — Aguardando Profissional
+                        </Badge>
+                      ) : isContratoGravado ? (
+                        <Badge variant="outline" className="font-semibold text-[10px] sm:text-xs border-blue-500/30 text-blue-700 bg-blue-50 dark:bg-blue-950/40 dark:text-blue-300">
+                          ⏳ Contrato Gravado — Aguardando Assinaturas
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="font-semibold text-[10px] sm:text-xs border-slate-500/30 text-slate-700 bg-slate-50 dark:bg-slate-950/40 dark:text-slate-300">
+                          📝 Minuta em Elaboração — Aguardando Gravação
                         </Badge>
                       )}
                       {isManuallyEdited && (
@@ -1892,7 +2045,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                     style={{ WebkitOverflowScrolling: 'touch' }}
                   >
                     <iframe
-                      srcDoc={htmlContratoAtual}
+                      srcDoc={contratoVisualizacao?.conteudo || htmlContratoAtual}
                       title="Contrato Oficial A4"
                       className="w-full h-full max-w-[840px] rounded border border-border bg-white shadow-xl min-h-[360px]"
                     />
@@ -3021,16 +3174,27 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                 <span>WhatsApp</span>
               </Button>
 
-              <Button
-                type="button"
-                size="sm"
-                className="h-8 sm:h-9 text-xs gap-1.5 font-semibold bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs"
-                onClick={handleEmitirContrato}
-                disabled={salvando || !snapshotAtual || !orcamentoAtual}
-              >
-                {salvando ? <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />}
-                <span>{documentoIdSendoEditado ? 'Salvar' : 'Gravar Contrato'}</span>
-              </Button>
+              {isContratoGravado ? (
+                <div
+                  className="flex items-center gap-1.5 px-3 h-8 sm:h-9 rounded-md bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs font-semibold shadow-xs select-none"
+                  title="Este contrato já está gravado no banco de dados e vinculado ao orçamento."
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span>Contrato Gravado</span>
+                </div>
+              ) : (
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-8 sm:h-9 text-xs gap-1.5 font-semibold bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs"
+                  onClick={handleEmitirContrato}
+                  disabled={salvando || !snapshotAtual || !orcamentoAtual}
+                  title={documentoIdSendoEditado ? "Salvar alterações realizadas na minuta" : "Gravar contrato oficialmente no sistema"}
+                >
+                  {salvando ? <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />}
+                  <span>{documentoIdSendoEditado ? 'Salvar Alterações' : 'Gravar Contrato'}</span>
+                </Button>
+              )}
             </div>
           </div>
         </>
