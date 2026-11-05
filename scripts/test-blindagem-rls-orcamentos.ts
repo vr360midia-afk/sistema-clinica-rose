@@ -233,7 +233,7 @@ async function runSuite() {
     );
 
     // Tentativa C: Não-admin tentando conciliar/trocar paciente de orçamento existente
-    const { data: nonAdminReconcile } = await nonAdminClient
+    const { data: nonAdminReconcile, error: nonAdminReconcileErr } = await nonAdminClient
       .from('orcamentos')
       .update({ paciente_id: crypto.randomUUID() })
       .eq('id', orcamentoId1)
@@ -241,7 +241,34 @@ async function runSuite() {
 
     assert(
       (!nonAdminReconcile || nonAdminReconcile.length === 0),
-      'Não-admin bloqueado de alterar paciente_id de orçamento já vinculado'
+      'Não-admin bloqueado de alterar paciente_id de orçamento já vinculado',
+      { nonAdminReconcile, error: nonAdminReconcileErr?.message }
+    );
+
+    // Tentativa D: Não-admin tentando forçar aprovação direta via REST API (bypassing token)
+    const { data: nonAdminForceAprov, error: nonAdminForceAprovErr } = await nonAdminClient
+      .from('orcamentos')
+      .update({ status: 'aprovado', aprovado_em: new Date().toISOString() })
+      .eq('id', orcamentoId1)
+      .select();
+
+    assert(
+      (!nonAdminForceAprov || nonAdminForceAprov.length === 0 || nonAdminForceAprovErr !== null),
+      'Não-admin bloqueado de forçar aprovação direta via REST API sem autorização de admin',
+      { nonAdminForceAprov, error: nonAdminForceAprovErr?.message }
+    );
+
+    // Tentativa E: Não-admin tentando manipular vínculos de contratos ou tokens
+    const { data: nonAdminTamperCtr, error: nonAdminTamperCtrErr } = await nonAdminClient
+      .from('orcamentos')
+      .update({ contrato_id: 'CTR-MALICIOSO-999', contrato_token: 'fake-token' })
+      .eq('id', orcamentoId1)
+      .select();
+
+    assert(
+      (!nonAdminTamperCtr || nonAdminTamperCtr.length === 0 || nonAdminTamperCtrErr !== null),
+      'Não-admin bloqueado de manipular contrato_id e contrato_token diretamente',
+      { nonAdminTamperCtr, error: nonAdminTamperCtrErr?.message }
     );
 
     // -------------------------------------------------------------------------
@@ -297,6 +324,19 @@ async function runSuite() {
     assert(
       orcPosAprov?.status === 'aprovado' && Number(orcPosAprov?.total) === 3300.00,
       'Status atualizado para aprovado e valores da condição refletidos no banco'
+    );
+
+    // Tentativa de Não-Admin alterar valores ou condição em orçamento já aprovado
+    const { data: nonAdminTamperApproved, error: nonAdminTamperApprovedErr } = await nonAdminClient
+      .from('orcamentos')
+      .update({ total: 10.00, desconto: 0 })
+      .eq('id', orcamentoId1)
+      .select();
+
+    assert(
+      (!nonAdminTamperApproved || nonAdminTamperApproved.length === 0 || nonAdminTamperApprovedErr !== null),
+      'Não-admin bloqueado de modificar valores ou condições em orçamento já aprovado',
+      { nonAdminTamperApproved, error: nonAdminTamperApprovedErr?.message }
     );
 
     // -------------------------------------------------------------------------

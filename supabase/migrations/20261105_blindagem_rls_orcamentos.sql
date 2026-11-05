@@ -475,6 +475,9 @@ BEGIN
     )
   );
 
+  -- Define flag de autorização segura exclusiva desta transação validada por token
+  PERFORM set_config('app.fluxo_aprovacao_publica', 'true', true);
+
   UPDATE public.orcamentos
   SET
     status = 'aprovado',
@@ -595,6 +598,9 @@ BEGIN
     'status', 'ajuste_solicitado',
     'solicitacoesAjuste', v_novas_solicitacoes
   );
+
+  -- Define flag de autorização segura exclusiva desta transação validada por token
+  PERFORM set_config('app.fluxo_ajuste_publico', 'true', true);
 
   UPDATE public.orcamentos
   SET
@@ -748,6 +754,105 @@ CREATE POLICY "orcamentos_delete_admin"
 GRANT EXECUTE ON FUNCTION public.obter_orcamento_publico(text, text) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.aprovar_orcamento_publico(text, text, jsonb, jsonb, integer) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.solicitar_ajuste_orcamento_publico(text, text, text, text) TO anon, authenticated;
+
+-- ------------------------------------------------------------------------------
+-- 8. TRIGGER DE PROTEÇÃO EM NÍVEL DE COLUNA (AUDITORIA E BLOQUEIO DE ADULTERAÇÃO)
+-- Impede não-administradores de alterar colunas sensíveis (paciente_id, valores,
+-- status aprovado, contrato, condição escolhida e tokens de segurança)
+-- ------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION public.fn_proteger_colunas_orcamentos_equipe()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_is_admin boolean;
+  v_clinica_id uuid;
+BEGIN
+  -- 1. Service role (Edge Functions e rotinas internas de servidor) possui permissão plena
+  IF auth.role() = 'service_role' THEN
+    RETURN NEW;
+  END IF;
+
+  v_clinica_id := COALESCE(OLD.user_id, public.clinica_id());
+  v_is_admin := public.usuario_is_admin_clinica(v_clinica_id);
+
+  -- 2. Administradores da clínica possuem permissão autorizada plena
+  IF v_is_admin THEN
+    RETURN NEW;
+  END IF;
+
+  -- 3. Se estiver no fluxo legítimo de aprovação pública ou ajuste (RPC com token criptográfico validado)
+  IF current_setting('app.fluxo_aprovacao_publica', true) = 'true'
+     OR current_setting('app.fluxo_ajuste_publico', true) = 'true' THEN
+    RETURN NEW;
+  END IF;
+
+  -- =========================================================================
+  -- Validações Específicas para Usuários Não-Administradores da Equipe
+  -- =========================================================================
+
+  -- 1. Proibição de transferir ou conciliar paciente (paciente_id)
+  IF OLD.paciente_id IS NOT NULL AND NEW.paciente_id IS DISTINCT FROM OLD.paciente_id THEN
+    RAISE EXCEPTION 'Apenas administradores podem transferir ou conciliar o paciente do orçamento (paciente_id).'
+      USING ERRCODE = '42501';
+  END IF;
+
+  -- 2. Proibição de cancelar orçamento
+  IF NEW.status = 'cancelado' AND OLD.status IS DISTINCT FROM 'cancelado' THEN
+    RAISE EXCEPTION 'Apenas administradores podem cancelar orçamentos.'
+      USING ERRCODE = '42501';
+  END IF;
+
+  -- 3. Proibição de alterar orçamentos já aprovados ou formalizados
+  IF OLD.status IN ('aprovado', 'formalizado', 'concluido', 'cancelado') THEN
+    IF NEW.status IS DISTINCT FROM OLD.status
+       OR NEW.total IS DISTINCT FROM OLD.total
+       OR NEW.desconto IS DISTINCT FROM OLD.desconto
+       OR NEW.condicao_escolhida IS DISTINCT FROM OLD.condicao_escolhida
+       OR NEW.snapshot_aprovacao IS DISTINCT FROM OLD.snapshot_aprovacao
+       OR NEW.aprovado_em IS DISTINCT FROM OLD.aprovado_em
+       OR NEW.contrato_id IS DISTINCT FROM OLD.contrato_id
+       OR NEW.contrato_token IS DISTINCT FROM OLD.contrato_token THEN
+      RAISE EXCEPTION 'Orçamentos aprovados ou formalizados não podem ser alterados por não-administradores.'
+        USING ERRCODE = '42501';
+    END IF;
+  END IF;
+
+  -- 4. Proibição de injetar aprovação ou condição aprovada sem ser admin
+  -- (Aprovação legítima de pacientes ocorre pela RPC aprovar_orcamento_publico via SECURITY DEFINER)
+  IF (OLD.status IS DISTINCT FROM 'aprovado' AND NEW.status = 'aprovado')
+     OR (OLD.aprovado_em IS NULL AND NEW.aprovado_em IS NOT NULL)
+     OR (OLD.snapshot_aprovacao IS NULL AND NEW.snapshot_aprovacao IS NOT NULL)
+     OR (OLD.condicao_escolhida IS NULL AND NEW.condicao_escolhida IS NOT NULL) THEN
+    RAISE EXCEPTION 'Aprovação de orçamento e escolha de condição requerem perfil administrativo ou fluxo oficial com token do paciente.'
+      USING ERRCODE = '42501';
+  END IF;
+
+  -- 5. Proibição de manipular diretamente vínculos de contrato
+  IF (NEW.contrato_id IS DISTINCT FROM OLD.contrato_id)
+     OR (NEW.contrato_token IS DISTINCT FROM OLD.contrato_token) THEN
+    RAISE EXCEPTION 'Apenas administradores ou a rotina de emissão oficial podem vincular ou alterar contratos.'
+      USING ERRCODE = '42501';
+  END IF;
+
+  -- 6. Proibição de manipular tokens de segurança criptográficos
+  IF NEW.token_assinatura IS DISTINCT FROM OLD.token_assinatura THEN
+    RAISE EXCEPTION 'Não é permitido alterar o token de segurança do orçamento.'
+      USING ERRCODE = '42501';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_proteger_colunas_orcamentos_equipe ON public.orcamentos;
+CREATE TRIGGER trg_proteger_colunas_orcamentos_equipe
+  BEFORE UPDATE ON public.orcamentos
+  FOR EACH ROW
+  EXECUTE FUNCTION public.fn_proteger_colunas_orcamentos_equipe();
 
 -- Notifica o PostgREST para recarregar o schema cache imediatamente
 NOTIFY pgrst, 'reload schema';
