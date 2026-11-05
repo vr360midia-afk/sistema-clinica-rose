@@ -172,6 +172,7 @@ export const useDocumentosClinicos = (pacienteId?: string) => {
       dias_afastamento: doc.diasAfastamento ?? null,
       cid: doc.cid || null,
       dentista: doc.dentista || null,
+      ...((doc as any).identificador || safeItens?.contratoId ? { identificador: (doc as any).identificador || safeItens?.contratoId } : {}),
     };
 
     let { data, error } = doc.id

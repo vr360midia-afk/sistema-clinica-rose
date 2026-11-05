@@ -2201,8 +2201,12 @@ export const mapearDadosContrato = ({
 
   const statusInicial = assinaturaDentistaFinal ? 'aguardando_assinatura_paciente' : 'aguardando_assinatura_dentista';
 
+  const tokenFinal = (orcamento as any)?.contratoToken || (orcamento as any)?.contrato_token || (orcamento as any)?.token || (orcamento as any)?.tokenAssinatura || gerarTokenAcesso();
+
   return {
     contratoId,
+    token: tokenFinal,
+    tokenValidoAte: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
     orcamentoId: orcamento?.id || '',
     pacienteId: patient?.id || '',
     versao: '1.0',

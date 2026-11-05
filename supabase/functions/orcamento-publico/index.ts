@@ -746,6 +746,7 @@ Deno.serve(async (req) => {
       // 5. Persiste o contrato em documentos_clinicos
       try {
         await supabase.from("documentos_clinicos").insert({
+          identificador: contratoId,
           paciente_id: row.paciente_id || null,
           paciente_nome: pacienteDados.nome,
           tipo: "contrato",
@@ -812,6 +813,7 @@ Deno.serve(async (req) => {
         desconto: descontoFinal,
         total: totalFinal,
         contrato_id: contratoId,
+        contrato_token: contratoToken,
         assinatura_paciente: updatedSnap,
         data_assinatura: nowIso,
         atualizado_em: nowIso,

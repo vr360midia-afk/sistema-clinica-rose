@@ -832,10 +832,30 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
         idParaGravar = documentoIdSendoEditado || undefined;
       }
 
+      if (!snapshotParaSalvar.token) {
+        snapshotParaSalvar.token =
+          contratoVisualizacao?.itens?.token ||
+          contratoExistenteOrcamento?.itens?.token ||
+          initialOrcamento?.contratoToken ||
+          (initialOrcamento as any)?.contrato_token ||
+          snapshotAtual.token ||
+          gerarTokenAcesso();
+      }
+      if (!snapshotParaSalvar.contratoId) {
+        snapshotParaSalvar.contratoId =
+          contratoVisualizacao?.itens?.contratoId ||
+          contratoExistenteOrcamento?.itens?.contratoId ||
+          snapshotAtual.contratoId ||
+          gerarIdentificadorContrato();
+      }
+      snapshotAtual.token = snapshotParaSalvar.token;
+      snapshotAtual.contratoId = snapshotParaSalvar.contratoId;
+
       const htmlFinal = gerarHtmlContrato(snapshotParaSalvar);
 
       const docCriado = await salvarDocumento({
         id: idParaGravar || undefined,
+        identificador: snapshotParaSalvar.contratoId,
         pacienteId: patient?.id,
         pacienteNome: patient?.nome,
         tipo: 'contrato',
@@ -954,38 +974,27 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
   // Copia link de assinatura pública (garantindo que o contrato esteja registrado no banco)
   const handleCopiarLinkAssinatura = async () => {
     if (!snapshotAtual) return;
-    let docId = contratoVisualizacao?.id || documentoIdSendoEditado || contratoExistenteOrcamento?.id;
+    const docId = contratoVisualizacao?.id || documentoIdSendoEditado || contratoExistenteOrcamento?.id;
 
-    // Se ainda não foi emitido no banco, salva agora para gerar UUID permanente e listar no prontuário
-    if (!docId) {
-      try {
-        const identificador = snapshotAtual.contratoId || gerarIdentificadorContrato();
-        const htmlFinal = gerarHtmlContrato(snapshotAtual);
-        const docCriado = await salvarDocumento({
-          pacienteId: patient?.id,
-          pacienteNome: patient?.nome,
-          tipo: 'contrato',
-          titulo: snapshotAtual.orcamento?.numeroIdentificador
-            ? `Contrato Odontológico - Orçamento #${snapshotAtual.orcamento.numeroIdentificador}`
-            : `Contrato Odontológico - ${patient?.nome || 'Paciente'} (${identificador})`,
-          conteudo: htmlFinal,
-          itens: snapshotAtual as any,
-          dentista: snapshotAtual?.clinica?.dentistaResponsavel || selectedDentistaNome || null,
-        });
-        if (docCriado?.id) {
-          docId = docCriado.id;
-          setContratoVisualizacao(docCriado);
-        }
-      } catch (err) {
-        console.warn('Pré-gravação ao copiar link:', err);
-      }
+    // Garante que o snapshot possua identificador e token válidos antes de emitir
+    if (!snapshotAtual.contratoId) {
+      snapshotAtual.contratoId = docId && !docId.includes('-') ? docId : gerarIdentificadorContrato();
+    }
+    if (!snapshotAtual.token) {
+      snapshotAtual.token = gerarTokenAcesso();
+    }
+    if (!snapshotAtual.tokenValidoAte) {
+      snapshotAtual.tokenValidoAte = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
     }
 
     const emissaoRes = await emitirContratoPersistido(snapshotAtual, docId || undefined);
+    if (emissaoRes.id && (!contratoVisualizacao || contratoVisualizacao.id !== emissaoRes.id)) {
+      setDocumentoIdSendoEditado(emissaoRes.id);
+    }
     const link = emissaoRes.link;
     navigator.clipboard.writeText(link);
     setCopiouLink(true);
-    toast.success('Link de assinatura copiado com sucesso!', {
+    toast.success('Link seguro de assinatura copiado!', {
       description: 'Envie o link para o paciente assinar pelo celular.',
     });
     setTimeout(() => setCopiouLink(false), 2500);
@@ -1002,33 +1011,23 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
       });
       return;
     }
-    let docId = contratoVisualizacao?.id || documentoIdSendoEditado || contratoExistenteOrcamento?.id;
+    const docId = contratoVisualizacao?.id || documentoIdSendoEditado || contratoExistenteOrcamento?.id;
 
-    if (!docId) {
-      try {
-        const identificador = snapshotAtual.contratoId || gerarIdentificadorContrato();
-        const htmlFinal = gerarHtmlContrato(snapshotAtual);
-        const docCriado = await salvarDocumento({
-          pacienteId: patient?.id,
-          pacienteNome: patient?.nome,
-          tipo: 'contrato',
-          titulo: snapshotAtual.orcamento?.numeroIdentificador
-            ? `Contrato Odontológico - Orçamento #${snapshotAtual.orcamento.numeroIdentificador}`
-            : `Contrato Odontológico - ${patient?.nome || 'Paciente'} (${identificador})`,
-          conteudo: htmlFinal,
-          itens: snapshotAtual as any,
-          dentista: snapshotAtual?.clinica?.dentistaResponsavel || selectedDentistaNome || null,
-        });
-        if (docCriado?.id) {
-          docId = docCriado.id;
-          setContratoVisualizacao(docCriado);
-        }
-      } catch (err) {
-        console.warn('Pré-gravação ao abrir assinatura:', err);
-      }
+    // Garante que o snapshot possua identificador e token válidos antes de emitir
+    if (!snapshotAtual.contratoId) {
+      snapshotAtual.contratoId = docId && !docId.includes('-') ? docId : gerarIdentificadorContrato();
+    }
+    if (!snapshotAtual.token) {
+      snapshotAtual.token = gerarTokenAcesso();
+    }
+    if (!snapshotAtual.tokenValidoAte) {
+      snapshotAtual.tokenValidoAte = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
     }
 
     const emissaoRes = await emitirContratoPersistido(snapshotAtual, docId || undefined);
+    if (emissaoRes.id && (!contratoVisualizacao || contratoVisualizacao.id !== emissaoRes.id)) {
+      setDocumentoIdSendoEditado(emissaoRes.id);
+    }
     const link = emissaoRes.link;
     window.open(link, '_blank');
   };

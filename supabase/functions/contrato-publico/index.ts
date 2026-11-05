@@ -351,6 +351,62 @@ async function obterAutorizacaoVigenteServidor(
   return null;
 }
 
+// Extrai e valida o token criptográfico com suporte a irmãos e orçamento vinculado
+async function extrairTokenArmazenadoValido(
+  supabase: any,
+  doc: any,
+  token: string
+): Promise<{ valido: boolean; tokenArmazenado: string | null }> {
+  if (!doc || !token) return { valido: false, tokenArmazenado: null };
+
+  let tokenArmazenado = doc.itens?.token || doc.itens?.contratoToken || doc.itens?.tokenAssinatura;
+
+  if (tokenArmazenado === token) {
+    return { valido: true, tokenArmazenado };
+  }
+
+  // Se não coincidir ou não estiver presente no doc, consulta o orçamento vinculado
+  const orcId = doc.itens?.orcamentoId || doc.itens?.orcamento?.id || doc.orcamento_id;
+  if (orcId) {
+    try {
+      const { data: orcRow } = await supabase
+        .from("orcamentos")
+        .select("contrato_token, token_assinatura, assinatura_paciente")
+        .eq("id", orcId)
+        .maybeSingle();
+      if (orcRow) {
+        const snapOrc = (orcRow.assinatura_paciente || {}) as Record<string, any>;
+        const tOrc = orcRow.contrato_token || orcRow.token_assinatura || snapOrc.contratoToken || snapOrc.token || snapOrc.tokenAssinatura;
+        if (tOrc && tOrc === token) {
+          return { valido: true, tokenArmazenado: tOrc };
+        }
+      }
+    } catch (_) {}
+  }
+
+  // Verifica documentos irmãos (mesmo contratoId)
+  const cid = doc.itens?.contratoId || doc.identificador;
+  if (cid) {
+    try {
+      const { data: sibs } = await supabase
+        .from("documentos_clinicos")
+        .select("itens")
+        .eq("tipo", "contrato")
+        .filter("itens->>contratoId", "eq", cid);
+      if (sibs && sibs.length > 0) {
+        for (const s of sibs) {
+          const sTok = s.itens?.token || s.itens?.contratoToken || s.itens?.tokenAssinatura;
+          if (sTok && sTok === token) {
+            return { valido: true, tokenArmazenado: sTok };
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  return { valido: false, tokenArmazenado: tokenArmazenado || null };
+}
+
 // Localiza o contrato e devolve SEMPRE a versão vigente da cadeia de versões.
 async function localizarContratoCompativel(
   supabase: any,
@@ -380,7 +436,38 @@ async function localizarContratoCompativelBase(
   // 1. Busca direta por UUID primário
   if (isUuid) {
     const { data } = await supabase.from("documentos_clinicos").select("*").eq("id", cleanId).maybeSingle();
-    if (data) return data;
+    if (data) {
+      const tSaved = data.itens?.token || data.itens?.contratoToken || data.itens?.tokenAssinatura;
+      if (!token || tSaved === token) return data;
+      // Se fornecido token e não bate com este UUID específico, procura se há outro registro do mesmo contrato que bate
+      const cid = data.itens?.contratoId || data.identificador;
+      if (cid && token) {
+        const { data: sibling } = await supabase
+          .from("documentos_clinicos")
+          .select("*")
+          .eq("tipo", "contrato")
+          .filter("itens->>contratoId", "eq", cid)
+          .order("criado_em", { ascending: false });
+        if (sibling && sibling.length > 0) {
+          const matchSib = sibling.find((r: any) => (r.itens?.token === token || r.itens?.contratoToken === token || r.itens?.tokenAssinatura === token));
+          if (matchSib) return matchSib;
+        }
+      }
+      const orcId = data.itens?.orcamentoId || data.itens?.orcamento?.id;
+      if (orcId && token) {
+        const { data: sibOrc } = await supabase
+          .from("documentos_clinicos")
+          .select("*")
+          .eq("tipo", "contrato")
+          .filter("itens->>orcamentoId", "eq", orcId)
+          .order("criado_em", { ascending: false });
+        if (sibOrc && sibOrc.length > 0) {
+          const matchSibOrc = sibOrc.find((r: any) => (r.itens?.token === token || r.itens?.contratoToken === token || r.itens?.tokenAssinatura === token));
+          if (matchSibOrc) return matchSibOrc;
+        }
+      }
+      return data;
+    }
   }
 
   // 2. Busca abrangente de todos os candidatos correspondentes a este CTR
@@ -405,7 +492,7 @@ async function localizarContratoCompativelBase(
   if (rows && rows.length > 0) {
     // Se o token foi informado, localiza exatamente o documento que possui este token
     if (token) {
-      const matchToken = rows.find((r: any) => r.itens?.token === token);
+      const matchToken = rows.find((r: any) => r.itens?.token === token || r.itens?.contratoToken === token || r.itens?.tokenAssinatura === token);
       if (matchToken) return matchToken;
     }
     return rows[0];
@@ -420,7 +507,7 @@ async function localizarContratoCompativelBase(
       .order("criado_em", { ascending: false });
     if (rowsLike && rowsLike.length > 0) {
       if (token) {
-        const matchToken = rowsLike.find((r: any) => r.itens?.token === token);
+        const matchToken = rowsLike.find((r: any) => r.itens?.token === token || r.itens?.contratoToken === token || r.itens?.tokenAssinatura === token);
         if (matchToken) return matchToken;
       }
       return rowsLike[0];
@@ -1211,21 +1298,26 @@ Deno.serve(async (req) => {
         } catch (_) {}
       }
 
+      const targetDocId = String(body.id || "").trim();
+      const isDocIdUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetDocId);
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identificador);
       let existingDoc: Record<string, any> | null = null;
 
-      if (isUuid) {
+      if (isDocIdUuid) {
+        const { data: ex } = await supabase.from("documentos_clinicos").select("*").eq("id", targetDocId).maybeSingle();
+        if (ex?.id) existingDoc = ex;
+      }
+      if (!existingDoc && isUuid) {
         const { data: ex } = await supabase.from("documentos_clinicos").select("*").eq("id", identificador).maybeSingle();
         if (ex?.id) existingDoc = ex;
       }
-      // Com versionamento, o mesmo contratoId pode existir em V1 e V2: busca ordenada (sem
-      // maybeSingle, que falharia com múltiplas linhas e provocaria a criação de duplicata).
+      // Com versionamento, o mesmo contratoId pode existir em V1 e V2: busca ordenada
       if (!existingDoc) {
-        const { data: ex2 } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", identificador).order("criado_em", { ascending: true }).limit(1);
+        const { data: ex2 } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", identificador).order("criado_em", { ascending: false }).limit(1);
         if (ex2 && ex2[0]?.id) existingDoc = ex2[0];
       }
       if (!existingDoc && identificador.toLowerCase().startsWith("ctr-")) {
-        const { data: ex3 } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", identificador.toUpperCase()).order("criado_em", { ascending: true }).limit(1);
+        const { data: ex3 } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", identificador.toUpperCase()).order("criado_em", { ascending: false }).limit(1);
         if (ex3 && ex3[0]?.id) existingDoc = ex3[0];
       }
       if (existingDoc) {
@@ -1242,6 +1334,7 @@ Deno.serve(async (req) => {
           paciente_nome: pacienteNome,
           paciente_id: pacienteId,
           titulo: body.titulo ? titulo : (existingDoc.titulo || titulo),
+          identificador: existingDoc.identificador || identificador,
           conteudo: (body.conteudo || body.html) ? conteudo : (existingDoc.conteudo || conteudo),
           itens: snap,
           atualizado_em: new Date().toISOString(),
@@ -1251,6 +1344,7 @@ Deno.serve(async (req) => {
         return json({ ok: true, id: existingDoc.id, identificador, token, action: "updated" });
       } else {
         const insertPayload: Record<string, any> = {
+          identificador,
           paciente_id: pacienteId,
           paciente_nome: pacienteNome,
           tipo: "contrato",
@@ -1261,6 +1355,8 @@ Deno.serve(async (req) => {
         };
         if (isUuid) {
           insertPayload.id = identificador;
+        } else if (isDocIdUuid) {
+          insertPayload.id = targetDocId;
         }
 
         const { data: ins, error: insErr } = await supabase.from("documentos_clinicos").insert(insertPayload).select().maybeSingle();
@@ -1296,8 +1392,8 @@ Deno.serve(async (req) => {
       }
 
       // Validação do Token Criptográfico
-      const tokenArmazenado = doc.itens?.token;
-      if (!tokenArmazenado || tokenArmazenado !== token) {
+      const { valido: tokenValidoGet, tokenArmazenado: tokenArmazenadoGet } = await extrairTokenArmazenadoValido(supabase, doc, token);
+      if (!tokenValidoGet) {
         return json({ error: "Token de acesso inválido ou expirado" }, 403);
       }
 
@@ -1403,8 +1499,8 @@ Deno.serve(async (req) => {
       }
 
       // Validação estrita do token
-      const tokenArmazenado = doc.itens?.token;
-      if (!tokenArmazenado || tokenArmazenado !== token) {
+      const { valido: tokenValidoSign, tokenArmazenado } = await extrairTokenArmazenadoValido(supabase, doc, token);
+      if (!tokenValidoSign) {
         return json({ error: "Token de acesso inválido ou expirado" }, 403);
       }
 
@@ -1427,6 +1523,9 @@ Deno.serve(async (req) => {
 
       const existingItens = typeof doc.itens === "object" && doc.itens ? doc.itens : {};
       const updatedSnapshot = { ...existingItens };
+      if (!updatedSnapshot.token && tokenArmazenado) {
+        updatedSnapshot.token = tokenArmazenado;
+      }
 
       // Se dados cadastrais do paciente estiverem ausentes no snapshot prévio, hidrata do banco
       const targetPacId = doc.paciente_id || updatedSnapshot.pacienteId || updatedSnapshot.paciente?.id;
@@ -1855,8 +1954,8 @@ Deno.serve(async (req) => {
       }
 
       // Validação estrita de Token
-      const tokenArmazenado = doc.itens?.token;
-      if (!tokenArmazenado || tokenArmazenado !== token) {
+      const { valido: tokenValidoPdf } = await extrairTokenArmazenadoValido(supabase, doc, token);
+      if (!tokenValidoPdf) {
         return json({ error: "Token de acesso inválido ou expirado" }, 403);
       }
 
@@ -1913,8 +2012,8 @@ Deno.serve(async (req) => {
       }
 
       // Validação estrita de Token
-      const tokenArmazenado = doc.itens?.token;
-      if (!tokenArmazenado || tokenArmazenado !== token) {
+      const { valido: tokenValidoUpload } = await extrairTokenArmazenadoValido(supabase, doc, token);
+      if (!tokenValidoUpload) {
         return json({ error: "Token de acesso inválido ou expirado" }, 403);
       }
 

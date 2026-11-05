@@ -504,8 +504,11 @@ export default function AssinarContrato() {
             }
             query = query.or(orConditions.join(','));
 
-            const { data: docs } = await query.order('criado_em', { ascending: false }).limit(2);
-            let doc = docs?.[0];
+            const { data: docs } = await query.order('criado_em', { ascending: false }).limit(5);
+            let doc = (token ? docs?.find((d: any) => {
+              const s = (d.itens || {}) as any;
+              return s.token === token || s.contratoToken === token || s.tokenAssinatura === token;
+            }) : null) || docs?.[0];
 
             // Se ainda não encontrou e temos o slug do paciente, busca pelo nome do paciente
             if (!doc && rawSlug) {
@@ -890,7 +893,7 @@ export default function AssinarContrato() {
       };
 
       const contractId = docDbId || targetId || snapshot.contratoId;
-      const contractToken = token || snapshot.token || (snapshot as any)?.token || '';
+      const contractToken = token || snapshot.token || (snapshot as any)?.token || (snapshot as any)?.contratoToken || (snapshot as any)?.tokenAssinatura || '';
 
       // 1. Persistência prioritária via Edge Function pública (sem marcar assinado localmente antes do servidor)
       let persistiuRemoto = false;

@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
 import { registrarAuditoria } from './useAuditLog';
+import { gerarTokenAcessoOrcamento } from '@/utils/orcamentoEngine';
 
 export type StatusOrcamento =
   | 'rascunho'
@@ -169,7 +170,12 @@ export const useOrcamentos = (pacienteId?: string) => {
     };
     payload.assinatura_paciente = snapAssinatura;
 
-    if (o.tokenAssinatura) payload.token_assinatura = o.tokenAssinatura;
+    const tokenAssinaturaFinal = o.tokenAssinatura || (o as any).token_assinatura || (!o.id ? gerarTokenAcessoOrcamento() : undefined);
+    if (tokenAssinaturaFinal) {
+      payload.token_assinatura = tokenAssinaturaFinal;
+      snapAssinatura.tokenAssinatura = tokenAssinaturaFinal;
+      (snapAssinatura as any).token = tokenAssinaturaFinal;
+    }
     if (o.dataExpiracaoLink) payload.data_expiracao_link = o.dataExpiracaoLink;
     if (o.aprovadoEm) payload.data_assinatura = o.aprovadoEm;
 
