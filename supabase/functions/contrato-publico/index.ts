@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
 import { jsPDF } from "https://esm.sh/jspdf@2.5.1";
+import qrcode from "https://esm.sh/qrcode-generator@1.4.4";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -24,6 +25,19 @@ async function gerarHashConteudo(texto: string): Promise<string> {
   } catch (_) {
     return "";
   }
+}
+
+function identificarTipoDocumento(doc?: string | null): "cpf" | "cnpj" | "outro" {
+  if (!doc) return "outro";
+  const d = String(doc).replace(/\D/g, "");
+  if (d.length === 11) return "cpf";
+  if (d.length === 14) return "cnpj";
+  return "outro";
+}
+
+function formatarMoedaBr(num?: number | null): string {
+  if (typeof num !== "number" || isNaN(num)) return "R$ 0,00";
+  return `R$ ${num.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function temValorValido(val?: string | null): boolean {
@@ -285,11 +299,13 @@ function gerarPdfServidorContrato(snap: any, docClinico?: any): Uint8Array {
     }
   }
 
+  const clinicaNome = (snap.clinica?.nome || docClinico?.dentista || "CLÍNICA ODONTOLÓGICA").trim();
+
   function drawHeaderSmall() {
     pdf.setFont("helvetica", "normal");
     pdf.setFontSize(7.5);
     pdf.setTextColor(110, 110, 110);
-    pdf.text(`Clínica Dra. Rosângela Santos Pereira | Contrato Odontológico Ref: ${snap.contratoId || docClinico?.identificador || "CTR"}`, margin, y);
+    pdf.text(`${clinicaNome} | Contrato Odontológico Ref: ${snap.contratoId || docClinico?.identificador || "CTR"}`, margin, y);
     pdf.setDrawColor(210, 210, 210);
     pdf.setLineWidth(0.5);
     pdf.line(margin, y + 4, pageW - margin, y + 4);
@@ -300,7 +316,7 @@ function gerarPdfServidorContrato(snap: any, docClinico?: any): Uint8Array {
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(13);
   pdf.setTextColor(15, 23, 42); // slate-900
-  pdf.text("CLÍNICA ODONTOLÓGICA DRA. ROSÂNGELA SANTOS PEREIRA", margin, y);
+  pdf.text(clinicaNome.toUpperCase(), margin, y);
   y += 16;
 
   pdf.setFontSize(10.5);
@@ -312,7 +328,7 @@ function gerarPdfServidorContrato(snap: any, docClinico?: any): Uint8Array {
   pdf.setFontSize(8);
   pdf.setTextColor(100, 116, 139);
   const dataFormatada = snap.emitidoEm ? new Date(snap.emitidoEm).toLocaleDateString("pt-BR") : new Date().toLocaleDateString("pt-BR");
-  pdf.text(`Identificador Único: ${snap.contratoId || docClinico?.identificador || "CTR"}  |  Formalização: ${dataFormatada}  |  Versão Registrada: 1.0`, margin, y);
+  pdf.text(`Identificador Único: ${snap.contratoId || docClinico?.identificador || "CTR"}  |  Formalização: ${dataFormatada}  |  Versão Registrada: ${snap.versao || "1.0"}`, margin, y);
   y += 10;
 
   pdf.setDrawColor(37, 99, 235); // blue-600
@@ -331,10 +347,23 @@ function gerarPdfServidorContrato(snap: any, docClinico?: any): Uint8Array {
   pdf.setFontSize(8);
   pdf.setTextColor(51, 65, 85);
 
-  const txtContratada = "CONTRATADA: DRA. ROSÂNGELA SANTOS PEREIRA, Cirurgiã-Dentista, inscrita no CRO-AL sob o nº 06267, com consultório odontológico estabelecido no endereço profissional da clínica.";
+  const tipoDocClinica = identificarTipoDocumento(snap.clinica?.cnpj);
+  const docClinica = temValorValido(snap.clinica?.cnpj) ? formatarDocumento(snap.clinica.cnpj) : (snap.clinica?.cnpj || "Não informado");
+  const endClinica = snap.clinica?.endereco || "Endereço da clínica";
+  const telClinica = temValorValido(snap.clinica?.telefone) ? formatarTelefone(snap.clinica.telefone) : (snap.clinica?.telefone || "Não informado");
+  const emailClinica = snap.clinica?.email || "Não informado";
+  const respTecnica = (snap.clinica?.dentistaResponsavel || snap.dentista || "Cirurgião(ã)-Dentista Responsável").trim();
+  const croClinica = (snap.clinica?.cro || "CRO sob consulta").trim();
+
+  let txtContratada = "";
+  if (tipoDocClinica === "cnpj") {
+    txtContratada = `CONTRATADA: ${clinicaNome.toUpperCase()}, pessoa jurídica de direito privado inscrita no CNPJ sob o nº ${docClinica}, com sede estabelecida em ${endClinica}, telefone: ${telClinica}, e-mail: ${emailClinica}, tendo como Responsável Técnica a ${respTecnica}, inscrita no Conselho Regional de Odontologia sob o CRO nº ${croClinica}.`;
+  } else {
+    txtContratada = `CONTRATADA: ${clinicaNome.toUpperCase()}, Cirurgiã(o)-Dentista inscrita(o) no Conselho Regional de Odontologia sob o CRO nº ${croClinica}, inscrita(o) no CPF/MF sob o nº ${docClinica}, com consultório estabelecido em ${endClinica}, telefone: ${telClinica}, e-mail: ${emailClinica}.`;
+  }
   const lContratada = pdf.splitTextToSize(txtContratada, contentW);
   pdf.text(lContratada, margin, y);
-  y += lContratada.length * 10 + 5;
+  y += lContratada.length * 10 + 6;
 
   const pacNome = snap.paciente?.nome || docClinico?.paciente_nome || "Paciente";
   const pacCpf = temValorValido(snap.paciente?.cpf) ? formatarDocumento(snap.paciente.cpf) : (snap.paciente?.cpf || "Não informado");
@@ -373,7 +402,7 @@ function gerarPdfServidorContrato(snap: any, docClinico?: any): Uint8Array {
   y += lObj.length * 10 + 8;
 
   // Procedimentos
-  const procs = snap.procedimentos || snap.itensContrato || [];
+  const procs = snap.procedimentos || snap.itensContrato || snap.orcamento?.itens || [];
   if (Array.isArray(procs) && procs.length > 0) {
     pdf.setFillColor(248, 250, 252);
     pdf.setDrawColor(226, 232, 240);
@@ -395,16 +424,16 @@ function gerarPdfServidorContrato(snap: any, docClinico?: any): Uint8Array {
       pdf.setDrawColor(241, 245, 249);
       pdf.line(margin, y + 14, pageW - margin, y + 14);
       pdf.text(proc.nome || proc.descricao || "Procedimento Clínico", margin + 8, y + 10);
-      pdf.text(proc.dente || proc.regiao || "Conforme plano", margin + 260, y + 10);
-      const val = typeof proc.valor === "number" ? `R$ ${proc.valor.toFixed(2)}` : (proc.valor || "Incluso");
+      pdf.text(proc.dente || proc.denteOuRegiao || proc.regiao || "Conforme plano", margin + 260, y + 10);
+      const val = typeof proc.valor === "number" ? formatarMoedaBr(proc.valor) : (typeof proc.valorTotal === "number" ? formatarMoedaBr(proc.valorTotal) : (proc.valor || "Incluso"));
       pdf.text(String(val), pageW - margin - 50, y + 10);
       y += 16;
     }
     y += 8;
   }
 
-  // 4. VALOR E FORMA DE PAGAMENTO
-  checkPageBreak(50);
+  // 4. VALOR E FORMA DE PAGAMENTO DETALHADA
+  checkPageBreak(90);
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(9.5);
   pdf.setTextColor(15, 23, 42);
@@ -415,13 +444,133 @@ function gerarPdfServidorContrato(snap: any, docClinico?: any): Uint8Array {
   pdf.setFontSize(8);
   pdf.setTextColor(51, 65, 85);
 
-  const totalNum = snap.financeiro?.valorTotal || docClinico?.valor_total;
-  const totalFormatado = totalNum ? `R$ ${Number(totalNum).toFixed(2)}` : "Conforme orçamento";
-  const condFormatada = snap.financeiro?.condicoes || snap.financeiro?.formaPagamento || "Condição de pagamento pactuada em orçamento.";
-  const txtFin = `O valor total ajustado para os procedimentos acima descritos é de ${totalFormatado}, a ser adimplido sob as seguintes condições: ${condFormatada}.`;
+  const totalNum = snap.financeiro?.total ?? snap.financeiro?.valorTotal ?? docClinico?.valor_total;
+  const totalFormatado = formatarMoedaBr(totalNum);
+  const subtotalNum = snap.financeiro?.subtotal;
+  const subtotalFormatado = subtotalNum ? formatarMoedaBr(subtotalNum) : null;
+  const descontoNum = snap.financeiro?.desconto;
+  const descontoFormatado = (descontoNum && descontoNum > 0) ? formatarMoedaBr(descontoNum) : null;
+  const totalExtenso = snap.financeiro?.totalExtenso ? ` (${snap.financeiro.totalExtenso})` : "";
+  const condFormatada = snap.financeiro?.formaPagamento || snap.financeiro?.condicoes || "Condição de pagamento pactuada em orçamento.";
+
+  let txtFin = `O valor total ajustado para os procedimentos acima descritos é de ${totalFormatado}${totalExtenso}`;
+  if (subtotalFormatado && descontoFormatado) {
+    txtFin += ` (valor original: ${subtotalFormatado}, com desconto contratual de ${descontoFormatado})`;
+  }
+  txtFin += `, a ser adimplido sob as seguintes condições formalmente aprovadas: ${condFormatada}.`;
   const lFin = pdf.splitTextToSize(txtFin, contentW);
   pdf.text(lFin, margin, y);
-  y += lFin.length * 10 + 14;
+  y += lFin.length * 10 + 10;
+
+  // Cronograma Financeiro em Tabela
+  const parcelas = snap.financeiro?.parcelas || [];
+  if (Array.isArray(parcelas) && parcelas.length > 0) {
+    checkPageBreak(50 + parcelas.length * 16);
+    pdf.setFillColor(248, 250, 252);
+    pdf.setDrawColor(226, 232, 240);
+    pdf.rect(margin, y, contentW, 16, "FD");
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(7.5);
+    pdf.setTextColor(71, 85, 105);
+    pdf.text("PARCELA", margin + 8, y + 11);
+    pdf.text("DESCRIÇÃO", margin + 65, y + 11);
+    pdf.text("VENCIMENTO", margin + 260, y + 11);
+    pdf.text("VALOR", pageW - margin - 120, y + 11);
+    pdf.text("SITUAÇÃO", pageW - margin - 55, y + 11);
+    y += 16;
+
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(7.5);
+    pdf.setTextColor(51, 65, 85);
+
+    for (const p of parcelas) {
+      checkPageBreak(18);
+      pdf.setDrawColor(241, 245, 249);
+      pdf.line(margin, y + 14, pageW - margin, y + 14);
+      pdf.text(String(p.numero ?? "-"), margin + 8, y + 10);
+      pdf.text(String(p.descricao || "Parcela"), margin + 65, y + 10);
+      pdf.text(String(p.vencimento || "Conforme plano"), margin + 260, y + 10);
+      const valFmt = typeof p.valor === "number" ? formatarMoedaBr(p.valor) : String(p.valor || "-");
+      pdf.text(valFmt, pageW - margin - 120, y + 10);
+      pdf.text(String(p.status || "A vencer"), pageW - margin - 55, y + 10);
+      y += 16;
+    }
+    y += 10;
+  }
+
+  // Quadro de Pagamento PIX Bacen com Favorecido, Banco, Chave e QR Code
+  const temPix = /pix/i.test(condFormatada) || (Array.isArray(parcelas) && parcelas.some((p: any) => /pix/i.test(p.metodo || p.descricao || "")));
+  const chavePix = snap.clinica?.chavePix;
+  if (temPix && chavePix) {
+    checkPageBreak(95);
+    const pixBoxW = contentW;
+    const pixBoxH = 84;
+    pdf.setFillColor(240, 253, 244); // green-50
+    pdf.setDrawColor(187, 247, 208); // green-200
+    pdf.setLineWidth(0.8);
+    pdf.roundedRect(margin, y, pixBoxW, pixBoxH, 4, 4, "FD");
+
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(8.5);
+    pdf.setTextColor(22, 101, 52); // green-800
+    pdf.text("PAGAMENTO VIA PIX — DADOS OFICIAIS DA CLÍNICA", margin + 10, y + 14);
+
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(7.5);
+    pdf.setTextColor(51, 65, 85);
+
+    const favorecido = snap.clinica?.favorecidoPix || clinicaNome;
+    const banco = snap.clinica?.bancoPix || "Nu Pagamentos S.A. (260)";
+    const tipoChave = snap.clinica?.tipoChavePix ? ` (${snap.clinica.tipoChavePix.toUpperCase()})` : "";
+    const chaveFmt = formatarDocumento(chavePix) || chavePix;
+
+    pdf.text(`Favorecido: ${favorecido}`, margin + 10, y + 27);
+    pdf.text(`Banco: ${banco}`, margin + 10, y + 38);
+    pdf.text(`Chave PIX: ${chaveFmt}${tipoChave}`, margin + 10, y + 49);
+
+    const instrucoes = snap.clinica?.instrucoesPix || "Utilize o app do seu banco para transferir para a chave informada acima ou efetuar a leitura do QR Code.";
+    const lInst = pdf.splitTextToSize(instrucoes, pixBoxW - 95);
+    pdf.setFontSize(7);
+    pdf.setTextColor(71, 85, 105);
+    pdf.text(lInst, margin + 10, y + 62);
+
+    // Desenha QR Code no canto direito
+    let payloadParaQr = "";
+    if (Array.isArray(parcelas)) {
+      const pPix = parcelas.find((p: any) => p.payloadPix);
+      if (pPix?.payloadPix) payloadParaQr = pPix.payloadPix;
+    }
+    if (!payloadParaQr && snap.financeiro?.payloadPix) {
+      payloadParaQr = snap.financeiro.payloadPix;
+    }
+
+    if (payloadParaQr && typeof qrcode === "function") {
+      try {
+        const qr = qrcode(0, "M");
+        qr.addData(payloadParaQr);
+        qr.make();
+        const count = qr.getModuleCount();
+        const qrSize = 60;
+        const qrX = pageW - margin - qrSize - 12;
+        const qrY = y + 12;
+        const cellSize = qrSize / count;
+
+        pdf.setFillColor(255, 255, 255);
+        pdf.rect(qrX - 3, qrY - 3, qrSize + 6, qrSize + 6, "F");
+        pdf.setFillColor(0, 0, 0);
+
+        for (let r = 0; r < count; r++) {
+          for (let c = 0; c < count; c++) {
+            if (qr.isDark(r, c)) {
+              pdf.rect(qrX + c * cellSize, qrY + r * cellSize, cellSize, cellSize, "F");
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    y += pixBoxH + 12;
+  }
 
   // 5. CLÁUSULAS CONTRATUAIS ESSENCIAIS E OBRIGAÇÕES MÚTUAS
   checkPageBreak(120);
