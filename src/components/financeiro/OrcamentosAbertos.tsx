@@ -41,7 +41,7 @@ interface Props {
 
 export const OrcamentosAbertos = ({ onLancarPagamento }: Props) => {
   const { orcamentos, loading, reload: reloadOrcamentos } = useOrcamentos();
-  const { transacoes, pacientes } = useDentalSystem();
+  const { transacoes, pacientes, reloadTransacoes } = useDentalSystem();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [apresentarOrcamento, setApresentarOrcamento] = useState<any | null>(null);
 

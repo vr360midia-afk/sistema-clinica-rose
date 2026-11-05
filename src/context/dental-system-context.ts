@@ -48,6 +48,8 @@ export interface DentalSystemContextType {
   clearTransacoes: () => Promise<void>;
   clearAnamneses: () => Promise<void>;
   migrateFromLocalStorage: () => Promise<void>;
+  reloadTransacoes: () => Promise<void>;
+  loadAllData: () => Promise<void>;
 }
 
 export const DentalSystemContext = createContext<DentalSystemContextType | undefined>(undefined);

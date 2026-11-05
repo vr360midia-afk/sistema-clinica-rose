@@ -152,6 +152,7 @@ class SupabaseService {
       parceiroId: data.parceiro_id,
       parceiroNome: data.parceiro_nome,
       valorParceiro: data.valor_parceiro,
+      orcamentoId: data.orcamento_id || data.orcamentoId,
       queixaPrincipal: data.queixa_principal,
       historiaDoenca: data.historia_doenca,
       exameClinico: data.exame_clinico,
