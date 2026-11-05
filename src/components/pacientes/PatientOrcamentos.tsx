@@ -7,7 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ClipboardList, Plus, Trash2, MessageCircle, Check, X, Handshake, FileText, Pencil, FileSignature, Sparkles, CalendarDays, Link as LinkIcon, Layers, CreditCard, Wallet, CheckCircle2, RefreshCw, Search, ChevronsUpDown, Calculator, Eye, DollarSign, Lock, AlertCircle, Clock, Download, ExternalLink, ShieldCheck, Loader2 } from 'lucide-react';
+import { ClipboardList, Plus, Trash2, Ban, MessageCircle, Check, X, Handshake, FileText, Pencil, FileSignature, Sparkles, CalendarDays, Link as LinkIcon, Layers, CreditCard, Wallet, CheckCircle2, RefreshCw, Search, ChevronsUpDown, Calculator, Eye, DollarSign, Lock, AlertCircle, Clock, Download, ExternalLink, ShieldCheck, Loader2 } from 'lucide-react';
+import { ModalExcluirRegistroFinanceiro } from '@/components/financeiro/ModalExcluirRegistroFinanceiro';
 import { supabase } from '@/integrations/supabase/client';
 import ModalApresentarOrcamento from '@/components/orcamentos/ModalApresentarOrcamento';
 import { Switch } from '@/components/ui/switch';
@@ -131,6 +132,15 @@ const PatientOrcamentos = ({ patient }: Props) => {
   const [contratoModalOpen, setContratoModalOpen] = useState(false);
   const [contratoOrcamento, setContratoOrcamento] = useState<Orcamento | null>(null);
   const [apresentarOrcamento, setApresentarOrcamento] = useState<Orcamento | null>(null);
+
+  // Estado para exclusão ou cancelamento financeiro seguro com governança
+  const [modalExcluirOpen, setModalExcluirOpen] = useState(false);
+  const [orcamentoParaExcluir, setOrcamentoParaExcluir] = useState<Orcamento | null>(null);
+
+  const handleSolicitarExclusaoOrcamento = (orc: Orcamento) => {
+    setOrcamentoParaExcluir(orc);
+    setModalExcluirOpen(true);
+  };
 
   // Estado para Visualizador Dedicado do PDF Bilateral Oficial Assinado (Storage privado)
   const [visualizadorPdfAssinado, setVisualizadorPdfAssinado] = useState<{
@@ -2257,6 +2267,12 @@ const PatientOrcamentos = ({ patient }: Props) => {
             <Sparkles className="h-3 w-3 text-indigo-600" /> Nova Proposta Enviada{v}
           </Badge>
         );
+      case 'cancelado':
+        return (
+          <Badge variant="outline" className="text-destructive border-destructive/40 bg-destructive/5 flex items-center gap-1 shrink-0 font-semibold">
+            <Ban className="h-3 w-3" /> Cancelado{v}
+          </Badge>
+        );
       case 'recusado':
         return (
           <Badge variant="destructive" className="flex items-center gap-1 shrink-0">
@@ -3121,7 +3137,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
                   </Button>
                 )}
 
-                {o?.status !== 'aprovado' && o?.status !== 'recusado' && (
+                {o?.status !== 'aprovado' && o?.status !== 'recusado' && o?.status !== 'cancelado' && (
                   <>
                     <Button size="sm" variant="outline" onClick={() => handleIniciarAprovacao(o)}>
                       <Check className="h-4 w-4 mr-1 text-emerald-600" /> Aprovar
@@ -3131,8 +3147,18 @@ const PatientOrcamentos = ({ patient }: Props) => {
                     </Button>
                   </>
                 )}
-                <Button size="sm" variant="ghost" onClick={() => deleteOrcamento(o.id)}>
-                  <Trash2 className="h-4 w-4 text-destructive" />
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => handleSolicitarExclusaoOrcamento(o)}
+                  title={
+                    o?.status === 'aprovado' || isContratoTotalmenteAssinado
+                      ? "Cancelar ou arquivar tratamento formalizado (Preserva contrato e histórico)"
+                      : "Excluir orçamento"
+                  }
+                  className="text-muted-foreground hover:text-destructive"
+                >
+                  <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
             </div>
@@ -3140,6 +3166,19 @@ const PatientOrcamentos = ({ patient }: Props) => {
         })
         )}
       </CardContent>
+
+      {/* Modal de Governança para Exclusão / Cancelamento Seguro de Orçamentos */}
+      <ModalExcluirRegistroFinanceiro
+        open={modalExcluirOpen}
+        onOpenChange={setModalExcluirOpen}
+        orcamento={orcamentoParaExcluir}
+        transacoes={transacoes}
+        onSuccess={() => {
+          setModalExcluirOpen(false);
+          setOrcamentoParaExcluir(null);
+          reload?.();
+        }}
+      />
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto w-full">

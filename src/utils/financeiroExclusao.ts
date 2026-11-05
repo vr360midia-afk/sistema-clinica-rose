@@ -72,10 +72,13 @@ export function analisarElegibilidadeFinanceira(
     contratoId &&
     (contratoStatus === 'assinado' ||
       contratoStatus === 'formalizado' ||
+      contratoStatus === 'assinaturas_realizadas' ||
       contratoStatus === 'aguardando_assinatura_dentista' ||
       contratoStatus === 'aguardando_assinatura_paciente' ||
       snap.assinaturaPaciente ||
-      snap.assinaturaDentista)
+      snap.assinaturaDentista ||
+      snap.assinaturaPacienteStatus === 'concluida' ||
+      snap.assinaturaDraStatus === 'concluida')
   );
 
   const isFicticio = isRegistroFicticioTeste(orcamento);

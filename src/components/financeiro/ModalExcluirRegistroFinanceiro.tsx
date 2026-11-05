@@ -247,7 +247,7 @@ export const ModalExcluirRegistroFinanceiro: React.FC<Props> = ({
         </div>
 
         <DialogFooter className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2 border-t">
-          <Button variant="outline" size="sm" onClick={onClose} disabled={salvando}>
+          <Button variant="outline" size="sm" onClick={handleClose} disabled={salvando}>
             Cancelar
           </Button>
           <Button

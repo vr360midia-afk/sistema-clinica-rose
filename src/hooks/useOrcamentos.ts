@@ -282,15 +282,43 @@ export const useOrcamentos = (pacienteId?: string) => {
     load();
   };
 
-  const deleteOrcamento = async (id: string) => {
-    const { error } = await supabase.from('orcamentos').delete().eq('id', id);
-    if (error) {
-      toast.error('Erro ao remover orçamento');
-      return;
+  const deleteOrcamento = async (id: string): Promise<boolean> => {
+    // 1. Verificação defensiva prévia: proíbe exclusão física de orçamentos aprovados ou com contrato
+    const { data: checkRow } = await supabase
+      .from('orcamentos')
+      .select('status, contrato_id, assinatura_paciente')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (checkRow) {
+      const snap = (checkRow.assinatura_paciente || {}) as any;
+      const temContrato = Boolean(checkRow.contrato_id || snap.contratoId);
+      if (checkRow.status === 'aprovado' || checkRow.status === 'formalizado' || temContrato) {
+        toast.error('Exclusão física bloqueada por segurança jurídica', {
+          description: 'Orçamentos aprovados ou com contrato formalizado devem ser cancelados/arquivados administrativamente, preservando a validade jurídica dos documentos.',
+        });
+        return false;
+      }
     }
+
+    // 2. Executa delete exigindo confirmação de linhas afetadas no banco via .select('id')
+    const { data, error } = await supabase.from('orcamentos').delete().eq('id', id).select('id');
+    if (error) {
+      toast.error('Erro ao remover orçamento: ' + error.message);
+      return false;
+    }
+
+    if (!data || data.length === 0) {
+      toast.error('O orçamento não pôde ser removido', {
+        description: 'Operação não autorizada pela segurança do banco (RLS) ou registro inexistente.',
+      });
+      return false;
+    }
+
     await registrarAuditoria({ acao: 'removeu', entidade: 'orcamento', entidadeId: id });
-    toast.success('Orçamento removido');
+    toast.success('Orçamento removido com sucesso');
     load();
+    return true;
   };
 
   return { orcamentos, loading, saveOrcamento, updateStatus, deleteOrcamento, reload: load };
