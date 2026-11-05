@@ -3,6 +3,7 @@ import { slugifyNome } from './anamneseEngine';
 import { obterBaseUrlOficial } from './contratoEngine';
 import {
   CondicaoPagamento,
+  extrairCondicaoEscolhida,
   parseCondicoesPagamento,
   obterTextoCondicaoParaContrato,
   filtrarApenasCondicaoEscolhida,
@@ -1285,7 +1286,9 @@ export async function aprovarOrcamentoPublico(params: {
               status: 'aprovado',
               pacienteId: o?.pacienteId || null,
               pacienteNome: o?.pacienteNome || 'Paciente',
+              formasPagamento: serializarCondicoesPagamento([condicaoEscolhida], condicaoEscolhida.id),
               condicaoEscolhida,
+              condicoes: [condicaoEscolhida],
               validade: o?.validade,
               observacoes: o?.observacoes,
               criadoEm: new Date(),
@@ -1657,21 +1660,22 @@ export async function gerarContratoDoOrcamentoAprovado(params: {
     } catch (_) {}
   }
 
-  // 1. Identifica a condição aprovada
-  const condicoes = 'condicoes' in orcamento && Array.isArray(orcamento.condicoes)
-    ? orcamento.condicoes
-    : parseCondicoesPagamento((orcamento as any).formasPagamento || (orcamento as any).formas_pagamento, orcamento.total || 0);
+  // 1. Identifica a condição aprovada com rastreabilidade total
+  const condicaoEscolhida = extrairCondicaoEscolhida(orcamento);
 
-  const condicaoEscolhida =
-    ('condicaoEscolhida' in orcamento && orcamento.condicaoEscolhida) ||
-    condicoes.find((c) => c.selecionada) ||
-    condicoes[0];
+  if (!condicaoEscolhida) {
+    return {
+      ok: false,
+      contratoId: '',
+      contratoToken: '',
+      contratoLink: '',
+      snapshot: null as any,
+      error: 'Emissão bloqueada: o orçamento não possui uma condição de pagamento aprovada para gerar o cronograma financeiro.',
+    };
+  }
 
-  // 2. Filtra estritamente apenas a condição aprovada para que nenhuma outra apareça no contrato
-  const { formasPagamentoFinal } = filtrarApenasCondicaoEscolhida(
-    condicoes,
-    condicaoEscolhida?.id
-  );
+  // 2. Serializa estritamente a condição aprovada para que conste no contrato
+  const formasPagamentoFinal = serializarCondicoesPagamento([condicaoEscolhida], condicaoEscolhida.id);
 
   const orcamentoAprovadoParaContrato: Orcamento = {
     id: orcamento.id,
@@ -1679,7 +1683,9 @@ export async function gerarContratoDoOrcamentoAprovado(params: {
     pacienteId: orcamento.pacienteId || patient?.id,
     pacienteNome: orcamento.pacienteNome || patient?.nome,
     itens: orcamento.itens || [],
-    desconto: orcamento.desconto || 0,
+    desconto: typeof condicaoEscolhida?.descontoValor === 'number'
+      ? condicaoEscolhida.descontoValor
+      : (orcamento.desconto || 0),
     total: typeof condicaoEscolhida?.valorTotal === 'number' && condicaoEscolhida.valorTotal > 0
       ? condicaoEscolhida.valorTotal
       : orcamento.total,
@@ -1689,7 +1695,7 @@ export async function gerarContratoDoOrcamentoAprovado(params: {
     formasPagamento: formasPagamentoFinal,
     criadoEm: new Date(),
     atualizadoEm: new Date(),
-    condicoes,
+    condicoes: [condicaoEscolhida],
     condicaoEscolhida,
   } as any;
 

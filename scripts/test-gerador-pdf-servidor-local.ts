@@ -1,3 +1,137 @@
+
+function formatarDataBrContratoLocal(isoStr?: string | null): string {
+  if (!isoStr) return "";
+  const d = new Date(isoStr);
+  if (isNaN(d.getTime())) return String(isoStr);
+  const dia = String(d.getDate()).padStart(2, "0");
+  const mes = String(d.getMonth() + 1).padStart(2, "0");
+  const ano = d.getFullYear();
+  return `${dia}/${mes}/${ano}`;
+}
+
+function somarMesesContratoLocal(baseIso: string | Date, qtdMeses: number, diaFixo = 10): string {
+  const d = new Date(baseIso);
+  d.setMonth(d.getMonth() + qtdMeses);
+  d.setDate(diaFixo);
+  return formatarDataBrContratoLocal(d.toISOString());
+}
+
+function gerarParcelasServidorContratoLocal(cond: any, total: number, dataIso = new Date().toISOString()): any[] {
+  if (!cond) return [];
+  const tipo = cond.tipo || 'personalizado';
+  const hoje = new Date(dataIso || Date.now());
+  const diaPadrao = Math.min(28, Math.max(1, cond.diaVencimento || 10));
+
+  if (tipo === 'a_vista') {
+    const val = typeof cond.valorTotal === 'number' && cond.valorTotal > 0 ? cond.valorTotal : total;
+    const venc = cond.dataEntrada ? formatarDataBrContratoLocal(cond.dataEntrada) : formatarDataBrContratoLocal(dataIso);
+    return [{
+      numero: 1,
+      descricao: 'Pagamento Único via PIX',
+      vencimento: venc,
+      valor: val,
+      metodo: 'PIX',
+      status: cond.situacaoEntrada === 'Quitada' ? 'Quitada' : 'A vencer',
+    }];
+  }
+
+  if (tipo === 'cartao') {
+    const qtd = Math.max(1, cond.parcelas || 1);
+    const isDeb = cond.tipoCartao === 'debito';
+    const mNome = isDeb ? 'Cartão de Débito' : 'Cartão de Crédito';
+    const valBase = Math.floor((total / qtd) * 100) / 100;
+    const centavos = Math.round((total - (valBase * qtd)) * 100);
+    const parcs: any[] = [];
+    for (let i = 0; i < qtd; i++) {
+      const v = Number((valBase + (i < centavos ? 0.01 : 0)).toFixed(2));
+      parcs.push({
+        numero: i + 1,
+        descricao: qtd === 1 ? `Pagamento em ${mNome}` : `Parcela ${i + 1} de ${qtd} (${mNome})`,
+        vencimento: 'Fatura do Cartão',
+        valor: v,
+        metodo: mNome,
+        status: isDeb ? (cond.situacaoSaldo === 'Quitado' ? 'Quitada' : 'Autorizado') : 'Autorizado',
+      });
+    }
+    return parcs;
+  }
+
+  if (tipo === 'entrada_saldo') {
+    const entVal = Number(cond.valorEntrada || 0);
+    const saldoTotal = Math.max(0, Number((total - entVal).toFixed(2)));
+    const qtdSaldo = Math.max(1, cond.saldoParcelas || 1);
+    let mEnt = 'PIX';
+    if (cond.metodoEntrada === 'cartao_credito') mEnt = 'Cartão de Crédito';
+    else if (cond.metodoEntrada === 'cartao_debito') mEnt = 'Cartão de Débito';
+    else if (cond.metodoEntrada === 'dinheiro') mEnt = 'Dinheiro';
+    else if (cond.metodoEntrada === 'transferencia') mEnt = 'Transferência';
+
+    let mSal = 'Cartão de Crédito';
+    if (cond.saldoMetodo === 'pix_parcelado') mSal = 'PIX Parcelado';
+    else if (cond.saldoMetodo === 'boleto') mSal = 'Boleto Bancário';
+    else if (cond.saldoMetodo === 'conclusao') mSal = 'Na Conclusão do Tratamento';
+
+    const isCartaoSaldo = /cart[aã]o/i.test(mSal);
+    const parcs: any[] = [];
+    if (entVal > 0) {
+      parcs.push({
+        numero: 1,
+        descricao: `Entrada Inicial (${mEnt})`,
+        vencimento: cond.dataEntrada ? formatarDataBrContratoLocal(cond.dataEntrada) : formatarDataBrContratoLocal(dataIso),
+        valor: entVal,
+        metodo: mEnt,
+        status: cond.situacaoEntrada === 'Quitada' ? 'Quitada' : 'A vencer',
+      });
+    }
+
+    const valBase = Math.floor((saldoTotal / qtdSaldo) * 100) / 100;
+    const centavos = Math.round((saldoTotal - (valBase * qtdSaldo)) * 100);
+
+    for (let i = 0; i < qtdSaldo; i++) {
+      const v = Number((valBase + (i < centavos ? 0.01 : 0)).toFixed(2));
+      const venc = isCartaoSaldo ? 'Fatura do Cartão' : somarMesesContratoLocal(hoje, i + 1, diaPadrao);
+      parcs.push({
+        numero: parcs.length + 1,
+        descricao: qtdSaldo === 1 ? `Saldo Restante (${mSal})` : `Saldo Restante (${i + 1}/${qtdSaldo} - ${mSal})`,
+        vencimento: venc,
+        valor: v,
+        metodo: mSal,
+        status: isCartaoSaldo ? 'Autorizado' : (cond.situacaoSaldo === 'Quitado' ? 'Quitada' : 'A vencer'),
+      });
+    }
+    return parcs;
+  }
+
+  if (tipo === 'pix_parcelado') {
+    const qtd = Math.max(1, cond.parcelas || 1);
+    const valBase = Math.floor((total / qtd) * 100) / 100;
+    const centavos = Math.round((total - (valBase * qtd)) * 100);
+    const parcs: any[] = [];
+    for (let i = 0; i < qtd; i++) {
+      const v = Number((valBase + (i < centavos ? 0.01 : 0)).toFixed(2));
+      const venc = cond.dataPrimeiroVencimento && i === 0 ? formatarDataBrContratoLocal(cond.dataPrimeiroVencimento) : somarMesesContratoLocal(hoje, i + 1, diaPadrao);
+      parcs.push({
+        numero: i + 1,
+        descricao: `Parcela ${i + 1} de ${qtd} (PIX Parcelado)`,
+        vencimento: venc,
+        valor: v,
+        metodo: 'PIX Parcelado',
+        status: cond.situacaoSaldo === 'Quitado' ? 'Quitada' : 'A vencer',
+      });
+    }
+    return parcs;
+  }
+
+  return [{
+    numero: 1,
+    descricao: cond.titulo || 'Pagamento Único',
+    vencimento: formatarDataBrContratoLocal(dataIso),
+    valor: total,
+    metodo: 'PIX',
+    status: 'A vencer',
+  }];
+}
+
 import { jsPDF } from "jspdf";
 import qrcode from "qrcode-generator";
 
@@ -243,7 +377,13 @@ export function gerarPdfServidorContrato(snap: any, docClinico?: any, qrcodeFn?:
   y += lFin.length * 10 + 10;
 
   // Cronograma Financeiro em Tabela
-  const parcelas = snap.financeiro?.parcelas || [];
+  let parcelas = snap.financeiro?.parcelas || [];
+  if (!Array.isArray(parcelas) || parcelas.length === 0) {
+    const condAprov = snap.financeiro?.condicaoEscolhida || snap.orcamento?.condicaoEscolhida;
+    if (condAprov) {
+      parcelas = gerarParcelasServidorContratoLocal(condAprov, totalNum || 0, snap.emitidoEm || dataFormatada);
+    }
+  }
   if (Array.isArray(parcelas) && parcelas.length > 0) {
     checkPageBreak(50 + parcelas.length * 16);
     pdf.setFillColor(248, 250, 252);

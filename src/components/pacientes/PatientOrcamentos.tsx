@@ -30,7 +30,7 @@ import {
   enviarNovaPropostaOrcamento,
 } from '@/utils/orcamentoEngine';
 import { useDentalSystem } from '@/context/DentalSystemContext';
-import { isContratoLenteResina, isContratoEndodontia, mapearDadosContrato, gerarLinkAssinaturaContrato, parseBrMoney, garantirContratoPersistido, emitirContratoPersistido, gerarHtmlContrato, validarDadosContratada } from '@/utils/contratoEngine';
+import { isContratoLenteResina, isContratoEndodontia, mapearDadosContrato, gerarLinkAssinaturaContrato, parseBrMoney, garantirContratoPersistido, emitirContratoPersistido, gerarHtmlContrato, validarDadosContratada, validarCronogramaFinanceiroContrato } from '@/utils/contratoEngine';
 import { downloadHtmlAsPdf } from '@/utils/pdfDownload';
 import { reconciliarContratosEOrcamentos } from '@/utils/reconciliacaoContratos';
 import { obterPdfContratoOficialDefinitivo } from '@/utils/contratoPdfOficial';
@@ -928,6 +928,8 @@ const PatientOrcamentos = ({ patient }: Props) => {
           total: totalFinal,
           desconto: descontoFinal,
           formasPagamento: formasAtualizadas,
+          condicaoEscolhida: condicaoEscolhidaObj,
+          condicoes: condicaoEscolhidaObj ? [condicaoEscolhidaObj] : undefined,
           status: 'aprovado',
         };
         await saveOrcamento({
@@ -937,6 +939,8 @@ const PatientOrcamentos = ({ patient }: Props) => {
           desconto: descontoFinal,
           observacoes: o.observacoes,
           formasPagamento: formasAtualizadas,
+          condicaoEscolhida: condicaoEscolhidaObj,
+          condicoes: condicaoEscolhidaObj ? [condicaoEscolhidaObj] : undefined,
           pacienteId: o.pacienteId || patient?.id,
           pacienteNome: o.pacienteNome || patient?.nome,
           status: 'aprovado',
@@ -2154,6 +2158,15 @@ const PatientOrcamentos = ({ patient }: Props) => {
       dentistas,
       dadosRestauracoesPreexistentes: patient?.restauracoesPreexistentes,
     });
+
+    const valCronograma = validarCronogramaFinanceiroContrato(snap);
+    if (!valCronograma.valido) {
+      toast.error('Emissão do contrato bloqueada: cronograma financeiro incompleto.', {
+        description: valCronograma.erros[0] || 'Aprove o orçamento selecionando a condição de pagamento acordada com o paciente.',
+      });
+      return;
+    }
+
     const resEmissao = await emitirContratoPersistido(snap, o.id);
     const link = resEmissao.link;
     navigator.clipboard.writeText(link);
@@ -2200,6 +2213,15 @@ const PatientOrcamentos = ({ patient }: Props) => {
       dentistas,
       dadosRestauracoesPreexistentes: patient?.restauracoesPreexistentes,
     });
+
+    const valCronogramaWhats = validarCronogramaFinanceiroContrato(snap);
+    if (!valCronogramaWhats.valido) {
+      toast.error('Emissão do contrato bloqueada: cronograma financeiro incompleto.', {
+        description: valCronogramaWhats.erros[0] || 'Aprove o orçamento selecionando a condição de pagamento acordada com o paciente.',
+      });
+      return;
+    }
+
     const resEmissaoWhats = await emitirContratoPersistido(snap, o.id);
     const link = resEmissaoWhats.link;
 

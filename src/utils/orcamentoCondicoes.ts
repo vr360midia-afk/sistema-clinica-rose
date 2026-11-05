@@ -453,10 +453,32 @@ export function parseTextoParaFormasCompostas(
  * Converte qualquer formato armazenado no campo formas_pagamento para a lista de Condicoes
  */
 export function parseCondicoesPagamento(
-  formasPagamentoStr?: string | null,
+  formasPagamentoStr?: string | null | any,
   totalBase: number = 0
 ): CondicaoPagamento[] {
-  if (!formasPagamentoStr || typeof formasPagamentoStr !== 'string' || !formasPagamentoStr.trim()) {
+  if (!formasPagamentoStr) {
+    return [];
+  }
+
+  // Se já for array ou objeto fornecido diretamente
+  if (typeof formasPagamentoStr === 'object') {
+    if (Array.isArray(formasPagamentoStr)) {
+      return formasPagamentoStr as CondicaoPagamento[];
+    }
+    if (Array.isArray((formasPagamentoStr as any).condicoes)) {
+      return (formasPagamentoStr as any).condicoes as CondicaoPagamento[];
+    }
+    if ((formasPagamentoStr as any).tipo) {
+      return [formasPagamentoStr as CondicaoPagamento];
+    }
+    try {
+      formasPagamentoStr = JSON.stringify(formasPagamentoStr);
+    } catch (_) {
+      return [];
+    }
+  }
+
+  if (typeof formasPagamentoStr !== 'string' || !formasPagamentoStr.trim()) {
     return [];
   }
 
@@ -485,6 +507,37 @@ export function parseCondicoesPagamento(
       const jsonCandidate = str.substring(startIdx, endIdx + 1);
       try {
         const parsed = JSON.parse(jsonCandidate);
+        if (parsed && typeof parsed === 'object' && parsed.tipo && !parsed.condicoes) {
+          const vTotal = typeof parsed.valorTotal === 'number' && parsed.valorTotal > 0 ? parsed.valorTotal : (totalBase > 0 ? totalBase : (parsed.valorTotal ?? 0));
+          return [{
+            id: parsed.id || '1',
+            titulo: parsed.titulo && parsed.titulo !== 'Condição de Pagamento' ? parsed.titulo : (parsed.descricao ? parsed.descricao.slice(0, 35) : 'Condição de Pagamento Aprovada'),
+            tipo: parsed.tipo || 'personalizado',
+            descontoPercentual: parsed.descontoPercentual,
+            descontoValor: parsed.descontoValor,
+            valorTotal: vTotal,
+            parcelas: parsed.parcelas,
+            valorParcela: parsed.valorParcela,
+            operadoraCartaoId: parsed.operadoraCartaoId,
+            tipoCartao: parsed.tipoCartao,
+            valorEntrada: parsed.valorEntrada,
+            metodoEntrada: parsed.metodoEntrada,
+            saldoTipoPrazo: parsed.saldoTipoPrazo,
+            saldoPrazoDias: parsed.saldoPrazoDias,
+            saldoParcelas: parsed.saldoParcelas,
+            saldoMetodo: parsed.saldoMetodo,
+            saldoValorParcela: parsed.saldoValorParcela,
+            dataEntrada: parsed.dataEntrada,
+            situacaoEntrada: parsed.situacaoEntrada,
+            dataPrimeiroVencimento: parsed.dataPrimeiroVencimento,
+            situacaoSaldo: parsed.situacaoSaldo,
+            diaVencimento: parsed.diaVencimento,
+            formasCompostas: Array.isArray(parsed.formasCompostas) ? parsed.formasCompostas : undefined,
+            descricao: parsed.descricao || calcularDescricaoCondicao(parsed, totalBase),
+            selecionada: true,
+            destaque: parsed.destaque,
+          }];
+        }
         if (Array.isArray(parsed.condicoes) && parsed.condicoes.length > 0) {
           return parsed.condicoes.map((c: any, index: number) => {
             const isSelecionada = Boolean(parsed.selecionadaId && String(c.id) === String(parsed.selecionadaId)) || Boolean(c.selecionada);
@@ -977,4 +1030,86 @@ export function calcularResumoCartaoCondicao(
     operadoraNome: opNome,
     operadoraId: opId,
   };
+}
+
+/**
+ * Extrai a condição de pagamento aprovada de qualquer representação de orçamento/snapshot
+ * com máxima abrangência e rastreabilidade total.
+ */
+export function extrairCondicaoEscolhida(orcamento: any): CondicaoPagamento | null {
+  if (!orcamento) return null;
+
+  const candidatos = [
+    orcamento.condicaoEscolhida,
+    orcamento.condicao_escolhida,
+    orcamento.condicaoAprovada,
+    orcamento.condicao_aprovada,
+    orcamento.snapshotAprovacao?.condicaoEscolhida,
+    orcamento.snapshotAprovacao?.condicao,
+    orcamento.snapshot_aprovacao?.condicaoEscolhida,
+    orcamento.snapshot_aprovacao?.condicao,
+    orcamento.assinatura_paciente?.condicaoEscolhida,
+    orcamento.assinatura_paciente?.condicao,
+    orcamento.assinatura_paciente?.condicaoAprovada,
+    orcamento.assinatura_paciente?.snapshotAprovacao?.condicao,
+    orcamento.snapshot?.condicaoEscolhida,
+    orcamento.snapshot?.financeiro?.condicaoEscolhida,
+    orcamento.financeiro?.condicaoEscolhida,
+  ];
+
+  for (const c of candidatos) {
+    if (c && typeof c === 'object') {
+      if (c.tipo || c.titulo || c.descricao) {
+        return {
+          id: c.id || '1',
+          titulo: c.titulo && c.titulo !== 'Condição de Pagamento' ? c.titulo : (c.descricao ? c.descricao.slice(0, 35) : 'Condição Aprovada'),
+          tipo: c.tipo || 'personalizado',
+          descontoPercentual: c.descontoPercentual,
+          descontoValor: c.descontoValor,
+          valorTotal: typeof c.valorTotal === 'number' && c.valorTotal > 0 ? c.valorTotal : (orcamento.total || 0),
+          parcelas: c.parcelas,
+          valorParcela: c.valorParcela,
+          operadoraCartaoId: c.operadoraCartaoId,
+          tipoCartao: c.tipoCartao,
+          valorEntrada: c.valorEntrada,
+          metodoEntrada: c.metodoEntrada,
+          saldoTipoPrazo: c.saldoTipoPrazo,
+          saldoPrazoDias: c.saldoPrazoDias,
+          saldoParcelas: c.saldoParcelas,
+          saldoMetodo: c.saldoMetodo,
+          saldoValorParcela: c.saldoValorParcela,
+          dataEntrada: c.dataEntrada,
+          situacaoEntrada: c.situacaoEntrada,
+          dataPrimeiroVencimento: c.dataPrimeiroVencimento,
+          situacaoSaldo: c.situacaoSaldo,
+          diaVencimento: c.diaVencimento,
+          formasCompostas: Array.isArray(c.formasCompostas) ? c.formasCompostas : undefined,
+          descricao: c.descricao || calcularDescricaoCondicao(c, orcamento.total || 0),
+          selecionada: true,
+          destaque: c.destaque,
+        };
+      }
+    }
+  }
+
+  // 2. Se houver array explícito de condições
+  if (Array.isArray(orcamento.condicoes) && orcamento.condicoes.length > 0) {
+    const sel = orcamento.condicoes.find((item: any) => item.selecionada) || orcamento.condicoes[0];
+    if (sel && sel.tipo && sel.tipo !== 'personalizado') return sel;
+  }
+
+  // 3. Parse das formas de pagamento
+  const formasRaw = orcamento.formasPagamento || orcamento.formas_pagamento;
+  if (formasRaw) {
+    const parsed = parseCondicoesPagamento(formasRaw, orcamento.total || 0);
+    const ativa = obterCondicaoAtiva(parsed);
+    if (ativa && ativa.tipo && ativa.tipo !== 'personalizado') {
+      return ativa;
+    }
+    if (ativa && ativa.descricao && !/a\s*combinar/i.test(ativa.descricao) && ativa.titulo !== 'Condição de Pagamento') {
+      return ativa;
+    }
+  }
+
+  return null;
 }

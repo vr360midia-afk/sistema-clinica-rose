@@ -507,7 +507,13 @@ export const gerarHtmlContratoEndodontia = (snapshot: ContratoSnapshot): string 
         4.1. O pagamento será realizado estritamente conforme a negociação financeira aprovada pelo paciente:
       </p>
       <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 8px 12px; font-family: Arial, sans-serif; font-size: 11px; line-height: 1.5; border-radius: 4px; margin: 4px 0 6px;">
-        • <strong>Forma de pagamento selecionada:</strong> ${limparFormaPagamentoParaContrato(financeiro.formaPagamento)}<br/>
+        • <strong>Forma de pagamento selecionada:</strong> ${(() => {
+          let f = limparFormaPagamentoParaContrato(financeiro.formaPagamento);
+          if (!f || /^condi[çc][aã]o de pagamento$/i.test(f) || /a\s*combinar/i.test(f)) {
+            f = orcamento.formasPagamento && !/^condi[çc][aã]o de pagamento$/i.test(orcamento.formasPagamento) ? orcamento.formasPagamento : 'Conforme negociação financeira aprovada';
+          }
+          return f;
+        })()}<br/>
         • <strong>Valor original:</strong> ${formatMoney(financeiro.subtotal || financeiro.total)}${financeiro.desconto > 0 ? ` • <strong>Desconto:</strong> ${formatMoney(financeiro.desconto)}` : ''}<br/>
         • <strong>Valor final aprovado:</strong> ${formatMoney(financeiro.total)} (${financeiro.totalExtenso})<br/>
         ${financeiro.entrada > 0 ? `• <strong>Entrada, quando aplicável:</strong> ${formatMoney(financeiro.entrada)}<br/>• <strong>Saldo a parcelar:</strong> ${formatMoney(financeiro.total - financeiro.entrada)}<br/>` : ''}
@@ -612,6 +618,7 @@ export const gerarHtmlContratoEndodontia = (snapshot: ContratoSnapshot): string 
       <p class="paragrafo">
         O pagamento observará o seguinte cronograma discriminado:
       </p>
+      ${financeiro.parcelas && financeiro.parcelas.length > 0 ? `
       <table class="tabela-financeira">
         <thead>
           <tr>
@@ -642,6 +649,11 @@ export const gerarHtmlContratoEndodontia = (snapshot: ContratoSnapshot): string 
           `}
         </tbody>
       </table>
+      ` : `
+      <div style="margin: 12px 0; padding: 12px 14px; background-color: #fef2f2; border: 1px solid #fecaca; border-left: 4px solid #ef4444; border-radius: 4px; font-size: 11px; color: #991b1b; line-height: 1.45;">
+        <strong>Atenção (Cronograma Pendente):</strong> As parcelas detalhadas deste contrato ainda não foram geradas no sistema. A formalização e emissão do contrato exigem a prévia aprovação e definição do cronograma financeiro completo.
+      </div>
+      `}
       <p class="paragrafo">
         5.1. O cronograma discrimina todas as parcelas, valores e vencimentos efetivamente aprovados.
       </p>

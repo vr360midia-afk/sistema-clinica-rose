@@ -82,6 +82,7 @@ import {
   temValorValido,
   limparFormaPagamentoParaContrato,
   gerarIdentificadorContrato,
+  validarCronogramaFinanceiroContrato,
 } from '@/utils/contratoEngine';
 import { downloadTcleLentesResinaPdf } from '@/utils/tcleLentesResina';
 import { downloadTermoUsoImagemPdf } from '@/utils/termoUsoImagem';
@@ -852,6 +853,14 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
   // Abre a tela pública de assinatura em nova aba
   const handleAbrirPaginaAssinatura = async () => {
     if (!snapshotAtual) return;
+
+    const valCronograma = validarCronogramaFinanceiroContrato(snapshotAtual);
+    if (!valCronograma.valido) {
+      toast.error('Emissão bloqueada: o cronograma financeiro está incompleto.', {
+        description: valCronograma.erros[0] || 'Selecione uma condição de pagamento aprovada com parcelas válidas.',
+      });
+      return;
+    }
     let docId = contratoVisualizacao?.id || documentoIdSendoEditado;
 
     if (!docId) {
