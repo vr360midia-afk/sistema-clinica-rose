@@ -18,6 +18,7 @@ import { registrarAuditoria } from '@/hooks/useAuditLog';
 import { useSecurityGate } from '@/context/SecurityContext';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import Inadimplencia from '@/components/financeiro/Inadimplencia';
+import { TratamentosEmPagamento } from '@/components/financeiro/TratamentosEmPagamento';
 import OrcamentosAbertos from '@/components/financeiro/OrcamentosAbertos';
 import { FinanceiroDRE } from '@/components/financeiro/FinanceiroDRE';
 import { RaioXMaquininhas } from '@/components/financeiro/RaioXMaquininhas';
@@ -371,7 +372,7 @@ const Financeiro = () => {
         </div>
 
         {/* Cards de Resumo Executivo: Separação Clara entre Vendas (Fechado) e Caixa (Quitado) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
           {/* 1. Vendas Fechadas (Comercial / Contratado) */}
           <Card className="border-amber-500/30 bg-gradient-to-br from-amber-500/5 to-yellow-500/10 dark:from-amber-950/20 dark:to-yellow-950/20">
             <CardContent className="p-4 space-y-2">

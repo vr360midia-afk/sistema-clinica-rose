@@ -1,3 +1,4 @@
+import './guard-homologacao';
 import { createClient } from '@supabase/supabase-js';
 import * as path from 'path';
 import * as fs from 'fs';

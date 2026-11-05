@@ -13,6 +13,13 @@ export const HOMOLOG_SERVICE_KEY =
 export const HOMOLOG_ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZzcm9heW1rdW9wYXB3bG5rbmhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1MDA0NzMsImV4cCI6MjEwNzA3NjQ3M30.QV06zSi8oKTBz2s4x6oyHCWf_i0o8Gdu-obiE7SBOWA';
 
+if (typeof process !== 'undefined') {
+  process.env.VITE_SUPABASE_URL = HOMOLOG_URL;
+  process.env.HOMOLOG_URL = HOMOLOG_URL;
+  process.env.VITE_SUPABASE_PUBLISHABLE_KEY = HOMOLOG_ANON_KEY;
+  process.env.HOMOLOG_SUPABASE_ANON_KEY = HOMOLOG_ANON_KEY;
+}
+
 export function validarAmbienteHomologacao(url: string, contexto: string = 'Teste Automatizado'): void {
   if (!url) {
     throw new Error(`[SEGURANÇA BLOQUEADA] ${contexto}: Nenhuma URL do Supabase fornecida.`);

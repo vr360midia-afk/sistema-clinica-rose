@@ -19,6 +19,8 @@ import { useOrcamentos } from '@/hooks/useOrcamentos';
 import { calcularSaldosOrcamentos } from '@/utils/orcamentoSaldo';
 import { ehTransacaoPaga, ehTransacaoPendente } from '@/utils/financeiroCalculos';
 import { FinanceiroComprovantes } from '@/components/financeiro/FinanceiroComprovantes';
+import { ModalConciliarOrcamento } from '@/components/financeiro/ModalConciliarOrcamento';
+import { Handshake, Activity, Layers, Calendar } from 'lucide-react';
 import { useMaquinasCartao, calcularTaxaCartao } from '@/hooks/useMaquinasCartao';
 import { slugifyNome } from '@/utils/anamneseEngine';
 import { EditProcedimentoValorModal } from './EditProcedimentoValorModal';
@@ -83,7 +85,63 @@ const renderMetodoBadge = (metodo?: string) => {
 
 const PatientFinancial = ({ patient }: PatientFinancialProps) => {
   const { consultas, prontuarios, transacoes, deleteTransacao } = useDentalSystem();
-  const { orcamentos } = useOrcamentos(patient?.id);
+  const { orcamentos, reload: reloadOrcamentos } = useOrcamentos(patient?.id);
+  const { orcamentos: todosOrcamentos } = useOrcamentos(); // Para sugestões de orçamentos órfãos
+  const { pacientes } = useDentalSystem();
+
+  const [modalConciliarOpen, setModalConciliarOpen] = useState(false);
+  const [orcamentoParaConciliar, setOrcamentoParaConciliar] = useState<any | null>(null);
+
+  // Orçamentos órfãos que possuem o nome deste paciente
+  const orfaosSugeridos = useMemo(() => {
+    if (!patient?.nome || !todosOrcamentos) return [];
+    const nomeNorm = patient.nome.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+    return todosOrcamentos.filter((o) => {
+      const isOrfao = !o.pacienteId || !pacientes.some((p) => p.id === o.pacienteId);
+      if (!isOrfao || !o.pacienteNome) return false;
+      const oNomeNorm = o.pacienteNome.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+      return oNomeNorm === nomeNorm || (nomeNorm.length > 5 && oNomeNorm.includes(nomeNorm));
+    });
+  }, [patient?.nome, todosOrcamentos, pacientes]);
+
+  // Tratamento ativo consolidado do paciente
+  const tratamentoAtivo = useMemo(() => {
+    const aprovados = (orcamentos || []).filter((o) => {
+      if (!o || o.status !== 'aprovado') return false;
+      const snap = (o as any).assinatura_paciente || (o as any).assinaturaPaciente || {};
+      return o.statusFinanceiro !== 'cancelado' && o.statusFinanceiro !== 'arquivado' && snap.statusFinanceiro !== 'cancelado' && snap.statusFinanceiro !== 'arquivado';
+    });
+
+    if (aprovados.length === 0) return null;
+
+    const totalContratado = aprovados.reduce((s, o) => s + Number(o.total || 0), 0);
+    const saldosMap = calcularSaldosOrcamentos(aprovados, transacoes as any[]);
+    const totalSaldoDevedor = aprovados.reduce((s, o) => s + (saldosMap.get(o.id)?.saldo || 0), 0);
+    const totalPago = Math.max(0, totalContratado - totalSaldoDevedor);
+    const percentualProgresso = totalContratado > 0 ? (totalPago / totalContratado) * 100 : 0;
+
+    // Próxima parcela pendente vinculada aos orçamentos aprovados
+    const idsAprovados = new Set(aprovados.map((o) => o.id));
+    const transPendentes = (transacoes || [])
+      .filter((t) => t.orcamentoId && idsAprovados.has(t.orcamentoId) && ehTransacaoPendente(t))
+      .sort((a, b) => new Date(a.vencimento || a.data).getTime() - new Date(b.vencimento || b.data).getTime());
+
+    const proxima = transPendentes[0] || null;
+    const proximaValor = proxima ? Number(proxima.valor || 0) : totalSaldoDevedor;
+    const proximaData = proxima ? (proxima.vencimento || proxima.data) : null;
+
+    return {
+      totalContratado,
+      totalPago,
+      totalSaldoDevedor,
+      percentualProgresso,
+      proximaValor,
+      proximaData,
+      totalParcelasPendentes: transPendentes.length,
+      isQuitado: totalSaldoDevedor <= 0.009,
+      orcamentos: aprovados,
+    };
+  }, [orcamentos, transacoes]);
   const { requireMasterPassword } = useSecurityGate();
   const { user } = useAuth();
   const { configuracoes } = useConfiguracoes();
@@ -331,6 +389,93 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
           </Button>
         </div>
       </div>
+
+      {/* Banner de Orçamentos Pendentes de Conciliação */}
+      {orfaosSugeridos.length > 0 && (
+        <div className="p-3.5 rounded-xl border border-amber-500/40 bg-amber-500/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2.5">
+            <Handshake className="h-5 w-5 text-amber-600 shrink-0" />
+            <div>
+              <p className="font-bold text-amber-800 dark:text-amber-300">
+                Identificamos {orfaosSugeridos.length} orçamento(s) registrado(s) em nome deste paciente aguardando conciliação.
+              </p>
+              <p className="text-amber-700/80 dark:text-amber-400/80 text-[11px]">
+                A conciliação permite associar formalmente o plano e seu histórico à ficha clínica e financeira.
+              </p>
+            </div>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => {
+              setOrcamentoParaConciliar(orfaosSugeridos[0]);
+              setModalConciliarOpen(true);
+            }}
+            className="h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white font-semibold shrink-0 gap-1.5"
+          >
+            <Handshake className="h-3.5 w-3.5" /> Revisar e Conciliar
+          </Button>
+        </div>
+      )}
+
+      {/* Card Consolidado do Tratamento em Pagamento da Ficha do Paciente */}
+      {tratamentoAtivo && (
+        <Card className="border-amber-500/30 bg-gradient-to-br from-amber-500/5 to-yellow-500/10 dark:from-amber-950/20 dark:to-yellow-950/20">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs font-bold text-amber-700 dark:text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
+                <Activity className="h-4 w-4 text-amber-600" /> Resumo do Tratamento Aprovado
+              </span>
+              {tratamentoAtivo.isQuitado ? (
+                <Badge className="bg-emerald-600 text-white text-[10px] font-bold gap-1">
+                  <CheckCircle2 className="h-3 w-3" /> Tratamento Quitado
+                </Badge>
+              ) : (
+                <Badge className="bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 text-[10px] font-bold">
+                  Em Pagamento
+                </Badge>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs pt-1">
+              <div className="space-y-0.5">
+                <span className="text-muted-foreground block text-[11px]">Valor Contratado</span>
+                <span className="text-lg font-black text-foreground">{brl(tratamentoAtivo.totalContratado)}</span>
+              </div>
+              <div className="space-y-0.5">
+                <span className="text-muted-foreground block text-[11px]">Total Pago</span>
+                <span className="text-lg font-black text-emerald-600 dark:text-emerald-400">{brl(tratamentoAtivo.totalPago)}</span>
+              </div>
+              <div className="space-y-0.5">
+                <span className="text-muted-foreground block text-[11px]">Saldo Devedor</span>
+                <span className="text-lg font-black text-orange-600 dark:text-orange-400">{brl(tratamentoAtivo.totalSaldoDevedor)}</span>
+              </div>
+              <div className="space-y-0.5">
+                <span className="text-muted-foreground block text-[11px]">Próxima Parcela</span>
+                <span className="text-lg font-black text-foreground">
+                  {tratamentoAtivo.isQuitado ? 'R$ 0,00' : brl(tratamentoAtivo.proximaValor)}
+                </span>
+                {tratamentoAtivo.proximaData && !tratamentoAtivo.isQuitado && (
+                  <span className="text-[10px] text-muted-foreground block">
+                    Venc: {new Date(tratamentoAtivo.proximaData).toLocaleDateString('pt-BR')}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Barra de Progresso Financeiro */}
+            <div className="space-y-1 pt-1">
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-muted-foreground font-medium">Progresso Financeiro</span>
+                <span className="font-bold text-foreground">
+                  {tratamentoAtivo.percentualProgresso.toFixed(1)}% ({brl(tratamentoAtivo.totalPago)} de {brl(tratamentoAtivo.totalContratado)})
+                </span>
+              </div>
+              <Progress value={tratamentoAtivo.percentualProgresso} className="h-2 bg-muted" />
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
 

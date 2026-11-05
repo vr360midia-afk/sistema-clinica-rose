@@ -65,33 +65,42 @@ export function ehTransacaoPaga(t: any): boolean {
 export function ehTransacaoPendente(t: any): boolean {
   if (!t) return false;
   const s = String(t.status || '').toLowerCase().trim();
+  if (s === 'cancelado' || s === 'cancelada' || s === 'estornado' || s === 'estornada') return false;
   return s === 'pendente' || s === 'vencido' || s === 'aguardando' || s === '';
 }
 
 export interface ResumoFinanceiroMes {
   ano: number;
   mes: number;
-  // Vendas Comerciais
+  // 1. Vendas Comerciais (Fechado/Aprovado no Mês)
   vendasFechadas: number;
   orcamentosAprovadosQtd: number;
-  // Caixa Real (Quitado)
+  // 2. Caixa Real (Efetivamente Recebido no Mês)
   receitaCaixa: number;
   receitasPagasQtd: number;
   receitaPix: number;
   receitaCartao: number;
   receitaDinheiro: number;
   receitaOutros: number;
-  // Despesas
+  // 3. A Receber no Mês (Somente parcelas com vencimento dentro do mês selecionado)
+  aReceberNoMes: number;
+  parcelasVencendoNoMesQtd: number;
+  parcelasPixNoMes: number;
+  parcelasCartaoNoMes: number;
+  parcelasOutrasNoMes: number;
+  // 4. Carteira Total a Receber (Soma de todos os saldos de tratamentos ativos, incluindo meses futuros)
+  carteiraTotalAReceber: number;
+  totalOrcamentosAberto: number;
+  // 5. Despesas do Mês
   despesasPagas: number;
   despesasPagasQtd: number;
   despesasPendentes: number;
   totalTaxasCartao: number;
-  // Resultado Final
+  // 6. Resultado Final Líquido
   financeiroLiquido: number;
-  // Contas a Receber
+  // Compatibilidade legada
   totalAReceber: number;
   totalPendenteCartao: number;
-  totalOrcamentosAberto: number;
   // Transações pertencentes ao mês
   transacoesMes: any[];
 }
@@ -111,14 +120,21 @@ export function calcularResumoFinanceiroMes({
   ano: number;
   mes0Indexed: number;
 }): ResumoFinanceiroMes {
-  // 1. Filtrar transações que pertencem a este mês (imune a UTC)
+  // 1. Transações que pertencem ao mês pelo fluxo de caixa (data do pagamento ou lançamento)
   const transacoesMes = (transacoes || []).filter((t) => {
-    if (!t?.data) return false;
-    return isDataNoMesAno(t.data, ano, mes0Indexed);
+    if (!t) return false;
+    const dataRef = t.data || t.dataPagamento || t.vencimento;
+    if (!dataRef) return false;
+    return isDataNoMesAno(dataRef, ano, mes0Indexed);
   });
 
-  // 2. Receitas Pagas (Caixa Real)
-  const receitasPagas = transacoesMes.filter((t) => t?.tipo === 'receita' && ehTransacaoPaga(t));
+  // 2. Receitas Pagas (Caixa Real do Mês)
+  // Considera pagamentos cuja data efetiva de pagamento/recebimento cai no mês selecionado
+  const receitasPagas = (transacoes || []).filter((t) => {
+    if (t?.tipo !== 'receita' || !ehTransacaoPaga(t)) return false;
+    const dataPagamento = t.data || t.dataPagamento;
+    return isDataNoMesAno(dataPagamento, ano, mes0Indexed);
+  });
   const receitaCaixa = receitasPagas.reduce((sum, t) => sum + Number(t?.valor || 0), 0);
 
   // Breakdown por Método de Pagamento
@@ -141,35 +157,31 @@ export function calcularResumoFinanceiroMes({
     }
   });
 
-  // 3. Despesas do Mês
-  // Despesas Pagas no Caixa (apenas com status pago para não deduzir contas futuras antes do pagamento)
-  const despesasPagasLista = transacoesMes.filter((t) => t?.tipo === 'despesa' && ehTransacaoPaga(t));
-  const despesasPendentesLista = transacoesMes.filter((t) => t?.tipo === 'despesa' && ehTransacaoPendente(t));
+  // 3. Despesas do Mês (Pagas e Pendentes)
+  const despesasMes = (transacoes || []).filter((t) => {
+    if (t?.tipo !== 'despesa') return false;
+    const dataRef = ehTransacaoPaga(t) ? (t.data || t.dataPagamento) : (t.vencimento || t.data);
+    return isDataNoMesAno(dataRef, ano, mes0Indexed);
+  });
 
+  const despesasPagasLista = despesasMes.filter((t) => ehTransacaoPaga(t));
   const despesasPagasDiretas = despesasPagasLista.reduce((sum, t) => sum + Number(t?.valor || 0), 0);
+
+  const despesasPendentesLista = despesasMes.filter((t) => ehTransacaoPendente(t));
   const despesasPendentes = despesasPendentesLista.reduce((sum, t) => sum + Number(t?.valor || 0), 0);
 
-  // Identifica taxas de cartão lançadas como despesas avulsas
+  // Taxas de Cartão
   const taxasLancadasComoDespesa = despesasPagasLista
-    .filter(
-      (t) =>
-        t?.categoria === 'Taxas de Cartão' ||
-        (typeof t?.descricao === 'string' &&
-          (t.descricao.toLowerCase().includes('taxa da máquina') ||
-            t.descricao.toLowerCase().includes('taxa cartão') ||
-            t.descricao.toLowerCase().includes('taxa cartao')))
-    )
-    .reduce((sum, t) => sum + Number(t?.valor || 0), 0);
+    .filter((d) => d.categoria === 'Taxas de Cartão' || (d.descricao || '').toLowerCase().includes('taxa da máquina'))
+    .reduce((sum, d) => sum + Number(d.valor || 0), 0);
 
-  // Identifica taxas embutidas em receitas de cartão pagas que NÃO possuem transação de despesa correspondente (evita dupla dedução)
   const taxasEmbutidasSemDespesa = receitasPagas
     .filter((r) => {
-      const m = String(r?.metodoPagamento || '').toLowerCase();
-      const desc = String(r?.descricao || '').toLowerCase();
+      const m = String(r.metodoPagamento || '').toLowerCase();
+      const desc = String(r.descricao || '').toLowerCase();
       const isCartao = m === 'cartao' || desc.includes('cart');
       if (!isCartao) return false;
 
-      // Se já existe despesa associada a este orçamento ou com a taxa explícita correspondente, não conta embutida
       const jaTemDespesa = despesasPagasLista.some(
         (d) =>
           (r.orcamentoId && d.orcamentoId === r.orcamentoId && (d.categoria === 'Taxas de Cartão' || (d.descricao || '').toLowerCase().includes('taxa'))) ||
@@ -192,38 +204,76 @@ export function calcularResumoFinanceiroMes({
   // 4. Saldo / Financeiro Líquido (Receita Caixa Real - Despesas Pagas no Caixa)
   const financeiroLiquido = receitaCaixa - despesasPagas;
 
-  // 5. Vendas (Orçamentos Fechados/Aprovados no Mês)
+  // 5. Vendas Fechadas (Orçamentos Fechados/Aprovados no Mês)
   const orcamentosFechadosMes = (orcamentos || []).filter((o) => {
     if (!o || String(o.status || '').toLowerCase() !== 'aprovado') return false;
-    const dataRef = (o as any).dataAssinatura || o.atualizadoEm || o.criadoEm;
+    const snap = (o as any).assinatura_paciente || (o as any).assinaturaPaciente || {};
+    if (o.statusFinanceiro === 'cancelado' || o.statusFinanceiro === 'arquivado' || snap.statusFinanceiro === 'cancelado' || snap.statusFinanceiro === 'arquivado') return false;
+    const dataRef =
+      (o as any).dataAssinatura ||
+      (o as any).data_assinatura ||
+      o.aprovadoEm ||
+      (o as any).aprovado_em ||
+      snap.aprovadoEm ||
+      o.atualizadoEm ||
+      (o as any).atualizado_em ||
+      o.criadoEm ||
+      (o as any).criado_em ||
+      (o as any).created_at;
     return isDataNoMesAno(dataRef, ano, mes0Indexed);
   });
   const vendasFechadas = orcamentosFechadosMes.reduce((sum, o) => sum + Number(o?.total || 0), 0);
 
-  // 6. Contas a Receber (Saldos em aberto de orçamentos aprovados + pendentes avulsos)
+  // 6. A RECEBER NO MÊS: Somente parcelas/receitas que vencem no mês selecionado e ainda não foram pagas
+  const parcelasVencendoNoMes = (transacoes || []).filter((t) => {
+    if (t?.tipo !== 'receita' || !ehTransacaoPendente(t)) return false;
+    const dataVenc = t.vencimento || t.data;
+    return isDataNoMesAno(dataVenc, ano, mes0Indexed);
+  });
+
+  const aReceberNoMes = parcelasVencendoNoMes.reduce((sum, t) => sum + Number(t?.valor || 0), 0);
+  let parcelasPixNoMes = 0;
+  let parcelasCartaoNoMes = 0;
+  let parcelasOutrasNoMes = 0;
+
+  parcelasVencendoNoMes.forEach((t) => {
+    const val = Number(t?.valor || 0);
+    const m = String(t?.metodoPagamento || '').toLowerCase();
+    if (m === 'pix' || m === 'pix_parcelado') {
+      parcelasPixNoMes += val;
+    } else if (m === 'cartao' || m.includes('cart')) {
+      parcelasCartaoNoMes += val;
+    } else {
+      parcelasOutrasNoMes += val;
+    }
+  });
+
+  // 7. CARTEIRA TOTAL A RECEBER (Todos os saldos futuros de orçamentos aprovados + pendências avulsas)
   const saldosOrcamentos = calcularSaldosOrcamentos(orcamentos, transacoes);
   const totalOrcamentosAberto = (orcamentos || [])
-    .filter((o) => String(o?.status || '').toLowerCase() === 'aprovado')
+    .filter((o) => {
+      if (!o || String(o?.status || '').toLowerCase() !== 'aprovado') return false;
+      const snap = (o as any).assinatura_paciente || (o as any).assinaturaPaciente || {};
+      return o.statusFinanceiro !== 'cancelado' && o.statusFinanceiro !== 'arquivado' && snap.statusFinanceiro !== 'cancelado' && snap.statusFinanceiro !== 'arquivado';
+    })
     .reduce((sum, o) => sum + (saldosOrcamentos.get(o.id)?.saldo || 0), 0);
 
   const idsOrcamentosAprovados = new Set(
-    (orcamentos || []).filter((o) => String(o?.status || '').toLowerCase() === 'aprovado').map((o) => o.id)
+    (orcamentos || []).filter((o) => {
+      if (!o || String(o?.status || '').toLowerCase() !== 'aprovado') return false;
+      const snap = (o as any).assinatura_paciente || (o as any).assinaturaPaciente || {};
+      return o.statusFinanceiro !== 'cancelado' && o.statusFinanceiro !== 'arquivado' && snap.statusFinanceiro !== 'cancelado' && snap.statusFinanceiro !== 'arquivado';
+    }).map((o) => o.id)
   );
 
-  const pendentesAvulsos = transacoesMes.filter(
+  const pendentesAvulsos = (transacoes || []).filter(
     (t) => t?.tipo === 'receita' && ehTransacaoPendente(t) && (!t.orcamentoId || !idsOrcamentosAprovados.has(t.orcamentoId))
   );
   const totalPendingAvulso = pendentesAvulsos.reduce((sum, t) => sum + Number(t?.valor || 0), 0);
-  const totalAReceber = totalOrcamentosAberto + totalPendingAvulso;
+  const carteiraTotalAReceber = totalOrcamentosAberto + totalPendingAvulso;
 
-  // Receitas pendentes com cartão no mês (aguardando passar cartão no balcão)
-  const receitasPendentesCartao = transacoesMes.filter((t) => {
-    if (t?.tipo !== 'receita' || !ehTransacaoPendente(t)) return false;
-    const m = String(t?.metodoPagamento || '').toLowerCase();
-    const d = String(t?.descricao || '').toLowerCase();
-    return m === 'cartao' || d.includes('cart');
-  });
-  const totalPendenteCartao = receitasPendentesCartao.reduce((sum, t) => sum + Number(t?.valor || 0), 0);
+  // Receitas pendentes com cartão no mês
+  const totalPendenteCartao = parcelasCartaoNoMes;
 
   return {
     ano,
@@ -236,14 +286,20 @@ export function calcularResumoFinanceiroMes({
     receitaCartao,
     receitaDinheiro,
     receitaOutros,
+    aReceberNoMes,
+    parcelasVencendoNoMesQtd: parcelasVencendoNoMes.length,
+    parcelasPixNoMes,
+    parcelasCartaoNoMes,
+    parcelasOutrasNoMes,
+    carteiraTotalAReceber,
+    totalOrcamentosAberto,
     despesasPagas,
     despesasPagasQtd: despesasPagasLista.length,
     despesasPendentes,
     totalTaxasCartao,
     financeiroLiquido,
-    totalAReceber,
+    totalAReceber: carteiraTotalAReceber,
     totalPendenteCartao,
-    totalOrcamentosAberto,
     transacoesMes,
   };
 }

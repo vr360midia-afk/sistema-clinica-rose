@@ -20,6 +20,7 @@ const ehReceitaPaga = (t: any) => {
 const ehReceitaPendente = (t: any) => {
   if (t?.tipo !== 'receita') return false;
   const s = String(t?.status || '').toLowerCase().trim();
+  if (s === 'cancelado' || s === 'cancelada' || s === 'estornado' || s === 'estornada') return false;
   return s === 'pendente' || s === 'vencido' || s === 'aguardando' || s === '';
 };
 
@@ -76,7 +77,11 @@ export const calcularSaldosOrcamentos = (
   });
 
   const aprovados = lista
-    .filter((o) => o?.status === 'aprovado')
+    .filter((o) => {
+      if (!o || o?.status !== 'aprovado') return false;
+      const snap = (o as any).assinatura_paciente || (o as any).assinaturaPaciente || {};
+      return o.statusFinanceiro !== 'cancelado' && o.statusFinanceiro !== 'arquivado' && snap.statusFinanceiro !== 'cancelado' && snap.statusFinanceiro !== 'arquivado';
+    })
     .sort((a, b) => new Date(a?.criadoEm || 0).getTime() - new Date(b?.criadoEm || 0).getTime());
 
   aprovados.forEach((o) => {
