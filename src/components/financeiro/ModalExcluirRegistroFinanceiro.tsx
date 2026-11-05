@@ -34,20 +34,31 @@ import { useSecurityGate } from '@/context/SecurityContext';
 import { useAuth } from '@/context/AuthContext';
 
 interface Props {
-  isOpen: boolean;
-  onClose: () => void;
+  isOpen?: boolean;
+  open?: boolean;
+  onClose?: () => void;
+  onOpenChange?: (open: boolean) => void;
   orcamento: Orcamento | null;
   transacoes: Transacao[];
-  onSucesso: (resultado: { orcamentoId: string; tipo: 'excluido' | 'cancelado' }) => void;
+  onSucesso?: (resultado: { orcamentoId: string; tipo: 'excluido' | 'cancelado' }) => void;
+  onSuccess?: () => void;
 }
 
 export const ModalExcluirRegistroFinanceiro: React.FC<Props> = ({
   isOpen,
+  open,
   onClose,
+  onOpenChange,
   orcamento,
   transacoes,
   onSucesso,
+  onSuccess,
 }) => {
+  const isVisible = Boolean(open ?? isOpen);
+  const handleClose = () => {
+    if (onClose) onClose();
+    if (onOpenChange) onOpenChange(false);
+  };
   const { user } = useAuth();
   const { isAdmin } = useUserRoles();
   const { requireMasterPassword } = useSecurityGate();
@@ -57,7 +68,7 @@ export const ModalExcluirRegistroFinanceiro: React.FC<Props> = ({
 
   if (!orcamento) return null;
 
-  const transVinculadas = transacoes.filter((t) => t.orcamentoId === orcamento.id);
+  const transVinculadas = (transacoes || []).filter((t) => t.orcamentoId === orcamento.id);
   const analise: ElegibilidadeExclusaoFinanceira = analisarElegibilidadeFinanceira(
     orcamento,
     transVinculadas
@@ -97,11 +108,16 @@ export const ModalExcluirRegistroFinanceiro: React.FC<Props> = ({
 
       if (res.ok) {
         toast.success(res.mensagem);
-        onSucesso({ orcamentoId: orcamento.id, tipo: res.tipo });
-        onClose();
+        if (onSucesso) onSucesso({ orcamentoId: orcamento.id, tipo: res.tipo });
+        if (onSuccess) onSuccess();
+        handleClose();
         setMotivo('');
       } else {
-        toast.error(res.mensagem || 'Não foi possível concluir a operação.');
+        let msg = res.mensagem || 'Não foi possível concluir a operação.';
+        if (res.error && !msg.includes(res.error)) {
+          msg = `${msg} (${res.error})`;
+        }
+        toast.error(msg);
       }
     } catch (err: any) {
       toast.error(err.message || 'Erro inesperado ao processar.');
@@ -111,7 +127,7 @@ export const ModalExcluirRegistroFinanceiro: React.FC<Props> = ({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !salvando && !open && onClose()}>
+    <Dialog open={isVisible} onOpenChange={(val) => !salvando && !val && handleClose()}>
       <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-lg font-bold">

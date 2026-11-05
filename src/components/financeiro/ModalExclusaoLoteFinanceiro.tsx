@@ -33,20 +33,34 @@ import { useSecurityGate } from '@/context/SecurityContext';
 import { useAuth } from '@/context/AuthContext';
 
 interface Props {
-  isOpen: boolean;
-  onClose: () => void;
-  orcamentosSelecionados: Orcamento[];
+  isOpen?: boolean;
+  open?: boolean;
+  onClose?: () => void;
+  onOpenChange?: (open: boolean) => void;
+  orcamentosSelecionados?: Orcamento[];
+  itens?: Orcamento[];
   transacoes: Transacao[];
-  onSucesso: (resultado: { totalExcluidos: number; totalCancelados: number }) => void;
+  onSucesso?: (resultado: { totalExcluidos: number; totalCancelados: number }) => void;
+  onSuccess?: () => void;
 }
 
 export const ModalExclusaoLoteFinanceiro: React.FC<Props> = ({
   isOpen,
+  open,
   onClose,
+  onOpenChange,
   orcamentosSelecionados,
+  itens,
   transacoes,
   onSucesso,
+  onSuccess,
 }) => {
+  const isVisible = Boolean(open ?? isOpen);
+  const handleClose = () => {
+    if (onClose) onClose();
+    if (onOpenChange) onOpenChange(false);
+  };
+  const listaOrcamentos = orcamentosSelecionados || itens || [];
   const { user } = useAuth();
   const { isAdmin } = useUserRoles();
   const { requireMasterPassword } = useSecurityGate();
@@ -54,10 +68,10 @@ export const ModalExclusaoLoteFinanceiro: React.FC<Props> = ({
   const [motivo, setMotivo] = useState('');
   const [salvando, setSalvando] = useState(false);
 
-  if (!orcamentosSelecionados || orcamentosSelecionados.length === 0) return null;
+  if (!listaOrcamentos || listaOrcamentos.length === 0) return null;
 
   // Analisa todos os orçamentos selecionados
-  const analises: ElegibilidadeExclusaoFinanceira[] = orcamentosSelecionados.map((orc) => {
+  const analises: ElegibilidadeExclusaoFinanceira[] = listaOrcamentos.map((orc) => {
     const transVinculadas = transacoes.filter((t) => t.orcamentoId === orc.id);
     return analisarElegibilidadeFinanceira(orc, transVinculadas);
   });
@@ -92,7 +106,7 @@ export const ModalExclusaoLoteFinanceiro: React.FC<Props> = ({
     setSalvando(true);
     try {
       const res = await executarExclusaoLoteFinanceiro({
-        itens: orcamentosSelecionados,
+        itens: listaOrcamentos,
         transacoes,
         motivo: motivo.trim(),
         usuarioEmail: user?.email,
@@ -112,7 +126,7 @@ export const ModalExclusaoLoteFinanceiro: React.FC<Props> = ({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !salvando && !open && onClose()}>
+    <Dialog open={isVisible} onOpenChange={(val) => !salvando && !val && handleClose()}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-lg font-bold">

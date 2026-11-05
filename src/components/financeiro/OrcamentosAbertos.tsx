@@ -519,10 +519,16 @@ export const OrcamentosAbertos = ({ onLancarPagamento }: Props) => {
       {/* Modal de Exclusão / Cancelamento Individual */}
       <ModalExcluirRegistroFinanceiro
         open={modalExcluirIndividualOpen}
+        isOpen={modalExcluirIndividualOpen}
         onOpenChange={setModalExcluirIndividualOpen}
+        onClose={() => setModalExcluirIndividualOpen(false)}
         orcamento={orcamentoParaExcluir}
         transacoes={transacoes}
         onSuccess={() => {
+          reloadOrcamentos();
+          setExpandedId(null);
+        }}
+        onSucesso={() => {
           reloadOrcamentos();
           setExpandedId(null);
         }}
@@ -531,10 +537,18 @@ export const OrcamentosAbertos = ({ onLancarPagamento }: Props) => {
       {/* Modal de Exclusão em Lote */}
       <ModalExclusaoLoteFinanceiro
         open={modalLoteOpen}
+        isOpen={modalLoteOpen}
         onOpenChange={setModalLoteOpen}
+        onClose={() => setModalLoteOpen(false)}
         itens={itensSelecionados}
+        orcamentosSelecionados={itensSelecionados}
         transacoes={transacoes}
         onSuccess={() => {
+          setSelecionadosIds(new Set());
+          reloadOrcamentos();
+          setExpandedId(null);
+        }}
+        onSucesso={() => {
           setSelecionadosIds(new Set());
           reloadOrcamentos();
           setExpandedId(null);

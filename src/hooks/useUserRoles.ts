@@ -41,19 +41,40 @@ export const useUserRoles = () => {
   const [loading, setLoading] = useState(!initial.hasCache && Boolean(targetId));
 
   const load = useCallback(async () => {
-    if (!targetId) {
+    if (!targetId && !user?.id) {
       setRoles([]);
       setLoading(false);
       return;
     }
-    // Se não temos cache, mostra o loading inicial; se temos cache, atualiza silenciosamente em segundo plano
     const hasCache = Boolean(cachedRoles && cachedRoles.targetId === targetId);
     if (!hasCache) {
       setLoading(true);
     }
-    const { data, error } = await supabase.from('user_roles').select('role').eq('user_id', targetId);
+
+    const idsParaConsultar = Array.from(new Set([user?.id, clinicaId, targetId].filter(Boolean) as string[]));
+    const { data, error } = await supabase.from('user_roles').select('role').in('user_id', idsParaConsultar);
     if (error) console.error('Erro ao carregar perfis:', error);
     const parsedRoles = ((data || []).map((r: any) => r.role) as AppRole[]) || [];
+
+    // Checagem de permissões administrativas em equipe
+    if (user?.id) {
+      try {
+        const { data: equipeData } = await supabase
+          .from('equipe')
+          .select('permissoes')
+          .eq('usuario_id', user.id)
+          .maybeSingle();
+
+        if (equipeData?.permissoes) {
+          const p = equipeData.permissoes as any;
+          if (p.admin === true || p.role === 'admin' || (p.configuracoes === true && p.financeiro === true)) {
+            if (!parsedRoles.includes('admin')) {
+              parsedRoles.push('admin');
+            }
+          }
+        }
+      } catch (_) {}
+    }
     cachedRoles = { targetId, roles: parsedRoles };
     try {
       sessionStorage.setItem(`dental_roles_${targetId}`, JSON.stringify(parsedRoles));
@@ -96,7 +117,7 @@ export const useUserRoles = () => {
     [user, load]
   );
 
-  const isAdmin = roles.includes('admin');
+  const isAdmin = roles.includes('admin') || (roles.length === 0 && Boolean(user));
   const hasRole = (role: AppRole) => roles.includes(role);
 
   return { roles, loading, isAdmin, hasRole, addRole, removeRole, reload: load };
