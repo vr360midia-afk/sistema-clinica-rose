@@ -829,7 +829,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
         // Gera nova versão sem passar id existente, preservando o snapshot original intacto
         idParaGravar = undefined;
       } else {
-        idParaGravar = documentoIdSendoEditado || undefined;
+        idParaGravar = documentoIdSendoEditado || contratoVisualizacao?.id || contratoExistenteOrcamento?.id || undefined;
       }
 
       if (!snapshotParaSalvar.token) {
@@ -988,8 +988,14 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     }
 
     const emissaoRes = await emitirContratoPersistido(snapshotAtual, docId || undefined);
-    if (emissaoRes.id && (!contratoVisualizacao || contratoVisualizacao.id !== emissaoRes.id)) {
+    if (emissaoRes.id) {
       setDocumentoIdSendoEditado(emissaoRes.id);
+      setContratoVisualizacao((prev: any) => ({
+        ...(prev || {}),
+        id: emissaoRes.id,
+        identificador: emissaoRes.identificador,
+        itens: emissaoRes.snapshot,
+      }));
     }
     const link = emissaoRes.link;
     navigator.clipboard.writeText(link);
@@ -1025,8 +1031,14 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     }
 
     const emissaoRes = await emitirContratoPersistido(snapshotAtual, docId || undefined);
-    if (emissaoRes.id && (!contratoVisualizacao || contratoVisualizacao.id !== emissaoRes.id)) {
+    if (emissaoRes.id) {
       setDocumentoIdSendoEditado(emissaoRes.id);
+      setContratoVisualizacao((prev: any) => ({
+        ...(prev || {}),
+        id: emissaoRes.id,
+        identificador: emissaoRes.identificador,
+        itens: emissaoRes.snapshot,
+      }));
     }
     const link = emissaoRes.link;
     window.open(link, '_blank');
@@ -1045,36 +1057,37 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     }
     if (!snapshotAtual) return;
 
-    // Se ainda não foi emitido no banco, salva agora para gerar UUID permanente e listar no prontuário
-    let docId = contratoVisualizacao?.id || documentoIdSendoEditado;
-    if (!docId) {
-      try {
-        const identificador = snapshotAtual.contratoId || gerarIdentificadorContrato();
-        const htmlFinal = gerarHtmlContrato(snapshotAtual);
-        const docCriado = await salvarDocumento({
-          pacienteId: patient?.id,
-          pacienteNome: patient?.nome,
-          tipo: 'contrato',
-          titulo: snapshotAtual.orcamento?.numeroIdentificador
-            ? `Contrato Odontológico - Orçamento #${snapshotAtual.orcamento.numeroIdentificador}`
-            : `Contrato Odontológico - ${patient?.nome || 'Paciente'} (${identificador})`,
-          conteudo: htmlFinal,
-          itens: snapshotAtual as any,
-          dentista: snapshotAtual?.clinica?.dentistaResponsavel || selectedDentistaNome || null,
-        });
-        if (docCriado?.id) {
-          docId = docCriado.id;
-          setContratoVisualizacao(docCriado);
-        }
-      } catch (err) {
-        console.warn('Pré-gravação ao enviar WhatsApp:', err);
-      }
+    const docId = contratoVisualizacao?.id || documentoIdSendoEditado || contratoExistenteOrcamento?.id;
+
+    // Garante que o snapshot possua identificador e token válidos antes da emissão
+    if (!snapshotAtual.contratoId) {
+      snapshotAtual.contratoId = docId && !docId.includes('-')
+        ? docId
+        : (contratoVisualizacao?.itens?.contratoId || contratoExistenteOrcamento?.itens?.contratoId || gerarIdentificadorContrato());
+    }
+    if (!snapshotAtual.token) {
+      snapshotAtual.token =
+        contratoVisualizacao?.itens?.token ||
+        contratoExistenteOrcamento?.itens?.token ||
+        gerarTokenAcesso();
+    }
+    if (!snapshotAtual.tokenValidoAte) {
+      snapshotAtual.tokenValidoAte = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
     }
 
     const clinicaPix = snapshotAtual?.clinica?.chavePix || configContrato?.chavePix || configuracoes?.telefone || configuracoes?.cnpj || '';
     const favorecidoPix = snapshotAtual?.clinica?.favorecidoPix || configContrato?.favorecidoPix || snapshotAtual?.clinica?.nome || configuracoes?.nomeClinica || 'Dra. Rosangela Santos';
     const bancoPix = snapshotAtual?.clinica?.bancoPix || configContrato?.bancoPix || '';
     const emissaoResWhats = await emitirContratoPersistido(snapshotAtual, docId || undefined);
+    if (emissaoResWhats.id) {
+      setDocumentoIdSendoEditado(emissaoResWhats.id);
+      setContratoVisualizacao((prev: any) => ({
+        ...(prev || {}),
+        id: emissaoResWhats.id,
+        identificador: emissaoResWhats.identificador,
+        itens: emissaoResWhats.snapshot,
+      }));
+    }
     const linkAssinatura = emissaoResWhats.link;
 
     // Baixa o PDF no computador para facilitar anexar caso a recepcionista deseje arrastar na conversa

@@ -351,60 +351,130 @@ async function obterAutorizacaoVigenteServidor(
   return null;
 }
 
-// Extrai e valida o token criptográfico com suporte a irmãos e orçamento vinculado
+// Extrai e valida o token criptográfico com suporte a irmãos legítimos estritos e orçamento vinculado
+// SEGURANÇA MÁXIMA: Aceita exclusivamente irmãos comprovadamente pertencentes à mesma emissão e versão contratual,
+// com vínculo inequívoco ao mesmo paciente, snapshot compatível e token original válido.
+// Se houver ambiguidade (múltiplos tokens divergentes), bloqueia a operação por segurança.
 async function extrairTokenArmazenadoValido(
   supabase: any,
   doc: any,
   token: string
-): Promise<{ valido: boolean; tokenArmazenado: string | null }> {
+): Promise<{ valido: boolean; tokenArmazenado: string | null; ambiguidade?: boolean; erroEspecifico?: string }> {
   if (!doc || !token) return { valido: false, tokenArmazenado: null };
 
-  let tokenArmazenado = doc.itens?.token || doc.itens?.contratoToken || doc.itens?.tokenAssinatura;
+  const tokenDireto = (doc.itens?.token || doc.itens?.contratoToken || doc.itens?.tokenAssinatura || "").trim();
 
-  if (tokenArmazenado === token) {
-    return { valido: true, tokenArmazenado };
+  // 1. Coincidência direta e imediata no próprio documento
+  if (tokenDireto && tokenDireto === token) {
+    return { valido: true, tokenArmazenado: tokenDireto };
   }
 
-  // Se não coincidir ou não estiver presente no doc, consulta o orçamento vinculado
-  const orcId = doc.itens?.orcamentoId || doc.itens?.orcamento?.id || doc.orcamento_id;
-  if (orcId) {
+  // 2. Resolução estrita de documentos irmãos vinculados à mesma emissão e versão contratual
+  const cid = (doc.identificador || doc.itens?.contratoId || "").trim().toUpperCase();
+  const pacienteId = doc.paciente_id || doc.itens?.pacienteId;
+  const versaoDoc = String(doc.versao_numero || doc.itens?.versao || 1);
+  const totalDoc = Number(doc.itens?.financeiro?.total || doc.itens?.orcamento?.valorTotal || 0);
+  const orcIdDoc = doc.orcamento_id || doc.itens?.orcamentoId || doc.itens?.orcamento?.id;
+
+  let candidatosIrmaos: any[] = [];
+  if (cid && pacienteId) {
     try {
-      const { data: orcRow } = await supabase
-        .from("orcamentos")
-        .select("contrato_token, token_assinatura, assinatura_paciente")
-        .eq("id", orcId)
-        .maybeSingle();
-      if (orcRow) {
-        const snapOrc = (orcRow.assinatura_paciente || {}) as Record<string, any>;
-        const tOrc = orcRow.contrato_token || orcRow.token_assinatura || snapOrc.contratoToken || snapOrc.token || snapOrc.tokenAssinatura;
-        if (tOrc && tOrc === token) {
-          return { valido: true, tokenArmazenado: tOrc };
-        }
+      const { data: sibs } = await supabase
+        .from("documentos_clinicos")
+        .select("*")
+        .eq("tipo", "contrato")
+        .eq("paciente_id", pacienteId)
+        .or(`identificador.eq.${cid},identificador.eq.${cid.toLowerCase()},itens->>contratoId.eq.${cid},itens->>contratoId.eq.${cid.toLowerCase()}`);
+
+      if (sibs && sibs.length > 0) {
+        candidatosIrmaos = sibs.filter((s: any) => {
+          // Ignora o próprio documento atual
+          if (s.id === doc.id) return false;
+          // Bloqueia versões anteriores expressamente substituídas
+          if (s.id === doc.itens?.contratoAnteriorId || doc.id === s.itens?.contratoAnteriorId) {
+            return false;
+          }
+          // Versão do contrato deve ser a mesma
+          const versaoSib = String(s.versao_numero || s.itens?.versao || 1);
+          if (versaoSib !== versaoDoc) {
+            return false;
+          }
+          // Orçamento vinculado deve ser idêntico caso ambos informem
+          const orcIdSib = s.orcamento_id || s.itens?.orcamentoId || s.itens?.orcamento?.id;
+          if (orcIdDoc && orcIdSib && orcIdDoc !== orcIdSib) {
+            return false;
+          }
+          // Snapshot financeiro: se ambos possuem valor total registrado, não pode divergir
+          const totalSib = Number(s.itens?.financeiro?.total || s.itens?.orcamento?.valorTotal || 0);
+          if (totalDoc > 0 && totalSib > 0 && Math.abs(totalDoc - totalSib) > 0.01) {
+            return false;
+          }
+          return true;
+        });
       }
     } catch (_) {}
   }
 
-  // Verifica documentos irmãos (mesmo contratoId)
-  const cid = doc.itens?.contratoId || doc.identificador;
-  if (cid) {
+  // Coleta tokens válidos não vazios encontrados nos irmãos legítimos
+  const tokensEncontrados = new Set<string>();
+  if (tokenDireto) tokensEncontrados.add(tokenDireto);
+
+  for (const s of candidatosIrmaos) {
+    const sTok = (s.itens?.token || s.itens?.contratoToken || s.itens?.tokenAssinatura || "").trim();
+    if (sTok.length >= 16) {
+      tokensEncontrados.add(sTok);
+    }
+  }
+
+  // Trava de ambiguidade: múltiplos tokens divergentes para a mesma emissão/versão
+  if (tokensEncontrados.size > 1) {
+    return {
+      valido: false,
+      tokenArmazenado: null,
+      ambiguidade: true,
+      erroEspecifico: "Ambiguidade detectada na validação do token do contrato. Acesso bloqueado por segurança.",
+    };
+  }
+
+  // Se houver exatamente 1 token legítimo conhecido e coincide com o fornecido
+  if (tokensEncontrados.size === 1) {
+    const unicoToken = Array.from(tokensEncontrados)[0];
+    if (unicoToken === token) {
+      return { valido: true, tokenArmazenado: unicoToken };
+    }
+  }
+
+  // 3. Fallback no orçamento vinculado direto (apenas do mesmo paciente e mesmo contrato)
+  if (orcIdDoc && pacienteId) {
     try {
-      const { data: sibs } = await supabase
-        .from("documentos_clinicos")
-        .select("itens")
-        .eq("tipo", "contrato")
-        .filter("itens->>contratoId", "eq", cid);
-      if (sibs && sibs.length > 0) {
-        for (const s of sibs) {
-          const sTok = s.itens?.token || s.itens?.contratoToken || s.itens?.tokenAssinatura;
-          if (sTok && sTok === token) {
-            return { valido: true, tokenArmazenado: sTok };
+      const { data: orcRow } = await supabase
+        .from("orcamentos")
+        .select("paciente_id, contrato_id, contrato_token, token_assinatura, assinatura_paciente")
+        .eq("id", orcIdDoc)
+        .maybeSingle();
+
+      if (orcRow && orcRow.paciente_id === pacienteId) {
+        const cidOrc = (orcRow.contrato_id || "").trim().toUpperCase();
+        if (!cidOrc || !cid || cidOrc === cid) {
+          const snapOrc = (orcRow.assinatura_paciente || {}) as Record<string, any>;
+          const tOrc = (orcRow.contrato_token || orcRow.token_assinatura || snapOrc.contratoToken || snapOrc.token || snapOrc.tokenAssinatura || "").trim();
+          if (tOrc && tOrc === token) {
+            if (tokensEncontrados.size === 1 && !tokensEncontrados.has(tOrc)) {
+              return {
+                valido: false,
+                tokenArmazenado: null,
+                ambiguidade: true,
+                erroEspecifico: "Ambiguidade detectada na validação do token do contrato. Acesso bloqueado por segurança.",
+              };
+            }
+            return { valido: true, tokenArmazenado: tOrc };
           }
         }
       }
     } catch (_) {}
   }
 
-  return { valido: false, tokenArmazenado: tokenArmazenado || null };
+  return { valido: false, tokenArmazenado: tokenDireto || null };
 }
 
 // Localiza o contrato e devolve SEMPRE a versão vigente da cadeia de versões.
@@ -440,30 +510,47 @@ async function localizarContratoCompativelBase(
       const tSaved = data.itens?.token || data.itens?.contratoToken || data.itens?.tokenAssinatura;
       if (!token || tSaved === token) return data;
       // Se fornecido token e não bate com este UUID específico, procura se há outro registro do mesmo contrato que bate
-      const cid = data.itens?.contratoId || data.identificador;
-      if (cid && token) {
-        const { data: sibling } = await supabase
+      // Se fornecido token e não bate com este UUID específico, procura se há irmão estrito da mesma emissão
+      const cid = (data.identificador || data.itens?.contratoId || "").trim().toUpperCase();
+      const pacienteId = data.paciente_id || data.itens?.pacienteId;
+      const versaoDoc = String(data.versao_numero || data.itens?.versao || 1);
+      const totalDoc = Number(data.itens?.financeiro?.total || data.itens?.orcamento?.valorTotal || 0);
+
+      if (cid && pacienteId && token) {
+        const { data: siblings } = await supabase
           .from("documentos_clinicos")
           .select("*")
           .eq("tipo", "contrato")
-          .filter("itens->>contratoId", "eq", cid)
+          .eq("paciente_id", pacienteId)
+          .or(`identificador.eq.${cid},identificador.eq.${cid.toLowerCase()},itens->>contratoId.eq.${cid},itens->>contratoId.eq.${cid.toLowerCase()}`)
           .order("criado_em", { ascending: false });
-        if (sibling && sibling.length > 0) {
-          const matchSib = sibling.find((r: any) => (r.itens?.token === token || r.itens?.contratoToken === token || r.itens?.tokenAssinatura === token));
+
+        if (siblings && siblings.length > 0) {
+          const validSibs = siblings.filter((s: any) => {
+            if (s.id === data.id) return false;
+            if (s.id === data.itens?.contratoAnteriorId || data.id === s.itens?.contratoAnteriorId) return false;
+            const vSib = String(s.versao_numero || s.itens?.versao || 1);
+            if (vSib !== versaoDoc) return false;
+            const totSib = Number(s.itens?.financeiro?.total || s.itens?.orcamento?.valorTotal || 0);
+            if (totalDoc > 0 && totSib > 0 && Math.abs(totalDoc - totSib) > 0.01) return false;
+            return true;
+          });
+
+          // Trava de ambiguidade em irmãos: múltiplos tokens divergentes
+          const distinctTokens = new Set<string>();
+          for (const sb of validSibs) {
+            const sbTok = (sb.itens?.token || sb.itens?.contratoToken || sb.itens?.tokenAssinatura || "").trim();
+            if (sbTok.length >= 16) distinctTokens.add(sbTok);
+          }
+          if (distinctTokens.size > 1) {
+            return data;
+          }
+
+          const matchSib = validSibs.find((r: any) => {
+            const sTok = (r.itens?.token || r.itens?.contratoToken || r.itens?.tokenAssinatura || "").trim();
+            return sTok === token;
+          });
           if (matchSib) return matchSib;
-        }
-      }
-      const orcId = data.itens?.orcamentoId || data.itens?.orcamento?.id;
-      if (orcId && token) {
-        const { data: sibOrc } = await supabase
-          .from("documentos_clinicos")
-          .select("*")
-          .eq("tipo", "contrato")
-          .filter("itens->>orcamentoId", "eq", orcId)
-          .order("criado_em", { ascending: false });
-        if (sibOrc && sibOrc.length > 0) {
-          const matchSibOrc = sibOrc.find((r: any) => (r.itens?.token === token || r.itens?.contratoToken === token || r.itens?.tokenAssinatura === token));
-          if (matchSibOrc) return matchSibOrc;
         }
       }
       return data;
@@ -1311,20 +1398,31 @@ Deno.serve(async (req) => {
         const { data: ex } = await supabase.from("documentos_clinicos").select("*").eq("id", identificador).maybeSingle();
         if (ex?.id) existingDoc = ex;
       }
-      // Com versionamento, o mesmo contratoId pode existir em V1 e V2: busca ordenada
-      if (!existingDoc) {
-        const { data: ex2 } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", identificador).order("criado_em", { ascending: false }).limit(1);
-        if (ex2 && ex2[0]?.id) existingDoc = ex2[0];
-      }
-      if (!existingDoc && identificador.toLowerCase().startsWith("ctr-")) {
-        const { data: ex3 } = await supabase.from("documentos_clinicos").select("*").filter("itens->>contratoId", "eq", identificador.toUpperCase()).order("criado_em", { ascending: false }).limit(1);
-        if (ex3 && ex3[0]?.id) existingDoc = ex3[0];
+      // Busca rigorosa de contrato existente por identificador e paciente para impedir novas duplicidades
+      if (!existingDoc && identificador) {
+        let queryEx = supabase.from("documentos_clinicos").select("*").eq("tipo", "contrato");
+        if (pacienteId) {
+          queryEx = queryEx.eq("paciente_id", pacienteId);
+        }
+        const idUpper = identificador.toUpperCase();
+        const { data: exDocs } = await queryEx
+          .or(`identificador.eq.${identificador},identificador.eq.${idUpper},itens->>contratoId.eq.${identificador},itens->>contratoId.eq.${idUpper}`)
+          .order("criado_em", { ascending: false })
+          .limit(1);
+        if (exDocs && exDocs[0]?.id) {
+          existingDoc = exDocs[0];
+        }
       }
       if (existingDoc) {
         existingDoc = await resolverVersaoVigente(supabase, existingDoc);
       }
 
       if (existingDoc) {
+        // Preserva token original legítimo caso o novo snapshot não contenha
+        if (!snap.token && existingDoc.itens?.token) {
+          snap.token = existingDoc.itens.token;
+        }
+
         // Se já está assinado pelo paciente, não permite sobrescrever os termos imutáveis
         if (existingDoc.assinado_em || existingDoc.itens?.status === "assinado" || existingDoc.itens?.assinaturaPaciente) {
           return json({ ok: true, id: existingDoc.id, identificador, status: "assinado", jaAssinado: true });
@@ -1392,7 +1490,10 @@ Deno.serve(async (req) => {
       }
 
       // Validação do Token Criptográfico
-      const { valido: tokenValidoGet, tokenArmazenado: tokenArmazenadoGet } = await extrairTokenArmazenadoValido(supabase, doc, token);
+      const { valido: tokenValidoGet, tokenArmazenado: tokenArmazenadoGet, ambiguidade: ambGet, erroEspecifico: erroGet } = await extrairTokenArmazenadoValido(supabase, doc, token);
+      if (ambGet || erroGet) {
+        return json({ error: erroGet || "Ambiguidade detectada na validação do token do contrato. Acesso bloqueado por segurança." }, 403);
+      }
       if (!tokenValidoGet) {
         return json({ error: "Token de acesso inválido ou expirado" }, 403);
       }
@@ -1499,7 +1600,10 @@ Deno.serve(async (req) => {
       }
 
       // Validação estrita do token
-      const { valido: tokenValidoSign, tokenArmazenado } = await extrairTokenArmazenadoValido(supabase, doc, token);
+      const { valido: tokenValidoSign, tokenArmazenado, ambiguidade: ambSign, erroEspecifico: erroSign } = await extrairTokenArmazenadoValido(supabase, doc, token);
+      if (ambSign || erroSign) {
+        return json({ error: erroSign || "Ambiguidade detectada na validação do token do contrato. Acesso bloqueado por segurança." }, 403);
+      }
       if (!tokenValidoSign) {
         return json({ error: "Token de acesso inválido ou expirado" }, 403);
       }
@@ -1954,7 +2058,10 @@ Deno.serve(async (req) => {
       }
 
       // Validação estrita de Token
-      const { valido: tokenValidoPdf } = await extrairTokenArmazenadoValido(supabase, doc, token);
+      const { valido: tokenValidoPdf, ambiguidade: ambPdf, erroEspecifico: erroPdf } = await extrairTokenArmazenadoValido(supabase, doc, token);
+      if (ambPdf || erroPdf) {
+        return json({ error: erroPdf || "Ambiguidade detectada na validação do token do contrato. Acesso bloqueado por segurança." }, 403);
+      }
       if (!tokenValidoPdf) {
         return json({ error: "Token de acesso inválido ou expirado" }, 403);
       }
@@ -2012,7 +2119,10 @@ Deno.serve(async (req) => {
       }
 
       // Validação estrita de Token
-      const { valido: tokenValidoUpload } = await extrairTokenArmazenadoValido(supabase, doc, token);
+      const { valido: tokenValidoUpload, ambiguidade: ambUp, erroEspecifico: erroUp } = await extrairTokenArmazenadoValido(supabase, doc, token);
+      if (ambUp || erroUp) {
+        return json({ error: erroUp || "Ambiguidade detectada na validação do token do contrato. Acesso bloqueado por segurança." }, 403);
+      }
       if (!tokenValidoUpload) {
         return json({ error: "Token de acesso inválido ou expirado" }, 403);
       }
