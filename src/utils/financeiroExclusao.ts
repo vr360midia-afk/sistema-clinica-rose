@@ -51,7 +51,9 @@ export function analisarElegibilidadeFinanceira(
   orcamento: Orcamento,
   transacoes: Transacao[] = []
 ): ElegibilidadeExclusaoFinanceira {
-  const transVinculadas = (transacoes || []).filter((t) => t.orcamentoId === orcamento.id);
+  const transVinculadas = (transacoes || []).filter(
+    (t) => (t.orcamentoId && t.orcamentoId === orcamento.id) || (t as any).orcamento_id === orcamento.id
+  );
 
   const totalPago = transVinculadas
     .filter((t) => ehTransacaoPaga(t))
@@ -216,7 +218,48 @@ export async function executarExclusaoOuCancelamentoFinanceiro({
     };
   }
 
-  const analise = analisarElegibilidadeFinanceira(orcamento, transacoesVinculadas);
+  // 1. Busca todas as transações vinculadas a este orçamento direto no Supabase (garantia absoluta à prova de memória/cache)
+  let transDb: any[] = [];
+  try {
+    const { data: rows } = await client
+      .from('transacoes')
+      .select('*')
+      .eq('orcamento_id', orcamento.id);
+    if (rows && rows.length > 0) {
+      transDb = rows.map((r: any) => ({
+        ...r,
+        id: r.id,
+        orcamentoId: r.orcamento_id || r.orcamentoId,
+        pacienteId: r.paciente_id || r.pacienteId,
+        metodoPagamento: r.metodo_pagamento || r.metodoPagamento,
+        valorParcela: r.valor_parcela || r.valorParcela,
+        valorLiquido: r.valor_liquido || r.valorLiquido,
+        taxaCartaoPercentual: r.taxa_cartao_percentual,
+        taxaCartaoValor: r.taxa_cartao_valor,
+        vencimento: r.vencimento ? new Date(r.vencimento) : undefined,
+        data: r.data ? new Date(r.data) : new Date(),
+        status: r.status,
+        valor: Number(r.valor || 0),
+        descricao: r.descricao,
+        tipo: r.tipo,
+      }));
+    }
+  } catch (err) {
+    console.warn('[FinanceiroExclusao] Não foi possível consultar transações no banco:', err);
+  }
+
+  // Combina transações passadas por parâmetro com as do banco (sem duplicar)
+  const mapTrans = new Map<string, any>();
+  transDb.forEach((t) => mapTrans.set(t.id, t));
+  (transacoesVinculadas || []).forEach((t) => {
+    if (t?.id) {
+      const dbItem = mapTrans.get(t.id);
+      mapTrans.set(t.id, { ...dbItem, ...t, orcamentoId: t.orcamentoId || (t as any).orcamento_id || orcamento.id });
+    }
+  });
+  const todasTransacoesVinculadas = Array.from(mapTrans.values());
+
+  const analise = analisarElegibilidadeFinanceira(orcamento, todasTransacoesVinculadas);
 
   // Se tem pagamentos ou contrato, ou se o usuário optou por cancelamento: CANCELAMENTO/ARQUIVAMENTO FINANCEIRO
   if (!analise.podeExcluirDireto || forcarCancelamentoSePossivel) {
@@ -224,7 +267,7 @@ export async function executarExclusaoOuCancelamentoFinanceiro({
       const canceladasIds: string[] = [];
 
       // 1. Cancela parcelas pendentes vinculadas (NUNCA toca nas pagas!)
-      for (const t of transacoesVinculadas) {
+      for (const t of todasTransacoesVinculadas) {
         if (ehTransacaoPaga(t)) {
           // Histórico de caixa permanece estritamente intocado
           continue;
@@ -250,6 +293,27 @@ export async function executarExclusaoOuCancelamentoFinanceiro({
       }
 
       sincronizarLocalStorageTransacoes([], canceladasIds);
+
+      // Trava de segurança defensiva: cancela no banco qualquer parcela pendente vinculada restante
+      try {
+        await client
+          .from('transacoes')
+          .update({
+            status: 'cancelado',
+            atualizado_em: new Date().toISOString(),
+          })
+          .eq('orcamento_id', orcamento.id)
+          .neq('status', 'pago');
+      } catch (_) {}
+
+      // Notifica componentes em tempo real para sincronização sem necessidade de F5
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('financeiro:transacoes-atualizadas', {
+            detail: { orcamentoId: orcamento.id, tipo: 'cancelado' },
+          })
+        );
+      }
 
       // 2. Atualiza o status do orçamento para 'cancelado' mantendo histórico
       const snapExistente = (orcamento as any).assinatura_paciente || (orcamento as any).assinaturaPaciente || {};
@@ -308,7 +372,18 @@ export async function executarExclusaoOuCancelamentoFinanceiro({
     const removidasIds: string[] = [];
 
     // 1. Move transações pendentes vinculadas para a lixeira e remove da tabela
-    for (const t of transacoesVinculadas) {
+    // Trava de segurança adicional: se existir pagamento quitado no banco, aborta exclusão direta
+    const temPagas = todasTransacoesVinculadas.some((t) => ehTransacaoPaga(t));
+    if (temPagas) {
+      return {
+        ok: false,
+        tipo: 'cancelado',
+        mensagem: 'Exclusão física bloqueada: existem pagamentos quitados no Caixa vinculados a este lançamento. Utilize o Cancelamento Financeiro.',
+        error: 'Pagamentos quitados presentes',
+      };
+    }
+
+    for (const t of todasTransacoesVinculadas) {
       removidasIds.push(t.id);
       await moverParaLixeira('transacoes', t.id, t.descricao, t, usuarioEmail, client);
       try {
@@ -316,7 +391,21 @@ export async function executarExclusaoOuCancelamentoFinanceiro({
       } catch (_) {}
     }
 
+    // Trava de segurança defensiva: limpa no banco qualquer parcela pendente vinculada restante
+    try {
+      await client.from('transacoes').delete().eq('orcamento_id', orcamento.id).neq('status', 'pago');
+    } catch (_) {}
+
     sincronizarLocalStorageTransacoes(removidasIds, []);
+
+    // Notifica componentes em tempo real para sincronização sem necessidade de F5
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('financeiro:transacoes-atualizadas', {
+          detail: { orcamentoId: orcamento.id, tipo: 'excluido' },
+        })
+      );
+    }
 
     // 2. Move orçamento para a lixeira
     await moverParaLixeira(
@@ -345,7 +434,7 @@ export async function executarExclusaoOuCancelamentoFinanceiro({
         pacienteNome: orcamento.pacienteNome,
         total: orcamento.total,
         isFicticio: analise.isRegistroFicticio,
-        parcelasRemovidas: transacoesVinculadas.length,
+        parcelasRemovidas: removidasIds.length,
       },
     });
 

@@ -107,7 +107,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
   const { configContrato } = useConfiguracoesContrato();
   const { documentos, salvarDocumento } = useDocumentosClinicos(patient?.id);
   const { dentistas } = useDentistas();
-  const { transacoes, addTransacao, deleteTransacao, updatePaciente } = useDentalSystem();
+  const { transacoes, addTransacao, deleteTransacao, updatePaciente, reloadTransacoes } = useDentalSystem();
   const { operadoras, operadoraPadrao, config: configMaquinas } = useMaquinasCartao();
 
   const [open, setOpen] = useState(false);
@@ -3176,6 +3176,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
         onSuccess={() => {
           setModalExcluirOpen(false);
           setOrcamentoParaExcluir(null);
+          reloadTransacoes?.();
           reload?.();
         }}
       />

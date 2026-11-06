@@ -3,6 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Calendar, FileText, DollarSign, ClipboardList, FolderOpen, History } from 'lucide-react';
 import { useDentalSystem } from '@/context/DentalSystemContext';
+import { useOrcamentos } from '@/hooks/useOrcamentos';
 import EmptyState from '@/components/common/EmptyState';
 import TransactionForm from '@/components/financeiro/TransactionForm';
 import ConsultaModal from '@/components/agenda/ConsultaModal';
@@ -39,6 +40,7 @@ const PatientTimeline = ({ patient }: PatientTimelineProps) => {
   const [editProntuario, setEditProntuario] = useState<any>(null);
   const [editTransacao, setEditTransacao] = useState<any>(null);
   const { consultas, prontuarios, transacoes, anamneses, documentos } = useDentalSystem();
+  const { orcamentos } = useOrcamentos(patient?.id);
 
   const items = useMemo<TimelineItem[]>(() => {
     const list: TimelineItem[] = [];
@@ -70,9 +72,54 @@ const PatientTimeline = ({ patient }: PatientTimelineProps) => {
         })
       );
 
+    const orcamentosValidos = new Set((orcamentos || []).map((o) => o.id));
+    const orcamentosCancelados = new Set(
+      (orcamentos || [])
+        .filter((o) => o.status === 'cancelado' || (o as any).statusFinanceiro === 'cancelado')
+        .map((o) => o.id)
+    );
+
     transacoes
       .filter((t) => t && t.pacienteId === patient?.id)
-      .forEach((t) =>
+      .forEach((t) => {
+        const isCancelado = t?.status === 'cancelado';
+        const orcId = t?.orcamentoId || (t as any)?.orcamento_id;
+        const ehPago = String(t?.status || '').toLowerCase().trim() === 'pago';
+
+        // Se for transação explicitamente cancelada:
+        if (isCancelado) {
+          list.push({
+            id: `t-${t.id}`,
+            originalId: t.id,
+            data: new Date(t.data),
+            tipo: 'transacao',
+            titulo: `${t.tipo === 'receita' ? 'Recebimento' : 'Despesa'} (Cancelado) ${formatMoney(Number(t.valor || 0))}`,
+            descricao: `${t.descricao || ''} • Lançamento cancelado`,
+            badge: 'cancelado',
+          });
+          return;
+        }
+
+        // Se for pendente vinculada a orçamento:
+        if (!ehPago && orcId) {
+          if (orcamentosCancelados.has(orcId)) {
+            list.push({
+              id: `t-${t.id}`,
+              originalId: t.id,
+              data: new Date(t.data),
+              tipo: 'transacao',
+              titulo: `${t.tipo === 'receita' ? 'Recebimento' : 'Despesa'} (Cancelado) ${formatMoney(Number(t.valor || 0))}`,
+              descricao: `${t.descricao || ''} • Orçamento cancelado`,
+              badge: 'cancelado',
+            });
+            return;
+          }
+          if (!orcamentosValidos.has(orcId)) {
+            // Orçamento excluído / inexistente: NÃO exibe como recebimento ativo na linha do tempo
+            return;
+          }
+        }
+
         list.push({
           id: `t-${t.id}`,
           originalId: t.id,
@@ -81,8 +128,8 @@ const PatientTimeline = ({ patient }: PatientTimelineProps) => {
           titulo: `${t.tipo === 'receita' ? 'Recebimento' : 'Despesa'} ${formatMoney(Number(t.valor || 0))}`,
           descricao: t.descricao,
           badge: t?.status,
-        })
-      );
+        });
+      });
 
     anamneses
       .filter((a) => a && a.pacienteId === patient?.id)
@@ -113,7 +160,7 @@ const PatientTimeline = ({ patient }: PatientTimelineProps) => {
     return list
       .filter((i) => !isNaN(i.data.getTime()))
       .sort((a, b) => b.data.getTime() - a.data.getTime());
-  }, [consultas, prontuarios, transacoes, anamneses, documentos, patient.id]);
+  }, [consultas, prontuarios, transacoes, orcamentos, anamneses, documentos, patient?.id]);
 
   if (items.length === 0) {
     return (

@@ -307,7 +307,30 @@ export const useOrcamentos = (pacienteId?: string) => {
       }
     }
 
-    // 2. Executa delete exigindo confirmação de linhas afetadas no banco via .select('id')
+    // 2. Verifica se existem movimentações quitadas no Caixa
+    const { data: transVinculadas } = await supabase
+      .from('transacoes')
+      .select('id, status, valor, descricao')
+      .eq('orcamento_id', id);
+
+    const temPagas = (transVinculadas || []).some((t: any) => {
+      const s = String(t?.status || '').toLowerCase().trim();
+      return s === 'pago' || s === 'quitado' || s === 'paga' || s === 'quitada' || s === 'concluido';
+    });
+
+    if (temPagas) {
+      toast.error('Exclusão física bloqueada: existem recebimentos quitados no Caixa', {
+        description: 'Orçamentos com recebimentos já confirmados devem ser cancelados/arquivados administrativamente para proteger o histórico financeiro.',
+      });
+      return false;
+    }
+
+    // 3. Remove parcelas pendentes vinculadas para não deixar transações órfãs
+    if (transVinculadas && transVinculadas.length > 0) {
+      await supabase.from('transacoes').delete().eq('orcamento_id', id).neq('status', 'pago');
+    }
+
+    // 4. Executa delete exigindo confirmação de linhas afetadas no banco via .select('id')
     const { data, error } = await supabase.from('orcamentos').delete().eq('id', id).select('id');
     if (error) {
       toast.error('Erro ao remover orçamento: ' + error.message);
@@ -322,6 +345,11 @@ export const useOrcamentos = (pacienteId?: string) => {
     }
 
     await registrarAuditoria({ acao: 'removeu', entidade: 'orcamento', entidadeId: id });
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('financeiro:transacoes-atualizadas', { detail: { orcamentoId: id, tipo: 'excluido' } })
+      );
+    }
     toast.success('Orçamento removido com sucesso');
     load();
     return true;

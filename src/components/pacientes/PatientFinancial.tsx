@@ -190,7 +190,7 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
   const [itemToEdit, setItemToEdit] = useState<any | null>(null);
 
 
-  const { realizados, previstos, etapas, resumo, lancamentos } = useMemo(() => {
+  const { realizados, previstos, etapas, resumo, lancamentos, lancamentosCancelados = [] } = useMemo(() => {
     const cons = consultas.filter((c) => c.pacienteId === patient.id);
     const pront = prontuarios.filter((p) => p.pacienteId === patient.id);
     const trans = transacoes.filter((t) => t?.pacienteId === patient?.id);
@@ -236,23 +236,34 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
 
     const receitas = trans.filter((t) => t?.tipo === 'receita');
     const pago = receitas.filter((t) => ehTransacaoPaga(t)).reduce((s, t) => s + Number(t.valor || 0), 0);
-    const pendente = receitas.filter((t) => ehTransacaoPendente(t)).reduce((s, t) => s + Number(t.valor || 0), 0);
-    const vencido = receitas
-      .filter((t) => t?.status === 'vencido' || (ehTransacaoPendente(t) && t.vencimento && new Date(t.vencimento) < new Date()))
-      .reduce((s, t) => s + Number(t.valor || 0), 0);
-    // Orçamentos aprovados: saldo ainda não pago entra como "em aberto".
-    // O cálculo é centralizado em calcularSaldosOrcamentos, que abate também os
-    // pagamentos do paciente sem vínculo direto — evitando contar duas vezes.
-    const aprovados = (orcamentos || []).filter((o) => o?.status === 'aprovado');
+    const aprovados = (orcamentos || []).filter((o) => {
+      if (!o || o?.status !== 'aprovado') return false;
+      const snap = (o as any).assinatura_paciente || (o as any).assinaturaPaciente || {};
+      return o.statusFinanceiro !== 'cancelado' && o.statusFinanceiro !== 'arquivado' && snap.statusFinanceiro !== 'cancelado' && snap.statusFinanceiro !== 'arquivado';
+    });
     const idsAprovados = new Set(aprovados.map((o) => o.id));
     const saldosMap = calcularSaldosOrcamentos(orcamentos || [], trans as any[]);
     const saldoOrcamentos = aprovados.reduce((s, o) => s + (saldosMap.get(o.id)?.saldo || 0), 0);
-    
-    // Pendentes avulsos que não pertencem a orçamentos aprovados (evita duplicidade no total em aberto)
+
+    const vencido = receitas
+      .filter((t) => {
+        if (!ehTransacaoPendente(t) || t?.status === 'cancelado') return false;
+        const orcId = t?.orcamentoId || (t as any)?.orcamento_id;
+        if (orcId && !idsAprovados.has(orcId)) return false;
+        return t?.status === 'vencido' || (t.vencimento && new Date(t.vencimento) < new Date());
+      })
+      .reduce((s, t) => s + Number(t.valor || 0), 0);
+
+    // Pendentes avulsos legítimos (sem nenhum orçamento vinculado)
     const pendenteAvulso = receitas
-      .filter((t) => t?.status === 'pendente' && (!t.orcamentoId || !idsAprovados.has(t.orcamentoId)))
+      .filter((t) => {
+        if (!ehTransacaoPendente(t) || t?.status === 'cancelado') return false;
+        const orcId = t?.orcamentoId || (t as any)?.orcamento_id;
+        return !orcId;
+      })
       .reduce((s, t) => s + Number(t.valor || 0), 0);
     const pendenteTotal = pendenteAvulso + saldoOrcamentos;
+    const pendente = pendenteTotal;
     const total = pago + pendenteTotal;
 
 
@@ -297,7 +308,25 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
       previstos,
       etapas,
       resumo: { pago, pendente: pendenteTotal, vencido, total, previstoValor, saldoOrcamentos, totalOrcamentos: aprovados.reduce((s, o) => s + Number(o.total || 0), 0) },
-      lancamentos: receitas.sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime()),
+      lancamentos: receitas
+        .filter((t) => {
+          if (ehTransacaoPaga(t)) return true;
+          if (t?.status === 'cancelado') return false;
+          const orcId = t?.orcamentoId || (t as any)?.orcamento_id;
+          if (orcId) {
+            return idsAprovados.has(orcId);
+          }
+          return true;
+        })
+        .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime()),
+      lancamentosCancelados: receitas
+        .filter((t) => {
+          if (ehTransacaoPaga(t)) return false;
+          if (t?.status === 'cancelado') return true;
+          const orcId = t?.orcamentoId || (t as any)?.orcamento_id;
+          return orcId && !idsAprovados.has(orcId);
+        })
+        .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime()),
     };
   }, [consultas, prontuarios, transacoes, orcamentos, patient.id]);
 
@@ -582,6 +611,27 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
                 </li>
               ))}
             </ol>
+          )}
+
+          {lancamentosCancelados.length > 0 && (
+            <div className="pt-2 border-t mt-2">
+              <details className="text-xs text-muted-foreground group">
+                <summary className="cursor-pointer hover:text-foreground font-medium flex items-center justify-between py-1">
+                  <span>Lançamentos cancelados / inativos ({lancamentosCancelados.length})</span>
+                  <span className="text-[11px] underline">Ver detalhes</span>
+                </summary>
+                <div className="space-y-1.5 mt-2 pl-2 border-l border-muted">
+                  {lancamentosCancelados.map((tc: any) => (
+                    <div key={tc.id} className="flex items-center justify-between py-1 text-xs text-muted-foreground">
+                      <span className="line-through">{tc.descricao || 'Parcela'} ({brl(tc.valor)})</span>
+                      <Badge variant="outline" className="text-[9px] uppercase tracking-wider text-muted-foreground">
+                        {tc.status || 'cancelado'}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            </div>
           )}
         </CardContent>
       </Card>

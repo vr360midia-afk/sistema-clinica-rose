@@ -118,6 +118,27 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
   };
 
   // Funções para Pacientes
+  const reloadTransacoes = async () => {
+    try {
+      const tra = await supabaseService.getTransacoes();
+      setTransacoes((tra || []).filter(Boolean));
+    } catch (error) {
+      console.warn('[DentalSystemContext] Erro ao recarregar transações:', error);
+    }
+  };
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      reloadTransacoes();
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('financeiro:transacoes-atualizadas', handleUpdate);
+      return () => {
+        window.removeEventListener('financeiro:transacoes-atualizadas', handleUpdate);
+      };
+    }
+  }, []);
+
   const addPaciente = async (pacienteData: Omit<Paciente, 'id' | 'criadoEm' | 'atualizadoEm'>): Promise<Paciente> => {
     try {
       console.log('addPaciente chamado com:', pacienteData);
@@ -662,7 +683,9 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
     clearPacientes,
     clearTransacoes,
     clearAnamneses,
-    migrateFromLocalStorage
+    migrateFromLocalStorage,
+    reloadTransacoes,
+    loadAllData
   };
 
   return (

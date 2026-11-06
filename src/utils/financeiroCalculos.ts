@@ -225,8 +225,25 @@ export function calcularResumoFinanceiroMes({
   const vendasFechadas = orcamentosFechadosMes.reduce((sum, o) => sum + Number(o?.total || 0), 0);
 
   // 6. A RECEBER NO MÊS: Somente parcelas/receitas que vencem no mês selecionado e ainda não foram pagas
+  const idsOrcamentosAprovados = new Set(
+    (orcamentos || [])
+      .filter((o) => {
+        if (!o || String(o?.status || '').toLowerCase() !== 'aprovado') return false;
+        const snap = (o as any).assinatura_paciente || (o as any).assinaturaPaciente || {};
+        return (
+          o.statusFinanceiro !== 'cancelado' &&
+          o.statusFinanceiro !== 'arquivado' &&
+          snap.statusFinanceiro !== 'cancelado' &&
+          snap.statusFinanceiro !== 'arquivado'
+        );
+      })
+      .map((o) => o.id)
+  );
+
   const parcelasVencendoNoMes = (transacoes || []).filter((t) => {
-    if (t?.tipo !== 'receita' || !ehTransacaoPendente(t)) return false;
+    if (t?.tipo !== 'receita' || !ehTransacaoPendente(t) || t?.status === 'cancelado') return false;
+    const orcId = t.orcamentoId || t.orcamento_id;
+    if (orcId && !idsOrcamentosAprovados.has(orcId)) return false;
     const dataVenc = t.vencimento || t.data;
     return isDataNoMesAno(dataVenc, ano, mes0Indexed);
   });
@@ -258,16 +275,13 @@ export function calcularResumoFinanceiroMes({
     })
     .reduce((sum, o) => sum + (saldosOrcamentos.get(o.id)?.saldo || 0), 0);
 
-  const idsOrcamentosAprovados = new Set(
-    (orcamentos || []).filter((o) => {
-      if (!o || String(o?.status || '').toLowerCase() !== 'aprovado') return false;
-      const snap = (o as any).assinatura_paciente || (o as any).assinaturaPaciente || {};
-      return o.statusFinanceiro !== 'cancelado' && o.statusFinanceiro !== 'arquivado' && snap.statusFinanceiro !== 'cancelado' && snap.statusFinanceiro !== 'arquivado';
-    }).map((o) => o.id)
-  );
 
   const pendentesAvulsos = (transacoes || []).filter(
-    (t) => t?.tipo === 'receita' && ehTransacaoPendente(t) && (!t.orcamentoId || !idsOrcamentosAprovados.has(t.orcamentoId))
+    (t) => {
+      if (t?.tipo !== 'receita' || !ehTransacaoPendente(t) || t?.status === 'cancelado') return false;
+      const orcId = t.orcamentoId || t.orcamento_id;
+      return !orcId;
+    }
   );
   const totalPendingAvulso = pendentesAvulsos.reduce((sum, t) => sum + Number(t?.valor || 0), 0);
   const carteiraTotalAReceber = totalOrcamentosAberto + totalPendingAvulso;
