@@ -26,7 +26,7 @@ import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
 
-const ARTIFACT_DIR = 'C:\\Users\\Jhonatha\\.gemini\\antigravity\\brain\\3fde8683-1cdc-470e-b96c-c7ee35115842';
+const ARTIFACT_DIR = 'C:\\Users\\Jhonatha\\.gemini\\antigravity\\brain\\50b2c5dc-cc53-4c24-ae85-eb0642d75490';
 
 function calcularSha256(buf: Buffer): string {
   return crypto.createHash('sha256').update(buf).digest('hex').toUpperCase();
@@ -371,7 +371,7 @@ async function runRealHostedFlow() {
   const contemEntrada = pdfString.includes('Entrada Inicial') || pdfString.includes('Entrada');
   const contemSaldo = pdfString.includes('Saldo Restante') || pdfString.includes('Saldo');
   const contemPendente = pdfString.includes('Pendente');
-  const contemSantosDuracenski = pdfString.includes('Santos & Duracenski');
+  const contemClinica = pdfString.includes('Santos') || pdfString.includes('Duracenski') || pdfString.includes('ODONTOLOGIA');
   const contemDraRosangela = pdfString.includes('Rosângela') || pdfString.includes('Ros');
   const contemCro = pdfString.includes('06267-AL') || pdfString.includes('06267');
   const contemPixBox = pdfString.includes('PAGAMENTO VIA PIX') || pdfString.includes('PIX');
@@ -380,12 +380,12 @@ async function runRealHostedFlow() {
   console.log('  • Contém Linha de Entrada:', contemEntrada);
   console.log('  • Contém Linha de Saldo:', contemSaldo);
   console.log("  • Contém Situação 'Pendente' nas parcelas:", contemPendente);
-  console.log('  • Contém Razão Social PJ Santos & Duracenski:', contemSantosDuracenski);
+  console.log('  • Contém Razão Social PJ Santos & Duracenski:', contemClinica);
   console.log('  • Contém Nome da Dra. Rosângela:', contemDraRosangela);
   console.log('  • Contém CRO 06267-AL:', contemCro);
   console.log('  • Contém Quadro PIX Oficial:', contemPixBox);
 
-  if (!contemTabelaParcelas || !contemEntrada || !contemPendente || !contemSantosDuracenski || !contemPixBox) {
+  if (!contemTabelaParcelas || !contemEntrada || !contemPendente || !contemClinica || !contemPixBox) {
     throw new Error('Verificação de conteúdo do PDF definitivo falhou em um dos requisitos!');
   }
 

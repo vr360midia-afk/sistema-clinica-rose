@@ -28,7 +28,7 @@ const supabase = createClient(HOMOLOG_URL, HOMOLOG_SERVICE_KEY, {
   auth: { persistSession: false },
 });
 
-const ARTIFACT_DIR = "C:\\Users\\Jhonatha\\.gemini\\antigravity\\brain\\3fde8683-1cdc-470e-b96c-c7ee35115842";
+const ARTIFACT_DIR = "C:\\Users\\Jhonatha\\.gemini\\antigravity\\brain\\50b2c5dc-cc53-4c24-ae85-eb0642d75490";
 const EDGE_PATH = "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe";
 
 const configContrato: ConfiguracoesContrato = {
