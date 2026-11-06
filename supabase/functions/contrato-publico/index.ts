@@ -560,7 +560,173 @@ async function localizarContratoCompativel(
 
 // RESOLUÇÃO DE CONTRATOS HISTÓRICOS NÃO-AMBÍGUA E DETERMINÍSTICA
 // Preserva 100% dos códigos CTR existentes sem renomear nenhum contrato.
-// Em caso de duplicidade histórica, localiza exatamente o contrato correspondente ao token informado.
+// Em caso de duplicidade histórica, localiza exatamente o registro canônico correspondente ao token informado,
+// priorizando o contrato formalizado com assinaturas e PDF arquivado no Storage sobre meros rascunhos sem PDF.
+
+function pontuarRegistroCanonico(doc: any, tokenInformado?: string): number {
+  if (!doc) return -1;
+  const snap = doc.itens || {};
+  const tDoc = (snap.token || snap.contratoToken || snap.tokenAssinatura || "").trim();
+
+  // GARANTIA 1: Se token foi informado e o documento possui token divergente, DESQUALIFICA IMEDIATAMENTE
+  if (tokenInformado && tDoc && tDoc !== tokenInformado.trim()) {
+    return -10000;
+  }
+
+  const isAssinadoPac = Boolean(doc.assinado_em || snap.assinaturaPaciente?.assinaturaData);
+  const isAssinadoDra = Boolean(snap.assinaturaDentista?.assinaturaData || snap.statusAssinaturaDentista === "assinado");
+  const isFormalizado = isAssinadoPac && isAssinadoDra;
+  const hasPdf = Boolean(doc.pdf_path || snap.pdfPath);
+  const tokenBate = Boolean(tokenInformado && tDoc && tDoc === tokenInformado.trim());
+
+  let score = 0;
+  // Formalização e PDF têm prioridade absoluta para desempate entre documentos válidos
+  if (isFormalizado && hasPdf) score += 1000;
+  else if (isAssinadoPac && hasPdf) score += 800;
+  else if (isFormalizado && !hasPdf) score += 600;
+  else if (isAssinadoPac && !hasPdf) score += 500;
+  else if (isAssinadoDra && hasPdf) score += 400;
+  else if (isAssinadoDra && !hasPdf) score += 300;
+  else if (hasPdf) score += 200;
+  else score += 100; // rascunho sem PDF e sem assinatura
+
+  if (tokenBate) score += 50;
+
+  const pac = snap.paciente || {};
+  if (temValorValido(pac.cpf)) score += 10;
+  if (temValorValido(pac.endereco)) score += 5;
+
+  return score;
+}
+
+function selecionarCandidatoCanonico(
+  candidatos: any[],
+  tokenInformado?: string,
+  pacienteIdEsperado?: string | null,
+  versaoEsperada?: string | null,
+  orcamentoIdEsperado?: string | null
+): { doc: any | null; ambiguidade: boolean; erro?: string } {
+  if (!candidatos || candidatos.length === 0) {
+    return { doc: null, ambiguidade: false, erro: "Contrato não encontrado" };
+  }
+
+  // 1. FILTRAGEM PRÉVIA OBRIGATÓRIA: Contrato, Paciente, Orçamento e Versão
+  let elegiveis = candidatos;
+
+  if (pacienteIdEsperado) {
+    const comMesmoPaciente = elegiveis.filter((c: any) => {
+      const pid = c.paciente_id || c.itens?.pacienteId || c.itens?.paciente?.id;
+      return !pid || pid === pacienteIdEsperado;
+    });
+    if (comMesmoPaciente.length === 0) {
+      return { doc: null, ambiguidade: false, erro: "Incompatibilidade de paciente para o contrato solicitado" };
+    }
+    elegiveis = comMesmoPaciente;
+  }
+
+  if (orcamentoIdEsperado) {
+    const comMesmoOrcamento = elegiveis.filter((c: any) => {
+      const oid = c.orcamento_id || c.itens?.orcamentoId || c.itens?.orcamento?.id;
+      return !oid || oid === orcamentoIdEsperado;
+    });
+    if (comMesmoOrcamento.length === 0) {
+      return { doc: null, ambiguidade: false, erro: "Incompatibilidade de orçamento para o contrato solicitado" };
+    }
+    elegiveis = comMesmoOrcamento;
+  }
+
+  if (versaoEsperada) {
+    const comMesmaVersao = elegiveis.filter((c: any) => {
+      const v = String(c.versao_numero || c.itens?.versao || 1);
+      return v === String(versaoEsperada);
+    });
+    if (comMesmaVersao.length === 0) {
+      return { doc: null, ambiguidade: false, erro: "Incompatibilidade de versão para o contrato solicitado" };
+    }
+    elegiveis = comMesmaVersao;
+  }
+
+  // 2. GARANTIA 1: VALIDAÇÃO DE TOKEN ANTES DE QUALQUER SELEÇÃO CANÔNICA
+  // A pontuação por assinatura/PDF NUNCA pode permitir acesso com token de outro documento.
+  if (tokenInformado) {
+    const cleanToken = tokenInformado.trim();
+
+    // Mapeia todos os tokens existentes nos candidatos
+    const tokensDistintos = new Set<string>();
+    for (const c of elegiveis) {
+      const t = (c.itens?.token || c.itens?.contratoToken || c.itens?.tokenAssinatura || "").trim();
+      if (t.length >= 16) {
+        tokensDistintos.add(t);
+      }
+    }
+
+    // Trava de Ambiguidade: Se houver múltiplos tokens distintos no mesmo contrato, bloqueia por segurança
+    if (tokensDistintos.size > 1) {
+      console.warn("[contrato-publico] AMBIGUIDADE DETECTADA: " + tokensDistintos.size + " tokens distintos encontrados para o mesmo contrato.");
+      return {
+        doc: null,
+        ambiguidade: true,
+        erro: "Ambiguidade detectada na validação do token do contrato. Acesso bloqueado por segurança.",
+      };
+    }
+
+    // Se há token registrado e não coincide rigorosamente com o informado, BLOQUEIA IMEDIATAMENTE
+    if (tokensDistintos.size === 1) {
+      const tokenLegitimo = Array.from(tokensDistintos)[0];
+      if (cleanToken !== tokenLegitimo) {
+        return { doc: null, ambiguidade: false, erro: "Token de acesso inválido ou expirado" };
+      }
+    }
+
+    // Filtra exclusivamente candidatos que possuem o token correto
+    const candidatosComTokenCorreto = elegiveis.filter((c: any) => {
+      const t = (c.itens?.token || c.itens?.contratoToken || c.itens?.tokenAssinatura || "").trim();
+      return t === cleanToken;
+    });
+
+    if (candidatosComTokenCorreto.length > 0) {
+      elegiveis = candidatosComTokenCorreto;
+    } else if (tokensDistintos.size > 0) {
+      return { doc: null, ambiguidade: false, erro: "Token de acesso inválido ou expirado" };
+    }
+  } else {
+    // Acesso sem token: Se qualquer documento exigir token, bloqueia
+    const exigeToken = elegiveis.some((c: any) => {
+      const t = (c.itens?.token || c.itens?.contratoToken || c.itens?.tokenAssinatura || "").trim();
+      return t.length >= 16;
+    });
+    if (exigeToken) {
+      return { doc: null, ambiguidade: false, erro: "Acesso não autorizado: token de segurança não informado" };
+    }
+  }
+
+  if (elegiveis.length === 1) {
+    return { doc: elegiveis[0], ambiguidade: false };
+  }
+
+  // 3. APENAS APÓS TODAS AS VALIDAÇÕES DE SEGURANÇA E CORRESPONDÊNCIA DE TOKEN:
+  // Seleciona o documento canônico formalizado e com PDF
+  const ordenados = [...elegiveis].sort((a, b) => {
+    const scoreA = pontuarRegistroCanonico(a, tokenInformado);
+    const scoreB = pontuarRegistroCanonico(b, tokenInformado);
+    if (scoreA !== scoreB) return scoreB - scoreA;
+
+    const pdfA = Boolean(a.pdf_path || a.itens?.pdfPath);
+    const pdfB = Boolean(b.pdf_path || b.itens?.pdfPath);
+    if (pdfA !== pdfB) return pdfA ? -1 : 1;
+
+    const assA = Boolean(a.assinado_em || a.itens?.assinaturaPaciente?.assinaturaData);
+    const assB = Boolean(b.assinado_em || b.itens?.assinaturaPaciente?.assinaturaData);
+    if (assA !== assB) return assA ? -1 : 1;
+
+    const tA = new Date(a.criado_em || 0).getTime();
+    const tB = new Date(b.criado_em || 0).getTime();
+    return tB - tA;
+  });
+
+  return { doc: ordenados[0], ambiguidade: false };
+}
+
 async function localizarContratoCompativelBase(
   supabase: any,
   targetId: string,
@@ -577,16 +743,12 @@ async function localizarContratoCompativelBase(
   if (isUuid) {
     const { data } = await supabase.from("documentos_clinicos").select("*").eq("id", cleanId).maybeSingle();
     if (data) {
-      const tSaved = data.itens?.token || data.itens?.contratoToken || data.itens?.tokenAssinatura;
-      if (!token || tSaved === token) return data;
-      // Se fornecido token e não bate com este UUID específico, procura se há outro registro do mesmo contrato que bate
-      // Se fornecido token e não bate com este UUID específico, procura se há irmão estrito da mesma emissão
+      const tSaved = (data.itens?.token || data.itens?.contratoToken || data.itens?.tokenAssinatura || "").trim();
       const cid = (data.identificador || data.itens?.contratoId || "").trim().toUpperCase();
       const pacienteId = data.paciente_id || data.itens?.pacienteId;
       const versaoDoc = String(data.versao_numero || data.itens?.versao || 1);
-      const totalDoc = Number(data.itens?.financeiro?.total || data.itens?.orcamento?.valorTotal || 0);
 
-      if (cid && pacienteId && token) {
+      if (cid && pacienteId) {
         const { data: siblings } = await supabase
           .from("documentos_clinicos")
           .select("*")
@@ -596,34 +758,17 @@ async function localizarContratoCompativelBase(
           .order("criado_em", { ascending: false });
 
         if (siblings && siblings.length > 0) {
-          const validSibs = siblings.filter((s: any) => {
-            if (s.id === data.id) return false;
-            if (s.id === data.itens?.contratoAnteriorId || data.id === s.itens?.contratoAnteriorId) return false;
-            const vSib = String(s.versao_numero || s.itens?.versao || 1);
-            if (vSib !== versaoDoc) return false;
-            const totSib = Number(s.itens?.financeiro?.total || s.itens?.orcamento?.valorTotal || 0);
-            if (totalDoc > 0 && totSib > 0 && Math.abs(totalDoc - totSib) > 0.01) return false;
-            return true;
-          });
-
-          // Trava de ambiguidade em irmãos: múltiplos tokens divergentes
-          const distinctTokens = new Set<string>();
-          for (const sb of validSibs) {
-            const sbTok = (sb.itens?.token || sb.itens?.contratoToken || sb.itens?.tokenAssinatura || "").trim();
-            if (sbTok.length >= 16) distinctTokens.add(sbTok);
+          const todosCandidatos = siblings.some((s: any) => s.id === data.id) ? siblings : [data, ...siblings];
+          const selecao = selecionarCandidatoCanonico(todosCandidatos, token, pacienteId, versaoDoc);
+          if (selecao.ambiguidade || selecao.erro) {
+            return null;
           }
-          if (distinctTokens.size > 1) {
-            return data;
-          }
-
-          const matchSib = validSibs.find((r: any) => {
-            const sTok = (r.itens?.token || r.itens?.contratoToken || r.itens?.tokenAssinatura || "").trim();
-            return sTok === token;
-          });
-          if (matchSib) return matchSib;
+          if (selecao.doc) return selecao.doc;
         }
       }
-      return data;
+
+      if (!token || tSaved === token) return data;
+      return null;
     }
   }
 
@@ -647,12 +792,11 @@ async function localizarContratoCompativelBase(
     .order("criado_em", { ascending: false });
 
   if (rows && rows.length > 0) {
-    // Se o token foi informado, localiza exatamente o documento que possui este token
-    if (token) {
-      const matchToken = rows.find((r: any) => r.itens?.token === token || r.itens?.contratoToken === token || r.itens?.tokenAssinatura === token);
-      if (matchToken) return matchToken;
+    const selecao = selecionarCandidatoCanonico(rows, token);
+    if (selecao.ambiguidade || selecao.erro) {
+      return null;
     }
-    return rows[0];
+    if (selecao.doc) return selecao.doc;
   }
 
   // 3. Fallback por prefixo de UUID se fornecido código de 8 dígitos
@@ -663,11 +807,11 @@ async function localizarContratoCompativelBase(
       .ilike("id", `${code8.toLowerCase()}-%`)
       .order("criado_em", { ascending: false });
     if (rowsLike && rowsLike.length > 0) {
-      if (token) {
-        const matchToken = rowsLike.find((r: any) => r.itens?.token === token || r.itens?.contratoToken === token || r.itens?.tokenAssinatura === token);
-        if (matchToken) return matchToken;
+      const selecaoLike = selecionarCandidatoCanonico(rowsLike, token);
+      if (selecaoLike.ambiguidade || selecaoLike.erro) {
+        return null;
       }
-      return rowsLike[0];
+      if (selecaoLike.doc) return selecaoLike.doc;
     }
   }
 

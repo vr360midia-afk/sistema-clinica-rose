@@ -1640,23 +1640,20 @@ export async function gerarContratoDoOrcamentoAprovado(params: {
         const pacSnap = checkDoc.snapshot?.paciente || {};
         const isIncompleto = !temValorValido(pacSnap.endereco) || !temValorValido(pacSnap.cpf) || !temValorValido(pacSnap.telefone);
 
-        // Se já está formalizado pelo paciente OU se já possui todos os dados cadastrais completos, preserva
-        if (isJaAssinadoPac || !isIncompleto) {
-          const link = construirUrlPublicaContrato({
-            pacienteNome: ('pacienteNome' in orcamento ? orcamento.pacienteNome : (orcamento as any).paciente_nome) || patient?.nome,
-            identificador: existingContratoId,
-            token: existingContratoToken,
-          });
-          return {
-            ok: true,
-            contratoId: existingContratoId,
-            contratoToken: existingContratoToken,
-            contratoLink: link,
-            snapshot: checkDoc.snapshot,
-          };
-        }
-        // Caso o contrato anterior tenha sido emitido com dados incompletos e o cadastro foi corrigido,
-        // prossegue para emitir uma nova versão atualizada sem sobrescrever silenciosamente o documento prévio!
+        // Idempotência estrita (ETAPA 2): se já existe contrato oficial recuperável no servidor para este orçamento,
+        // preserva a identidade e o snapshot existentes, impedindo novas duplicações
+        const link = construirUrlPublicaContrato({
+          pacienteNome: ('pacienteNome' in orcamento ? orcamento.pacienteNome : (orcamento as any).paciente_nome) || patient?.nome,
+          identificador: existingContratoId,
+          token: existingContratoToken,
+        });
+        return {
+          ok: true,
+          contratoId: existingContratoId,
+          contratoToken: existingContratoToken,
+          contratoLink: link,
+          snapshot: checkDoc.snapshot,
+        };
       }
     } catch (_) {}
   }

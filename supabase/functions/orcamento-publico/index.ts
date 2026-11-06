@@ -815,12 +815,85 @@ Deno.serve(async (req) => {
         } catch (_) {}
       }
 
-      // 4. Geração do Contrato correspondente vinculado
-      const contratoId = "CTR-" + (norm.code8 || crypto.randomUUID().slice(0, 8).toUpperCase());
-      const rawTokenBytes = new Uint8Array(24);
-      crypto.getRandomValues(rawTokenBytes);
-      const contratoToken = Array.from(rawTokenBytes, (b) => b.toString(16).padStart(2, "0")).join("");
-      const contratoLink = `${origin}/contrato/${contratoId}?token=${contratoToken}`;
+            // 4. Geração do Contrato correspondente vinculado (COM IDEMPOTÊNCIA ESTRITA E RESISTÊNCIA A CONCORRÊNCIA - GARANTIA 2)
+      // Se o orçamento já possui contrato_id persistido ou se já existe contrato vinculado a este orçamento,
+      // preserva a identidade do contrato existente em vez de gerar um novo código aleatório e duplicata.
+      const codeDeterministic = norm.code8 || String(row.id).replace(/[^a-zA-Z0-9]/g, "").slice(0, 8).toUpperCase();
+      let contratoId = (row.contrato_id || snap.contratoId || ("CTR-" + codeDeterministic)).trim().toUpperCase();
+      let contratoToken = (row.contrato_token || snap.contratoToken || snap.token || "").trim();
+      let contratoExistente: any = null;
+
+      try {
+        const { data: exDocs } = await supabase
+          .from("documentos_clinicos")
+          .select("*")
+          .eq("tipo", "contrato")
+          .or("identificador.eq." + contratoId + ",identificador.eq." + contratoId.toLowerCase() + ",itens->>contratoId.eq." + contratoId + ",orcamento_id.eq." + row.id)
+          .order("criado_em", { ascending: false })
+          .limit(1);
+        if (exDocs && exDocs.length > 0) {
+          contratoExistente = exDocs[0];
+          contratoId = contratoExistente.identificador || contratoExistente.itens?.contratoId || contratoId;
+          contratoToken = contratoExistente.itens?.token || contratoExistente.itens?.contratoToken || contratoToken;
+        }
+      } catch (_) {}
+
+      // TRAVA DE CONCORRÊNCIA ATÔMICA (GARANTIA 2):
+      // Se nenhum contrato existe ainda, tenta marcar atomicamente o orçamento para aprovação.
+      // Em caso de requisições simultâneas concorrentes, apenas UMA conclui com sucesso a transição.
+      if (!contratoExistente) {
+        const { data: winRow } = await supabase
+          .from("orcamentos")
+          .update({
+            status: "aprovado",
+            atualizado_em: nowIso,
+          })
+          .eq("id", row.id)
+          .neq("status", "aprovado")
+          .select("*");
+
+        if (!winRow || winRow.length === 0) {
+          // Outro processo simultâneo já assumiu a aprovação deste orçamento.
+          // Aguarda 350ms para o processo vencedor finalizar a inserção do contrato.
+          await new Promise((r) => setTimeout(r, 350));
+          try {
+            const { data: exDocsConcorrente } = await supabase
+              .from("documentos_clinicos")
+              .select("*")
+              .eq("tipo", "contrato")
+              .or("identificador.eq." + contratoId + ",identificador.eq." + contratoId.toLowerCase() + ",itens->>contratoId.eq." + contratoId + ",orcamento_id.eq." + row.id)
+              .order("criado_em", { ascending: false })
+              .limit(1);
+
+            if (exDocsConcorrente && exDocsConcorrente.length > 0) {
+              const docWin = exDocsConcorrente[0];
+              const cIdWin = docWin.identificador || docWin.itens?.contratoId || contratoId;
+              const tokWin = docWin.itens?.token || docWin.itens?.contratoToken || contratoToken;
+              return json({
+                ok: true,
+                jaAprovado: true,
+                id: row.id,
+                status: "aprovado",
+                aprovadoEm: nowIso,
+                condicaoEscolhida,
+                contratoId: cIdWin,
+                contratoToken: tokWin,
+                contratoStatus: docWin.itens?.status || "pendente",
+                contratoLink: origin + "/contrato/" + cIdWin + "?token=" + encodeURIComponent(tokWin),
+                assinaturaDraStatus: docWin.itens?.statusAssinaturaDentista === "assinado" ? "concluida" : "pendente",
+                message: "Orçamento aprovado simultaneamente com sucesso e idempotência garantida.",
+              });
+            }
+          } catch (_) {}
+        }
+      }
+
+      if (!contratoToken || contratoToken.length < 16) {
+        const rawTokenBytes = new Uint8Array(24);
+        crypto.getRandomValues(rawTokenBytes);
+        contratoToken = Array.from(rawTokenBytes, (b) => b.toString(16).padStart(2, "0")).join("");
+      }
+      const contratoLink = origin + "/contrato/" + contratoId + "?token=" + contratoToken;
 
       let statusContrato = "pendente";
       let statusAssinaturaDentista = "pendente";
@@ -920,20 +993,35 @@ Deno.serve(async (req) => {
         clinica: clinicaDados,
       };
 
-      // 5. Persiste o contrato em documentos_clinicos
+      // 5. Persiste o contrato em documentos_clinicos (COM IDEMPOTÊNCIA ESTRITA)
       try {
-        await supabase.from("documentos_clinicos").insert({
-          identificador: contratoId,
-          paciente_id: row.paciente_id || null,
-          paciente_nome: pacienteDados.nome,
-          tipo: "contrato",
-          titulo: `Contrato Odontológico - ${pacienteDados.nome} (${contratoId})`,
-          conteudo: "",
-          itens: snapshotContrato,
-          dentista: clinicaDados.dentistaResponsavel,
-          criado_em: nowIso,
-          atualizado_em: nowIso,
-        });
+        if (contratoExistente?.id) {
+          // Se já está formalizado/assinado pelo paciente, preserva 100% sem regravação
+          const isJaAssinadoPac = Boolean(contratoExistente.assinado_em || contratoExistente.itens?.assinaturaPaciente?.assinaturaData);
+          if (!isJaAssinadoPac) {
+            await supabase.from("documentos_clinicos").update({
+              paciente_id: row.paciente_id || null,
+              paciente_nome: pacienteDados.nome,
+              titulo: "Contrato Odontológico - " + pacienteDados.nome + " (" + contratoId + ")",
+              itens: snapshotContrato,
+              dentista: clinicaDados.dentistaResponsavel,
+              atualizado_em: nowIso,
+            }).eq("id", contratoExistente.id);
+          }
+        } else {
+          await supabase.from("documentos_clinicos").insert({
+            identificador: contratoId,
+            paciente_id: row.paciente_id || null,
+            paciente_nome: pacienteDados.nome,
+            tipo: "contrato",
+            titulo: "Contrato Odontológico - " + pacienteDados.nome + " (" + contratoId + ")",
+            conteudo: "",
+            itens: snapshotContrato,
+            dentista: clinicaDados.dentistaResponsavel,
+            criado_em: nowIso,
+            atualizado_em: nowIso,
+          });
+        }
 
         if (assinaturaDentistaObj) {
           await supabase.from("assinaturas").insert({

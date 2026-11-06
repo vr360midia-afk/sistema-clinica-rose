@@ -264,8 +264,14 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
   // Identifica se o contrato exibido já está oficialmente gravado e persistido no banco de dados
   const isContratoGravado = useMemo(() => {
     if (documentoIdSendoEditado) return false;
-    return Boolean(contratoVisualizacao?.id || contratoExistenteOrcamento?.id);
-  }, [documentoIdSendoEditado, contratoVisualizacao, contratoExistenteOrcamento]);
+    const isFormalizadoSnap = Boolean(
+      snapshotAtual?.status === 'formalizado' ||
+      snapshotAtual?.status === 'assinado' ||
+      snapshotAtual?.assinaturaPaciente?.assinaturaData ||
+      contratoVisualizacao?.assinadoEm
+    );
+    return Boolean(contratoVisualizacao?.id || contratoExistenteOrcamento?.id || isFormalizadoSnap);
+  }, [documentoIdSendoEditado, contratoVisualizacao, contratoExistenteOrcamento, snapshotAtual]);
 
   // Dentista responsável padrão
   useEffect(() => {
