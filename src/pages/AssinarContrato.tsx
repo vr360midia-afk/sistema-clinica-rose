@@ -63,6 +63,8 @@ import {
   garantirContratoPersistido,
   emitirContratoPersistido,
   construirUrlPublicaContrato,
+  parseBrMoney,
+  valorPorExtenso,
 } from '@/utils/contratoEngine';
 import { slugifyNome, unslugifyNome } from '@/utils/anamneseEngine';
 import { gerarContratoDoOrcamentoAprovado } from '@/utils/orcamentoEngine';
@@ -1223,7 +1225,7 @@ export default function AssinarContrato() {
       `Olá, equipe da *${snapshot.clinica.nome}*!\n\n` +
       `Aqui é *${snapshot.paciente.nome}*.\n` +
       `Acabei de conferir e realizar a *Assinatura Digital* do meu *Contrato Odontológico* (#${snapshot.contratoId}) referente ao plano de tratamento.\n\n` +
-      `• *Valor Total:* ${formatMoney(snapshot.financeiro.total)}\n` +
+      `• *Valor Total:* ${formatMoney(totalContrato)}\n` +
       `• *Data da Assinatura:* ${snapshot.assinaturaPaciente?.dataHora ? new Date(snapshot.assinaturaPaciente.dataHora).toLocaleString('pt-BR') : new Date().toLocaleString('pt-BR')}\n\n` +
       `Agradeço e aguardo as orientações dos próximos atendimentos!`;
 
@@ -1231,6 +1233,79 @@ export default function AssinarContrato() {
   };
 
   const [copiouPayloadPix, setCopiouPayloadPix] = useState(false);
+
+  // Resolução robusta de valores financeiros (evita R$ 0,00 e preserva descontos e subtotal)
+  const totalContrato = useMemo(() => {
+    if (!snapshot) return 0;
+    const f = snapshot.financeiro as any;
+    const o = snapshot.orcamento as any;
+    const cand = [f?.total, f?.valorTotal, o?.total, o?.valorTotal];
+    for (const v of cand) {
+      if (typeof v === 'number' && !isNaN(v) && v > 0) return v;
+      if (typeof v === 'string' && v.trim()) {
+        const p = parseBrMoney(v);
+        if (!isNaN(p) && p > 0) return p;
+      }
+    }
+    if (Array.isArray(f?.parcelas) && f.parcelas.length > 0) {
+      const soma = f.parcelas.reduce((s: number, p: any) => s + (Number(p?.valor) || 0), 0);
+      if (soma > 0) return soma;
+    }
+    if (Array.isArray(o?.itens) && o.itens.length > 0) {
+      const soma = o.itens.reduce((acc: number, item: any) => {
+        const q = Number(item.quantidade) || 1;
+        const v = Number(item.valorTotal) || (Number(item.valorUnitario) || Number(item.valor) || 0) * q;
+        return acc + v;
+      }, 0);
+      const desc = Number(f?.desconto ?? f?.valorDesconto ?? o?.desconto ?? o?.valorDesconto ?? 0);
+      const liq = Math.max(0, soma - desc);
+      if (liq > 0) return liq;
+    }
+    return 0;
+  }, [snapshot]);
+
+  const subtotalContrato = useMemo(() => {
+    if (!snapshot) return 0;
+    const f = snapshot.financeiro as any;
+    const o = snapshot.orcamento as any;
+    const cand = [f?.subtotal, o?.subtotal];
+    for (const v of cand) {
+      if (typeof v === 'number' && !isNaN(v) && v > 0) return v;
+      if (typeof v === 'string' && v.trim()) {
+        const p = parseBrMoney(v);
+        if (!isNaN(p) && p > 0) return p;
+      }
+    }
+    if (Array.isArray(o?.itens) && o.itens.length > 0) {
+      const soma = o.itens.reduce((acc: number, item: any) => {
+        const q = Number(item.quantidade) || 1;
+        const v = Number(item.valorTotal) || (Number(item.valorUnitario) || Number(item.valor) || 0) * q;
+        return acc + v;
+      }, 0);
+      if (soma > 0) return soma;
+    }
+    const desc = Number(f?.desconto ?? f?.valorDesconto ?? o?.desconto ?? o?.valorDesconto ?? 0);
+    return totalContrato + desc;
+  }, [snapshot, totalContrato]);
+
+  const descontoContrato = useMemo(() => {
+    if (!snapshot) return 0;
+    const f = snapshot.financeiro as any;
+    const o = snapshot.orcamento as any;
+    const cand = [f?.desconto, f?.valorDesconto, o?.desconto, o?.valorDesconto];
+    for (const v of cand) {
+      if (typeof v === 'number' && !isNaN(v) && v > 0) return v;
+      if (typeof v === 'string' && v.trim()) {
+        const p = parseBrMoney(v);
+        if (!isNaN(p) && p > 0) return p;
+      }
+    }
+    return Math.max(0, subtotalContrato - totalContrato);
+  }, [snapshot, subtotalContrato, totalContrato]);
+
+  const totalExtensoContrato = useMemo(() => {
+    return snapshot?.financeiro?.totalExtenso || valorPorExtenso(totalContrato);
+  }, [snapshot, totalContrato]);
 
   // Identifica se a entrada do contrato já está quitada / paga
   const isEntradaPaga = useMemo(() => {
@@ -1267,7 +1342,7 @@ export default function AssinarContrato() {
       return snapshot.financeiro.entrada;
     }
     if (isContratoQuitado) return 0;
-    return snapshot.financeiro.total || 0;
+    return totalContrato || 0;
   }, [snapshot, isEntradaPaga, isContratoQuitado]);
 
   const payloadPixContrato = useMemo(() => {
@@ -1601,14 +1676,21 @@ export default function AssinarContrato() {
           <div className="p-4 rounded-lg bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-blue-200/60 pb-3">
               <div>
+                {descontoContrato > 0 && (
+                  <div className="flex items-center gap-2 mb-1 text-xs text-muted-foreground">
+                    <span>Subtotal: <strong className="text-foreground">{formatMoney(subtotalContrato)}</strong></span>
+                    <span>•</span>
+                    <span className="text-emerald-700 dark:text-emerald-400 font-semibold">Desconto: - {formatMoney(descontoContrato)}</span>
+                  </div>
+                )}
                 <span className="text-xs font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wider">
                   Valor Total do Tratamento
                 </span>
                 <p className="text-2xl sm:text-3xl font-bold text-blue-900 dark:text-blue-100">
-                  {formatMoney(snapshot.financeiro.total)}
+                  {formatMoney(totalContrato)}
                 </p>
                 <p className="text-xs text-blue-700 dark:text-blue-300 font-medium italic">
-                  ({snapshot.financeiro.totalExtenso})
+                  ({totalExtensoContrato})
                 </p>
               </div>
               <div className="text-left sm:text-right">
@@ -1916,18 +1998,41 @@ export default function AssinarContrato() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {snapshot.orcamento.itens.map((item, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/50">
-                      <td className="p-2.5 sm:p-3 font-medium text-slate-800 dark:text-slate-200">{item.nome}</td>
-                      <td className="p-2.5 sm:p-3 text-center text-muted-foreground">
-                        {item.quantidade}x {item.denteOuRegiao ? `(${item.denteOuRegiao})` : ''}
-                      </td>
-                      <td className="p-2.5 sm:p-3 text-right font-semibold text-slate-700 dark:text-slate-300">
-                        {formatMoney(item.valorTotal)}
-                      </td>
-                    </tr>
-                  ))}
+                  {snapshot.orcamento.itens.map((item, idx) => {
+                    const q = Number(item.quantidade) || 1;
+                    const vu = Number(item.valorUnitario ?? (item as any).valor ?? ((item as any).valorTotal ? (item as any).valorTotal / q : 0));
+                    const vt = Number((item as any).valorTotal ?? (vu * q));
+                    return (
+                      <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/50">
+                        <td className="p-2.5 sm:p-3 font-medium text-slate-800 dark:text-slate-200">{item.nome}</td>
+                        <td className="p-2.5 sm:p-3 text-center text-muted-foreground">
+                          {q}x {item.denteOuRegiao ? `(${item.denteOuRegiao})` : ''}
+                        </td>
+                        <td className="p-2.5 sm:p-3 text-right font-semibold text-slate-700 dark:text-slate-300">
+                          {formatMoney(vt)}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
+                <tfoot className="border-t-2 border-border bg-slate-50/70 dark:bg-slate-900/40 text-xs font-semibold">
+                  {descontoContrato > 0 && (
+                    <>
+                      <tr>
+                        <td colSpan={2} className="p-2 sm:p-2.5 text-right text-muted-foreground">Subtotal dos Procedimentos:</td>
+                        <td className="p-2 sm:p-2.5 text-right font-medium text-muted-foreground">{formatMoney(subtotalContrato)}</td>
+                      </tr>
+                      <tr>
+                        <td colSpan={2} className="p-2 sm:p-2.5 text-right text-emerald-600 dark:text-emerald-400">Desconto Concedido:</td>
+                        <td className="p-2 sm:p-2.5 text-right text-emerald-600 dark:text-emerald-400 font-semibold">- {formatMoney(descontoContrato)}</td>
+                      </tr>
+                    </>
+                  )}
+                  <tr className="border-t border-border/80">
+                    <td colSpan={2} className="p-2.5 sm:p-3 text-right text-foreground font-bold">VALOR TOTAL LÍQUIDO APROVADO:</td>
+                    <td className="p-2.5 sm:p-3 text-right text-foreground font-bold text-sm text-blue-900 dark:text-blue-100">{formatMoney(totalContrato)}</td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
 
@@ -2730,7 +2835,7 @@ export default function AssinarContrato() {
                   </span>
                 </h2>
                 <p className="text-[10px] sm:text-[11px] text-slate-400 truncate">
-                  {snapshot.paciente.nome} • {formatMoney(snapshot.financeiro.total)}
+                  {snapshot.paciente.nome} • {formatMoney(totalContrato)}
                 </p>
               </div>
             </div>

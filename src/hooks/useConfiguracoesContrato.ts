@@ -47,24 +47,30 @@ export const getStorageKey = (clinicaId?: string | null): string => {
 };
 
 export const getDefaultConfigContrato = (configGerais?: any): ConfiguracoesContrato => {
+  const cnpjClinica = configGerais?.cnpj || '';
+  const nomeClinica = configGerais?.nomeClinica || configGerais?.nome_clinica || '';
+  const dentista = configGerais?.dentistaResponsavel || configGerais?.dentista_responsavel || 'Dra. Rosângela Santos Pereira';
+  const cro = configGerais?.croResponsavel || configGerais?.cro || 'CRO-AL 06267';
+  const endereco = configGerais?.endereco || '';
+  const telefone = configGerais?.telefone || configGerais?.whatsappNumero || configGerais?.whatsapp_numero || '';
+  const email = configGerais?.email || '';
+
   return {
-    chavePix: configGerais?.cnpj || '12345678000190',
+    chavePix: cnpjClinica,
     tipoChavePix: 'cnpj',
-    favorecidoPix: configGerais?.nomeClinica || 'Santos & Duracenski Odontologia LTDA',
-    cnpjCpfFavorecidoPix: configGerais?.cnpj || '12.345.678/0001-90',
-    bancoPix: 'Nu Pagamentos S.A. (260)',
+    favorecidoPix: nomeClinica || 'Titular da Conta',
+    cnpjCpfFavorecidoPix: cnpjClinica,
+    bancoPix: '',
     instrucoesPix:
       'O(A) CONTRATANTE poderá utilizar a câmera do smartphone para leitura do QR Code acima ou efetuar a transferência direta para a chave informada, encaminhando o comprovante para confirmação da baixa da parcela.',
 
-    nomeClinicaContrato: configGerais?.nomeClinica || 'Santos & Duracenski Odontologia LTDA',
-    cnpjClinicaContrato: configGerais?.cnpj || '12.345.678/0001-90',
-    croResponsavelContrato: configGerais?.croResponsavel || 'CRO-AL 06267',
-    dentistaResponsavelContrato: configGerais?.dentistaResponsavel || 'Dra. Rosângela Santos Pereira',
-    enderecoContrato:
-      configGerais?.endereco ||
-      'Av. Fernandes Lima, 1000, Sala 401, Farol, Maceió - AL, CEP 57055-000',
-    telefoneContrato: configGerais?.telefone || '(82) 99999-8888',
-    emailContrato: configGerais?.email || 'contato@santosduracenski.com.br',
+    nomeClinicaContrato: nomeClinica,
+    cnpjClinicaContrato: cnpjClinica,
+    croResponsavelContrato: cro,
+    dentistaResponsavelContrato: dentista,
+    enderecoContrato: endereco,
+    telefoneContrato: telefone,
+    emailContrato: email,
     cidadeForoContrato: 'Maceió - AL',
 
     multaAtrasoPercentual: 2,

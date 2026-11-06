@@ -16,6 +16,87 @@ function somarMeses(baseIso: string | Date, qtdMeses: number, diaFixo = 10): str
   return formatarDataBr(d.toISOString());
 }
 
+
+function validarChavePixServidor(chave?: string | null, tipo?: string): boolean {
+  if (!chave || !String(chave).trim()) return false;
+  const str = String(chave).trim();
+  const apenasDig = str.replace(/\D/g, '');
+  if (
+    str === '12345678000190' ||
+    str === '12.345.678/0001-90' ||
+    apenasDig === '12345678000190' ||
+    apenasDig === '00000000000' ||
+    apenasDig === '11111111111' ||
+    apenasDig === '00000000000000' ||
+    /exemplo|teste|padrao|ficticio|consulta/i.test(str)
+  ) {
+    return false;
+  }
+  if (tipo === 'email' || str.includes('@')) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(str.toLowerCase());
+  }
+  if (tipo === 'aleatoria' || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str)) {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+  }
+  if (tipo === 'cnpj' || apenasDig.length === 14) {
+    return apenasDig.length === 14 && !/^(\d)\1{13}$/.test(apenasDig);
+  }
+  if (tipo === 'cpf' || apenasDig.length === 11) {
+    return apenasDig.length === 11 && !/^(\d)\1{10}$/.test(apenasDig);
+  }
+  if (tipo === 'telefone' || (apenasDig.length >= 10 && apenasDig.length <= 13)) {
+    return true;
+  }
+  return false;
+}
+
+function centenaPorExtensoServidor(n: number): string {
+  const c = Math.floor(n / 100);
+  const d = Math.floor((n % 100) / 10);
+  const u = n % 10;
+  if (n === 100) return 'cem';
+  const cMap = ['', 'cento', 'duzentos', 'trezentos', 'quatrocentos', 'quinhentos', 'seiscentos', 'setecentos', 'oitocentos', 'novecentos'];
+  const dMap = ['', '', 'vinte', 'trinta', 'quarenta', 'cinquenta', 'sessenta', 'setenta', 'oitenta', 'noventa'];
+  const d10Map = ['dez', 'onze', 'doze', 'treze', 'quatorze', 'quinze', 'dezesseis', 'dezessete', 'dezoito', 'dezenove'];
+  const uMap = ['', 'um', 'dois', 'três', 'quatro', 'cinco', 'seis', 'sete', 'oito', 'nove'];
+  const res: string[] = [];
+  if (c > 0) res.push(cMap[c]);
+  if (d === 1) {
+    res.push(d10Map[u]);
+  } else {
+    if (d > 1) res.push(dMap[d]);
+    if (u > 0) res.push(uMap[u]);
+  }
+  return res.join(' e ');
+}
+
+function valorPorExtensoServidor(val: number): string {
+  const v = Math.round(Number(val || 0) * 100) / 100;
+  const inteiro = Math.floor(v);
+  const centavos = Math.round((v - inteiro) * 100);
+  if (inteiro === 0 && centavos === 0) return 'zero real';
+  const partes: string[] = [];
+  const milhoes = Math.floor(inteiro / 1000000);
+  const milhares = Math.floor((inteiro % 1000000) / 1000);
+  const unidadesResto = inteiro % 1000;
+  if (milhoes > 0) partes.push(milhoes === 1 ? 'um milhão' : `${centenaPorExtensoServidor(milhoes)} milhões`);
+  if (milhares > 0) partes.push(milhares === 1 ? 'mil' : `${centenaPorExtensoServidor(milhares)} mil`);
+  if (unidadesResto > 0) partes.push(centenaPorExtensoServidor(unidadesResto));
+  let textoReais = '';
+  if (inteiro > 0) {
+    if (partes.length === 1) textoReais = partes[0];
+    else if (partes.length === 2) textoReais = partes.join(' e ');
+    else textoReais = partes.slice(0, -1).join(', ') + ' e ' + partes[partes.length - 1];
+    textoReais += (inteiro === 1 ? ' real' : ' reais');
+  }
+  let textoCentavos = '';
+  if (centavos > 0) {
+    textoCentavos = `${centenaPorExtensoServidor(centavos)} ${centavos === 1 ? 'centavo' : 'centavos'}`;
+  }
+  if (textoReais && textoCentavos) return `${textoReais} e ${textoCentavos}`;
+  return textoReais || textoCentavos || 'zero real';
+}
+
 function gerarParcelasServidor(cond: any, total: number, dataIso: string): any[] {
   if (!cond) return [];
   const tipo = cond.tipo || 'personalizado';
@@ -577,7 +658,13 @@ Deno.serve(async (req) => {
       }
 
       const totalFinal = Number(condicaoEscolhida.valorTotal || row.total || 0);
-      const descontoFinal = Number(condicaoEscolhida.valorDesconto || row.desconto || 0);
+      const descontoFinal = Number(condicaoEscolhida.descontoValor ?? condicaoEscolhida.valorDesconto ?? row.desconto ?? 0);
+      const somaItensCalc = (row.itens || []).reduce((acc: number, it: any) => {
+        const q = Number(it.quantidade) || 1;
+        const v = Number(it.valorTotal) || (Number(it.valorUnitario) || Number(it.valor) || 0) * q;
+        return acc + v;
+      }, 0);
+      const subtotalFinal = somaItensCalc > 0 ? somaItensCalc : (totalFinal + descontoFinal);
 
       // 2. Busca dados complementares do paciente e clínica
       let pacienteDados: any = { id: row.paciente_id, nome: row.paciente_nome || snap.pacienteNome || "Paciente" };
@@ -589,18 +676,18 @@ Deno.serve(async (req) => {
       }
 
       let clinicaDados: any = {
-        nome: "Santos & Duracenski Odontologia LTDA",
+        nome: "Duracenski Odontologia",
         dentistaResponsavel: "Dra. Rosângela Santos Pereira",
         cro: "CRO-AL 06267",
-        cnpj: "12.345.678/0001-90",
-        documento: "12.345.678/0001-90",
-        endereco: "Av. Fernandes Lima, 1000, Sala 401, Farol, Maceió - AL, CEP 57055-000",
-        telefone: "(82) 99999-8888",
-        email: "contato@santosduracenski.com.br",
-        chavePix: "12345678000190",
+        cnpj: "",
+        documento: "",
+        endereco: "",
+        telefone: "",
+        email: "",
+        chavePix: "",
         tipoChavePix: "cnpj",
-        favorecidoPix: "Santos & Duracenski Odontologia LTDA",
-        bancoPix: "Nu Pagamentos S.A. (260)",
+        favorecidoPix: "Duracenski Odontologia",
+        bancoPix: "",
         instrucoesPix: "Pague via QR Code ou Copia e Cola no app do seu banco",
       };
       try {
@@ -608,9 +695,9 @@ Deno.serve(async (req) => {
         if (cRow) {
           clinicaDados = {
             ...clinicaDados,
-            nome: cRow.nome_clinica || clinicaDados.nome,
-            dentistaResponsavel: cRow.dentista_responsavel || clinicaDados.dentistaResponsavel,
-            cro: cRow.cro || clinicaDados.cro,
+            nome: cRow.nome_clinica || cRow.nomeClinica || clinicaDados.nome,
+            dentistaResponsavel: cRow.dentista_responsavel || cRow.dentistaResponsavel || clinicaDados.dentistaResponsavel,
+            cro: cRow.cro || cRow.cro_responsavel || clinicaDados.cro,
             cnpj: cRow.cnpj || clinicaDados.cnpj,
             documento: cRow.cnpj || cRow.cpf || clinicaDados.documento,
             endereco: cRow.endereco || clinicaDados.endereco,
@@ -623,6 +710,11 @@ Deno.serve(async (req) => {
           };
         }
       } catch (_) {}
+
+      // Se a chave PIX obtida for fictícia ou inválida, anula para impedir cobranças indevidas
+      if (clinicaDados.chavePix && !validarChavePixServidor(clinicaDados.chavePix, clinicaDados.tipoChavePix)) {
+        clinicaDados.chavePix = "";
+      }
 
       // 3. Avalia autorização prévia da profissional (Dra. Rosângela Santos Pereira — CRO 06267-AL)
       let autorizacaoAtiva: any = null;
@@ -709,8 +801,12 @@ Deno.serve(async (req) => {
         financeiro: (() => {
           const parcelasGeradas = gerarParcelasServidor(condicaoEscolhida, totalFinal, nowIso);
           return {
+            total: totalFinal,
             valorTotal: totalFinal,
+            subtotal: subtotalFinal,
+            desconto: descontoFinal,
             valorDesconto: descontoFinal,
+            totalExtenso: valorPorExtensoServidor(totalFinal),
             condicaoEscolhida,
             formaPagamento: condicaoEscolhida.descricao || condicaoEscolhida.titulo || "Conforme aprovado",
             detalhes: condicaoEscolhida.descricao,
@@ -722,9 +818,21 @@ Deno.serve(async (req) => {
         orcamento: {
           id: row.id,
           titulo: row.titulo || "Plano de Tratamento",
-          itens: row.itens,
-          total: totalFinal,
+          subtotal: subtotalFinal,
           desconto: descontoFinal,
+          total: totalFinal,
+          itens: (row.itens || []).map((it: any) => {
+            const q = Number(it.quantidade) || 1;
+            const vu = Number(it.valorUnitario ?? it.valor ?? (it.valorTotal ? it.valorTotal / q : 0));
+            const vt = Number(it.valorTotal ?? (vu * q));
+            return {
+              ...it,
+              quantidade: q,
+              valor: vu,
+              valorUnitario: vu,
+              valorTotal: vt,
+            };
+          }),
           formasPagamento: condicaoEscolhida.titulo,
         },
         paciente: {

@@ -1096,7 +1096,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     let mensagem =
       `Olá, ${patient.nome}! Tudo bem?\n\n` +
       `Aqui está o resumo oficial do seu *Contrato de Prestação de Serviços Odontológicos* referente ao plano de tratamento (*Orçamento #${snapshotAtual?.orcamento.numeroIdentificador}*):\n\n` +
-      `• *Valor Total:* ${formatMoney(snapshotAtual?.financeiro.total || 0)}\n` +
+      `• *Valor Total:* ${formatMoney(snapshotAtual?.financeiro.total ?? (snapshotAtual?.financeiro as any)?.valorTotal ?? 0)}\n` +
       `• *Forma de Pagamento:* ${limparFormaPagamentoParaContrato(snapshotAtual?.financeiro.formaPagamento)}\n`;
 
     if (snapshotAtual?.financeiro.entrada && snapshotAtual.financeiro.entrada > 0) {
@@ -1858,7 +1858,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                     <AlertTriangle className="h-4 w-4 text-rose-600 dark:text-rose-400 shrink-0" />
                     <AlertDescription className="text-xs flex flex-wrap items-center justify-between gap-2 w-full">
                       <span className="flex-1 min-w-[240px]">
-                        <strong>Divergência Detectada no Financeiro:</strong> As parcelas lançadas anteriormente no Contas a Receber somam {formatMoney(somaTransacoesOrcamento)}, divergindo do orçamento de {formatMoney(orcamentoAtual?.total || 0)}. O contrato abaixo foi gerado com as parcelas e valores corretos ({snapshotAtual?.financeiro.parcelas.length} parcelas totalizando {formatMoney(snapshotAtual?.financeiro.total || 0)}).
+                        <strong>Divergência Detectada no Financeiro:</strong> As parcelas lançadas anteriormente no Contas a Receber somam {formatMoney(somaTransacoesOrcamento)}, divergindo do orçamento de {formatMoney(orcamentoAtual?.total || 0)}. O contrato abaixo foi gerado com as parcelas e valores corretos ({snapshotAtual?.financeiro.parcelas.length} parcelas totalizando {formatMoney(snapshotAtual?.financeiro.total ?? (snapshotAtual?.financeiro as any)?.valorTotal ?? 0)}).
                       </span>
                       <Button
                         size="sm"
@@ -2311,8 +2311,12 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                           <Input
                             type="number"
                             step="0.01"
-                            value={snapshotAtual.financeiro.total || ''}
-                            onChange={(e) => handleUpdateSnapshotField('financeiro.total', parseFloat(e.target.value) || 0)}
+                            value={snapshotAtual.financeiro.total ?? (snapshotAtual.financeiro as any)?.valorTotal ?? ''}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value) || 0;
+                              handleUpdateSnapshotField('financeiro.total', val);
+                              handleUpdateSnapshotField('financeiro.valorTotal', val);
+                            }}
                             className="h-8 text-xs border-border bg-background text-foreground"
                           />
                         </div>

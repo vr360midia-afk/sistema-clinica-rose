@@ -747,8 +747,11 @@ function gerarPdfServidorContrato(snap: any, docClinico?: any): Uint8Array {
       pdf.line(margin, y + 14, pageW - margin, y + 14);
       pdf.text(proc.nome || proc.descricao || "Procedimento Clínico", margin + 8, y + 10);
       pdf.text(proc.dente || proc.denteOuRegiao || proc.regiao || "Conforme plano", margin + 260, y + 10);
-      const val = typeof proc.valor === "number" ? formatarMoedaBr(proc.valor) : (typeof proc.valorTotal === "number" ? formatarMoedaBr(proc.valorTotal) : (proc.valor || "Incluso"));
-      pdf.text(String(val), pageW - margin - 50, y + 10);
+      const q = Number(proc.quantidade) || 1;
+      const vu = Number(proc.valorUnitario ?? proc.valor ?? (proc.valorTotal ? proc.valorTotal / q : 0));
+      const vt = Number(proc.valorTotal ?? (vu * q));
+      const valFmt = vt > 0 ? formatarMoedaBr(vt) : (vu > 0 ? formatarMoedaBr(vu) : (proc.valor ? String(proc.valor) : "Incluso"));
+      pdf.text(valFmt, pageW - margin - 50, y + 10);
       y += 16;
     }
     y += 8;
@@ -766,11 +769,11 @@ function gerarPdfServidorContrato(snap: any, docClinico?: any): Uint8Array {
   pdf.setFontSize(8);
   pdf.setTextColor(51, 65, 85);
 
-  const totalNum = snap.financeiro?.total ?? snap.financeiro?.valorTotal ?? docClinico?.valor_total;
+  const totalNum = Number(snap.financeiro?.total ?? snap.financeiro?.valorTotal ?? snap.orcamento?.total ?? docClinico?.valor_total ?? 0);
   const totalFormatado = formatarMoedaBr(totalNum);
-  const subtotalNum = snap.financeiro?.subtotal;
-  const subtotalFormatado = subtotalNum ? formatarMoedaBr(subtotalNum) : null;
-  const descontoNum = snap.financeiro?.desconto;
+  const descontoNum = Number(snap.financeiro?.desconto ?? snap.financeiro?.valorDesconto ?? snap.orcamento?.desconto ?? 0);
+  const subtotalNum = Number(snap.financeiro?.subtotal ?? snap.orcamento?.subtotal ?? (totalNum + descontoNum));
+  const subtotalFormatado = subtotalNum > 0 ? formatarMoedaBr(subtotalNum) : null;
   const descontoFormatado = (descontoNum && descontoNum > 0) ? formatarMoedaBr(descontoNum) : null;
   const totalExtenso = snap.financeiro?.totalExtenso ? ` (${snap.financeiro.totalExtenso})` : "";
   const condFormatada = snap.financeiro?.formaPagamento || snap.financeiro?.condicoes || "Condição de pagamento pactuada em orçamento.";
@@ -828,7 +831,16 @@ function gerarPdfServidorContrato(snap: any, docClinico?: any): Uint8Array {
 
   // Quadro de Pagamento PIX Bacen com Favorecido, Banco, Chave e QR Code
   const temPix = /pix/i.test(condFormatada) || (Array.isArray(parcelas) && parcelas.some((p: any) => /pix/i.test(p.metodo || p.descricao || "")));
-  const chavePix = snap.clinica?.chavePix;
+  let chavePix = snap.clinica?.chavePix;
+  if (chavePix && (
+    chavePix === '12345678000190' ||
+    chavePix === '12.345.678/0001-90' ||
+    /exemplo|teste|padrao|ficticio/i.test(chavePix) ||
+    chavePix.replace(/\D/g, '') === '12345678000190' ||
+    chavePix.replace(/\D/g, '') === '00000000000'
+  )) {
+    chavePix = "";
+  }
   if (temPix && chavePix) {
     checkPageBreak(95);
     const pixBoxW = contentW;
