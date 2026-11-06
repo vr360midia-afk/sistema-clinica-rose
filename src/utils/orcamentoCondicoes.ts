@@ -20,6 +20,13 @@ export interface ItemFormaComposta {
   diaVencimento?: number;
   situacao?: 'A vencer' | 'Quitada' | 'Autorizado';
   prazoDias?: number;
+  cartaoAutorizado?: boolean;
+  autorizacaoConfirmada?: boolean;
+  nsu?: string;
+  codigoAutorizacao?: string;
+  pago?: boolean;
+  quitado?: boolean;
+  comprovado?: boolean;
 }
 
 export interface CondicaoPagamento {
@@ -49,6 +56,15 @@ export interface CondicaoPagamento {
   formasCompostas?: ItemFormaComposta[];
   selecionada?: boolean;
   destaque?: boolean;
+  pagamentoConfirmado?: boolean;
+  comprovado?: boolean;
+  pago?: boolean;
+  cartaoAutorizado?: boolean;
+  autorizacaoConfirmada?: boolean;
+  nsu?: string;
+  codigoAutorizacao?: string;
+  entradaConfirmada?: boolean;
+  saldoConfirmado?: boolean;
 }
 
 export interface EstruturaCondicoesPagamento {
@@ -1042,7 +1058,7 @@ export function calcularResumoCartaoCondicao(
 export function extrairCondicaoEscolhida(orcamento: any): CondicaoPagamento | null {
   if (!orcamento) return null;
 
-  const candidatos = [
+  const rawCandidatos = [
     orcamento.condicaoEscolhida,
     orcamento.condicao_escolhida,
     orcamento.condicaoAprovada,
@@ -1058,18 +1074,29 @@ export function extrairCondicaoEscolhida(orcamento: any): CondicaoPagamento | nu
     orcamento.snapshot?.condicaoEscolhida,
     orcamento.snapshot?.financeiro?.condicaoEscolhida,
     orcamento.financeiro?.condicaoEscolhida,
+    orcamento.itens?.financeiro?.condicaoEscolhida,
+    orcamento.itens?.condicaoEscolhida,
   ];
 
-  for (const c of candidatos) {
+  for (let c of rawCandidatos) {
+    if (!c) continue;
+    if (typeof c === 'string' && (c.startsWith('{') || c.startsWith('['))) {
+      try { c = JSON.parse(c); } catch (_) {}
+    }
     if (c && typeof c === 'object') {
       if (c.tipo || c.titulo || c.descricao) {
+        const valTot = typeof c.valorTotal === 'number' && c.valorTotal > 0
+          ? c.valorTotal
+          : (typeof orcamento.total === 'number' && orcamento.total > 0 ? orcamento.total : 0);
+
         return {
+          ...c,
           id: c.id || '1',
           titulo: c.titulo && c.titulo !== 'Condição de Pagamento' ? c.titulo : (c.descricao ? c.descricao.slice(0, 35) : 'Condição Aprovada'),
           tipo: c.tipo || 'personalizado',
           descontoPercentual: c.descontoPercentual,
           descontoValor: c.descontoValor,
-          valorTotal: typeof c.valorTotal === 'number' && c.valorTotal > 0 ? c.valorTotal : (orcamento.total || 0),
+          valorTotal: valTot,
           parcelas: c.parcelas,
           valorParcela: c.valorParcela,
           operadoraCartaoId: c.operadoraCartaoId,
@@ -1087,9 +1114,18 @@ export function extrairCondicaoEscolhida(orcamento: any): CondicaoPagamento | nu
           situacaoSaldo: c.situacaoSaldo,
           diaVencimento: c.diaVencimento,
           formasCompostas: Array.isArray(c.formasCompostas) ? c.formasCompostas : undefined,
-          descricao: c.descricao || calcularDescricaoCondicao(c, orcamento.total || 0),
+          descricao: c.descricao || calcularDescricaoCondicao(c, valTot),
           selecionada: true,
           destaque: c.destaque,
+          pagamentoConfirmado: Boolean(c.pagamentoConfirmado || c.pago || c.comprovado),
+          comprovado: Boolean(c.comprovado || c.pagamentoConfirmado),
+          pago: Boolean(c.pago || c.pagamentoConfirmado),
+          cartaoAutorizado: Boolean(c.cartaoAutorizado || c.autorizacaoConfirmada || c.nsu || c.codigoAutorizacao),
+          autorizacaoConfirmada: Boolean(c.autorizacaoConfirmada || c.cartaoAutorizado),
+          nsu: c.nsu,
+          codigoAutorizacao: c.codigoAutorizacao,
+          entradaConfirmada: Boolean(c.entradaConfirmada || c.situacaoEntrada === 'Quitada'),
+          saldoConfirmado: Boolean(c.saldoConfirmado || c.situacaoSaldo === 'Quitado'),
         };
       }
     }

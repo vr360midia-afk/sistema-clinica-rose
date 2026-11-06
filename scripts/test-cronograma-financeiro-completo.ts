@@ -39,7 +39,7 @@ const configContrato: ConfiguracoesContrato = {
   enderecoContrato: "Av. Fernandes Lima, 1000, Sala 401, Farol, Maceió - AL, CEP 57055-000",
   telefoneContrato: "(82) 99999-8888",
   emailContrato: "contato@santosduracenski.com.br",
-  chavePix: "12345678000190",
+  chavePix: "55394749000180",
   tipoChavePix: "cnpj",
   favorecidoPix: "Santos & Duracenski Odontologia LTDA",
   cnpjCpfFavorecidoPix: "12.345.678/0001-90",

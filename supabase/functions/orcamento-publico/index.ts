@@ -97,17 +97,32 @@ function valorPorExtensoServidor(val: number): string {
   return textoReais || textoCentavos || 'zero real';
 }
 
-function gerarParcelasServidor(cond: any, total: number, dataIso: string): any[] {
+function gerarParcelasServidor(cond: any, total: number, dataIso = new Date().toISOString()): any[] {
   if (!cond) return [];
-  const tipo = cond.tipo || 'personalizado';
+  let tipo = cond.tipo || 'personalizado';
   const hoje = new Date(dataIso || Date.now());
   const diaPadrao = Math.min(28, Math.max(1, cond.diaVencimento || 10));
+
+  if (tipo === 'personalizado') {
+    const descLower = (cond.descricao || cond.titulo || '').toLowerCase();
+    if (descLower.includes('entrada') && (descLower.includes('saldo') || descLower.includes('+') || descLower.includes('restante'))) {
+      tipo = 'entrada_saldo';
+    } else if (descLower.includes('pix parcelado') || descLower.includes('pix em')) {
+      tipo = 'pix_parcelado';
+    } else if (descLower.includes('cartao') || descLower.includes('cartão') || descLower.includes('crédito')) {
+      tipo = 'cartao';
+    } else if (descLower.includes('vista') || descLower.includes('pix')) {
+      tipo = 'a_vista';
+    }
+  }
+
+  let parcs: any[] = [];
 
   if (tipo === 'a_vista') {
     const val = typeof cond.valorTotal === 'number' && cond.valorTotal > 0 ? cond.valorTotal : total;
     const venc = cond.dataEntrada ? formatarDataBr(cond.dataEntrada) : formatarDataBr(dataIso);
     const pixPago = Boolean(cond.pagamentoConfirmado || cond.pago || (cond.situacaoEntrada === 'Quitada' && cond.comprovado));
-    return [{
+    parcs = [{
       numero: 1,
       descricao: 'Pagamento Único via PIX',
       vencimento: venc,
@@ -115,9 +130,7 @@ function gerarParcelasServidor(cond: any, total: number, dataIso: string): any[]
       metodo: 'PIX',
       status: pixPago ? 'Quitada' : 'Pendente',
     }];
-  }
-
-  if (tipo === 'cartao') {
+  } else if (tipo === 'cartao') {
     const qtd = Math.max(1, cond.parcelas || 1);
     const isDeb = cond.tipoCartao === 'debito';
     const mNome = isDeb ? 'Cartão de Débito' : 'Cartão de Crédito';
@@ -125,22 +138,18 @@ function gerarParcelasServidor(cond: any, total: number, dataIso: string): any[]
     const centavos = Math.round((total - (valBase * qtd)) * 100);
     const cartaoAutorizado = Boolean(cond.cartaoAutorizado || cond.autorizacaoConfirmada || cond.nsu || cond.codigoAutorizacao);
     const sit = cartaoAutorizado ? (isDeb ? 'Quitada' : 'Autorizado') : 'Pendente';
-    const parcs: any[] = [];
     for (let i = 0; i < qtd; i++) {
       const v = Number((valBase + (i < centavos ? 0.01 : 0)).toFixed(2));
       parcs.push({
         numero: i + 1,
-        descricao: qtd === 1 ? `Pagamento em ${mNome}` : `Parcela ${i + 1} de ${qtd} (${mNome})`,
+        descricao: qtd === 1 ? 'Pagamento em ' + mNome : 'Parcela ' + (i + 1) + ' de ' + qtd + ' (' + mNome + ')',
         vencimento: 'Fatura do Cartão',
         valor: v,
         metodo: mNome,
         status: sit,
       });
     }
-    return parcs;
-  }
-
-  if (tipo === 'entrada_saldo') {
+  } else if (tipo === 'entrada_saldo') {
     const entVal = Number(cond.valorEntrada || 0);
     const saldoTotal = Math.max(0, Number((total - entVal).toFixed(2)));
     const qtdSaldo = Math.max(1, cond.saldoParcelas || 1);
@@ -156,8 +165,11 @@ function gerarParcelasServidor(cond: any, total: number, dataIso: string): any[]
     else if (cond.saldoMetodo === 'conclusao') mSal = 'Na Conclusão do Tratamento';
 
     const isCartaoSaldo = /cart[aã]o/i.test(mSal);
+    const isCartaoEnt = /cart[aã]o/i.test(mEnt);
     const entComprovada = Boolean(cond.entradaConfirmada || cond.pagamentoConfirmado || cond.pago || (cond.situacaoEntrada === 'Quitada' && cond.comprovado));
-    const sitEntrada = entComprovada ? 'Quitada' : 'Pendente';
+    const sitEntrada = isCartaoEnt
+      ? (Boolean(cond.cartaoAutorizado || cond.autorizacaoConfirmada || cond.nsu) ? 'Autorizado' : (entComprovada ? 'Quitada' : 'Pendente'))
+      : (entComprovada ? 'Quitada' : 'Pendente');
 
     const cartaoSaldoAut = isCartaoSaldo && Boolean(cond.cartaoAutorizado || cond.autorizacaoConfirmada || cond.nsu || cond.codigoAutorizacao);
     const outroSaldoComprovado = !isCartaoSaldo && Boolean(cond.saldoConfirmado || cond.pagamentoConfirmado || cond.pago || (cond.situacaoSaldo === 'Quitado' && cond.comprovado));
@@ -165,12 +177,11 @@ function gerarParcelasServidor(cond: any, total: number, dataIso: string): any[]
       ? (cartaoSaldoAut ? 'Autorizado' : 'Pendente')
       : (outroSaldoComprovado ? 'Quitada' : 'Pendente');
 
-    const parcs: any[] = [];
     if (entVal > 0) {
       parcs.push({
         numero: 1,
-        descricao: `Entrada Inicial (${mEnt})`,
-        vencimento: cond.dataEntrada ? formatarDataBr(cond.dataEntrada) : formatarDataBr(dataIso),
+        descricao: 'Entrada Inicial (' + mEnt + ')',
+        vencimento: isCartaoEnt ? 'Fatura do Cartão' : (cond.dataEntrada ? formatarDataBr(cond.dataEntrada) : formatarDataBr(dataIso)),
         valor: entVal,
         metodo: mEnt,
         status: sitEntrada,
@@ -185,47 +196,105 @@ function gerarParcelasServidor(cond: any, total: number, dataIso: string): any[]
       const venc = isCartaoSaldo ? 'Fatura do Cartão' : somarMeses(hoje, i + 1, diaPadrao);
       parcs.push({
         numero: parcs.length + 1,
-        descricao: qtdSaldo === 1 ? `Saldo Restante (${mSal})` : `Saldo Restante (${i + 1}/${qtdSaldo} - ${mSal})`,
+        descricao: qtdSaldo === 1 ? 'Saldo Restante (' + mSal + ')' : 'Saldo Restante (' + (i + 1) + '/' + qtdSaldo + ' - ' + mSal + ')',
         vencimento: venc,
         valor: v,
         metodo: mSal,
         status: sitSaldo,
       });
     }
-    return parcs;
-  }
-
-  if (tipo === 'pix_parcelado') {
-    const qtd = Math.max(1, cond.parcelas || 1);
-    const valBase = Math.floor((total / qtd) * 100) / 100;
-    const centavos = Math.round((total - (valBase * qtd)) * 100);
+  } else if (tipo === 'pix_parcelado') {
+    const entVal = Number(cond.valorEntrada || 0);
+    const saldoTotal = Math.max(0, Number((total - entVal).toFixed(2)));
+    const qtd = Math.max(1, Math.min(10, cond.parcelas || cond.saldoParcelas || 1));
+    const entComprovada = Boolean(cond.entradaConfirmada || cond.pagamentoConfirmado || cond.pago || (cond.situacaoEntrada === 'Quitada' && cond.comprovado));
+    const sitEntrada = entComprovada ? 'Quitada' : 'Pendente';
     const pixSaldoPago = Boolean(cond.saldoConfirmado || cond.pagamentoConfirmado || cond.pago || (cond.situacaoSaldo === 'Quitado' && cond.comprovado));
-    const sit = pixSaldoPago ? 'Quitada' : 'Pendente';
-    const parcs: any[] = [];
+    const sitSaldo = pixSaldoPago ? 'Quitada' : 'Pendente';
+
+    if (entVal > 0) {
+      parcs.push({
+        numero: 1,
+        descricao: 'Entrada Inicial (PIX)',
+        vencimento: cond.dataEntrada ? formatarDataBr(cond.dataEntrada) : formatarDataBr(dataIso),
+        valor: entVal,
+        metodo: 'PIX',
+        status: sitEntrada,
+      });
+    }
+
+    const baseParaParcelar = entVal > 0 ? saldoTotal : total;
+    const valBase = Math.floor((baseParaParcelar / qtd) * 100) / 100;
+    const centavos = Math.round((baseParaParcelar - (valBase * qtd)) * 100);
+    const offsetNumero = entVal > 0 ? 1 : 0;
+
     for (let i = 0; i < qtd; i++) {
       const v = Number((valBase + (i < centavos ? 0.01 : 0)).toFixed(2));
       const venc = cond.dataPrimeiroVencimento && i === 0 ? formatarDataBr(cond.dataPrimeiroVencimento) : somarMeses(hoje, i + 1, diaPadrao);
       parcs.push({
-        numero: i + 1,
-        descricao: `Parcela ${i + 1} de ${qtd} (PIX Parcelado)`,
+        numero: i + 1 + offsetNumero,
+        descricao: qtd === 1 && entVal === 0
+          ? 'Pagamento Único via PIX'
+          : (entVal > 0
+              ? (qtd === 1 ? 'Saldo via PIX Parcelado' : 'Parcela ' + (i + 1) + ' de ' + qtd + ' do Saldo (PIX Parcelado)')
+              : 'Parcela ' + (i + 1) + ' de ' + qtd + ' (PIX Parcelado)'),
         vencimento: venc,
         valor: v,
         metodo: 'PIX Parcelado',
-        status: sit,
+        status: sitSaldo,
       });
     }
-    return parcs;
+  } else if (Array.isArray(cond.formasCompostas) && cond.formasCompostas.length > 0) {
+    for (const fc of cond.formasCompostas) {
+      const rotulo = fc.rotulo || 'Parcela';
+      const val = Number(fc.valor || 0);
+      const qtdP = Math.max(1, fc.parcelas || 1);
+      let m = 'PIX';
+      if (fc.metodo === 'cartao') m = fc.tipoCartao === 'debito' ? 'Cartão de Débito' : 'Cartão de Crédito';
+      else if (fc.metodo === 'dinheiro') m = 'Dinheiro';
+      else if (fc.metodo === 'boleto') m = 'Boleto Bancário';
+      else if (fc.metodo === 'pix_parcelado') m = 'PIX Parcelado';
+      else if (fc.metodo === 'transferencia') m = 'Transferência';
+
+      const isCart = /cart[aã]o/i.test(m);
+      const valBase = Math.floor((val / qtdP) * 100) / 100;
+      const centavos = Math.round((val - (valBase * qtdP)) * 100);
+
+      for (let j = 0; j < qtdP; j++) {
+        const venc = isCart ? 'Fatura do Cartão' : somarMeses(hoje, j + 1, diaPadrao);
+        const valUnit = Number((valBase + (j < centavos ? 0.01 : 0)).toFixed(2));
+        parcs.push({
+          numero: parcs.length + 1,
+          descricao: qtdP > 1 ? rotulo + ' (' + (j + 1) + '/' + qtdP + ' - ' + m + ')' : rotulo + ' (' + m + ')',
+          vencimento: venc,
+          valor: valUnit,
+          metodo: m,
+          status: isCart
+            ? (Boolean(fc.cartaoAutorizado || fc.autorizacaoConfirmada || fc.nsu || fc.codigoAutorizacao) ? 'Autorizado' : 'Pendente')
+            : (Boolean(fc.pago || fc.quitado || (fc.situacao === 'Quitada' && fc.comprovado)) ? 'Quitada' : 'Pendente'),
+        });
+      }
+    }
+  } else {
+    parcs = [{
+      numero: 1,
+      descricao: cond.titulo || 'Pagamento Único',
+      vencimento: formatarDataBr(dataIso),
+      valor: total,
+      metodo: 'PIX',
+      status: 'Pendente',
+    }];
   }
 
-  // Fallback seguro: se valor único
-  return [{
-    numero: 1,
-    descricao: cond.titulo || 'Pagamento Único',
-    vencimento: formatarDataBr(dataIso),
-    valor: total,
-    metodo: 'PIX',
-    status: 'Pendente',
-  }];
+  if (parcs.length > 0) {
+    const soma = parcs.reduce((acc: number, p: any) => acc + (Number(p.valor) || 0), 0);
+    const diff = Number((total - soma).toFixed(2));
+    if (Math.abs(diff) > 0 && Math.abs(diff) <= 0.1) {
+      parcs[parcs.length - 1].valor = Number((parcs[parcs.length - 1].valor + diff).toFixed(2));
+    }
+  }
+
+  return parcs;
 }
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";

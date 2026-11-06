@@ -1201,7 +1201,7 @@ export function gerarParcelasCronogramaFinanceiro(params: ParamsGerarParcelasCro
     }
 
     case 'entrada_saldo': {
-      const entVal = Number(condicao.valorEntrada || 0);
+      const entVal = parseBrMoney(condicao.valorEntrada);
       const saldoTotal = Math.max(0, Number((total - entVal).toFixed(2)));
       const qtdSaldo = Math.max(1, condicao.saldoParcelas || 1);
 
@@ -1217,8 +1217,9 @@ export function gerarParcelasCronogramaFinanceiro(params: ParamsGerarParcelasCro
       else if (condicao.saldoMetodo === 'conclusao') mSaldo = 'Na Conclusão do Tratamento';
 
       const isCartaoSaldo = isMetodoCartao(mSaldo);
+      const isCartaoEntrada = isMetodoCartao(mEntrada);
       const isPixSaldo = isMetodoPix(mSaldo);
-      const dataEntradaFmt = condicao.dataEntrada ? formatarData(condicao.dataEntrada) : formatarData(hoje);
+      const dataEntradaFmt = isCartaoEntrada ? 'Fatura do Cartão' : (condicao.dataEntrada ? formatarData(condicao.dataEntrada) : formatarData(hoje));
       // Situações refletindo pagamentos efetivamente registrados
       const entComprovada = Boolean(condicao.entradaConfirmada || condicao.pagamentoConfirmado || condicao.pago || (condicao.situacaoEntrada === 'Quitada' && condicao.comprovado));
       const sitEntrada = entComprovada ? 'Quitada' : 'Pendente';
@@ -1310,7 +1311,7 @@ export function gerarParcelasCronogramaFinanceiro(params: ParamsGerarParcelasCro
     }
 
     case 'pix_parcelado': {
-      const entVal = Number(condicao.valorEntrada || 0);
+      const entVal = parseBrMoney(condicao.valorEntrada);
       const saldoTotal = Math.max(0, Number((total - entVal).toFixed(2)));
       const qtd = Math.max(1, Math.min(10, condicao.parcelas || condicao.saldoParcelas || 1));
 
@@ -1628,11 +1629,14 @@ export const mapearDadosContrato = ({
     };
   });
 
-  const subtotal = itensOrcamento.reduce((acc, i) => acc + i.valorTotal, 0);
+  const subtotalItens = itensOrcamento.reduce((acc, i) => acc + i.valorTotal, 0);
+  const subtotalCalculado = (itensOrcamento.length > 0 && subtotalItens > 0)
+    ? subtotalItens
+    : Number(orcamento?.subtotal || orcamento?.valorTotal || 0);
 
   // Extrai a condição de pagamento estruturada e aprovada com rastreabilidade total
   const formasRaw = orcamento?.formasPagamento || orcamento?.formas_pagamento || '';
-  const condicoesParsed = parseCondicoesPagamento(formasRaw, subtotal);
+  const condicoesParsed = parseCondicoesPagamento(formasRaw, subtotalCalculado);
   const condicaoAtiva: CondicaoPagamento | null =
     extrairCondicaoEscolhida(orcamento) ||
     ('condicaoEscolhida' in orcamento && orcamento.condicaoEscolhida) ||
@@ -1640,7 +1644,13 @@ export const mapearDadosContrato = ({
 
   const descontoCondicao = Number((condicaoAtiva as any)?.descontoValor ?? (condicaoAtiva as any)?.valorDesconto ?? 0);
   const desconto = Number(orcamento?.desconto || descontoCondicao || 0);
-  const total = Number(condicaoAtiva?.valorTotal ?? orcamento?.total ?? Math.max(0, subtotal - desconto));
+  const total = Number(
+    condicaoAtiva?.valorTotal ??
+    orcamento?.total ??
+    orcamento?.valorTotal ??
+    Math.max(0, subtotalCalculado - desconto)
+  );
+  const subtotal = subtotalCalculado > 0 ? subtotalCalculado : (total + desconto);
   const totalExtenso = valorPorExtenso(total);
 
   const dadosOrcamento: ContratoDadosOrcamento = {
@@ -1682,8 +1692,49 @@ export const mapearDadosContrato = ({
 
   const hoje = new Date();
 
-  if (transacoesConsistentes) {
-    // 4.1 Utiliza transações consistentes sincronizadas no financeiro
+  if (condicaoAtiva) {
+    // 4.1 Utiliza prioritariamente a condição de pagamento comercialmente aprovada pelo paciente
+    const cronoGerado = gerarParcelasCronogramaFinanceiro({
+      condicao: condicaoAtiva,
+      total,
+      hoje,
+      dataAprovacao: orcamento?.atualizadoEm || orcamento?.criadoEm,
+      clinica: dadosClinica,
+      contratoId,
+    });
+    parcelas = cronoGerado.parcelas;
+    entrada = cronoGerado.entrada;
+    parcelamentoQtdDetectada = cronoGerado.quantidadeParcelas;
+    parcelamentoValorDetectado = cronoGerado.valorParcela;
+    parcelamentoMetodoDetectado = cronoGerado.metodoParcelamento;
+
+    // Reconciliação com pagamentos reais registrados no financeiro sem alterar a estrutura das parcelas
+    if (transacoesOrcamento.length > 0) {
+      parcelas = parcelas.map((p, idx) => {
+        const isEntrada = (p?.descricao || '').toLowerCase().includes('entrada');
+        const correspondente = transacoesOrcamento.find((t: any) => {
+          if (isEntrada && (t?.descricao || '').toLowerCase().includes('entrada')) return true;
+          if (t?.descricao && p.descricao && t.descricao.includes(p.descricao)) return true;
+          if (transacoesOrcamento.length === parcelas.length && transacoesOrcamento[idx] === t) return true;
+          return false;
+        });
+
+        if (correspondente) {
+          const isPago = correspondente.status === 'pago' || correspondente.status === 'quitado';
+          const isAut = Boolean(correspondente.operadoraCartao || correspondente.nsu || correspondente.codigoAutorizacao);
+          const isCartao = isMetodoCartao(p.metodo, p.descricao);
+          if (isPago) {
+            return { ...p, status: 'Quitada' };
+          }
+          if (isCartao && isAut) {
+            return { ...p, status: 'Autorizado' };
+          }
+        }
+        return p;
+      });
+    }
+  } else if (transacoesConsistentes) {
+    // 4.2 Fallback para orçamentos legados que possuem transações no financeiro
     const ordenadas = [...transacoesOrcamento].sort(
       (a, b) => new Date(a.vencimento || a.data).getTime() - new Date(b.vencimento || b.data).getTime()
     );
@@ -1700,7 +1751,7 @@ export const mapearDadosContrato = ({
 
       return {
         numero: idx + 1,
-        descricao: t?.descricao || `Parcela ${idx + 1}`,
+        descricao: t?.descricao || ('Parcela ' + (idx + 1)),
         vencimento: vencFormatado,
         valor,
         metodo: t?.metodoPagamento || (isCartao ? 'Cartão de Crédito' : 'PIX'),
@@ -1716,21 +1767,6 @@ export const mapearDadosContrato = ({
       parcelamentoValorDetectado = parcelasSemEntradaLocal[0].valor;
       parcelamentoMetodoDetectado = parcelasSemEntradaLocal[0].metodo;
     }
-  } else if (condicaoAtiva) {
-    // 4.2 Utiliza exclusivamente a condição de pagamento estruturada aprovada pelo paciente
-    const cronoGerado = gerarParcelasCronogramaFinanceiro({
-      condicao: condicaoAtiva,
-      total,
-      hoje,
-      dataAprovacao: orcamento?.atualizadoEm || orcamento?.criadoEm,
-      clinica: dadosClinica,
-      contratoId,
-    });
-    parcelas = cronoGerado.parcelas;
-    entrada = cronoGerado.entrada;
-    parcelamentoQtdDetectada = cronoGerado.quantidadeParcelas;
-    parcelamentoValorDetectado = cronoGerado.valorParcela;
-    parcelamentoMetodoDetectado = cronoGerado.metodoParcelamento;
   } else {
     // 4.3 Fallback histórico para orçamentos legados de texto livre
     const formas = obterTextoCondicaoParaContrato(orcamento?.formasPagamento || orcamento?.formas_pagamento || '');
