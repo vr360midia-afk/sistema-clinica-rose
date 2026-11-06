@@ -161,6 +161,29 @@ export const useDocumentosClinicos = (pacienteId?: string) => {
       safeItens = { ...safeItens, pacienteId: rawPacienteId };
     }
 
+    // Se for contrato e doc.id não estiver definido, verifica se já existe registro prévio
+    // para a mesma emissão e paciente, evitando duplicação indevida de registros
+    if (doc.tipo === 'contrato' && !doc.id) {
+      const targetIdentificador = (((doc as any).identificador || (doc.itens as any)?.contratoId || '')).trim();
+      if (targetIdentificador && safePacienteId) {
+        const idUpper = targetIdentificador.toUpperCase();
+        try {
+          const { data: existingContract } = await supabase
+            .from('documentos_clinicos')
+            .select('id')
+            .eq('tipo', 'contrato')
+            .eq('paciente_id', safePacienteId)
+            .or(`identificador.eq.${targetIdentificador},identificador.eq.${idUpper},itens->>contratoId.eq.${targetIdentificador},itens->>contratoId.eq.${idUpper}`)
+            .order('criado_em', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (existingContract?.id) {
+            doc.id = existingContract.id;
+          }
+        } catch (_) {}
+      }
+    }
+
     const payload: any = {
       user_id: effectiveUserId,
       paciente_id: safePacienteId,
@@ -172,6 +195,7 @@ export const useDocumentosClinicos = (pacienteId?: string) => {
       dias_afastamento: doc.diasAfastamento ?? null,
       cid: doc.cid || null,
       dentista: doc.dentista || null,
+      ...((doc as any).identificador || safeItens?.contratoId ? { identificador: (doc as any).identificador || safeItens?.contratoId } : {}),
     };
 
     let { data, error } = doc.id

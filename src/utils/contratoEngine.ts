@@ -2201,8 +2201,12 @@ export const mapearDadosContrato = ({
 
   const statusInicial = assinaturaDentistaFinal ? 'aguardando_assinatura_paciente' : 'aguardando_assinatura_dentista';
 
+  const tokenFinal = (orcamento as any)?.contratoToken || (orcamento as any)?.contrato_token || (orcamento as any)?.token || (orcamento as any)?.tokenAssinatura || gerarTokenAcesso();
+
   return {
     contratoId,
+    token: tokenFinal,
+    tokenValidoAte: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
     orcamentoId: orcamento?.id || '',
     pacienteId: patient?.id || '',
     versao: '1.0',
@@ -3808,14 +3812,26 @@ export async function emitirContratoPersistido(
           const idUpper = identificador.toUpperCase();
           const idLower = identificador.toLowerCase();
 
-          const { data: exist } = await supabase
+          let queryExist = supabase
             .from('documentos_clinicos')
-            .select('id')
-            .or(`itens->>contratoId.eq.${idUpper},itens->>contratoId.eq.${idLower},itens->>contratoId.eq.${identificador}`)
-            .maybeSingle();
+            .select('id, itens')
+            .eq('tipo', 'contrato');
 
+          if (safePacienteUuid) {
+            queryExist = queryExist.eq('paciente_id', safePacienteUuid);
+          }
+
+          const { data: existRows } = await queryExist
+            .or(`identificador.eq.${idUpper},identificador.eq.${idLower},identificador.eq.${identificador},itens->>contratoId.eq.${idUpper},itens->>contratoId.eq.${idLower},itens->>contratoId.eq.${identificador}`)
+            .order('criado_em', { ascending: false })
+            .limit(1);
+
+          const exist = existRows && existRows[0];
           if (exist?.id) {
             finalId = exist.id;
+            if (!snapshotFinal.token && (exist.itens as any)?.token) {
+              snapshotFinal.token = (exist.itens as any).token;
+            }
             const { error: updErr } = await supabase
               .from('documentos_clinicos')
               .update({
@@ -3823,6 +3839,7 @@ export async function emitirContratoPersistido(
                 paciente_id: safePacienteUuid,
                 titulo,
                 conteudo: html,
+                identificador,
                 itens: snapshotFinal as never,
                 atualizado_em: new Date().toISOString(),
               })
@@ -3837,6 +3854,7 @@ export async function emitirContratoPersistido(
         // Se ainda não existe, insere novo registro
         if (!persistidoComSucesso) {
           const insertPayload: Record<string, unknown> = {
+            identificador,
             paciente_id: safePacienteUuid,
             paciente_nome: pacienteNome,
             tipo: 'contrato',
