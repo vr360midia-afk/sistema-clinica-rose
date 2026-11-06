@@ -29,6 +29,7 @@ import {
   parseCondicoesPagamento,
   obterCondicaoAtiva,
   extrairCondicaoEscolhida,
+  calcularDescricaoCondicao,
   type CondicaoPagamento,
 } from './orcamentoCondicoes';
 
@@ -44,6 +45,7 @@ export {
   downloadContratoEndodontiaPdf,
   gerarHtmlTcleEndodontia,
   downloadTcleEndodontiaPdf,
+  formatarData,
 };
 
 export type TipoModeloContrato = 'geral' | 'lentes_resina' | 'endodontia';
