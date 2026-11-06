@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+export { valorPorExtenso } from './recibo';
 import { valorPorExtenso } from './recibo';
 import { formatMoney } from './exportCsv';
 import {
@@ -15,7 +16,7 @@ import type { Orcamento } from '@/hooks/useOrcamentos';
 import type { ConfiguracoesGerais } from '@/hooks/useConfiguracoes';
 import { carregarConfiguracoesContratoSync, type ConfiguracoesContrato } from '@/hooks/useConfiguracoesContrato';
 import { gerarFragmentoHtmlTermoUsoImagem } from './termoUsoImagem';
-import { gerarPayloadPix, gerarQrCodePixUrl } from './pixPayload';
+import { gerarPayloadPix, gerarQrCodePixUrl, validarChavePix } from './pixPayload';
 import {
   gerarHtmlContratoEndodontia,
   downloadContratoEndodontiaPdf,
@@ -200,7 +201,9 @@ export interface ContratoCardPagamento {
 export interface ContratoDadosFinanceiro {
   subtotal: number;
   desconto: number;
+  valorDesconto?: number;
   total: number;
+  valorTotal?: number;
   totalExtenso: string;
   formaPagamento: string;
   entrada: number;
@@ -712,10 +715,16 @@ export const obterCardsResumoPagamento = (snapshot?: Partial<ContratoSnapshot> |
 
   // Se nenhum card foi montado (ex: pagamento à vista sem parcelamento e sem entrada)
   if (cards.length === 0) {
+    const totalEfetivo = Number(
+      financeiro?.total ??
+      financeiro?.valorTotal ??
+      snapshot?.orcamento?.total ??
+      (parcelas.length > 0 ? parcelas.reduce((s, p) => s + (Number(p.valor) || 0), 0) : 0)
+    );
     cards.push({
       id: 'total',
       rotulo: 'Condição Acordada:',
-      valorFormatado: formatMoney(financeiro.total),
+      valorFormatado: formatMoney(totalEfetivo),
       tipo: 'unico',
       detalhe: formasTexto || 'Pagamento Único',
     });
@@ -1600,8 +1609,8 @@ export const mapearDadosContrato = ({
   const itensOrcamento: ContratoItem[] = (orcamento?.itens || []).map((item: any) => {
     const nome = String(item?.nome || 'Procedimento odontológico');
     const quantidade = Number(item?.quantidade || 1);
-    const valorUnitario = Number(item?.valor || 0);
-    const valorTotal = valorUnitario * quantidade;
+    const valorUnitario = Number(item?.valorUnitario ?? item?.valor ?? (item?.valorTotal ? item.valorTotal / quantidade : 0));
+    const valorTotal = Number(item?.valorTotal ?? (valorUnitario * quantidade));
 
     // Detecta menção a dente ou região se presente na descrição (ex.: "Dente 16", "Região anterior")
     const denteMatch = nome.match(/(?:dente|elemento|regi[aã]o)\s*([0-9a-zA-Z\s-]+)/i);
@@ -1610,6 +1619,7 @@ export const mapearDadosContrato = ({
     return {
       nome,
       quantidade,
+      valor: valorUnitario,
       valorUnitario,
       valorTotal,
       denteOuRegiao,
@@ -1617,8 +1627,18 @@ export const mapearDadosContrato = ({
   });
 
   const subtotal = itensOrcamento.reduce((acc, i) => acc + i.valorTotal, 0);
-  const desconto = Number(orcamento?.desconto || 0);
-  const total = Number(orcamento?.total ?? Math.max(0, subtotal - desconto));
+
+  // Extrai a condição de pagamento estruturada e aprovada com rastreabilidade total
+  const formasRaw = orcamento?.formasPagamento || orcamento?.formas_pagamento || '';
+  const condicoesParsed = parseCondicoesPagamento(formasRaw, subtotal);
+  const condicaoAtiva: CondicaoPagamento | null =
+    extrairCondicaoEscolhida(orcamento) ||
+    ('condicaoEscolhida' in orcamento && orcamento.condicaoEscolhida) ||
+    obterCondicaoAtiva(condicoesParsed);
+
+  const descontoCondicao = Number((condicaoAtiva as any)?.descontoValor ?? (condicaoAtiva as any)?.valorDesconto ?? 0);
+  const desconto = Number(orcamento?.desconto || descontoCondicao || 0);
+  const total = Number(condicaoAtiva?.valorTotal ?? orcamento?.total ?? Math.max(0, subtotal - desconto));
   const totalExtenso = valorPorExtenso(total);
 
   const dadosOrcamento: ContratoDadosOrcamento = {
@@ -1649,14 +1669,6 @@ export const mapearDadosContrato = ({
   let parcelamentoQtdDetectada = 0;
   let parcelamentoValorDetectado = 0;
   let parcelamentoMetodoDetectado = '';
-
-  // Extrai a condição de pagamento estruturada e aprovada com rastreabilidade total
-  const formasRaw = orcamento?.formasPagamento || orcamento?.formas_pagamento || '';
-  const condicoesParsed = parseCondicoesPagamento(formasRaw, total);
-  const condicaoAtiva: CondicaoPagamento | null =
-    extrairCondicaoEscolhida(orcamento) ||
-    ('condicaoEscolhida' in orcamento && orcamento.condicaoEscolhida) ||
-    obterCondicaoAtiva(condicoesParsed);
 
   // Validação rigorosa de consistência das transações com o orçamento:
   const somaTransacoes = transacoesOrcamento.reduce((acc, t) => acc + (Number(t.valor) || 0), 0);
@@ -2087,7 +2099,9 @@ export const mapearDadosContrato = ({
   const dadosFinanceiro: ContratoDadosFinanceiro = {
     subtotal,
     desconto,
+    valorDesconto: desconto,
     total,
+    valorTotal: total,
     totalExtenso,
     formaPagamento: formaLimpa,
     entrada,
@@ -2806,18 +2820,23 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
           </tr>
         </thead>
         <tbody>
-          ${orcamento.itens.map((item, idx) => `
+          ${orcamento.itens.map((item, idx) => {
+            const q = Number(item.quantidade) || 1;
+            const vu = Number(item.valorUnitario ?? (item as any).valor ?? ((item as any).valorTotal ? (item as any).valorTotal / q : 0));
+            const vt = Number((item as any).valorTotal ?? (vu * q));
+            return `
             <tr class="evitar-corte" style="page-break-inside: avoid !important; break-inside: avoid !important;">
               <td class="col-num">${idx + 1}</td>
               <td>
                 <strong>${item.nome}</strong>
                 ${item.denteOuRegiao ? `<br/><span style="font-size: 9.5px; color: #4b5563;">Região/Elemento: ${item.denteOuRegiao}</span>` : ''}
               </td>
-              <td class="col-num">${item.quantidade}</td>
-              <td class="col-money">${formatMoney(item.valorUnitario)}</td>
-              <td class="col-money">${formatMoney(item.valorTotal)}</td>
+              <td class="col-num">${q}</td>
+              <td class="col-money">${formatMoney(vu)}</td>
+              <td class="col-money">${formatMoney(vt)}</td>
             </tr>
-          `).join('')}
+          `;
+          }).join('')}
         </tbody>
       </table>
 
@@ -2883,9 +2902,9 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
       ${financeiro.entrada > 0 ? `
         <p class="paragrafo">
           ${todasIguais ? `
-            O plano financeiro pactuado compreende o pagamento de uma <strong>Entrada inicial de ${formatMoney(financeiro.entrada)}</strong> e o saldo remanescente de <strong>${formatMoney(financeiro.total - financeiro.entrada)}</strong> dividido em <strong>${financeiro.quantidadeParcelas} (${financeiro.quantidadeParcelas === 1 ? 'uma única parcela' : `${financeiro.quantidadeParcelas} parcelas mensais sucessivas`})</strong> no valor de <strong>${formatMoney(financeiro.valorParcela)}</strong>${financeiro.quantidadeParcelas > 1 ? ' cada' : ''}, ${apenasCartao ? 'com lançamentos processados na fatura do cartão conforme cronograma oficial a seguir:' : 'com vencimentos discriminados no cronograma oficial a seguir:'}
+            O plano financeiro pactuado compreende o pagamento de uma <strong>Entrada inicial de ${formatMoney(financeiro.entrada)}</strong> e o saldo remanescente de <strong>${formatMoney(valorTotalReal - financeiro.entrada)}</strong> dividido em <strong>${financeiro.quantidadeParcelas} (${financeiro.quantidadeParcelas === 1 ? 'uma única parcela' : `${financeiro.quantidadeParcelas} parcelas mensais sucessivas`})</strong> no valor de <strong>${formatMoney(financeiro.valorParcela)}</strong>${financeiro.quantidadeParcelas > 1 ? ' cada' : ''}, ${apenasCartao ? 'com lançamentos processados na fatura do cartão conforme cronograma oficial a seguir:' : 'com vencimentos discriminados no cronograma oficial a seguir:'}
           ` : `
-            O plano financeiro pactuado compreende o pagamento de uma <strong>Entrada inicial de ${formatMoney(financeiro.entrada)}</strong> e o saldo remanescente de <strong>${formatMoney(financeiro.total - financeiro.entrada)}</strong>, distribuído nas etapas e formas discriminadas detalhadamente no cronograma oficial a seguir:
+            O plano financeiro pactuado compreende o pagamento de uma <strong>Entrada inicial de ${formatMoney(financeiro.entrada)}</strong> e o saldo remanescente de <strong>${formatMoney(valorTotalReal - financeiro.entrada)}</strong>, distribuído nas etapas e formas discriminadas detalhadamente no cronograma oficial a seguir:
           `}
         </p>
       ` : `
@@ -2899,7 +2918,16 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
       `}
 
       ${temAlgumPix ? (() => {
-      const chavePixContrato = clinica?.chavePix || clinica?.cnpj || clinica?.telefone || '';
+      // Seleciona chave PIX válida real da clínica e rejeita expressamente valores padrão ou fictícios
+      const chavesCandidatas = [clinica?.chavePix, clinica?.cnpj, clinica?.telefone];
+      let chavePixContrato = '';
+      for (const ch of chavesCandidatas) {
+        if (ch && validarChavePix(ch).valido) {
+          chavePixContrato = ch;
+          break;
+        }
+      }
+      const chavePixValida = Boolean(chavePixContrato && validarChavePix(chavePixContrato).valido);
       const parcelaEntrada = financeiro.parcelas?.find((p) =>
         /entrada|sinal/i.test(p.descricao || '')
       ) || (financeiro.entrada > 0 && financeiro.parcelas?.length > 0 ? financeiro.parcelas[0] : undefined);
@@ -2942,12 +2970,22 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
         valor: valorPixContrato,
         descricao: `Contrato ${numIdContrato}`.trim(),
       }) : '';
-      const qrCodeSrc = payloadPixContrato
-        ? gerarQrCodePixUrl(payloadPixContrato, 280)
-        : `https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=4&data=${encodeURIComponent(chavePixContrato || 'pix')}`;
-      const qrCodeGrandeSrc = payloadPixContrato
-        ? gerarQrCodePixUrl(payloadPixContrato, 450)
-        : qrCodeSrc;
+      const qrCodeSrc = payloadPixContrato ? gerarQrCodePixUrl(payloadPixContrato, 280) : '';
+      const qrCodeGrandeSrc = payloadPixContrato ? gerarQrCodePixUrl(payloadPixContrato, 450) : '';
+
+      if (!chavePixValida || !payloadPixContrato) {
+        return `
+      <!-- Aviso de Regularização da Chave PIX Oficial -->
+      <div class="box-pix evitar-corte" style="margin: 8px 0; padding: 10px 14px; border: 1.5px dashed #f59e0b; background-color: #fffbeb; border-radius: 8px; font-family: Arial, sans-serif; font-size: 11px; color: #92400e; page-break-inside: avoid !important; break-inside: avoid !important;">
+        <div style="font-weight: bold; margin-bottom: 4px; text-transform: uppercase; font-size: 10.5px; letter-spacing: 0.5px;">
+          ⚠ Chave PIX da Clínica Pendente de Regularização Cadastral
+        </div>
+        <p style="margin: 0; line-height: 1.45; font-size: 10.5px;">
+          A chave PIX padrão ou provisória não é autorizada para cobranças automáticas. O pagamento via PIX deverá ser confirmado diretamente com a clínica enquanto os dados bancários são cadastrados em <strong>Configurações → Contrato & PIX</strong>.
+        </p>
+      </div>
+        `;
+      }
 
       return `
       <!-- Detalhamento Oficial para Pagamento via PIX com QR Code -->

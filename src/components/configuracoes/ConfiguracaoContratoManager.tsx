@@ -46,6 +46,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { useConfiguracoesContrato, ConfiguracoesContrato, carregarConfiguracoesContratoSync } from '@/hooks/useConfiguracoesContrato';
+import { validarChavePix } from '@/utils/pixPayload';
 import { identificarTipoDocumento, formatarDocumento, validarDocumento } from '@/utils/documentoFormat';
 import DigitalSignature from '@/components/signature/DigitalSignature';
 import { gerarRubricaPadraoDra, validarAutorizacaoAssinatura } from '@/utils/contratoEngine';
@@ -113,6 +114,17 @@ export const ConfiguracaoContratoManager: React.FC = () => {
       if (!valFav.valido) {
         toast.error('Documento do favorecido PIX inválido', {
           description: valFav.erro || 'Informe um CPF ou CNPJ válido para o titular da chave PIX.',
+        });
+        return;
+      }
+    }
+
+    // 3. Validação rigorosa da Chave PIX (se informada)
+    if (form.chavePix && form.chavePix.trim()) {
+      const valPix = validarChavePix(form.chavePix, form.tipoChavePix);
+      if (!valPix.valido) {
+        toast.error('Chave PIX inválida', {
+          description: valPix.motivo || 'Informe uma chave PIX oficial válida antes de salvar as configurações.',
         });
         return;
       }

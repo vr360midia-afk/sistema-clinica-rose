@@ -113,6 +113,93 @@ export const limparChavePix = (chave: string, tipoChave?: string): string => {
   return apenasDigitos || limpa;
 };
 
+export interface ValidacaoChavePixResult {
+  valido: boolean;
+  tipoDetectado?: 'telefone' | 'cnpj' | 'cpf' | 'email' | 'aleatoria' | 'invalido';
+  motivo?: string;
+  chaveLimpa?: string;
+}
+
+/**
+ * Validação rigorosa de chave PIX (rejeita chaves fictícias, padrões de teste ou dados inválidos)
+ */
+export const validarChavePix = (chave?: string | null, tipoInformado?: string): ValidacaoChavePixResult => {
+  if (!chave || !String(chave).trim()) {
+    return { valido: false, tipoDetectado: 'invalido', motivo: 'Chave PIX não cadastrada.' };
+  }
+  const str = String(chave).trim();
+  const apenasDig = str.replace(/\D/g, '');
+
+  // Bloqueio explícito e terminante de valores fictícios de teste
+  if (
+    str === '12345678000190' ||
+    str === '12.345.678/0001-90' ||
+    apenasDig === '12345678000190' ||
+    apenasDig === '00000000000' ||
+    apenasDig === '11111111111' ||
+    apenasDig === '00000000000000' ||
+    /exemplo|teste|padrao|ficticio|consulta/i.test(str)
+  ) {
+    return { valido: false, tipoDetectado: 'invalido', motivo: 'Chave PIX padrão ou fictícia não autorizada para cobranças.' };
+  }
+
+  // 1. E-mail
+  if (tipoInformado === 'email' || str.includes('@')) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (emailRegex.test(str.toLowerCase())) {
+      return { valido: true, tipoDetectado: 'email', chaveLimpa: str.toLowerCase() };
+    }
+    return { valido: false, tipoDetectado: 'email', motivo: 'E-mail inválido para chave PIX.' };
+  }
+
+  // 2. Chave Aleatória (EVP UUID v4)
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (tipoInformado === 'aleatoria' || uuidRegex.test(str)) {
+    if (uuidRegex.test(str)) {
+      return { valido: true, tipoDetectado: 'aleatoria', chaveLimpa: str.toLowerCase() };
+    }
+    return { valido: false, tipoDetectado: 'aleatoria', motivo: 'Chave aleatória inválida (formato UUID esperado).' };
+  }
+
+  // 3. Documento CNPJ (14 dígitos)
+  if (tipoInformado === 'cnpj' || apenasDig.length === 14) {
+    if (apenasDig.length !== 14) {
+      return { valido: false, tipoDetectado: 'cnpj', motivo: 'CNPJ deve conter 14 dígitos numéricos.' };
+    }
+    if (/^(\d)\1{13}$/.test(apenasDig)) {
+      return { valido: false, tipoDetectado: 'cnpj', motivo: 'CNPJ com dígitos repetidos inválido.' };
+    }
+    return { valido: true, tipoDetectado: 'cnpj', chaveLimpa: apenasDig };
+  }
+
+  // 4. Telefone (+55 ou DDD + 8/9 dígitos)
+  if (tipoInformado === 'telefone' || (apenasDig.length >= 10 && apenasDig.length <= 13 && (str.startsWith('+') || str.startsWith('(') || str.includes('-')))) {
+    let telDig = apenasDig;
+    if (telDig.startsWith('55') && telDig.length >= 12) {
+      telDig = telDig.slice(2);
+    }
+    if (telDig.length === 10 || telDig.length === 11) {
+      const ddd = parseInt(telDig.slice(0, 2), 10);
+      if (ddd >= 11 && ddd <= 99) {
+        return { valido: true, tipoDetectado: 'telefone', chaveLimpa: `+55${telDig}` };
+      }
+    }
+    if (tipoInformado === 'telefone') {
+      return { valido: false, tipoDetectado: 'telefone', motivo: 'Telefone inválido para chave PIX (DDD + 8 ou 9 dígitos esperado).' };
+    }
+  }
+
+  // 5. Documento CPF (11 dígitos)
+  if (tipoInformado === 'cpf' || apenasDig.length === 11) {
+    if (/^(\d)\1{10}$/.test(apenasDig)) {
+      return { valido: false, tipoDetectado: 'cpf', motivo: 'CPF com dígitos repetidos inválido.' };
+    }
+    return { valido: true, tipoDetectado: 'cpf', chaveLimpa: apenasDig };
+  }
+
+  return { valido: false, tipoDetectado: 'invalido', motivo: 'Formato de chave PIX não reconhecido.' };
+};
+
 /**
  * Gera a string completa do PIX Copia e Cola (BR Code)
  */
@@ -125,7 +212,11 @@ export const gerarPayloadPix = ({
   txId,
   descricao,
 }: PixPayloadOptions): string => {
-  const chaveLimpa = limparChavePix(chave, tipoChave);
+  // Validação estrita da chave: se for inválida ou fictícia, bloqueia a geração
+  const valChave = validarChavePix(chave, tipoChave);
+  if (!valChave.valido) return '';
+
+  const chaveLimpa = limparChavePix(valChave.chaveLimpa || chave, tipoChave);
   if (!chaveLimpa) return '';
 
   // 00: Payload Format Indicator (Fixo: 01)
