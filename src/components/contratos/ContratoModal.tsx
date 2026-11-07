@@ -83,6 +83,7 @@ import {
   limparFormaPagamentoParaContrato,
   gerarIdentificadorContrato,
   validarCronogramaFinanceiroContrato,
+  validarIntegridadeOrcamentoContrato,
 } from '@/utils/contratoEngine';
 import { downloadTcleLentesResinaPdf } from '@/utils/tcleLentesResina';
 import { downloadTermoUsoImagemPdf } from '@/utils/termoUsoImagem';
@@ -272,6 +273,12 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     );
     return Boolean(contratoVisualizacao?.id || contratoExistenteOrcamento?.id || isFormalizadoSnap);
   }, [documentoIdSendoEditado, contratoVisualizacao, contratoExistenteOrcamento, snapshotAtual]);
+
+  // Validação em tempo real da integridade matemática e financeira entre orçamento e contrato
+  const validacaoIntegridade = useMemo(() => {
+    if (!snapshotAtual) return null;
+    return validarIntegridadeOrcamentoContrato(orcamentoAtual, snapshotAtual);
+  }, [snapshotAtual, orcamentoAtual]);
 
   // Dentista responsável padrão
   useEffect(() => {
@@ -857,6 +864,16 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
       snapshotAtual.token = snapshotParaSalvar.token;
       snapshotAtual.contratoId = snapshotParaSalvar.contratoId;
 
+      // Validação impeditiva obrigatória: bloqueia emissão de novo contrato com divergência financeira
+      const validacaoIntegridadeEmissao = validarIntegridadeOrcamentoContrato(orcamentoAtual, snapshotParaSalvar);
+      if (!validacaoIntegridadeEmissao.valido) {
+        toast.error('Emissão bloqueada por divergência financeira:', {
+          description: validacaoIntegridadeEmissao.erros.join('; '),
+        });
+        setSalvando(false);
+        return;
+      }
+
       const htmlFinal = gerarHtmlContrato(snapshotParaSalvar);
 
       const docCriado = await salvarDocumento({
@@ -1323,7 +1340,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                 className="flex-1 bg-slate-900/90 dark:bg-slate-950 p-2 sm:p-5 flex justify-center items-start overflow-y-auto w-full"
                 style={{ WebkitOverflowScrolling: 'touch' }}
               >
-                <iframe
+                    <iframe
                   srcDoc={contratoVisualizacao?.conteudo || htmlContratoAtual}
                   title="Contrato Oficial A4"
                   className="w-full max-w-[860px] h-[calc(100vh-4.5rem)] rounded-md border border-slate-700/80 bg-white shadow-2xl"
@@ -2060,8 +2077,20 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
 
                   <div
                     className="p-1 sm:p-4 bg-slate-200/70 dark:bg-slate-950/80 flex flex-col items-center justify-start overflow-auto w-full transition-all min-h-[380px] h-[58vh] sm:h-[68vh] flex-1"
-                    style={{ WebkitOverflowScrolling: 'touch' }}
                   >
+                    {validacaoIntegridade?.divergenciaFinanceira && (
+                      <div className="w-full max-w-[840px] mb-3 p-3.5 rounded-lg border text-xs shadow-md shrink-0 bg-amber-50 border-amber-300 text-amber-950 dark:bg-amber-950/40 dark:border-amber-800 dark:text-amber-200">
+                        <div className="font-bold flex items-center gap-1.5 uppercase tracking-wide text-[11px] mb-1 text-amber-800 dark:text-amber-300">
+                          {hasAssinaturaPaciente ? '⚠️ Alerta de Integridade Histórica (Contrato Assinado)' : '🚨 Divergência Financeira Detectada'}
+                        </div>
+                        <p className="leading-relaxed">
+                          {hasAssinaturaPaciente
+                            ? 'Este contrato foi formalizado anteriormente e mantém sua integridade documental histórica inalterada. Foi constatada divergência entre o orçamento e os valores formalizados. Para conformidade regulatória, contratos assinados não são alterados silenciosamente no sistema. Recomendada revisão administrativa para emissão de eventual Termo Aditivo ou Retificação Formal.'
+                            : `O contrato gerado apresenta inconsistência financeira com o orçamento aprovado: ${validacaoIntegridade.erros.join('; ')}. A emissão e assinatura deste novo contrato estão bloqueadas até a correção dos valores.`
+                          }
+                        </p>
+                      </div>
+                    )}
                     <iframe
                       srcDoc={contratoVisualizacao?.conteudo || htmlContratoAtual}
                       title="Contrato Oficial A4"
@@ -3011,7 +3040,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                       className="p-1 sm:p-4 bg-slate-200/70 dark:bg-slate-950/80 rounded flex flex-col items-center justify-start overflow-auto w-full transition-all min-h-[380px] h-[58vh] sm:h-[68vh] flex-1"
                       style={{ WebkitOverflowScrolling: 'touch' }}
                     >
-                      <iframe
+                    <iframe
                         srcDoc={contratoVisualizacao.conteudo || ''}
                         title="Visualização do Contrato Gravado"
                         className="w-full h-full max-w-[840px] rounded border border-border bg-white shadow-xl min-h-[360px]"

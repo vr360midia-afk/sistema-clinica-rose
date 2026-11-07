@@ -1170,7 +1170,14 @@ export function gerarParcelasCronogramaFinanceiro(params: ParamsGerarParcelasCro
     }
 
     case 'cartao': {
-      const qtd = Math.max(1, condicao.parcelas || 1);
+      let qtd = Math.max(1, condicao.parcelas || 1);
+      // Se a quantidade de parcelas for 1, recupera da descrição ou título caso especificado (ex: "18x de R$ 336,11")
+      if (qtd === 1 && (condicao.descricao || condicao.titulo)) {
+        const matchP = (condicao.descricao || condicao.titulo).match(/(?:em\s*)?(\d{1,2})\s*(?:x|vezes|parcelas?)\b/i);
+        if (matchP && Number(matchP[1]) > 1) {
+          qtd = Number(matchP[1]);
+        }
+      }
       const isDebito = condicao.tipoCartao === 'debito';
       const metodoNome = isDebito ? 'Cartão de Débito' : 'Cartão de Crédito';
       // Situação rigorosa: Cartão não pode ser marcado como Autorizado sem confirmação da operadora ou registro financeiro confiável
@@ -1195,7 +1202,10 @@ export function gerarParcelasCronogramaFinanceiro(params: ParamsGerarParcelasCro
         });
       }
       quantidadeParcelas = qtd;
-      valorParcela = parcelas[0]?.valor || Number((total / qtd).toFixed(2));
+      // O valor nominal da parcela aprovada corresponde à base de cálculo exata (ex: R$ 336,11)
+      valorParcela = condicao.valorParcela && Math.abs(condicao.valorParcela - valBase) <= 0.05
+        ? condicao.valorParcela
+        : valBase;
       metodoParcelamento = metodoNome;
       break;
     }
@@ -1203,7 +1213,7 @@ export function gerarParcelasCronogramaFinanceiro(params: ParamsGerarParcelasCro
     case 'entrada_saldo': {
       const entVal = parseBrMoney(condicao.valorEntrada);
       const saldoTotal = Math.max(0, Number((total - entVal).toFixed(2)));
-      const qtdSaldo = Math.max(1, condicao.saldoParcelas || 1);
+      const qtdSaldo = Math.max(1, condicao.saldoParcelas || condicao.parcelas || 1);
 
       let mEntrada = 'PIX';
       if (condicao.metodoEntrada === 'dinheiro') mEntrada = 'Dinheiro';
@@ -1520,6 +1530,140 @@ export function validarCronogramaFinanceiroContrato(
   };
 }
 
+/**
+ * Validação obrigatória de integridade entre orçamento aprovado e contrato.
+ * Garante:
+ * 1. Valor total do contrato igual ao total aprovado.
+ * 2. Desconto aplicado corretamente e consistência matemática (subtotal - desconto = total).
+ * 3. Condição de pagamento e número de parcelas idênticos ao aprovado.
+ * 4. Valor por extenso correspondente ao valor numérico.
+ * 5. Cronograma financeiro compatível com o parcelamento (soma das parcelas = total).
+ * 6. Impedimento de emissão ou assinatura se houver divergência financeira.
+ */
+export function validarIntegridadeOrcamentoContrato(
+  orcamento: any,
+  snapshot: ContratoSnapshot | Partial<ContratoSnapshot> | null | undefined
+): {
+  valido: boolean;
+  erros: string[];
+  avisos: string[];
+  divergenciaFinanceira: boolean;
+} {
+  const erros: string[] = [];
+  const avisos: string[] = [];
+
+  if (!snapshot || !snapshot.financeiro) {
+    return {
+      valido: false,
+      erros: ['Snapshot do contrato ou dados financeiros inexistentes.'],
+      avisos: [],
+      divergenciaFinanceira: true,
+    };
+  }
+
+  const fin = snapshot.financeiro;
+  const totalContrato = Number(fin.total ?? fin.valorTotal ?? 0);
+  const subtotalContrato = Number(fin.subtotal ?? 0);
+  const descontoContrato = Number(fin.desconto ?? fin.valorDesconto ?? 0);
+
+  // 1. Total deve ser maior que zero
+  if (totalContrato <= 0) {
+    erros.push('O valor total do contrato deve ser maior que zero.');
+  }
+
+  // 2. Consistência matemática: Subtotal - Desconto = Total
+  if (subtotalContrato > 0 && descontoContrato > 0) {
+    const diferencaMatematica = Math.abs((subtotalContrato - descontoContrato) - totalContrato);
+    if (diferencaMatematica > 0.05) {
+      erros.push(
+        `Inconsistência matemática no contrato: Subtotal (${formatMoney(subtotalContrato)}) - Desconto (${formatMoney(descontoContrato)}) diverge do Total (${formatMoney(totalContrato)}). Diferença: ${formatMoney(diferencaMatematica)}.`
+      );
+    }
+  }
+
+  // 3. Comparação com o orçamento aprovado
+  if (orcamento) {
+    const totalOrcAprovado = Number(orcamento.total ?? orcamento.valorTotal ?? 0);
+    const subtotalOrc = Number(
+      orcamento.subtotal ?? (
+        Array.isArray(orcamento.itens) && orcamento.itens.length > 0
+          ? orcamento.itens.reduce((acc: number, it: any) => acc + (Number(it.valorTotal) || ((Number(it.valorUnitario) || Number(it.valor) || 0) * (Number(it.quantidade) || 1))), 0)
+          : 0
+      )
+    );
+    const descontoOrc = Number(orcamento.desconto ?? 0);
+    const totalEsperado = totalOrcAprovado > 0 ? totalOrcAprovado : Math.max(0, subtotalOrc - descontoOrc);
+
+    if (totalEsperado > 0 && Math.abs(totalContrato - totalEsperado) > 0.05) {
+      erros.push(
+        `Divergência entre Orçamento e Contrato: O valor aprovado no orçamento (${formatMoney(totalEsperado)}) difere do total do contrato (${formatMoney(totalContrato)}).`
+      );
+    }
+
+    if (descontoOrc > 0 && Math.abs(descontoContrato - descontoOrc) > 0.05) {
+      erros.push(
+        `Divergência de desconto: O desconto aprovado (${formatMoney(descontoOrc)}) difere do desconto no contrato (${formatMoney(descontoContrato)}).`
+      );
+    }
+  }
+
+  // 4. Cronograma de parcelas e soma
+  const parcelas = fin.parcelas;
+  if (!Array.isArray(parcelas) || parcelas.length === 0) {
+    erros.push('O cronograma financeiro não possui parcelas cadastradas.');
+  } else {
+    const somaParcelas = parcelas.reduce((acc, p) => acc + (Number(p.valor) || 0), 0);
+    if (Math.abs(somaParcelas - totalContrato) > 0.05) {
+      erros.push(
+        `A soma das parcelas do cronograma (${formatMoney(somaParcelas)}) não totaliza o valor global contratual (${formatMoney(totalContrato)}).`
+      );
+    }
+
+    const qtdEsperada = fin.entrada && fin.entrada > 0
+      ? fin.quantidadeParcelas + 1
+      : fin.quantidadeParcelas;
+
+    if (
+      typeof fin.quantidadeParcelas === 'number' &&
+      fin.quantidadeParcelas > 0 &&
+      parcelas.length !== qtdEsperada &&
+      parcelas.length !== fin.quantidadeParcelas
+    ) {
+      erros.push(
+        `A quantidade de parcelas no cronograma (${parcelas.length}) diverge do total pactuado (${fin.quantidadeParcelas}).`
+      );
+    }
+
+    parcelas.forEach((p, idx) => {
+      if (typeof p.valor !== 'number' || p.valor <= 0) {
+        erros.push(`Parcela ${p.numero || idx + 1} possui valor inválido (${p.valor}).`);
+      }
+    });
+  }
+
+  // 5. Condição de pagamento
+  const forma = String(fin.formaPagamento || fin.condicoes || '').trim();
+  if (!forma || /a\s*combinar/i.test(forma) || /a\s*definir/i.test(forma) || /^condi[çc][aã]o de pagamento$/i.test(forma)) {
+    erros.push('Condição de pagamento aprovada ausente ou indefinida no contrato (consta "A combinar").');
+  }
+
+  // 6. Valor por extenso
+  if (totalContrato > 0) {
+    const extensoEsperado = valorPorExtenso(totalContrato).toLowerCase().trim();
+    const extensoAtual = String(fin.totalExtenso || '').toLowerCase().trim();
+    if (extensoAtual && !extensoAtual.includes(extensoEsperado.slice(0, 12))) {
+      avisos.push(`O valor por extenso ("${fin.totalExtenso}") pode divergir do valor numérico (${formatMoney(totalContrato)}).`);
+    }
+  }
+
+  return {
+    valido: erros.length === 0,
+    erros,
+    avisos,
+    divergenciaFinanceira: erros.length > 0,
+  };
+}
+
 export const mapearDadosContrato = ({
   patient,
   orcamento,
@@ -1634,23 +1778,45 @@ export const mapearDadosContrato = ({
     ? subtotalItens
     : Number(orcamento?.subtotal || orcamento?.valorTotal || 0);
 
+  // 1. Fonte única dos dados financeiros aprovados pelo paciente:
+  // Nunca recalcular o contrato a partir do subtotal bruto dos procedimentos se houver desconto!
+  const descontoOrcamento = Number(orcamento?.desconto || 0);
+  const totalOrcamentoNominal = Number(orcamento?.total ?? orcamento?.valorTotal ?? 0);
+  const totalCalculadoLiquido = Math.max(0, subtotalCalculado - descontoOrcamento);
+
+  const totalAprovadoBase = (totalOrcamentoNominal > 0 && (descontoOrcamento === 0 || Math.abs(totalOrcamentoNominal - totalCalculadoLiquido) < 0.05))
+    ? totalOrcamentoNominal
+    : (totalCalculadoLiquido > 0 ? totalCalculadoLiquido : (totalOrcamentoNominal || subtotalCalculado));
+
   // Extrai a condição de pagamento estruturada e aprovada com rastreabilidade total
   const formasRaw = orcamento?.formasPagamento || orcamento?.formas_pagamento || '';
-  const condicoesParsed = parseCondicoesPagamento(formasRaw, subtotalCalculado);
+  const condicoesParsed = parseCondicoesPagamento(formasRaw, totalAprovadoBase);
   const condicaoAtiva: CondicaoPagamento | null =
     extrairCondicaoEscolhida(orcamento) ||
     ('condicaoEscolhida' in orcamento && orcamento.condicaoEscolhida) ||
     obterCondicaoAtiva(condicoesParsed);
 
   const descontoCondicao = Number((condicaoAtiva as any)?.descontoValor ?? (condicaoAtiva as any)?.valorDesconto ?? 0);
-  const desconto = Number(orcamento?.desconto || descontoCondicao || 0);
-  const total = Number(
-    condicaoAtiva?.valorTotal ??
-    orcamento?.total ??
-    orcamento?.valorTotal ??
-    Math.max(0, subtotalCalculado - desconto)
-  );
+  const desconto = Number(descontoOrcamento || descontoCondicao || 0);
+
+  // Valor total global e líquido da contratação:
+  let total = totalAprovadoBase;
+  if (condicaoAtiva?.valorTotal && condicaoAtiva.valorTotal > 0) {
+    if (Math.abs(condicaoAtiva.valorTotal - totalAprovadoBase) <= 1.00) {
+      total = totalAprovadoBase;
+    } else if (desconto > 0 && Math.abs(condicaoAtiva.valorTotal - subtotalCalculado) < 0.05) {
+      // Condição herdou indevidamente subtotal bruto, mantém o total líquido aprovado
+      total = totalAprovadoBase;
+    } else if (Math.abs(condicaoAtiva.valorTotal - subtotalCalculado) > 0.05) {
+      total = condicaoAtiva.valorTotal;
+    }
+  }
+
+  // Garantia matemática estrita para Cláusula 2ª: subtotal - desconto = total
   const subtotal = subtotalCalculado > 0 ? subtotalCalculado : (total + desconto);
+  if (desconto > 0 && Math.abs((subtotal - desconto) - total) > 0.02) {
+    total = Math.max(0, subtotal - desconto);
+  }
   const totalExtenso = valorPorExtenso(total);
 
   const dadosOrcamento: ContratoDadosOrcamento = {
@@ -2316,7 +2482,7 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
 
   // Resolução rigorosa do valor líquido aprovado no snapshot:
   // Nunca utiliza R$ 0,00 como fallback silencioso se houver valores nas parcelas ou itens
-  const valorTotalReal = (() => {
+  let valorTotalReal = (() => {
     const f = financeiro as any;
     const o = orcamento as any;
     const candF = [f?.total, f?.valorTotal, f?.valorLiquido, f?.valor];
@@ -2384,8 +2550,18 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
     return valorTotalReal + desc;
   })();
 
-  const valorDescontoReal = Number(financeiro?.desconto ?? orcamento?.desconto ?? Math.max(0, valorSubtotalReal - valorTotalReal));
-  const valorTotalExtensoReal = financeiro?.totalExtenso || valorPorExtenso(valorTotalReal);
+  const valorDescontoReal = Number(financeiro?.desconto ?? orcamento?.desconto ?? 0);
+
+  // Garantia matemática estrita para Cláusula 2ª:
+  // Se houver desconto aprovado, o valor total líquido contratual NUNCA pode ser o subtotal bruto!
+  if (valorDescontoReal > 0 && valorSubtotalReal > 0) {
+    const totalEsperado = Math.max(0, valorSubtotalReal - valorDescontoReal);
+    if (Math.abs(valorTotalReal - totalEsperado) > 0.05) {
+      valorTotalReal = totalEsperado;
+    }
+  }
+
+  const valorTotalExtensoReal = valorPorExtenso(valorTotalReal);
 
   // Garante cronograma financeiro consistente com ao menos uma linha (inclusive para PIX à vista)
   let parcelasEfetivas = Array.isArray(financeiro?.parcelas) ? [...financeiro.parcelas] : [];
@@ -2947,9 +3123,16 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
         </p>
       ` : `
         <p class="paragrafo">
-          ${todasIguais ? `
-            O plano financeiro compreende a quitação em <strong>${financeiro.quantidadeParcelas} (${financeiro.quantidadeParcelas === 1 ? 'uma única parcela' : `${financeiro.quantidadeParcelas} parcelas mensais sucessivas`})</strong>, no valor de <strong>${formatMoney(financeiro.valorParcela)}</strong>${financeiro.quantidadeParcelas > 1 ? ' cada' : ''}, ${apenasCartao ? 'com cobrança na fatura do cartão conforme discriminado no cronograma a seguir:' : 'com vencimentos conforme discriminado no cronograma a seguir:'}
-          ` : `
+          ${todasIguais ? (() => {
+            const diffCentavos = Math.round((valorTotalReal - (financeiro.quantidadeParcelas * financeiro.valorParcela)) * 100);
+            const temAjusteCentavos = diffCentavos > 0 && diffCentavos < 100 && financeiro.quantidadeParcelas > 1;
+            const textoCentavos = temAjusteCentavos
+              ? ` (sendo o valor nominal de <strong>${formatMoney(financeiro.valorParcela)}</strong> com as ${diffCentavos} primeiras parcelas ajustadas em <strong>${formatMoney(financeiro.valorParcela + 0.01)}</strong> para exata conciliação contábil dos centavos)`
+              : '';
+            return `
+            O plano financeiro compreende a quitação em <strong>${financeiro.quantidadeParcelas} (${financeiro.quantidadeParcelas === 1 ? 'uma única parcela' : `${financeiro.quantidadeParcelas} parcelas mensais sucessivas`})</strong> no valor de <strong>${formatMoney(financeiro.valorParcela)}</strong>${financeiro.quantidadeParcelas > 1 ? ' cada' : ''}${textoCentavos}, ${apenasCartao ? 'com lançamentos processados na fatura do cartão conforme discriminado no cronograma a seguir:' : 'com vencimentos conforme discriminado no cronograma a seguir:'}
+            `;
+          })() : `
             O plano financeiro compreende as etapas e parcelas discriminadas detalhadamente com seus respectivos valores, vencimentos e formas no cronograma a seguir:
           `}
         </p>
@@ -3812,12 +3995,27 @@ export async function emitirContratoPersistido(
       } catch (_) {}
     }
 
-    // Bloqueio rigoroso de emissão de NOVO contrato com dados financeiros incompletos
+    // Bloqueio rigoroso de emissão de NOVO contrato com dados financeiros incompletos ou divergentes
     const isNovoContrato = snapshot.status !== 'assinado' && !snapshot.assinaturaPaciente?.assinaturaData;
     if (isNovoContrato) {
       const validacaoCronograma = validarCronogramaFinanceiroContrato(snapshotFinal);
       if (!validacaoCronograma.valido) {
         const msgErro = `Emissão do contrato bloqueada: cronograma financeiro incompleto (${validacaoCronograma.erros.join('; ')}). É obrigatório registrar a condição de pagamento aprovada com as respectivas parcelas antes de emitir o contrato.`;
+        console.error('[ContratoEngine]', msgErro);
+        return {
+          ok: false,
+          link: '',
+          identificador,
+          token,
+          id: null,
+          snapshot: snapshotFinal,
+          error: msgErro,
+        };
+      }
+
+      const validacaoIntegridade = validarIntegridadeOrcamentoContrato(snapshot.orcamento, snapshotFinal);
+      if (!validacaoIntegridade.valido) {
+        const msgErro = `Emissão do contrato bloqueada por divergência financeira: ${validacaoIntegridade.erros.join('; ')}`;
         console.error('[ContratoEngine]', msgErro);
         return {
           ok: false,

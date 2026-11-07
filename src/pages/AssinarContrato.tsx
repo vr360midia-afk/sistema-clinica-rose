@@ -65,6 +65,7 @@ import {
   construirUrlPublicaContrato,
   parseBrMoney,
   valorPorExtenso,
+  validarIntegridadeOrcamentoContrato,
 } from '@/utils/contratoEngine';
 import { slugifyNome, unslugifyNome } from '@/utils/anamneseEngine';
 import { gerarContratoDoOrcamentoAprovado } from '@/utils/orcamentoEngine';
@@ -865,6 +866,14 @@ export default function AssinarContrato() {
 
     if (camposFaltantes.length > 0) {
       toast.error(`Não é possível formalizar o contrato. Dados cadastrais obrigatórios ausentes: ${camposFaltantes.join(', ')}. Por favor, complete o cadastro antes de prosseguir.`);
+      setShowSignatureModal(false);
+      return;
+    }
+
+    // Validação impeditiva: bloqueia formalização de contrato com divergência financeira
+    const validacaoFinanceira = validarIntegridadeOrcamentoContrato(snapshot?.orcamento, snapshot);
+    if (!validacaoFinanceira.valido) {
+      toast.error(`Não é possível formalizar o contrato: divergência financeira detectada (${validacaoFinanceira.erros.join('; ')}). Entre em contato com a clínica.`);
       setShowSignatureModal(false);
       return;
     }

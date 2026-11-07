@@ -50,7 +50,13 @@ function gerarParcelasServidorContrato(cond: any, total: number, dataIso = new D
       status: pixPago ? 'Quitada' : 'Pendente',
     }];
   } else if (tipo === 'cartao') {
-    const qtd = Math.max(1, cond.parcelas || 1);
+    let qtd = Math.max(1, cond.parcelas || 1);
+    if (qtd === 1 && (cond.descricao || cond.titulo)) {
+      const matchP = (cond.descricao || cond.titulo).match(/(?:em\s*)?(\d{1,2})\s*(?:x|vezes|parcelas?)\b/i);
+      if (matchP && Number(matchP[1]) > 1) {
+        qtd = Number(matchP[1]);
+      }
+    }
     const isDeb = cond.tipoCartao === 'debito';
     const mNome = isDeb ? 'Cartão de Débito' : 'Cartão de Crédito';
     const valBase = Math.floor((total / qtd) * 100) / 100;
@@ -983,10 +989,16 @@ function gerarPdfServidorContrato(snap: any, docClinico?: any): Uint8Array {
   pdf.setFontSize(8);
   pdf.setTextColor(51, 65, 85);
 
-  const totalNum = Number(snap.financeiro?.total ?? snap.financeiro?.valorTotal ?? snap.orcamento?.total ?? docClinico?.valor_total ?? 0);
-  const totalFormatado = formatarMoedaBr(totalNum);
   const descontoNum = Number(snap.financeiro?.desconto ?? snap.financeiro?.valorDesconto ?? snap.orcamento?.desconto ?? 0);
+  let totalNum = Number(snap.financeiro?.total ?? snap.financeiro?.valorTotal ?? snap.orcamento?.total ?? docClinico?.valor_total ?? 0);
   const subtotalNum = Number(snap.financeiro?.subtotal ?? snap.orcamento?.subtotal ?? (totalNum + descontoNum));
+
+  // Consistência matemática estrita no PDF gerado
+  if (descontoNum > 0 && subtotalNum > 0 && Math.abs(totalNum - (subtotalNum - descontoNum)) > 0.05) {
+    totalNum = Math.max(0, subtotalNum - descontoNum);
+  }
+
+  const totalFormatado = formatarMoedaBr(totalNum);
   const subtotalFormatado = subtotalNum > 0 ? formatarMoedaBr(subtotalNum) : null;
   const descontoFormatado = (descontoNum && descontoNum > 0) ? formatarMoedaBr(descontoNum) : null;
   const totalExtenso = snap.financeiro?.totalExtenso ? ` (${snap.financeiro.totalExtenso})` : "";
@@ -1003,10 +1015,13 @@ function gerarPdfServidorContrato(snap: any, docClinico?: any): Uint8Array {
 
   // Cronograma Financeiro em Tabela
   let parcelas = snap.financeiro?.parcelas || [];
-  if (!Array.isArray(parcelas) || parcelas.length === 0) {
-    const condAprov = snap.financeiro?.condicaoEscolhida || snap.orcamento?.condicaoEscolhida;
+  const condAprov = snap.financeiro?.condicaoEscolhida || snap.orcamento?.condicaoEscolhida;
+  if (!Array.isArray(parcelas) || parcelas.length <= 1) {
     if (condAprov) {
-      parcelas = gerarParcelasServidorContrato(condAprov, totalNum || 0, snap.emitidoEm || dataFormatada);
+      const parcsServidor = gerarParcelasServidorContrato(condAprov, totalNum || 0, snap.emitidoEm || dataFormatada);
+      if (parcsServidor.length > parcelas.length) {
+        parcelas = parcsServidor;
+      }
     }
   }
   if (Array.isArray(parcelas) && parcelas.length > 0) {
@@ -1906,6 +1921,19 @@ Deno.serve(async (req) => {
           code: "MISSING_REQUIRED_PATIENT_DATA",
           camposFaltantes,
         }, 400);
+      }
+
+      // Validação impeditiva de integridade financeira antes da assinatura formal
+      const finSnap = updatedSnapshot.financeiro || {};
+      const totSnap = Number(finSnap.total ?? finSnap.valorTotal ?? 0);
+      const subSnap = Number(finSnap.subtotal ?? 0);
+      const descSnap = Number(finSnap.desconto ?? finSnap.valorDesconto ?? 0);
+      if (subSnap > 0 && descSnap > 0 && totSnap > 0 && Math.abs((subSnap - descSnap) - totSnap) > 0.05) {
+        return json({
+          ok: false,
+          error: `Assinatura bloqueada por divergência financeira: o subtotal com desconto diverge do total registrado. O contrato deve ser revisado pela clínica antes da formalização.`,
+          code: "FINANCIAL_DIVERGENCE_BLOCKED",
+        }, 422);
       }
 
       let temDentista = !!updatedSnapshot.assinaturaDentista;

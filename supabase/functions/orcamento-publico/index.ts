@@ -131,7 +131,13 @@ function gerarParcelasServidor(cond: any, total: number, dataIso = new Date().to
       status: pixPago ? 'Quitada' : 'Pendente',
     }];
   } else if (tipo === 'cartao') {
-    const qtd = Math.max(1, cond.parcelas || 1);
+    let qtd = Math.max(1, cond.parcelas || 1);
+    if (qtd === 1 && (cond.descricao || cond.titulo)) {
+      const matchP = (cond.descricao || cond.titulo).match(/(?:em\s*)?(\d{1,2})\s*(?:x|vezes|parcelas?)\b/i);
+      if (matchP && Number(matchP[1]) > 1) {
+        qtd = Number(matchP[1]);
+      }
+    }
     const isDeb = cond.tipoCartao === 'debito';
     const mNome = isDeb ? 'Cartão de Débito' : 'Cartão de Crédito';
     const valBase = Math.floor((total / qtd) * 100) / 100;
@@ -726,14 +732,21 @@ Deno.serve(async (req) => {
         }, 409);
       }
 
-      const totalFinal = Number(condicaoEscolhida.valorTotal || row.total || 0);
       const descontoFinal = Number(condicaoEscolhida.descontoValor ?? condicaoEscolhida.valorDesconto ?? row.desconto ?? 0);
       const somaItensCalc = (row.itens || []).reduce((acc: number, it: any) => {
         const q = Number(it.quantidade) || 1;
         const v = Number(it.valorTotal) || (Number(it.valorUnitario) || Number(it.valor) || 0) * q;
         return acc + v;
       }, 0);
-      const subtotalFinal = somaItensCalc > 0 ? somaItensCalc : (totalFinal + descontoFinal);
+      const subtotalFinal = somaItensCalc > 0 ? somaItensCalc : Number(row.subtotal || 0);
+
+      let totalFinal = Number(condicaoEscolhida.valorTotal || row.total || 0);
+      if (descontoFinal > 0 && subtotalFinal > 0) {
+        const totalEsperado = Math.max(0, subtotalFinal - descontoFinal);
+        if (Math.abs(totalFinal - totalEsperado) > 0.05) {
+          totalFinal = totalEsperado;
+        }
+      }
 
       // 2. Busca dados complementares do paciente e clínica
       let pacienteDados: any = { id: row.paciente_id, nome: row.paciente_nome || snap.pacienteNome || "Paciente" };

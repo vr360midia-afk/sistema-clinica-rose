@@ -660,18 +660,10 @@ export function parseCondicoesPagamento(
       const tituloFinal = subTitulo ? `Opção ${numOrLetter}: ${subTitulo.replace(/^[*_~]+|[*_~]+$/g, '')}` : `Opção ${numOrLetter}`;
       const textoFinal = corpo ? `${subTitulo ? '' : ''}${corpo}`.trim() : subTitulo;
 
+      const extraida = extrairDetalhesCondicaoDeTexto(textoFinal, totalBase, tituloFinal);
       condicoesExtraidas.push({
+        ...extraida,
         id: String(i + 1),
-        titulo: tituloFinal,
-        tipo: /pix.*desconto|vista/i.test(textoFinal)
-          ? 'a_vista'
-          : /entrada/i.test(textoFinal)
-          ? 'entrada_saldo'
-          : /cart[aã]o|cr[eé]dito/i.test(textoFinal)
-          ? 'cartao'
-          : 'personalizado',
-        valorTotal: totalBase,
-        descricao: textoFinal,
         selecionada: false,
       });
     }
@@ -681,17 +673,169 @@ export function parseCondicoesPagamento(
     }
   }
 
-  // 3. Fallback: Texto único legado. Retorna como única condição padrão.
-  return [
-    {
-      id: '1',
-      titulo: 'Condição de Pagamento',
-      tipo: 'personalizado',
-      valorTotal: totalBase,
-      descricao: str,
-      selecionada: false,
-    },
-  ];
+  // 3. Fallback: Texto único. Extrai inteligentemente tipo, parcelas, valor da parcela e total
+  const condicaoUnica = extrairDetalhesCondicaoDeTexto(str, totalBase);
+  return [condicaoUnica];
+}
+
+/**
+ * Converte com precisão strings monetárias em formato brasileiro (ex: "R$ 3.709,00", "370,90", "291") em números válidos.
+ */
+export function parseMoedaTexto(valStr: string | number | undefined | null): number {
+  if (typeof valStr === 'number') return isNaN(valStr) ? 0 : valStr;
+  if (!valStr) return 0;
+  const limpo = String(valStr).trim().replace(/[^\d.,-]/g, '');
+  if (!limpo) return 0;
+  if (limpo.includes(',')) {
+    return Number(limpo.replace(/\./g, '').replace(',', '.')) || 0;
+  }
+  const partesPonto = limpo.split('.');
+  if (partesPonto.length > 2 || (partesPonto.length === 2 && partesPonto[1].length === 3)) {
+    return Number(limpo.replace(/\./g, '')) || 0;
+  }
+  return Number(limpo) || 0;
+}
+
+/**
+ * Extrai detalhes estruturados (tipo, parcelas, valorParcela, entrada, desconto, valorTotal)
+ * a partir de qualquer string descritiva de condição de pagamento comercial (ex: "Cartão de crédito em 18x de R$ 336,11").
+ */
+export function extrairDetalhesCondicaoDeTexto(
+  texto: string,
+  totalBase: number = 0,
+  fallbackTitulo?: string
+): CondicaoPagamento {
+  const str = (texto || '').trim();
+  const lower = str.toLowerCase();
+
+  // 1. Detectar tipo
+  let tipo: CondicaoPagamento['tipo'] = 'personalizado';
+  let tipoCartao: 'credito' | 'debito' = 'credito';
+  let metodoEntrada: any = undefined;
+  let saldoMetodo: any = undefined;
+
+  const isCartao = /cart[aã]o|cr[eé]dito|d[eé]bito|maquininha|infinitepay|\b\d{1,2}\s*x\b/i.test(str);
+  const isEntradaSaldo = /entrada/i.test(str) && (/saldo|\+|restante|mais\s+/i.test(str) || /saldo/i.test(lower));
+  const isPixParcelado = /pix\s+parcelado|pix\s+em\s+\d+x/i.test(str);
+  const isBoleto = /boleto/i.test(str);
+  const isAVista = !isEntradaSaldo && !isPixParcelado && (/[aà]\s*vista|pix|dinheiro|transfer[eê]ncia/i.test(str) || (!isCartao && /desconto/i.test(str)));
+
+  if (isEntradaSaldo) {
+    tipo = 'entrada_saldo';
+    metodoEntrada = /pix/i.test(str) ? 'pix' : (/dinheiro/i.test(str) ? 'dinheiro' : (/d[eé]bito/i.test(str) ? 'cartao_debito' : 'cartao_credito'));
+    saldoMetodo = /pix\s*parcelado/i.test(str) ? 'pix_parcelado' : (/boleto/i.test(str) ? 'boleto' : 'cartao');
+  } else if (isPixParcelado) {
+    tipo = 'pix_parcelado';
+  } else if (isCartao) {
+    tipo = 'cartao';
+    tipoCartao = /d[eé]bito/i.test(str) ? 'debito' : 'credito';
+  } else if (isBoleto) {
+    tipo = 'boleto';
+  } else if (isAVista) {
+    tipo = 'a_vista';
+  }
+
+  // 2. Extrair parcelas
+  let parcelas: number | undefined = undefined;
+  const matchParcelas = str.match(/(?:em\s*)?(\d{1,2})\s*(?:x|vezes|parcelas?)\b/i);
+  if (matchParcelas) {
+    parcelas = parseInt(matchParcelas[1], 10);
+  } else if (tipo === 'a_vista') {
+    parcelas = 1;
+  }
+
+  // 3. Extrair valor da parcela
+  let valorParcela: number | undefined = undefined;
+  const matchValorParcela = str.match(/(?:x|vezes|parcelas?)(?:\s+de|\s*:)?\s*(?:R\$\s*)?([\d.,]+)/i);
+  if (matchValorParcela) {
+    const limpo = parseMoedaTexto(matchValorParcela[1]);
+    if (limpo > 0) valorParcela = limpo;
+  }
+
+  // 4. Extrair entrada
+  let valorEntrada: number | undefined = undefined;
+  const matchEntrada = str.match(/entrada(?:\s+de)?\s*(?:R\$\s*)?([\d.,]+)/i);
+  if (matchEntrada) {
+    const limpo = parseMoedaTexto(matchEntrada[1]);
+    if (limpo > 0) valorEntrada = limpo;
+  }
+
+  // 5. Extrair desconto
+  let descontoValor: number | undefined = undefined;
+  let descontoPercentual: number | undefined = undefined;
+  const matchDescVal = str.match(/(?:desconto|economia)(?:\s+de)?\s*(?:R\$\s*)?([\d.,]+)/i);
+  if (matchDescVal) {
+    const limpo = parseMoedaTexto(matchDescVal[1]);
+    if (limpo > 0) descontoValor = limpo;
+  }
+  const matchDescPerc = str.match(/(\d+(?:[.,]\d+)?)\s*%\s*(?:de\s+desconto|off)?/i);
+  if (matchDescPerc) {
+    descontoPercentual = Number(matchDescPerc[1].replace(',', '.')) || undefined;
+  }
+
+  // 6. Determinar valorTotal da condição com tratamento de arredondamento
+  let valorTotal = totalBase;
+  if (tipo === 'cartao' && parcelas && valorParcela) {
+    const calc = Number((parcelas * valorParcela).toFixed(2));
+    if (totalBase > 0) {
+      if (Math.abs(calc - totalBase) <= 1.00) {
+        valorTotal = totalBase; // Preserva o totalBase exato (ex: 6050.00 ao invés de 6049.98)
+      } else if (Math.abs(calc - totalBase) > 1.00) {
+        // Se totalBase diverge mais que 1 real (ex: totalBase era 8870 bruto, mas parcelas somam 6050)
+        // O valor real da condição é a soma das parcelas (arredondando para inteiro caso centavos decorram de divisão)
+        const arred = Math.round(calc);
+        valorTotal = Math.abs(calc - arred) <= 0.05 ? arred : calc;
+      }
+    } else {
+      const arred = Math.round(calc);
+      valorTotal = Math.abs(calc - arred) <= 0.05 ? arred : calc;
+    }
+  } else if (tipo === 'a_vista') {
+    const matchValVista = str.match(/(?:por|no\s+valor\s+de|total\s*(?:de)?|:\s*)(?:R\$\s*)?([\d.,]+)/i);
+    if (matchValVista) {
+      const parsedVal = parseMoedaTexto(matchValVista[1]);
+      if (parsedVal > 0) {
+        if (totalBase <= 0 || Math.abs(parsedVal - totalBase) > 1.00) {
+          valorTotal = parsedVal;
+        }
+      }
+    }
+  }
+
+  // 7. Determinar título
+  let titulo = fallbackTitulo || 'Condição de Pagamento';
+  if (!fallbackTitulo || fallbackTitulo === 'Condição de Pagamento') {
+    if (tipo === 'cartao' && parcelas) {
+      titulo = `Cartão de Crédito em ${parcelas}x`;
+    } else if (tipo === 'a_vista') {
+      titulo = 'À Vista no PIX';
+    } else if (tipo === 'entrada_saldo') {
+      titulo = 'Entrada + Saldo';
+    } else if (tipo === 'pix_parcelado') {
+      titulo = 'PIX Parcelado';
+    } else if (tipo === 'boleto') {
+      titulo = 'Boleto Bancário';
+    }
+  }
+
+  return {
+    id: '1',
+    titulo,
+    tipo,
+    tipoCartao: tipo === 'cartao' ? tipoCartao : undefined,
+    parcelas: parcelas || (tipo === 'cartao' ? 1 : undefined),
+    valorParcela,
+    valorEntrada,
+    metodoEntrada,
+    saldoMetodo,
+    saldoParcelas: tipo === 'entrada_saldo' ? (parcelas || 1) : undefined,
+    saldoValorParcela: tipo === 'entrada_saldo' ? valorParcela : undefined,
+    descontoValor,
+    descontoPercentual,
+    valorTotal,
+    descricao: str,
+    selecionada: true,
+  };
 }
 
 /**
@@ -1078,6 +1222,13 @@ export function extrairCondicaoEscolhida(orcamento: any): CondicaoPagamento | nu
     orcamento.itens?.condicaoEscolhida,
   ];
 
+  const descontoOrc = Number(orcamento.desconto ?? (orcamento.financeiro?.desconto || 0));
+  const subtotalOrc = Number(orcamento.subtotal ?? (orcamento.financeiro?.subtotal || 0));
+  const totalOrc = Number(orcamento.total ?? orcamento.valorTotal ?? (orcamento.financeiro?.total || 0));
+  const totalLiquidoAprovado = (totalOrc > 0 && (descontoOrc === 0 || Math.abs(totalOrc - (subtotalOrc - descontoOrc)) < 0.05))
+    ? totalOrc
+    : (subtotalOrc > 0 && descontoOrc > 0 ? Math.max(0, subtotalOrc - descontoOrc) : totalOrc);
+
   for (let c of rawCandidatos) {
     if (!c) continue;
     if (typeof c === 'string' && (c.startsWith('{') || c.startsWith('['))) {
@@ -1085,20 +1236,38 @@ export function extrairCondicaoEscolhida(orcamento: any): CondicaoPagamento | nu
     }
     if (c && typeof c === 'object') {
       if (c.tipo || c.titulo || c.descricao) {
-        const valTot = typeof c.valorTotal === 'number' && c.valorTotal > 0
+        let valTot = typeof c.valorTotal === 'number' && c.valorTotal > 0
           ? c.valorTotal
-          : (typeof orcamento.total === 'number' && orcamento.total > 0 ? orcamento.total : 0);
+          : (totalLiquidoAprovado > 0 ? totalLiquidoAprovado : 0);
+
+        if (descontoOrc > 0 && subtotalOrc > 0 && Math.abs(valTot - subtotalOrc) < 0.05 && totalLiquidoAprovado > 0) {
+          // c.valorTotal guardou indevidamente o subtotal bruto! Corrige para o valor líquido aprovado
+          valTot = totalLiquidoAprovado;
+        }
+
+        let pQtd = c.parcelas;
+        let vParc = c.valorParcela;
+        let cTipo = c.tipo || 'personalizado';
+
+        if ((!pQtd || pQtd <= 1) && (c.descricao || c.titulo)) {
+          const det = extrairDetalhesCondicaoDeTexto(c.descricao || c.titulo, valTot);
+          if (det.parcelas && det.parcelas > 1) {
+            pQtd = det.parcelas;
+            vParc = vParc || det.valorParcela;
+            if (cTipo === 'personalizado') cTipo = det.tipo;
+          }
+        }
 
         return {
           ...c,
           id: c.id || '1',
           titulo: c.titulo && c.titulo !== 'Condição de Pagamento' ? c.titulo : (c.descricao ? c.descricao.slice(0, 35) : 'Condição Aprovada'),
-          tipo: c.tipo || 'personalizado',
+          tipo: cTipo,
           descontoPercentual: c.descontoPercentual,
-          descontoValor: c.descontoValor,
+          descontoValor: c.descontoValor ?? (descontoOrc > 0 ? descontoOrc : undefined),
           valorTotal: valTot,
-          parcelas: c.parcelas,
-          valorParcela: c.valorParcela,
+          parcelas: pQtd,
+          valorParcela: vParc,
           operadoraCartaoId: c.operadoraCartaoId,
           tipoCartao: c.tipoCartao,
           valorEntrada: c.valorEntrada,
@@ -1134,18 +1303,24 @@ export function extrairCondicaoEscolhida(orcamento: any): CondicaoPagamento | nu
   // 2. Se houver array explícito de condições
   if (Array.isArray(orcamento.condicoes) && orcamento.condicoes.length > 0) {
     const sel = orcamento.condicoes.find((item: any) => item.selecionada) || orcamento.condicoes[0];
-    if (sel && sel.tipo && sel.tipo !== 'personalizado') return sel;
+    if (sel) {
+      if (sel.tipo && sel.tipo !== 'personalizado') return sel;
+      if (sel.descricao && !/a\s*combinar/i.test(sel.descricao)) {
+        return {
+          ...sel,
+          ...extrairDetalhesCondicaoDeTexto(sel.descricao, totalLiquidoAprovado || sel.valorTotal),
+          selecionada: true,
+        };
+      }
+    }
   }
 
   // 3. Parse das formas de pagamento
   const formasRaw = orcamento.formasPagamento || orcamento.formas_pagamento;
   if (formasRaw) {
-    const parsed = parseCondicoesPagamento(formasRaw, orcamento.total || 0);
+    const parsed = parseCondicoesPagamento(formasRaw, totalLiquidoAprovado || orcamento.total || 0);
     const ativa = obterCondicaoAtiva(parsed);
-    if (ativa && ativa.tipo && ativa.tipo !== 'personalizado') {
-      return ativa;
-    }
-    if (ativa && ativa.descricao && !/a\s*combinar/i.test(ativa.descricao) && ativa.titulo !== 'Condição de Pagamento') {
+    if (ativa) {
       return ativa;
     }
   }

@@ -1675,18 +1675,34 @@ export async function gerarContratoDoOrcamentoAprovado(params: {
   // 2. Serializa estritamente a condição aprovada para que conste no contrato
   const formasPagamentoFinal = serializarCondicoesPagamento([condicaoEscolhida], condicaoEscolhida.id);
 
+  // Garante fonte única dos dados financeiros e consistência entre subtotal, desconto e total
+  const descontoOrc = Number(condicaoEscolhida?.descontoValor ?? orcamento.desconto ?? 0);
+  const subtotalOrc = (orcamento.itens || []).reduce((acc: number, it: any) => {
+    const q = Number(it.quantidade) || 1;
+    const v = Number(it.valorTotal) || (Number(it.valorUnitario) || Number(it.valor) || 0) * q;
+    return acc + v;
+  }, 0) || Number(orcamento.subtotal || 0);
+
+  let totalOrc = typeof condicaoEscolhida?.valorTotal === 'number' && condicaoEscolhida.valorTotal > 0
+    ? condicaoEscolhida.valorTotal
+    : orcamento.total;
+
+  if (descontoOrc > 0 && subtotalOrc > 0) {
+    const totalEsperado = Math.max(0, subtotalOrc - descontoOrc);
+    if (Math.abs(totalOrc - totalEsperado) > 0.05) {
+      totalOrc = totalEsperado;
+    }
+  }
+
   const orcamentoAprovadoParaContrato: Orcamento = {
     id: orcamento.id,
     titulo: orcamento.titulo,
     pacienteId: orcamento.pacienteId || patient?.id,
     pacienteNome: orcamento.pacienteNome || patient?.nome,
     itens: orcamento.itens || [],
-    desconto: typeof condicaoEscolhida?.descontoValor === 'number'
-      ? condicaoEscolhida.descontoValor
-      : (orcamento.desconto || 0),
-    total: typeof condicaoEscolhida?.valorTotal === 'number' && condicaoEscolhida.valorTotal > 0
-      ? condicaoEscolhida.valorTotal
-      : orcamento.total,
+    subtotal: subtotalOrc,
+    desconto: descontoOrc,
+    total: totalOrc,
     status: 'aprovado',
     validade: orcamento.validade,
     observacoes: orcamento.observacoes,
