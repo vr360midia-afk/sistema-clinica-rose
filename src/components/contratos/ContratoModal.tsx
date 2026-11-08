@@ -274,12 +274,6 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     return Boolean(contratoVisualizacao?.id || contratoExistenteOrcamento?.id || isFormalizadoSnap);
   }, [documentoIdSendoEditado, contratoVisualizacao, contratoExistenteOrcamento, snapshotAtual]);
 
-  // Validação em tempo real da integridade matemática e financeira entre orçamento e contrato
-  const validacaoIntegridade = useMemo(() => {
-    if (!snapshotAtual) return null;
-    return validarIntegridadeOrcamentoContrato(orcamentoAtual, snapshotAtual);
-  }, [snapshotAtual, orcamentoAtual]);
-
   // Dentista responsável padrão
   useEffect(() => {
     if (dentistas.length > 0 && !selectedDentistaNome) {
@@ -321,6 +315,12 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
       null
     );
   }, [orcamentos, selectedOrcamentoId, initialOrcamento, orcamentosAprovados]);
+
+  // Validação em tempo real da integridade matemática e financeira entre orçamento e contrato
+  const validacaoIntegridade = useMemo(() => {
+    if (!snapshotAtual) return null;
+    return validarIntegridadeOrcamentoContrato(orcamentoAtual, snapshotAtual);
+  }, [snapshotAtual, orcamentoAtual]);
 
   // Dentista ativo
   const dentistaAtual = useMemo(() => {
