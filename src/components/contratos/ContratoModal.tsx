@@ -82,6 +82,9 @@ import {
   temValorValido,
   limparFormaPagamentoParaContrato,
   gerarIdentificadorContrato,
+  gerarTokenAcesso,
+  validarAutorizacaoAssinatura,
+  gerarRubricaPadraoDra,
   validarCronogramaFinanceiroContrato,
   validarIntegridadeOrcamentoContrato,
 } from '@/utils/contratoEngine';
@@ -113,7 +116,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
 }) => {
   const { orcamentos, saveOrcamento } = useOrcamentos(patient?.id);
   const { configuracoes } = useConfiguracoes();
-  const { configContrato } = useConfiguracoesContrato();
+  const { configContrato, autorizacaoAtiva } = useConfiguracoesContrato();
   const { dentistas } = useDentistas();
   const { transacoes, addTransacao, deleteTransacao } = useDentalSystem();
   const { documentos, salvarDocumento } = useDocumentosClinicos(patient?.id);
@@ -262,18 +265,6 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     return Boolean(hasAssinaturaPaciente && hasAssinaturaProfissional);
   }, [hasAssinaturaPaciente, hasAssinaturaProfissional]);
 
-  // Identifica se o contrato exibido já está oficialmente gravado e persistido no banco de dados
-  const isContratoGravado = useMemo(() => {
-    if (documentoIdSendoEditado) return false;
-    const isFormalizadoSnap = Boolean(
-      snapshotAtual?.status === 'formalizado' ||
-      snapshotAtual?.status === 'assinado' ||
-      snapshotAtual?.assinaturaPaciente?.assinaturaData ||
-      contratoVisualizacao?.assinadoEm
-    );
-    return Boolean(contratoVisualizacao?.id || contratoExistenteOrcamento?.id || isFormalizadoSnap);
-  }, [documentoIdSendoEditado, contratoVisualizacao, contratoExistenteOrcamento, snapshotAtual]);
-
   // Dentista responsável padrão
   useEffect(() => {
     if (dentistas.length > 0 && !selectedDentistaNome) {
@@ -321,6 +312,22 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     if (!snapshotAtual) return null;
     return validarIntegridadeOrcamentoContrato(orcamentoAtual, snapshotAtual);
   }, [snapshotAtual, orcamentoAtual]);
+
+  // Identifica se o contrato exibido já está oficialmente gravado e sem pendências de retificação
+  const isContratoGravado = useMemo(() => {
+    if (documentoIdSendoEditado) return false;
+    // Permite retificação de contratos pendentes (não assinados pelo paciente) com divergência financeira identificada
+    if (validacaoIntegridade?.divergenciaFinanceira && !contratoVisualizacao?.assinadoEm && !hasAssinaturaPaciente) {
+      return false;
+    }
+    const isFormalizadoSnap = Boolean(
+      snapshotAtual?.status === 'formalizado' ||
+      snapshotAtual?.status === 'assinado' ||
+      snapshotAtual?.assinaturaPaciente?.assinaturaData ||
+      contratoVisualizacao?.assinadoEm
+    );
+    return Boolean(contratoVisualizacao?.id || contratoExistenteOrcamento?.id || isFormalizadoSnap);
+  }, [documentoIdSendoEditado, contratoVisualizacao, contratoExistenteOrcamento, snapshotAtual, validacaoIntegridade, hasAssinaturaPaciente]);
 
   // Dentista ativo
   const dentistaAtual = useMemo(() => {
@@ -678,6 +685,10 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
   // Atualização granular de campos no snapshot manual
   const handleUpdateSnapshotField = (campo: string, valor: any) => {
     setIsManuallyEdited(true);
+    const docPendenteAlvo = contratoVisualizacao || contratoExistenteOrcamento;
+    if (!documentoIdSendoEditado && docPendenteAlvo && !docPendenteAlvo.assinadoEm && !hasAssinaturaPaciente) {
+      setDocumentoIdSendoEditado(docPendenteAlvo.id);
+    }
     setSnapshotAtual((prev) => {
       if (!prev) return prev;
       const partes = campo.split('.');
@@ -705,11 +716,21 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     setContratoVisualizacao(null);
   };
 
-  // Restaura dados automáticos do sistema
+  // Restaura dados automáticos do sistema com suporte a retificação segura
   const handleRestaurarPadrao = () => {
     if (!patient || !orcamentoAtual) return;
-    setIsManuallyEdited(false);
-    setDocumentoIdSendoEditado(null);
+
+    const docPendenteExistente = contratoVisualizacao || contratoExistenteOrcamento;
+    const isPendenteSemAssinatura = docPendenteExistente && !docPendenteExistente.assinadoEm && !hasAssinaturaPaciente;
+
+    if (isPendenteSemAssinatura && docPendenteExistente?.id) {
+      setDocumentoIdSendoEditado(docPendenteExistente.id);
+      setIsManuallyEdited(true);
+    } else {
+      setIsManuallyEdited(false);
+      setDocumentoIdSendoEditado(null);
+    }
+
     const snap = mapearDadosContrato({
       patient,
       orcamento: orcamentoAtual,
@@ -720,7 +741,17 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
       dentistaCro: dentistaAtual?.cro || configContrato?.croResponsavelContrato || configuracoes?.croResponsavel,
       cidadeLocal: cidadeLocal || configContrato?.cidadeForoContrato,
       dadosRestauracoesPreexistentes: patient?.restauracoesPreexistentes,
+      autorizacaoProfissional: autorizacaoAtiva,
     });
+
+    // Preserva o identificador CTR oficial do contrato existente
+    if (docPendenteExistente) {
+      const snapExistente = (docPendenteExistente.itens || {}) as any;
+      if (docPendenteExistente.identificador || snapExistente.contratoId) {
+        snap.contratoId = docPendenteExistente.identificador || snapExistente.contratoId;
+      }
+    }
+
     setSnapshotAtual(snap);
     toast.success('Valores padrão do sistema restaurados com sucesso.');
   };
@@ -779,9 +810,16 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
       return;
     }
 
-    // Proteção 1: Se o contrato já está gravado e o usuário não está em modo de edição manual,
-    // não há alteração a fazer: preserva 100% o documento e snapshot já persistidos sem executar UPDATE
-    if (isContratoGravado && !documentoIdSendoEditado) {
+    // Proteção 1: Bloqueia apenas se o contrato já estiver gravado sem nenhuma edição manual ou necessidade de retificação
+    const targetDocId = documentoIdSendoEditado || contratoVisualizacao?.id || contratoExistenteOrcamento?.id;
+    let docExistente: DocumentoClinico | undefined = undefined;
+    if (targetDocId) {
+      docExistente = documentos.find((d) => d.id === targetDocId);
+    }
+    const isPendenteNaoAssinado = Boolean(docExistente && !docExistente.assinadoEm && !hasAssinaturaPaciente);
+    const temDivergencia = Boolean(validacaoIntegridade?.divergenciaFinanceira);
+
+    if (isContratoGravado && !documentoIdSendoEditado && !isManuallyEdited && !temDivergencia) {
       toast.info('Este contrato já está gravado no sistema.', {
         description: `Identificador: ${snapshotAtual.contratoId}`,
       });
@@ -789,10 +827,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     }
 
     // Proteção 2: Trava estrita de segurança jurídica - impede sobrescrever contrato formalizado ou assinado
-    const targetDocId = documentoIdSendoEditado || contratoVisualizacao?.id || contratoExistenteOrcamento?.id;
-    let docExistente: DocumentoClinico | undefined = undefined;
-    if (targetDocId) {
-      docExistente = documentos.find((d) => d.id === targetDocId);
+    if (targetDocId && docExistente) {
       const snapExistente = docExistente?.itens as any;
       const jaAssinado = Boolean(
         docExistente?.assinadoEm ||
@@ -820,27 +855,79 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
         });
       }
 
-      // Proteção 3: Versionamento estrito se for edição manual de contrato já emitido/compartilhado
-      // Preserva o snapshot anterior intacto no histórico (versoesAnteriores), gerando Versão (N+1)
+      // Proteção 3: Versionamento estrito e rotação segura de token em caso de retificação de contrato pendente
       let idParaGravar: string | undefined = undefined;
       let snapshotParaSalvar = { ...snapshotAtual };
 
-      if (documentoIdSendoEditado && docExistente) {
+      if (targetDocId && docExistente && isPendenteNaoAssinado) {
         const snapExistente = (docExistente.itens || {}) as any;
         const versaoAnterior = Number(snapExistente.versao) || 1;
         const novaVersao = versaoAnterior + 1;
+        const tokenAntigo = snapExistente.token || snapshotAtual.token;
+        const tokensRevogadosAnteriores = Array.isArray(snapExistente.tokensRevogados) ? snapExistente.tokensRevogados : [];
+        const tokensRevogadosAtualizados = Array.from(new Set([...tokensRevogadosAnteriores, tokenAntigo].filter(Boolean)));
+        const historicoAnterior = Array.isArray(snapExistente.versoesAnteriores) ? snapExistente.versoesAnteriores : [];
+
+        // Rotação segura do token de acesso (invalida o link e token anteriores)
+        const novoToken = gerarTokenAcesso();
+
+        // Validação da assinatura profissional para a versão retificada:
+        // Apenas aplica assinatura se existir autorização expressa válida da Dra. Rosângela.
+        // Caso contrário, exige nova assinatura manual da cirurgiã-dentista.
+        let assinaturaDentistaFinal = snapshotParaSalvar.assinaturaDentista;
+        const isAutorizacaoValida = Boolean(
+          autorizacaoAtiva &&
+          autorizacaoAtiva.ativo &&
+          !autorizacaoAtiva.revogadoEm &&
+          validarAutorizacaoAssinatura(autorizacaoAtiva, snapshotParaSalvar.tipoModeloContrato)
+        );
+
+        if (isAutorizacaoValida) {
+          assinaturaDentistaFinal = {
+            assinaturaData: autorizacaoAtiva.assinaturaGrafica || gerarRubricaPadraoDra(autorizacaoAtiva.profissionalNome, autorizacaoAtiva.profissionalCro),
+            nome: autorizacaoAtiva.profissionalNome,
+            cro: autorizacaoAtiva.profissionalCro,
+            documento: autorizacaoAtiva.profissionalDocumento || '032.663.962-43',
+            dataHora: new Date().toISOString(),
+            metodo: 'assinatura_automatica_autorizada',
+            autorizacaoId: autorizacaoAtiva.id,
+            autorizadoEm: autorizacaoAtiva.autorizadoEm || new Date().toISOString(),
+            autorizacaoExpressa: true,
+          };
+        } else {
+          // Exige nova assinatura da Dra. caso não haja autorização expressa válida para os termos retificados
+          assinaturaDentistaFinal = null;
+        }
 
         snapshotParaSalvar = {
           ...snapshotParaSalvar,
           versao: String(novaVersao),
           contratoAnteriorId: docExistente.id,
-          contratoId: snapExistente.contratoId || snapshotAtual.contratoId,
-          token: snapExistente.token || snapshotAtual.token,
-          tokenValidoAte: snapExistente.tokenValidoAte || snapshotAtual.tokenValidoAte,
+          contratoId: docExistente.identificador || snapExistente.contratoId || snapshotAtual.contratoId,
+          orcamentoId: docExistente.orcamento_id || snapExistente.orcamentoId || orcamentoAtual?.id || '',
+          token: novoToken,
+          tokensRevogados: tokensRevogadosAtualizados,
+          tokenValidoAte: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          assinaturaDentista: assinaturaDentistaFinal,
+          statusAssinaturaDentista: assinaturaDentistaFinal ? 'assinado' : 'pendente',
+          status: assinaturaDentistaFinal ? 'aguardando_assinatura_paciente' : 'aguardando_assinatura_dentista',
+          versoesAnteriores: [
+            ...historicoAnterior,
+            {
+              versao: String(versaoAnterior),
+              substituidoEm: new Date().toISOString(),
+              motivo: 'Retificação de valores para alinhamento estrito com o orçamento aprovado',
+              token: tokenAntigo,
+              financeiro: snapExistente.financeiro,
+              orcamento: snapExistente.orcamento,
+              assinaturaDentista: snapExistente.assinaturaDentista,
+              conteudoHtml: docExistente.conteudo || null,
+            },
+          ],
         } as any;
 
-        // Gera nova versão sem passar id existente, preservando o snapshot original intacto
-        idParaGravar = undefined;
+        // Atualização estrita in-place no mesmo registro (preserva UUID sem duplicatas)
+        idParaGravar = docExistente.id;
       } else {
         idParaGravar = documentoIdSendoEditado || contratoVisualizacao?.id || contratoExistenteOrcamento?.id || undefined;
       }
@@ -892,18 +979,35 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
       });
 
       if (docCriado) {
+        // Se houve rotação de token, sincroniza também na tabela orçamentos
+        if (orcamentoAtual?.id && snapshotParaSalvar.token) {
+          try {
+            await supabase.from('orcamentos').update({
+              contrato_id: snapshotParaSalvar.contratoId,
+              contrato_token: snapshotParaSalvar.token,
+              token_assinatura: snapshotParaSalvar.token,
+            }).eq('id', orcamentoAtual.id);
+          } catch (_) {}
+        }
+
         try {
-          const snapJson = JSON.stringify(snapshotAtual);
+          const snapJson = JSON.stringify(snapshotParaSalvar);
           localStorage.setItem(`contrato_${docCriado.id}`, snapJson);
-          localStorage.setItem(`contrato_${snapshotAtual.contratoId}`, snapJson);
+          localStorage.setItem(`contrato_${snapshotParaSalvar.contratoId}`, snapJson);
         } catch (_) {}
 
+        setSnapshotAtual(snapshotParaSalvar);
+        setContratoVisualizacao(docCriado);
+        setDocumentoIdSendoEditado(null);
+        setIsManuallyEdited(false);
+        setActiveTab('historico');
+
         toast.success(
-          documentoIdSendoEditado
-            ? 'Contrato atualizado com sucesso!'
+          isPendenteNaoAssinado
+            ? 'Contrato retificado com sucesso! Novo token de acesso gerado e token anterior revogado.'
             : 'Contrato emitido e gravado com sucesso!',
           {
-            description: `Identificador: ${snapshotAtual.contratoId}`,
+            description: `Identificador: ${snapshotParaSalvar.contratoId}`,
           }
         );
         setActiveTab('historico');

@@ -438,6 +438,19 @@ async function extrairTokenArmazenadoValido(
 ): Promise<{ valido: boolean; tokenArmazenado: string | null; ambiguidade?: boolean; erroEspecifico?: string }> {
   if (!doc || !token) return { valido: false, tokenArmazenado: null };
 
+  // Checagem expressa de revogação de token (ex: retificação contratual com rotação segura de token)
+  const tokensRevogados: string[] = Array.isArray(doc.itens?.tokensRevogados) ? doc.itens.tokensRevogados : [];
+  const versoesAnteriores: any[] = Array.isArray(doc.itens?.versoesAnteriores) ? doc.itens.versoesAnteriores : [];
+  const tokensHistoricosRevogados = versoesAnteriores.map((v: any) => v?.token).filter(Boolean);
+
+  if (tokensRevogados.includes(token) || tokensHistoricosRevogados.includes(token)) {
+    return {
+      valido: false,
+      tokenArmazenado: null,
+      erroEspecifico: "Token de acesso revogado. Este contrato foi retificado e um novo link seguro de assinatura foi emitido.",
+    };
+  }
+
   const tokenDireto = (doc.itens?.token || doc.itens?.contratoToken || doc.itens?.tokenAssinatura || "").trim();
 
   // 1. Coincidência direta e imediata no próprio documento
@@ -1664,9 +1677,15 @@ Deno.serve(async (req) => {
           snap.token = existingDoc.itens.token;
         }
 
-        // Se já está assinado pelo paciente, não permite sobrescrever os termos imutáveis
-        if (existingDoc.assinado_em || existingDoc.itens?.status === "assinado" || existingDoc.itens?.assinaturaPaciente) {
-          return json({ ok: true, id: existingDoc.id, identificador, status: "assinado", jaAssinado: true });
+        // Se já está assinado pelo paciente ou formalizado, não permite sobrescrever os termos imutáveis
+        if (existingDoc.assinado_em || existingDoc.itens?.status === "assinado" || existingDoc.itens?.status === "formalizado" || existingDoc.itens?.assinaturaPaciente) {
+          return json({
+            ok: false,
+            error: "CONTRATO_FORMALIZADO_IMUTAVEL: Operação bloqueada. Contrato formalizado ou assinado pelo paciente é imutável.",
+            jaAssinado: true,
+            id: existingDoc.id,
+            identificador
+          }, 409);
         }
 
         const { error: updErr } = await supabase.from("documentos_clinicos").update({
