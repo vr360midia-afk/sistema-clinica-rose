@@ -923,8 +923,22 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
 
       if (targetDocId && docExistente && isPendenteNaoAssinado) {
         const snapExistente = (docExistente.itens || {}) as any;
-        const versaoAnterior = Number(snapExistente.versao) || 1;
-        const novaVersao = versaoAnterior + 1;
+        const versaoAnteriorRaw = snapExistente.versao !== undefined && snapExistente.versao !== null
+          ? String(snapExistente.versao).trim()
+          : '';
+
+        // Validação estrita do formato da versão (rejeita vazios, nulos ou malformados como "1.0abc" sem usar parseFloat)
+        if (!versaoAnteriorRaw || !/^\d+(\.\d+)?$/.test(versaoAnteriorRaw)) {
+          toast.error('Operação bloqueada: versão do contrato atual é inválida ou malformada.', {
+            description: `Valor encontrado: "${versaoAnteriorRaw}". Esperado formato numérico válido (ex: "1" ou "1.0").`,
+          });
+          setSalvando(false);
+          return;
+        }
+
+        const versaoAnteriorNum = Number(versaoAnteriorRaw);
+        const novaVersaoNum = Math.floor(versaoAnteriorNum) + 1;
+        const novaVersaoStr = versaoAnteriorRaw.includes('.') ? `${novaVersaoNum}.0` : `${novaVersaoNum}`;
         const tokenAntigo = snapExistente.token || snapshotAtual.token;
         const tokensRevogadosAnteriores = Array.isArray(snapExistente.tokensRevogados) ? snapExistente.tokensRevogados : [];
         const tokensRevogadosAtualizados = Array.from(new Set([...tokensRevogadosAnteriores, tokenAntigo].filter(Boolean)));
@@ -963,7 +977,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
 
         snapshotParaSalvar = {
           ...snapshotParaSalvar,
-          versao: String(novaVersao),
+          versao: novaVersaoStr,
           contratoAnteriorId: docExistente.id,
           contratoId: docExistente.identificador || snapExistente.contratoId || snapshotAtual.contratoId,
           orcamentoId: docExistente.orcamento_id || snapExistente.orcamentoId || orcamentoAtual?.id || '',
@@ -976,7 +990,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
           versoesAnteriores: [
             ...historicoAnterior,
             {
-              versao: String(versaoAnterior),
+              versao: versaoAnteriorRaw,
               substituidoEm: new Date().toISOString(),
               motivo: 'Retificação de valores para alinhamento estrito com o orçamento aprovado',
               token: tokenAntigo,
