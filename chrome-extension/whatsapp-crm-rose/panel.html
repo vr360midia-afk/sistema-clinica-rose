@@ -57,9 +57,12 @@
       <div class="card" style="padding: 10px 12px; margin-bottom: 10px;">
         <label for="input-search-phone">Contato Ativo / WhatsApp</label>
         <div style="display: flex; gap: 6px;">
-          <input type="tel" id="input-search-phone" placeholder="+55 82 99999-9999" style="flex: 1;">
-          <button id="btn-search-contact" class="btn btn-secondary btn-sm" style="width: auto; padding: 0 12px;" title="Buscar no CRM">
+          <input type="text" id="input-search-phone" placeholder="Telefone ou Nome do Contato..." style="flex: 1;">
+          <button id="btn-search-contact" class="btn btn-secondary btn-sm" style="width: auto; padding: 0 10px;" title="Buscar no CRM">
             🔍 Buscar
+          </button>
+          <button id="btn-sync-whatsapp" class="btn btn-secondary btn-sm" style="width: auto; padding: 0 10px;" title="Sincronizar contato ativo da conversa do WhatsApp">
+            🔄 WhatsApp
           </button>
         </div>
       </div>
@@ -203,6 +206,7 @@
           <div id="appointments-list" style="display: flex; flex-direction: column; gap: 8px;">
             <p style="font-size: 11.5px; color: var(--text-muted);">Nenhuma consulta registrada para este paciente.</p>
           </div>
+          <div id="agenda-link-container" style="margin-top: 10px;"></div>
         </div>
       </div>
 

@@ -320,38 +320,88 @@ function parseMetaAds(observacoes) {
 }
 
 // ==============================================================================
-// 4. CONSULTA UNIFICADA AO CRM E PACIENTES
+// 4. CONSULTA UNIFICADA AO CRM E PACIENTES (TELEFONE OU NOME)
 // ==============================================================================
 
-async function searchContact(phoneQuery) {
-  const normalized = normalizePhone(phoneQuery);
-  if (!normalized) {
-    showAppAlert('Informe um número de telefone válido.', 'error');
+let searchSequence = 0;
+
+function clearContactState() {
+  state.currentPatient = null;
+  state.currentLead = null;
+  state.currentPhone = '';
+
+  const card = document.getElementById('contact-card');
+  if (card) card.hidden = true;
+
+  const phoneDisplay = document.getElementById('input-search-phone');
+  if (phoneDisplay) phoneDisplay.value = '';
+
+  const formName = document.getElementById('patient-name');
+  if (formName) formName.value = '';
+
+  const formEmail = document.getElementById('patient-email');
+  if (formEmail) formEmail.value = '';
+
+  const formNotes = document.getElementById('patient-notes');
+  if (formNotes) formNotes.value = '';
+
+  renderAppointmentsList([]);
+  renderFollowUpTimeline();
+}
+
+async function searchContact(queryInput, prefilledName = '') {
+  const query = (queryInput || '').trim();
+  if (!query) {
+    showAppAlert('Informe um número de telefone ou nome do contato.', 'error');
     return;
   }
 
+  // Se a busca contiver letras e não for puramente dígitos de telefone, busca por nome
+  const hasLetters = /[a-zA-ZÀ-ÿ]/.test(query);
+  const digits = query.replace(/\D/g, '');
+  if (hasLetters && digits.length < 8) {
+    return searchContactByName(query);
+  }
+
+  const normalized = normalizePhone(query);
+  if (!normalized) {
+    showAppAlert('Informe um telefone válido (ex: 82 99999-9999 ou +5582999999999) ou pesquise pelo nome.', 'error');
+    return;
+  }
+
+  const currentSeq = ++searchSequence;
   state.currentPhone = normalized;
   const phoneDisplay = document.getElementById('input-search-phone');
-  if (phoneDisplay) phoneDisplay.value = normalized;
+  if (phoneDisplay) phoneDisplay.value = formatPhoneDisplay(normalized);
 
-  showAppAlert('Buscando contato no CRM...', 'info');
+  showAppAlert('Buscando telefone no CRM...', 'info');
 
   try {
     const rawDigits = normalized.replace(/\D/g, '');
     const last8 = rawDigits.slice(-8);
+    const last4 = rawDigits.slice(-4);
+    const mid4 = rawDigits.slice(-8, -4);
+    const formattedSuffix = `${mid4}-${last4}`;
 
-    // 1. Busca em crm_leads
-    // Procura por telefone exato, campo legada phone, ou sufixo
-    const leadQuery = `/rest/v1/crm_leads?or=(telefone.eq.${encodeURIComponent(normalized)},phone.eq.${encodeURIComponent(normalized)},telefone.ilike.*${last8}*)&order=data_criacao.desc&limit=1`;
+    // 1. Busca em crm_leads (por telefone exato, dígitos contínuos ou formato hifenizado)
+    const leadQuery = `/rest/v1/crm_leads?or=(telefone.eq.${encodeURIComponent(normalized)},phone.eq.${encodeURIComponent(normalized)},telefone.ilike.*${last8}*,telefone.ilike.*${formattedSuffix}*,phone.ilike.*${formattedSuffix}*)&order=data_criacao.desc&limit=1`;
     const leadRes = await authFetch(leadQuery);
+    if (currentSeq !== searchSequence) return;
     const leads = leadRes.ok ? await leadRes.json() : [];
     state.currentLead = leads.length > 0 ? leads[0] : null;
 
-    // 2. Busca em pacientes
-    const pacQuery = `/rest/v1/pacientes?or=(telefone.eq.${encodeURIComponent(normalized)},telefone.ilike.*${last8}*)&order=criado_em.desc&limit=1`;
+    // 2. Busca em pacientes (por telefone exato, dígitos contínuos ou formato hifenizado)
+    const pacQuery = `/rest/v1/pacientes?or=(telefone.eq.${encodeURIComponent(normalized)},telefone.ilike.*${last8}*,telefone.ilike.*${formattedSuffix}*)&order=criado_em.desc&limit=1`;
     const pacRes = await authFetch(pacQuery);
+    if (currentSeq !== searchSequence) return;
     const pacs = pacRes.ok ? await pacRes.json() : [];
     state.currentPatient = pacs.length > 0 ? pacs[0] : null;
+
+    // Se não encontrou paciente/lead mas foi fornecido um nome vindo da conversa ativa
+    if (!state.currentPatient && !state.currentLead && prefilledName) {
+      const formName = document.getElementById('patient-name');
+      if (formName) formName.value = prefilledName;
+    }
 
     renderContactCard();
     hideAppAlert();
@@ -365,8 +415,98 @@ async function searchContact(phoneQuery) {
 
     renderFollowUpTimeline();
   } catch (err) {
+    if (currentSeq !== searchSequence) return;
     console.error('[CRM Extension] Erro ao buscar contato:', err);
     showAppAlert('Erro ao consultar contato: ' + err.message, 'error');
+  }
+}
+
+async function searchContactByName(nameInput) {
+  const name = (nameInput || '').trim();
+  if (!name || name.length < 2) {
+    showAppAlert('Informe um nome com pelo menos 2 caracteres.', 'error');
+    return;
+  }
+
+  const currentSeq = ++searchSequence;
+  showAppAlert(`Buscando "${name}" no CRM...`, 'info');
+
+  try {
+    // 1. Busca em pacientes por nome
+    const pacQuery = `/rest/v1/pacientes?nome=ilike.*${encodeURIComponent(name)}*&order=criado_em.desc&limit=1`;
+    const pacRes = await authFetch(pacQuery);
+    if (currentSeq !== searchSequence) return;
+    const pacs = pacRes.ok ? await pacRes.json() : [];
+    state.currentPatient = pacs.length > 0 ? pacs[0] : null;
+
+    // 2. Busca em crm_leads por nome
+    const leadQuery = `/rest/v1/crm_leads?or=(nome.ilike.*${encodeURIComponent(name)}*,name.ilike.*${encodeURIComponent(name)}*)&order=data_criacao.desc&limit=1`;
+    const leadRes = await authFetch(leadQuery);
+    if (currentSeq !== searchSequence) return;
+    const leads = leadRes.ok ? await leadRes.json() : [];
+    state.currentLead = leads.length > 0 ? leads[0] : null;
+
+    // Se encontrou contato no banco, aproveita o telefone cadastrado
+    const savedPhone = state.currentPatient?.telefone || state.currentLead?.telefone || state.currentLead?.phone || '';
+    if (savedPhone) {
+      state.currentPhone = normalizePhone(savedPhone) || savedPhone;
+      const phoneDisplay = document.getElementById('input-search-phone');
+      if (phoneDisplay) phoneDisplay.value = formatPhoneDisplay(state.currentPhone);
+    } else {
+      state.currentPhone = '';
+    }
+
+    // Se é novo contato, preenche o campo de nome no formulário
+    if (!state.currentPatient && !state.currentLead) {
+      const formName = document.getElementById('patient-name');
+      if (formName) formName.value = name;
+    }
+
+    renderContactCard();
+    hideAppAlert();
+
+    if (state.currentPatient?.id) {
+      await loadPatientAppointments(state.currentPatient.id);
+    } else {
+      renderAppointmentsList([]);
+    }
+
+    renderFollowUpTimeline();
+  } catch (err) {
+    if (currentSeq !== searchSequence) return;
+    console.error('[CRM Extension] Erro ao buscar por nome:', err);
+    showAppAlert('Erro ao consultar contato por nome: ' + err.message, 'error');
+  }
+}
+
+async function handleContactChanged(contact) {
+  if (!contact) return;
+  const rawName = (contact.name || '').trim();
+  const rawPhone = (contact.phone || '').trim();
+
+  // Se ambos vazios, a conversa foi fechada
+  if (!rawName && !rawPhone) {
+    clearContactState();
+    return;
+  }
+
+  // Preenche campo de busca e de nome
+  const phoneDisplay = document.getElementById('input-search-phone');
+  if (phoneDisplay) {
+    phoneDisplay.value = rawPhone ? formatPhoneDisplay(rawPhone) : rawName;
+  }
+
+  const formName = document.getElementById('patient-name');
+  if (rawName && formName) {
+    formName.value = rawName;
+  }
+
+  // Se o telefone foi detectado diretamente
+  if (rawPhone) {
+    await searchContact(rawPhone, rawName);
+  } else if (rawName) {
+    // Contato salvo com nome no WhatsApp
+    await searchContactByName(rawName);
   }
 }
 
@@ -389,15 +529,15 @@ function renderContactCard() {
   if (!state.currentLead && !state.currentPatient) {
     // Contato não cadastrado
     card.hidden = false;
-    nameEl.textContent = 'Novo Contato (Não cadastrado)';
-    nameEl.style.color = 'var(--text-muted)';
-    phoneEl.textContent = formatPhoneDisplay(state.currentPhone);
+    const pendingName = formName?.value?.trim() || 'Novo Contato (Não cadastrado)';
+    nameEl.textContent = pendingName;
+    nameEl.style.color = pendingName !== 'Novo Contato (Não cadastrado)' ? '#0f172a' : 'var(--text-muted)';
+    phoneEl.textContent = state.currentPhone ? formatPhoneDisplay(state.currentPhone) : 'Telefone não detectado';
     stageBadge.className = 'badge badge-pendente';
     stageBadge.textContent = 'Não cadastrado';
     metaDisplay.hidden = true;
 
-    // Limpa / inicializa formulário
-    if (formName) formName.value = '';
+    // Inicializa formulário
     if (formEmail) formEmail.value = '';
     if (formStage) formStage.value = 'Pendente';
     if (formNotes) formNotes.value = '';
@@ -505,6 +645,15 @@ async function savePatientAndLead() {
 
   try {
     const clinicaId = state.clinicaId || state.session.user.id;
+
+    // Se o telefone ainda não estiver definido no estado, tenta obter do campo de busca
+    if (!state.currentPhone) {
+      const searchVal = document.getElementById('input-search-phone')?.value?.trim();
+      if (searchVal) {
+        const norm = normalizePhone(searchVal);
+        if (norm) state.currentPhone = norm;
+      }
+    }
 
     // 1. Salva ou atualiza Paciente
     if (state.currentPatient?.id) {
@@ -739,20 +888,30 @@ async function confirmSchedule() {
     return;
   }
 
-  // Se o paciente ainda não estiver salvo na tabela de pacientes, salva automaticamente antes
-  if (!state.currentPatient?.id) {
-    showAppAlert('Criando registro do paciente antes do agendamento...', 'info');
-    await savePatientAndLead();
-    if (!state.currentPatient?.id) {
-      showAppAlert('Não foi possível identificar ou criar o paciente para este agendamento.', 'error');
-      return;
-    }
+  // Trava anti-duplo clique e idempotência
+  if (state.isScheduling) return;
+  state.isScheduling = true;
+
+  const btnConfirm = document.getElementById('btn-confirm-schedule');
+  const originalBtnText = btnConfirm ? btnConfirm.textContent : 'Confirmar Agendamento';
+  if (btnConfirm) {
+    btnConfirm.disabled = true;
+    btnConfirm.textContent = 'Gravando e Confirmando no Banco...';
   }
 
-  showAppAlert('Processando agendamento transacional atômico...', 'info');
-
   try {
-    // Chamada à RPC com trava atômica no PostgreSQL anti-concorrência
+    // Se o paciente ainda não estiver salvo na tabela de pacientes, salva automaticamente antes
+    if (!state.currentPatient?.id) {
+      showAppAlert('Criando registro do paciente antes do agendamento...', 'info');
+      await savePatientAndLead();
+      if (!state.currentPatient?.id) {
+        throw new Error('Não foi possível identificar ou cadastrar o paciente para este agendamento.');
+      }
+    }
+
+    showAppAlert('Processando agendamento transacional atômico no PostgreSQL...', 'info');
+
+    // 1. Chamada à RPC com trava atômica no PostgreSQL anti-concorrência
     const res = await authFetch('/rest/v1/rpc/agendar_consulta_extensao', {
       method: 'POST',
       body: JSON.stringify({
@@ -767,28 +926,78 @@ async function confirmSchedule() {
       })
     });
 
-    const result = await res.json();
+    const result = await res.json().catch(() => ({}));
 
-    if (!res.ok) {
-      const errMsg = result.message || result.details || result.hint || 'Conflito de agenda detectado pelo banco de dados.';
+    if (!res.ok || !result?.sucesso || !result?.consulta_id) {
+      const errMsg = result.message || result.details || result.hint || 'Conflito de agenda ou erro detectado pelo banco de dados.';
       throw new Error(errMsg);
     }
 
-    showAppAlert(`✅ Consulta agendada com sucesso para ${date} às ${time}!`, 'success');
+    // 2. AUDITORIA OBRIGATÓRIA DE PERSISTÊNCIA: Consulta diretamente o banco pelo ID gerado
+    showAppAlert('Auditando confirmação de persistência no PostgreSQL...', 'info');
+    const verifyRes = await authFetch(`/rest/v1/consultas?id=eq.${result.consulta_id}&select=id,paciente_id,paciente_nome,data,hora,duracao,dentista,status,user_id`);
+    if (!verifyRes.ok) {
+      throw new Error('O agendamento foi processado, mas a verificação de auditoria falhou ao consultar o banco.');
+    }
 
-    // Atualiza estado local do lead para Agendado
+    const rows = await verifyRes.json();
+    const persisted = rows?.[0];
+
+    if (!persisted || persisted.id !== result.consulta_id) {
+      throw new Error('Falha crítica de persistência: O registro da consulta não foi localizado no banco após a execução.');
+    }
+
+    if (persisted.paciente_id !== state.currentPatient.id) {
+      throw new Error('Inconsistência de integridade: A consulta foi vinculada a um identificador de paciente divergente.');
+    }
+
+    // 3. Formatação da data brasileira (DD/MM/AAAA)
+    const [ano, mes, dia] = date.split('-');
+    const brDate = `${dia}/${mes}/${ano}`;
+
+    // 4. Somente após confirmação inequívoca de persistência, atualiza status do lead no CRM
     if (state.currentLead) {
       state.currentLead.status = 'Agendado';
     }
     renderContactCard();
 
-    // Atualiza lista de consultas e muda para a aba de consultas
+    showAppAlert(`✅ Consulta #${result.consulta_id.slice(0, 8)} confirmada com sucesso para ${brDate} às ${time}!`, 'success');
+
+    // 5. Atualiza lista de consultas e renderiza atalho para a Agenda do CRM
     await loadPatientAppointments(state.currentPatient.id);
+    renderAgendaDirectLink(date, brDate, time, dentist);
     switchTab('tab-appointments');
   } catch (err) {
     console.error('[CRM Extension] Erro no agendamento seguro:', err);
     showAppAlert(`❌ Falha no agendamento: ${err.message}`, 'error');
+  } finally {
+    state.isScheduling = false;
+    if (btnConfirm) {
+      btnConfirm.disabled = false;
+      btnConfirm.textContent = originalBtnText;
+    }
   }
+}
+
+function renderAgendaDirectLink(dateStr, brDate, timeStr, dentistStr) {
+  const container = document.getElementById('agenda-link-container');
+  if (!container) return;
+  container.innerHTML = `
+    <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 10px; margin-top: 10px;">
+      <div style="font-weight: 600; color: #166534; font-size: 12px; margin-bottom: 4px;">
+        ✅ Agendamento Confirmado no Banco de Dados
+      </div>
+      <div style="font-size: 11.5px; color: #15803d; line-height: 1.4;">
+        <strong>Data:</strong> ${brDate} às ${timeStr} • <strong>Profissional:</strong> ${dentistStr}
+      </div>
+      <p style="font-size: 11px; color: #475569; margin: 6px 0 8px 0;">
+        📌 <strong>Dica da Agenda:</strong> Para visualizar este agendamento no sistema principal da clínica, navegue até a data <strong>${brDate}</strong> no calendário.
+      </p>
+      <a href="https://app.lentesemresinamaceio.com.br/agenda?data=${dateStr}" target="_blank" class="btn btn-secondary btn-sm" style="display: block; text-align: center; text-decoration: none; padding: 6px 10px; font-weight: 600; background: #ffffff; border: 1px solid #16a34a; color: #15803d;">
+        📅 Abrir na Agenda do CRM (${brDate}) ↗
+      </a>
+    </div>
+  `;
 }
 
 // ==============================================================================
@@ -1048,7 +1257,7 @@ async function init() {
     });
   }
 
-  // 4. Busca manual de telefone
+  // 4. Busca manual de telefone ou nome
   const btnSearch = document.getElementById('btn-search-contact');
   const inputPhone = document.getElementById('input-search-phone');
   if (btnSearch && inputPhone) {
@@ -1058,6 +1267,29 @@ async function init() {
     inputPhone.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         searchContact(inputPhone.value);
+      }
+    });
+  }
+
+  // 4.1 Botão de sincronização forçada com o WhatsApp Web
+  const btnSync = document.getElementById('btn-sync-whatsapp');
+  if (btnSync) {
+    btnSync.addEventListener('click', () => {
+      showAppAlert('Sincronizando com a conversa ativa do WhatsApp...', 'info');
+      try {
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+          if (tabs?.[0]?.id) {
+            chrome.tabs.sendMessage(tabs[0].id, { type: 'GET_VISIBLE_CONTACT' }, (res) => {
+              if (chrome.runtime.lastError || !res) {
+                showAppAlert('Certifique-se de que a aba do WhatsApp Web está ativa.', 'error');
+                return;
+              }
+              handleContactChanged(res);
+            });
+          }
+        });
+      } catch (err) {
+        showAppAlert('Erro ao comunicar com o WhatsApp: ' + err.message, 'error');
       }
     });
   }
@@ -1106,10 +1338,7 @@ async function init() {
   if (typeof chrome !== 'undefined' && chrome.runtime?.onMessage) {
     chrome.runtime.onMessage.addListener((message) => {
       if (message?.type === 'CONTACT_CHANGED' && message.contact) {
-        const detectedPhone = message.contact.phone;
-        if (detectedPhone && normalizePhone(detectedPhone) !== state.currentPhone) {
-          searchContact(detectedPhone);
-        }
+        handleContactChanged(message.contact);
       }
     });
 
@@ -1118,8 +1347,8 @@ async function init() {
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         if (tabs?.[0]?.id) {
           chrome.tabs.sendMessage(tabs[0].id, { type: 'GET_VISIBLE_CONTACT' }, (res) => {
-            if (chrome.runtime.lastError) return;
-            if (res?.phone) searchContact(res.phone);
+            if (chrome.runtime.lastError || !res) return;
+            handleContactChanged(res);
           });
         }
       });

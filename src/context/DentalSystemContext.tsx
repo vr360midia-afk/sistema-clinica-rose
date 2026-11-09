@@ -42,6 +42,22 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
+  // Recarrega silenciosamente quando o usuário volta para a aba do CRM (ex: após agendar na extensão)
+  useEffect(() => {
+    if (!user?.id) return;
+    const handleFocusOrVisible = () => {
+      if (document.visibilityState === 'visible') {
+        loadAllData(true);
+      }
+    };
+    window.addEventListener('focus', handleFocusOrVisible);
+    document.addEventListener('visibilitychange', handleFocusOrVisible);
+    return () => {
+      window.removeEventListener('focus', handleFocusOrVisible);
+      document.removeEventListener('visibilitychange', handleFocusOrVisible);
+    };
+  }, [user?.id]);
+
 
   const loadAllData = async (silencioso = false) => {
     // Se já existirem dados na memória, atualiza em segundo plano SEM travar ou resetar as telas do usuário

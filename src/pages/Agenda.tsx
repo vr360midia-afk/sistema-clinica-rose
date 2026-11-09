@@ -4,7 +4,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { CalendarDays, Plus, Bell, Lock, CalendarCheck2, RotateCcw } from 'lucide-react';
+import { CalendarDays, Plus, Bell, Lock, CalendarCheck2, RotateCcw, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useDentalSystem } from '@/context/DentalSystemContext';
@@ -24,7 +24,7 @@ import { supabase } from '@/integrations/supabase/client';
 const Agenda = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { updateConsulta, consultas, pacientes } = useDentalSystem();
+  const { updateConsulta, consultas, pacientes, loadAllData } = useDentalSystem();
   const { bloqueios, addBloqueio, updateBloqueio, deleteBloqueio } = useBloqueios();
 
   const initialDate = useMemo(() => {
@@ -356,6 +356,18 @@ const Agenda = () => {
             >
               <RotateCcw className="h-4 w-4 text-blue-500" />
               Agendar Retorno
+            </Button>
+            <Button
+              variant="outline"
+              className="flex items-center gap-2 flex-1 sm:flex-none justify-center border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 hover:border-emerald-500/60 font-medium"
+              onClick={async () => {
+                await loadAllData(true);
+                toast.success('Agenda sincronizada com o banco!');
+              }}
+              title="Sincronizar consultas com o banco de dados"
+            >
+              <RefreshCw className="h-4 w-4 text-emerald-500" />
+              Sincronizar
             </Button>
             <Button
               className="flex items-center gap-2 flex-1 sm:flex-none justify-center"
