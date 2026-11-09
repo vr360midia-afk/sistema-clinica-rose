@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Clínica Rosângela — WhatsApp CRM</title>
+  <link rel="stylesheet" href="panel.css">
+</head>
+<body>
+  <!-- Cabeçalho Principal -->
+  <header>
+    <div class="brand-wrapper">
+      <div class="brand-icon">✦</div>
+      <div>
+        <div class="brand-title">Clínica Rosângela</div>
+        <small class="brand-sub">WhatsApp • CRM e Agenda</small>
+      </div>
+    </div>
+    <div id="user-bar" class="user-badge" hidden>
+      <span id="user-email-label">...</span>
+      <button id="btn-logout" class="btn-link" title="Encerrar Sessão">Sair</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- 1. TELA DE LOGIN (Somente E-mail e Senha) -->
+    <section id="login-section">
+      <div class="card" style="margin-top: 10px;">
+        <div class="card-title">Acessar CRM da Clínica</div>
+        <p style="font-size: 11.5px; color: var(--text-muted); margin-bottom: 12px;">
+          Entre com as credenciais da sua conta no sistema.
+        </p>
+
+        <form id="form-login" onsubmit="return false;">
+          <div class="form-group">
+            <label for="login-email">E-mail corporativo</label>
+            <input type="email" id="login-email" placeholder="seu.email@clinicarose.com.br" autocomplete="username" required>
+          </div>
+
+          <div class="form-group">
+            <label for="login-password">Senha de acesso</label>
+            <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password" required>
+          </div>
+
+          <button type="submit" id="btn-login" class="btn btn-primary" style="margin-top: 6px;">
+            <span>Entrar no Sistema</span>
+          </button>
+        </form>
+
+        <div id="login-alert" class="alert alert-error" style="margin-top: 12px;" hidden></div>
+      </div>
+    </section>
+
+    <!-- 2. TELA PRINCIPAL DO APLICATIVO -->
+    <section id="app-section" hidden>
+      <!-- Busca e Contato Ativo -->
+      <div class="card" style="padding: 10px 12px; margin-bottom: 10px;">
+        <label for="input-search-phone">Contato Ativo / WhatsApp</label>
+        <div style="display: flex; gap: 6px;">
+          <input type="tel" id="input-search-phone" placeholder="+55 82 99999-9999" style="flex: 1;">
+          <button id="btn-search-contact" class="btn btn-secondary btn-sm" style="width: auto; padding: 0 12px;" title="Buscar no CRM">
+            🔍 Buscar
+          </button>
+        </div>
+      </div>
+
+      <!-- Resumo do Contato Localizado -->
+      <div id="contact-card" class="card" hidden>
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+          <div>
+            <div id="contact-name-display" style="font-size: 13px; font-weight: 700; color: #0f172a;">-</div>
+            <div id="contact-phone-display" style="font-size: 11px; color: var(--text-muted);">-</div>
+          </div>
+          <div id="contact-stage-badge" class="badge badge-pendente">Novo lead</div>
+        </div>
+
+        <!-- Metadados de Origem / Meta Ads -->
+        <div id="contact-meta-display" style="margin-top: 8px; font-size: 11px; color: #475569; background: #f1f5f9; padding: 6px 8px; border-radius: 4px;" hidden>
+          <div id="contact-origin-tag">Origem: WhatsApp</div>
+          <div id="contact-campaign-tag" style="color: var(--primary); font-weight: 500;"></div>
+        </div>
+      </div>
+
+      <!-- Abas de Ação -->
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="tab-overview">Visão Geral</button>
+        <button class="tab-btn" data-tab="tab-schedule">Agendar</button>
+        <button class="tab-btn" data-tab="tab-appointments">Consultas</button>
+        <button class="tab-btn" data-tab="tab-followup">Follow-up</button>
+      </div>
+
+      <!-- ABA 1: Visão Geral / Cadastro Rápido -->
+      <div id="tab-overview" class="tab-content">
+        <div class="card">
+          <div class="card-title">Dados Cadastrais</div>
+          <div class="form-group">
+            <label for="patient-name">Nome Completo</label>
+            <input type="text" id="patient-name" placeholder="Nome do paciente">
+          </div>
+
+          <div class="form-group">
+            <label for="patient-email">E-mail (opcional)</label>
+            <input type="email" id="patient-email" placeholder="paciente@email.com">
+          </div>
+
+          <div class="form-group">
+            <label for="lead-stage-select">Estágio Comercial no Funil</label>
+            <select id="lead-stage-select">
+              <option value="Pendente">Novo lead (Pendente)</option>
+              <option value="Interessado">Interessado</option>
+              <option value="Começou mas não deu andamento">Começou, mas não deu andamento</option>
+              <option value="Agendado">Agendado</option>
+              <option value="Convertido">Convertido</option>
+              <option value="Perdido">Perdido</option>
+            </select>
+          </div>
+
+          <!-- Campo obrigatório caso o estágio seja "Perdido" -->
+          <div id="lost-reason-group" class="form-group" hidden>
+            <label for="lost-reason-input" style="color: var(--danger);">Motivo da Perda (Obrigatório)</label>
+            <select id="lost-reason-input">
+              <option value="">Selecione o motivo...</option>
+              <option value="Preço / Orçamento fora do perfil">Preço / Orçamento fora do perfil</option>
+              <option value="Sem interesse no momento">Sem interesse no momento</option>
+              <option value="Optou por outra clínica">Optou por outra clínica</option>
+              <option value="Não respondeu aos contatos">Não respondeu aos contatos</option>
+              <option value="Distância / Localização">Distância / Localização</option>
+              <option value="Outros">Outros</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="patient-notes">Observações do CRM</label>
+            <textarea id="patient-notes" rows="2" placeholder="Informações clínicas ou de negociação..."></textarea>
+          </div>
+
+          <button id="btn-save-patient" class="btn btn-primary">
+            <span>Salvar / Atualizar no CRM</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- ABA 2: Agendamento de Consulta -->
+      <div id="tab-schedule" class="tab-content" hidden>
+        <div class="card">
+          <div class="card-title">Novo Agendamento</div>
+
+          <div class="form-group">
+            <label for="schedule-dentist">Profissional Responsável</label>
+            <select id="schedule-dentist">
+              <option value="">Carregando profissionais...</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="schedule-procedure">Procedimento / Motivo</label>
+            <input type="text" id="schedule-procedure" value="Avaliação Odontológica - Lentes em Resina">
+          </div>
+
+          <div class="grid-2">
+            <div class="form-group">
+              <label for="schedule-date">Data da Consulta</label>
+              <input type="date" id="schedule-date">
+            </div>
+
+            <div class="form-group">
+              <label for="schedule-duration">Duração (min)</label>
+              <select id="schedule-duration">
+                <option value="30">30 minutos</option>
+                <option value="60" selected>60 minutos</option>
+                <option value="90">90 minutos</option>
+                <option value="120">120 minutos</option>
+              </select>
+            </div>
+          </div>
+
+          <button id="btn-check-availability" class="btn btn-secondary" style="margin-bottom: 12px;">
+            <span>Verificar Horários Livres</span>
+          </button>
+
+          <div class="form-group">
+            <label for="schedule-time">Horário Disponível</label>
+            <select id="schedule-time" disabled>
+              <option value="">Consulte os horários primeiro</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="schedule-notes">Observações da Consulta</label>
+            <textarea id="schedule-notes" rows="2" placeholder="Observações para a equipe médica..."></textarea>
+          </div>
+
+          <button id="btn-confirm-schedule" class="btn btn-primary" disabled>
+            <span>Confirmar Agendamento</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- ABA 3: Histórico de Consultas -->
+      <div id="tab-appointments" class="tab-content" hidden>
+        <div class="card">
+          <div class="card-title">Consultas do Paciente</div>
+          <div id="appointments-list" style="display: flex; flex-direction: column; gap: 8px;">
+            <p style="font-size: 11.5px; color: var(--text-muted);">Nenhuma consulta registrada para este paciente.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ABA 4: Follow-up -->
+      <div id="tab-followup" class="tab-content" hidden>
+        <div class="card">
+          <div class="card-title">Acompanhamento (Follow-up)</div>
+          <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 10px;">
+            Acompanhe o cronograma de retorno para garantir a conversão.
+          </p>
+
+          <div id="followup-timeline" class="timeline"></div>
+
+          <div style="margin-top: 14px; border-top: 1px solid var(--border); padding-top: 10px;">
+            <label for="quick-contact-notes">Registrar Atendimento Realizado</label>
+            <textarea id="quick-contact-notes" rows="2" placeholder="Resumo da conversa no WhatsApp..."></textarea>
+            <button id="btn-register-contact" class="btn btn-secondary btn-sm" style="margin-top: 6px;">
+              <span>Registrar Contato no CRM</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Alertas e Feedback Global -->
+      <div id="app-alert" class="alert" hidden></div>
+    </section>
+  </main>
+
+  <script src="panel.js"></script>
+</body>
+</html>
+
