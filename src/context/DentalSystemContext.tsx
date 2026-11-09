@@ -45,8 +45,11 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
   // Recarrega silenciosamente quando o usuário volta para a aba do CRM (ex: após agendar na extensão)
   useEffect(() => {
     if (!user?.id) return;
+    let lastFocusSync = 0;
     const handleFocusOrVisible = () => {
-      if (document.visibilityState === 'visible') {
+      const now = Date.now();
+      if (document.visibilityState === 'visible' && now - lastFocusSync > 10000) {
+        lastFocusSync = now;
         loadAllData(true);
       }
     };

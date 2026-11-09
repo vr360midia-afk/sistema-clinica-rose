@@ -53,6 +53,7 @@ const Agenda = () => {
   const [consultaEmEdicao, setConsultaEmEdicao] = useState<any>(null);
   const [pendentes, setPendentes] = useState<any[]>([]);
   const [isPendentesModalOpen, setIsPendentesModalOpen] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Estados para Bloqueio de Horário
   const [isBloqueioModalOpen, setIsBloqueioModalOpen] = useState(false);
@@ -359,15 +360,23 @@ const Agenda = () => {
             </Button>
             <Button
               variant="outline"
+              disabled={isSyncing}
               className="flex items-center gap-2 flex-1 sm:flex-none justify-center border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 hover:border-emerald-500/60 font-medium"
               onClick={async () => {
-                await loadAllData(true);
-                toast.success('Agenda sincronizada com o banco!');
+                setIsSyncing(true);
+                try {
+                  await loadAllData(true);
+                  toast.success('Agenda sincronizada com o banco!');
+                } catch {
+                  toast.error('Erro ao sincronizar agenda');
+                } finally {
+                  setIsSyncing(false);
+                }
               }}
               title="Sincronizar consultas com o banco de dados"
             >
-              <RefreshCw className="h-4 w-4 text-emerald-500" />
-              Sincronizar
+              <RefreshCw className={`h-4 w-4 text-emerald-500 ${isSyncing ? 'animate-spin' : ''}`} />
+              {isSyncing ? 'Sincronizando...' : 'Sincronizar'}
             </Button>
             <Button
               className="flex items-center gap-2 flex-1 sm:flex-none justify-center"
