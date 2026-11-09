@@ -111,9 +111,20 @@ DECLARE
     v_conflito RECORD;
     v_bloqueio RECORD;
 BEGIN
-    -- Ignora consultas canceladas ou remarcadas
+    -- 1. Ignora consultas canceladas ou remarcadas (libera o horário)
     IF NEW.status IN ('cancelado', 'remarcado') THEN
         RETURN NEW;
+    END IF;
+
+    -- 2. Se for um UPDATE que não altera as coordenadas da consulta (data, hora, duracao, dentista),
+    -- permite a atualização imediata sem travas ou verificações desnecessárias (ex: observacoes, status, valor)
+    IF TG_OP = 'UPDATE' THEN
+        IF NEW.data = OLD.data 
+           AND NEW.hora = OLD.hora 
+           AND COALESCE(NEW.duracao, 60) = COALESCE(OLD.duracao, 60) 
+           AND COALESCE(NEW.dentista, '') = COALESCE(OLD.dentista, '') THEN
+            RETURN NEW;
+        END IF;
     END IF;
 
     -- Converte horários para minutos do dia
@@ -123,13 +134,13 @@ BEGIN
     -- Trava transacional atômica serializada por clínica, profissional e data
     PERFORM pg_advisory_xact_lock(hashtext(NEW.user_id::text || '_' || COALESCE(NEW.dentista, 'geral') || '_' || NEW.data::text));
 
-    -- 1. Verifica bloqueios de agenda para esta clínica
+    -- 3. Verifica bloqueios de agenda para esta clínica
     FOR v_bloqueio IN
         SELECT titulo, hora_inicio, hora_fim, dia_inteiro
         FROM public.bloqueios_agenda
         WHERE user_id = NEW.user_id
           AND data_inicio <= NEW.data AND data_fim >= NEW.data
-          AND (dentista IS NULL OR dentista = '' OR dentista = NEW.dentista)
+          AND (dentista IS NULL OR dentista = '' OR dentista = NEW.dentista OR NEW.dentista IS NULL OR NEW.dentista = '')
     LOOP
         IF v_bloqueio.dia_inteiro THEN
             RAISE EXCEPTION 'Horário bloqueado na agenda: % (dia inteiro)', v_bloqueio.titulo;
@@ -147,13 +158,13 @@ BEGIN
         END IF;
     END LOOP;
 
-    -- 2. Verifica conflito com consultas já existentes nesta mesma clínica
+    -- 4. Verifica conflito com consultas já existentes nesta mesma clínica
     FOR v_conflito IN
         SELECT id, hora, duracao, paciente_nome
         FROM public.consultas
         WHERE user_id = NEW.user_id
           AND data = NEW.data
-          AND dentista = NEW.dentista
+          AND (dentista = NEW.dentista OR dentista IS NULL OR dentista = '' OR NEW.dentista IS NULL OR NEW.dentista = '')
           AND (TG_OP = 'INSERT' OR id != NEW.id)
           AND status NOT IN ('cancelado', 'remarcado')
     LOOP
