@@ -78,22 +78,23 @@ ALTER TABLE public.dentistas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.consultas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.bloqueios_agenda ENABLE ROW LEVEL SECURITY;
 
--- 3. Políticas RLS seguras para homologação
+-- 3. Políticas RLS seguras (preserva integralmente as políticas existentes de produção se já existirem)
 DO $$
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'crm_leads' AND policyname = 'crm_leads_auth_access') THEN
+    -- Se a tabela não tiver nenhuma política RLS definida, cria acesso para authenticated
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'crm_leads') THEN
         CREATE POLICY crm_leads_auth_access ON public.crm_leads FOR ALL TO authenticated USING (true) WITH CHECK (true);
     END IF;
 
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'dentistas' AND policyname = 'dentistas_auth_access') THEN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'dentistas') THEN
         CREATE POLICY dentistas_auth_access ON public.dentistas FOR ALL TO authenticated USING (true) WITH CHECK (true);
     END IF;
 
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'consultas' AND policyname = 'consultas_auth_access') THEN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'consultas') THEN
         CREATE POLICY consultas_auth_access ON public.consultas FOR ALL TO authenticated USING (true) WITH CHECK (true);
     END IF;
 
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'bloqueios_agenda' AND policyname = 'bloqueios_agenda_auth_access') THEN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'bloqueios_agenda') THEN
         CREATE POLICY bloqueios_agenda_auth_access ON public.bloqueios_agenda FOR ALL TO authenticated USING (true) WITH CHECK (true);
     END IF;
 END $$;
