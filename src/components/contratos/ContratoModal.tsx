@@ -315,19 +315,34 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
 
   // Identifica se o contrato exibido já está oficialmente gravado e sem pendências de retificação
   const isContratoGravado = useMemo(() => {
-    if (documentoIdSendoEditado) return false;
-    // Permite retificação de contratos pendentes (não assinados pelo paciente) com divergência financeira identificada
-    if (validacaoIntegridade?.divergenciaFinanceira && !contratoVisualizacao?.assinadoEm && !hasAssinaturaPaciente) {
-      return false;
-    }
-    const isFormalizadoSnap = Boolean(
+    // 1. Contratos formalizados ou assinados pelo paciente são juridicamente imutáveis e permanecem SEMPRE gravados,
+    // mesmo se houver qualquer tentativa de edição manual ou flag isManuallyEdited ativa em memória.
+    const isFormalizadoOuAssinado = Boolean(
+      hasAssinaturaPaciente ||
+      contratoVisualizacao?.assinadoEm ||
+      contratoExistenteOrcamento?.assinadoEm ||
+      contratoVisualizacao?.status === 'formalizado' ||
+      contratoExistenteOrcamento?.status === 'formalizado' ||
       snapshotAtual?.status === 'formalizado' ||
       snapshotAtual?.status === 'assinado' ||
-      snapshotAtual?.assinaturaPaciente?.assinaturaData ||
-      contratoVisualizacao?.assinadoEm
+      snapshotAtual?.assinaturaPaciente?.assinaturaData
     );
-    return Boolean(contratoVisualizacao?.id || contratoExistenteOrcamento?.id || isFormalizadoSnap);
-  }, [documentoIdSendoEditado, contratoVisualizacao, contratoExistenteOrcamento, snapshotAtual, validacaoIntegridade, hasAssinaturaPaciente]);
+    if (isFormalizadoOuAssinado) {
+      return true;
+    }
+
+    // 2. Em contratos pendentes (não assinados pelo paciente), se houver edição manual ativa, retificação em andamento
+    // ou divergência financeira identificada, o contrato requer gravação.
+    if (documentoIdSendoEditado || isManuallyEdited) {
+      return false;
+    }
+    if (validacaoIntegridade?.divergenciaFinanceira) {
+      return false;
+    }
+
+    // 3. Minuta pendente já persistida no banco sem pendência de retificação
+    return Boolean(contratoVisualizacao?.id || contratoExistenteOrcamento?.id);
+  }, [documentoIdSendoEditado, isManuallyEdited, contratoVisualizacao, contratoExistenteOrcamento, snapshotAtual, validacaoIntegridade, hasAssinaturaPaciente]);
 
   // Dentista ativo
   const dentistaAtual = useMemo(() => {
@@ -634,11 +649,36 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     return isContratoEndodontia(snapshotAtual);
   }, [snapshotAtual]);
 
-  // HTML renderizado do contrato atual
+  // HTML renderizado do contrato atual a partir dos dados do snapshot em memória
   const htmlContratoAtual = useMemo(() => {
     if (!snapshotAtual) return '';
     return gerarHtmlContrato(snapshotAtual);
   }, [snapshotAtual]);
+
+  // Flag que identifica se há edição manual ativa ou restauração de padrão autorizada em contrato pendente (não formalizado)
+  const isEmModoEdicaoOuRetificacao = Boolean(
+    (isManuallyEdited || documentoIdSendoEditado) &&
+    !hasAssinaturaPaciente &&
+    !contratoVisualizacao?.assinadoEm
+  );
+
+  // HTML da prévia exibido nos visualizadores (Padrão A4 e Modo Tela Cheia) com prioridade rigorosa:
+  // 1. Contratos formalizados com assinatura do paciente NUNCA exibem HTML recalculado em memória (preserva imutabilidade legal)
+  // 2. Em modo de edição manual ativa ou restauração de padrão autorizada em contrato pendente, exibe o HTML em tempo real gerado pelo motor
+  // 3. Fora do modo de edição, exibe estritamente o HTML oficial persistido no banco de dados
+  // 4. Em minutas novas sem documento gravado no banco, exibe o HTML gerado a partir do orçamento
+  const htmlPreview = useMemo(() => {
+    if (hasAssinaturaPaciente || contratoVisualizacao?.assinadoEm) {
+      return contratoVisualizacao?.conteudo || '';
+    }
+    if (isEmModoEdicaoOuRetificacao && htmlContratoAtual) {
+      return htmlContratoAtual;
+    }
+    if (contratoVisualizacao?.conteudo) {
+      return contratoVisualizacao.conteudo;
+    }
+    return htmlContratoAtual || '';
+  }, [hasAssinaturaPaciente, contratoVisualizacao, isEmModoEdicaoOuRetificacao, htmlContratoAtual]);
 
   // Validação de campos cadastrais indispensáveis
   const pendenciasCadastrais = useMemo(() => {
@@ -754,6 +794,28 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
 
     setSnapshotAtual(snap);
     toast.success('Valores padrão do sistema restaurados com sucesso.');
+  };
+
+  // Descarta alterações não salvas e volta a apresentar o documento oficial persistido
+  const handleDescartarEdicao = () => {
+    if (contratoVisualizacao?.itens && typeof contratoVisualizacao.itens === 'object') {
+      setSnapshotAtual(contratoVisualizacao.itens as ContratoSnapshot);
+    }
+    setIsManuallyEdited(false);
+    setDocumentoIdSendoEditado(null);
+    toast.info('Alterações não salvas descartadas. Exibindo documento oficial gravado.');
+  };
+
+  // Abre o modal de assinatura com guarda estrita contra prévias não salvas
+  const handleAbrirAssinatura = (role: 'paciente' | 'dentista') => {
+    if (isEmModoEdicaoOuRetificacao) {
+      toast.warning('Salve as alterações do contrato antes de registrar assinaturas.', {
+        description: 'Não é possível assinar uma prévia com alterações pendentes de gravação no sistema.',
+      });
+      return;
+    }
+    setSignerRole(role);
+    setIsSignatureModalOpen(true);
   };
 
   // Carrega contrato do histórico para edição
@@ -1000,7 +1062,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
         setContratoVisualizacao(docCriado);
         setDocumentoIdSendoEditado(null);
         setIsManuallyEdited(false);
-        setActiveTab('historico');
+        setActiveTab('gerar');
 
         toast.success(
           isPendenteNaoAssinado
@@ -1010,9 +1072,6 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
             description: `Identificador: ${snapshotParaSalvar.contratoId}`,
           }
         );
-        setActiveTab('historico');
-        setContratoVisualizacao(docCriado);
-        setDocumentoIdSendoEditado(null);
       }
     } catch (err: any) {
       console.error('Erro ao emitir contrato:', err);
@@ -1022,10 +1081,45 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     }
   };
 
-  // Download do PDF formatado
+  // Download do PDF formatado - exclusivo para documentos persistidos e validados
   const handleDownloadPdf = async (htmlParaBaixar?: string, nomeArquivo?: string) => {
-    const html = htmlParaBaixar || htmlContratoAtual;
-    if (!html) {
+    // 1. Bloqueia estritamente se houver prévia não salva ou se htmlParaBaixar for a prévia em edição
+    if (isEmModoEdicaoOuRetificacao) {
+      const isTentandoBaixarPrevia = !htmlParaBaixar || htmlParaBaixar === htmlContratoAtual || htmlParaBaixar === htmlPreview;
+      if (isTentandoBaixarPrevia) {
+        toast.warning('Salve as alterações do contrato antes de baixar o PDF oficial.', {
+          description: 'A minuta possui alterações ou valores recalculados pendentes de gravação no sistema.',
+        });
+        return;
+      }
+    }
+
+    // 2. Determina o HTML oficial: se passado explicitamente (ex: histórico), valida se corresponde a documento persistido;
+    // caso contrário, utiliza estritamente o conteúdo persistido do contrato atual no banco de dados.
+    let htmlOficial: string | null = null;
+    if (htmlParaBaixar) {
+      const docEncontrado = documentos.find((d) => d.conteudo === htmlParaBaixar);
+      if (docEncontrado && docEncontrado.conteudo) {
+        htmlOficial = docEncontrado.conteudo;
+      } else if (contratoVisualizacao && contratoVisualizacao.conteudo === htmlParaBaixar) {
+        htmlOficial = contratoVisualizacao.conteudo;
+      } else {
+        toast.error('Download bloqueado: o documento informado não está gravado no sistema.', {
+          description: 'Todas as ações oficiais exigem documento formalmente persistido no banco de dados.',
+        });
+        return;
+      }
+    } else {
+      if (!contratoVisualizacao?.conteudo) {
+        toast.warning('Grave o contrato no sistema antes de baixar o PDF oficial.', {
+          description: 'Não é possível emitir PDF oficial de uma minuta ainda não gravada.',
+        });
+        return;
+      }
+      htmlOficial = contratoVisualizacao.conteudo;
+    }
+
+    if (!htmlOficial) {
       toast.error('Conteúdo do contrato não disponível');
       return;
     }
@@ -1062,7 +1156,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
         return;
       }
 
-      await downloadHtmlAsPdf(html, filename);
+      await downloadHtmlAsPdf(htmlOficial, filename);
       toast.success('PDF do contrato baixado com sucesso!');
     } catch (err: any) {
       console.error('Erro ao gerar PDF:', err);
@@ -1072,10 +1166,45 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     }
   };
 
-  // Impressão nativa do contrato
+  // Impressão nativa do contrato - exclusiva para documentos persistidos e validados
   const handleImprimir = (htmlParaImprimir?: string) => {
-    const html = htmlParaImprimir || htmlContratoAtual;
-    if (!html) return;
+    // 1. Bloqueia estritamente se houver prévia não salva ou se htmlParaImprimir for a prévia em edição
+    if (isEmModoEdicaoOuRetificacao) {
+      const isTentandoImprimirPrevia = !htmlParaImprimir || htmlParaImprimir === htmlContratoAtual || htmlParaImprimir === htmlPreview;
+      if (isTentandoImprimirPrevia) {
+        toast.warning('Salve as alterações do contrato antes de imprimir o documento oficial.', {
+          description: 'A minuta possui alterações ou valores recalculados pendentes de gravação no sistema.',
+        });
+        return;
+      }
+    }
+
+    // 2. Determina o HTML oficial: se passado explicitamente (ex: histórico), valida se corresponde a documento persistido;
+    // caso contrário, utiliza estritamente o conteúdo persistido do contrato atual no banco de dados.
+    let htmlOficial: string | null = null;
+    if (htmlParaImprimir) {
+      const docEncontrado = documentos.find((d) => d.conteudo === htmlParaImprimir);
+      if (docEncontrado && docEncontrado.conteudo) {
+        htmlOficial = docEncontrado.conteudo;
+      } else if (contratoVisualizacao && contratoVisualizacao.conteudo === htmlParaImprimir) {
+        htmlOficial = contratoVisualizacao.conteudo;
+      } else {
+        toast.error('Impressão bloqueada: o documento informado não está gravado no sistema.', {
+          description: 'Todas as ações oficiais exigem documento formalmente persistido no banco de dados.',
+        });
+        return;
+      }
+    } else {
+      if (!contratoVisualizacao?.conteudo) {
+        toast.warning('Grave o contrato no sistema antes de imprimir o documento oficial.', {
+          description: 'Não é possível imprimir documento oficial de uma minuta ainda não gravada.',
+        });
+        return;
+      }
+      htmlOficial = contratoVisualizacao.conteudo;
+    }
+
+    if (!htmlOficial) return;
 
     const iframe = document.createElement('iframe');
     iframe.style.position = 'fixed';
@@ -1087,7 +1216,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     const doc = iframe.contentWindow?.document;
     if (doc) {
       doc.open();
-      doc.write(html);
+      doc.write(htmlOficial);
       doc.close();
 
       setTimeout(() => {
@@ -1101,6 +1230,12 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
   // Copia link de assinatura pública (garantindo que o contrato esteja registrado no banco)
   const handleCopiarLinkAssinatura = async () => {
     if (!snapshotAtual) return;
+    if (isEmModoEdicaoOuRetificacao) {
+      toast.warning('Salve as alterações do contrato antes de gerar ou copiar o link de assinatura.', {
+        description: 'O paciente só pode assinar a versão formalmente gravada no sistema.',
+      });
+      return;
+    }
     const docId = contratoVisualizacao?.id || documentoIdSendoEditado || contratoExistenteOrcamento?.id;
 
     // Garante que o snapshot possua identificador e token válidos antes de emitir
@@ -1136,6 +1271,12 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
   // Abre a tela pública de assinatura em nova aba
   const handleAbrirPaginaAssinatura = async () => {
     if (!snapshotAtual) return;
+    if (isEmModoEdicaoOuRetificacao) {
+      toast.warning('Salve as alterações do contrato antes de abrir a página de assinatura.', {
+        description: 'Grave as alterações para que a minuta retificada esteja disponível para assinatura.',
+      });
+      return;
+    }
 
     const valCronograma = validarCronogramaFinanceiroContrato(snapshotAtual);
     if (!valCronograma.valido) {
@@ -1173,6 +1314,12 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
 
   // Envio de notificação no WhatsApp
   const handleEnviarWhatsApp = async () => {
+    if (isEmModoEdicaoOuRetificacao) {
+      toast.warning('Salve as alterações do contrato antes de enviar por WhatsApp.', {
+        description: 'O paciente deve receber os termos e o link da versão oficialmente salva no sistema.',
+      });
+      return;
+    }
     let tel = patient?.telefone?.trim() || '';
     if (!tel) {
       const inputTel = window.prompt('Informe o número de WhatsApp do paciente com DDD (ex: 82999998888):', '');
@@ -1257,6 +1404,23 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     toast.info('Abrindo WhatsApp Web com o link de assinatura!', {
       description: 'O PDF do contrato também foi baixado caso deseje anexá-lo na conversa.',
     });
+  };
+
+  // Guarda para download de termos avulsos (TCLE, Imagem, Canal)
+  const handleDownloadTermoAvulso = async (geradorPdf: (snap: ContratoSnapshot) => Promise<any>, titulo: string) => {
+    if (!snapshotAtual) return;
+    if (isEmModoEdicaoOuRetificacao) {
+      toast.warning(`Salve as alterações do contrato antes de baixar o ${titulo}.`, {
+        description: 'Os termos complementares devem refletir a versão formalmente gravada no sistema.',
+      });
+      return;
+    }
+    try {
+      await geradorPdf(snapshotAtual);
+      toast.success(`${titulo} gerado com sucesso!`);
+    } catch (e) {
+      toast.error(`Erro ao gerar ${titulo} em PDF`);
+    }
   };
 
   // Aplicação da Assinatura Digital Interna
@@ -1347,15 +1511,19 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                     <FileText className="h-4 w-4 sm:h-5 sm:w-5" />
                   </div>
                   <div className="min-w-0">
-                    <DialogTitle className="text-xs sm:text-sm font-bold text-slate-100 flex items-center gap-2 truncate">
-                      <span>Visualização Oficial do Contrato</span>
+                    <DialogTitle className="text-xs sm:text-sm font-bold text-slate-100 flex flex-wrap items-center gap-1.5 sm:gap-2 truncate">
+                      <span>Visualização do Contrato</span>
                       {isFormalizadoBilateral ? (
-                        <span className="hidden sm:inline-flex text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-medium">
+                        <span className="inline-flex text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-medium">
                           ✓ Formalizado Bilateralmente
                         </span>
+                      ) : isEmModoEdicaoOuRetificacao ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-amber-500/25 text-amber-200 font-bold border border-amber-500/50">
+                          ⚠️ Prévia não salva
+                        </span>
                       ) : (
-                        <span className="hidden sm:inline-flex text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-medium">
-                          ⏳ Modelo em Elaboração
+                        <span className="hidden sm:inline-flex text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 font-medium">
+                          📄 Documento Gravado
                         </span>
                       )}
                       <span className="hidden sm:inline-flex text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-medium">
@@ -1375,10 +1543,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                     size="sm"
                     variant="outline"
                     className="h-8 text-xs gap-1.5 border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white"
-                    onClick={() => {
-                      setSignerRole('dentista');
-                      setIsSignatureModalOpen(true);
-                    }}
+                    onClick={() => handleAbrirAssinatura('dentista')}
                     title="Assinar como Profissional / Cirurgião-Dentista"
                   >
                     <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
@@ -1390,10 +1555,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                     size="sm"
                     variant="outline"
                     className="h-8 text-xs gap-1.5 border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white"
-                    onClick={() => {
-                      setSignerRole('paciente');
-                      setIsSignatureModalOpen(true);
-                    }}
+                    onClick={() => handleAbrirAssinatura('paciente')}
                     title="Assinar como Paciente"
                   >
                     <PenTool className="h-3.5 w-3.5 text-blue-400" />
@@ -1441,11 +1603,39 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
 
               {/* Área do Iframe com visualização A4 limpa e rolagem perfeita */}
               <div
-                className="flex-1 bg-slate-900/90 dark:bg-slate-950 p-2 sm:p-5 flex justify-center items-start overflow-y-auto w-full"
+                className="flex-1 bg-slate-900/90 dark:bg-slate-950 p-2 sm:p-5 flex flex-col items-center justify-start overflow-y-auto w-full"
                 style={{ WebkitOverflowScrolling: 'touch' }}
               >
-                    <iframe
-                  srcDoc={contratoVisualizacao?.conteudo || htmlContratoAtual}
+                {isEmModoEdicaoOuRetificacao && (
+                  <div className="w-full max-w-[860px] mb-3 p-2.5 px-3.5 rounded-md border text-xs bg-amber-500/20 border-amber-500/40 text-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 shrink-0">
+                    <span className="leading-snug">
+                      ⚠️ <strong>Prévia não salva:</strong> Estes termos refletem as alterações em edição e aguardam gravação para se tornarem oficiais.
+                    </span>
+                    <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs text-slate-300 hover:text-white hover:bg-slate-800"
+                        onClick={handleDescartarEdicao}
+                      >
+                        Descartar
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="h-7 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white"
+                        onClick={handleEmitirContrato}
+                        disabled={salvando}
+                      >
+                        {salvando ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                        Salvar Alterações
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                <iframe
+                  srcDoc={htmlPreview}
                   title="Contrato Oficial A4"
                   className="w-full max-w-[860px] h-[calc(100vh-4.5rem)] rounded-md border border-slate-700/80 bg-white shadow-2xl"
                 />
@@ -1483,7 +1673,12 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                           📝 Minuta em Elaboração — Aguardando Gravação
                         </Badge>
                       )}
-                      {isManuallyEdited && (
+                      {isEmModoEdicaoOuRetificacao && (
+                        <Badge variant="outline" className="font-bold text-[10px] sm:text-xs bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500">
+                          ⚠️ Prévia não salva
+                        </Badge>
+                      )}
+                      {isManuallyEdited && !isEmModoEdicaoOuRetificacao && (
                         <Badge variant="secondary" className="font-semibold text-[10px] sm:text-xs bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30">
                           Edição Manual
                         </Badge>
@@ -2123,10 +2318,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                         size="sm"
                         variant="outline"
                         className="h-7 text-xs gap-1.5 text-foreground hover:bg-muted border-border"
-                        onClick={() => {
-                          setSignerRole('paciente');
-                          setIsSignatureModalOpen(true);
-                        }}
+                        onClick={() => handleAbrirAssinatura('paciente')}
                       >
                         <PenTool className="h-3 w-3 text-primary" />
                         {snapshotAtual?.assinaturaPaciente ? '✓ Assinado Paciente' : 'Assinar Paciente'}
@@ -2136,10 +2328,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                         size="sm"
                         variant="outline"
                         className="h-7 text-xs gap-1.5 text-foreground hover:bg-muted border-border"
-                        onClick={() => {
-                          setSignerRole('dentista');
-                          setIsSignatureModalOpen(true);
-                        }}
+                        onClick={() => handleAbrirAssinatura('dentista')}
                       >
                         <ShieldCheck className="h-3 w-3 text-emerald-600" />
                         {snapshotAtual?.assinaturaDentista ? '✓ Assinado Dentista' : 'Assinar Profissional'}
@@ -2164,6 +2353,11 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                     <span className="flex items-center gap-1.5 text-foreground">
                       <FileText className="h-3.5 w-3.5 text-primary" />
                       Visualização Oficial do Contrato (Padrão A4)
+                      {isEmModoEdicaoOuRetificacao && (
+                        <Badge variant="outline" className="ml-2 font-bold text-[10px] bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500">
+                          ⚠️ Prévia não salva
+                        </Badge>
+                      )}
                     </span>
                     <span className="flex items-center gap-2">
                       <Button
@@ -2182,6 +2376,39 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                   <div
                     className="p-1 sm:p-4 bg-slate-200/70 dark:bg-slate-950/80 flex flex-col items-center justify-start overflow-auto w-full transition-all min-h-[380px] h-[58vh] sm:h-[68vh] flex-1"
                   >
+                    {isEmModoEdicaoOuRetificacao && (
+                      <div className="w-full max-w-[840px] mb-3 p-3 rounded-lg border text-xs shadow-sm shrink-0 bg-amber-50 border-amber-300 text-amber-900 dark:bg-amber-950/40 dark:border-amber-700 dark:text-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold px-2 py-0.5 rounded bg-amber-200 dark:bg-amber-800 text-amber-900 dark:text-amber-100 uppercase text-[10px] shrink-0">
+                            Prévia não salva
+                          </span>
+                          <span className="leading-snug">
+                            Você está visualizando os valores recalculados em memória. Salve as alterações para oficializar a retificação no sistema.
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs border-amber-400 dark:border-amber-700 text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/50"
+                            onClick={handleDescartarEdicao}
+                          >
+                            Descartar
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="h-7 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 shadow-xs"
+                            onClick={handleEmitirContrato}
+                            disabled={salvando}
+                          >
+                            {salvando ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                            Salvar Alterações
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                     {validacaoIntegridade?.divergenciaFinanceira && (
                       <div className="w-full max-w-[840px] mb-3 p-3.5 rounded-lg border text-xs shadow-md shrink-0 bg-amber-50 border-amber-300 text-amber-950 dark:bg-amber-950/40 dark:border-amber-800 dark:text-amber-200">
                         <div className="font-bold flex items-center gap-1.5 uppercase tracking-wide text-[11px] mb-1 text-amber-800 dark:text-amber-300">
@@ -2196,7 +2423,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                       </div>
                     )}
                     <iframe
-                      srcDoc={contratoVisualizacao?.conteudo || htmlContratoAtual}
+                      srcDoc={htmlPreview}
                       title="Contrato Oficial A4"
                       className="w-full h-full max-w-[840px] rounded border border-border bg-white shadow-xl min-h-[360px]"
                     />
@@ -3204,15 +3431,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                   variant="outline"
                   size="sm"
                   className="h-8 sm:h-9 text-xs gap-1.5 border-sky-300 dark:border-sky-800 text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100 dark:hover:bg-sky-900/50"
-                  onClick={async () => {
-                    try {
-                      if (!snapshotAtual) return;
-                      await downloadTcleLentesResinaPdf(snapshotAtual);
-                      toast.success('TCLE de Lentes em Resina (CFO) gerado com sucesso!');
-                    } catch (e) {
-                      toast.error('Erro ao gerar TCLE em PDF');
-                    }
-                  }}
+                  onClick={() => handleDownloadTermoAvulso(downloadTcleLentesResinaPdf, 'TCLE de Lentes em Resina (CFO)')}
                   disabled={!snapshotAtual}
                   title="Baixar Termo de Consentimento Livre e Esclarecido específico para Lentes em Resina (Recomendação CFO)"
                 >
@@ -3227,15 +3446,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                   variant="outline"
                   size="sm"
                   className="h-8 sm:h-9 text-xs gap-1.5 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/50"
-                  onClick={async () => {
-                    try {
-                      if (!snapshotAtual) return;
-                      await downloadTermoUsoImagemPdf(snapshotAtual);
-                      toast.success('Termo de Uso de Imagem e Voz (LGPD/CFO) gerado com sucesso!');
-                    } catch (e) {
-                      toast.error('Erro ao gerar Termo de Imagem em PDF');
-                    }
-                  }}
+                  onClick={() => handleDownloadTermoAvulso(downloadTermoUsoImagemPdf, 'Termo de Imagem e Voz (LGPD/CFO)')}
                   disabled={!snapshotAtual}
                   title="Baixar Termo de Autorização de Uso de Imagem, Voz e Registros Odontológicos em PDF avulso"
                 >
@@ -3250,15 +3461,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                   variant="outline"
                   size="sm"
                   className="h-8 sm:h-9 text-xs gap-1.5 border-purple-300 dark:border-purple-800 text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/40 hover:bg-purple-100 dark:hover:bg-purple-900/50"
-                  onClick={async () => {
-                    try {
-                      if (!snapshotAtual) return;
-                      await downloadContratoEndodontiaPdf(snapshotAtual);
-                      toast.success('Contrato de Endodontia (Canal) baixado em PDF!');
-                    } catch (e) {
-                      toast.error('Erro ao gerar Contrato de Endodontia em PDF');
-                    }
-                  }}
+                  onClick={() => handleDownloadTermoAvulso(downloadContratoEndodontiaPdf, 'Contrato de Endodontia (Canal)')}
                   disabled={!snapshotAtual}
                   title="Baixar Contrato Oficial de Tratamento de Canal (Endodontia) em formato PDF A4"
                 >
@@ -3273,15 +3476,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                   variant="outline"
                   size="sm"
                   className="h-8 sm:h-9 text-xs gap-1.5 border-indigo-300 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/50"
-                  onClick={async () => {
-                    try {
-                      if (!snapshotAtual) return;
-                      await downloadTcleEndodontiaPdf(snapshotAtual);
-                      toast.success('TCLE de Canal (Endodontia CFO) gerado com sucesso!');
-                    } catch (e) {
-                      toast.error('Erro ao gerar TCLE de Canal em PDF');
-                    }
-                  }}
+                  onClick={() => handleDownloadTermoAvulso(downloadTcleEndodontiaPdf, 'TCLE de Canal (Endodontia CFO)')}
                   disabled={!snapshotAtual}
                   title="Baixar Termo de Consentimento Livre e Esclarecido específico para Tratamento de Canal (TCLE Endodontia CFO) em PDF A4 de 2 páginas"
                 >
