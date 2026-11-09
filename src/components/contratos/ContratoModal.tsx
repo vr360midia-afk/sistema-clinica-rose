@@ -878,6 +878,18 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     if (targetDocId) {
       docExistente = documentos.find((d) => d.id === targetDocId);
     }
+    // Fallback defensivo: se não encontrou no array documentos (ex: latência de carregamento), utiliza o objeto em memória
+    if (!docExistente && targetDocId) {
+      if (contratoVisualizacao?.id === targetDocId) {
+        docExistente = contratoVisualizacao;
+      } else if (contratoExistenteOrcamento?.id === targetDocId) {
+        docExistente = contratoExistenteOrcamento;
+      }
+    }
+    if (!docExistente) {
+      docExistente = contratoVisualizacao || contratoExistenteOrcamento || undefined;
+    }
+    const finalTargetDocId = targetDocId || docExistente?.id;
     const isPendenteNaoAssinado = Boolean(docExistente && !docExistente.assinadoEm && !hasAssinaturaPaciente);
     const temDivergencia = Boolean(validacaoIntegridade?.divergenciaFinanceira);
 
@@ -921,7 +933,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
       let idParaGravar: string | undefined = undefined;
       let snapshotParaSalvar = { ...snapshotAtual };
 
-      if (targetDocId && docExistente && isPendenteNaoAssinado) {
+      if ((finalTargetDocId || docExistente) && docExistente && isPendenteNaoAssinado) {
         const snapExistente = (docExistente.itens || {}) as any;
         const versaoAnteriorRaw = snapExistente.versao !== undefined && snapExistente.versao !== null
           ? String(snapExistente.versao).trim()
@@ -978,7 +990,9 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
         snapshotParaSalvar = {
           ...snapshotParaSalvar,
           versao: novaVersaoStr,
-          contratoAnteriorId: docExistente.id,
+          contratoAnteriorId: snapExistente.contratoAnteriorId && snapExistente.contratoAnteriorId !== docExistente.id
+            ? snapExistente.contratoAnteriorId
+            : null,
           contratoId: docExistente.identificador || snapExistente.contratoId || snapshotAtual.contratoId,
           orcamentoId: docExistente.orcamento_id || snapExistente.orcamentoId || orcamentoAtual?.id || '',
           token: novoToken,
@@ -1005,7 +1019,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
         // Atualização estrita in-place no mesmo registro (preserva UUID sem duplicatas)
         idParaGravar = docExistente.id;
       } else {
-        idParaGravar = documentoIdSendoEditado || contratoVisualizacao?.id || contratoExistenteOrcamento?.id || undefined;
+        idParaGravar = finalTargetDocId || documentoIdSendoEditado || contratoVisualizacao?.id || contratoExistenteOrcamento?.id || undefined;
       }
 
       if (!snapshotParaSalvar.token) {

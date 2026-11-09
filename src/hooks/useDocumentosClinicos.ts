@@ -96,19 +96,39 @@ const rowToDoc = (row: any): DocumentoClinico => {
 export const agruparVersoesContrato = (docs: DocumentoClinico[]): DocumentoClinico[] => {
   const porId = new Map(docs.map((d) => [d.id, d]));
   const substituidos = new Set(
-    docs.filter((d) => d.tipo === 'contrato' && d.contratoAnteriorId).map((d) => String(d.contratoAnteriorId))
+    docs
+      .filter((d) => d.tipo === 'contrato' && d.contratoAnteriorId && d.contratoAnteriorId !== d.id)
+      .map((d) => String(d.contratoAnteriorId))
   );
   return docs
     .filter((d) => !(d.tipo === 'contrato' && substituidos.has(d.id)))
     .map((d) => {
-      if (d.tipo !== 'contrato' || !d.contratoAnteriorId) return d;
-      const anteriores: DocumentoClinico[] = [];
+      // Preserva versões arquivadas em itens.versoesAnteriores (retificação in-place)
+      const versoesInPlace: DocumentoClinico[] = Array.isArray(d.itens?.versoesAnteriores)
+        ? d.itens.versoesAnteriores.map((v: any, idx: number) => ({
+            id: `${d.id}_v_${v.versao || idx}`,
+            pacienteId: d.pacienteId,
+            tipo: 'contrato' as DocumentoClinicoTipo,
+            titulo: `${d.titulo} (Versão ${v.versao || 'anterior'})`,
+            conteudo: v.conteudoHtml || null,
+            itens: v,
+            criadoEm: v.substituidoEm ? new Date(v.substituidoEm) : d.criadoEm,
+            versao: Number(v.versao) || 1,
+            assinadoEm: null,
+          }))
+        : [];
+
+      if (d.tipo !== 'contrato' || !d.contratoAnteriorId || d.contratoAnteriorId === d.id) {
+        return versoesInPlace.length > 0 ? { ...d, versoesAnteriores: versoesInPlace } : d;
+      }
+
+      const anteriores: DocumentoClinico[] = [...versoesInPlace];
       let ant = porId.get(String(d.contratoAnteriorId));
       const vistos = new Set<string>([d.id]);
       while (ant && !vistos.has(ant.id)) {
         vistos.add(ant.id);
         anteriores.push(ant);
-        ant = ant.contratoAnteriorId ? porId.get(String(ant.contratoAnteriorId)) : undefined;
+        ant = ant.contratoAnteriorId && ant.contratoAnteriorId !== ant.id ? porId.get(String(ant.contratoAnteriorId)) : undefined;
       }
       return { ...d, versoesAnteriores: anteriores };
     });
