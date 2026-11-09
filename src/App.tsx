@@ -34,6 +34,7 @@ import AssinarExtrato from '@/pages/AssinarExtrato';
 import AssinarContrato from '@/pages/AssinarContrato';
 import VisualizarOrcamento from '@/pages/VisualizarOrcamento';
 import VerificarRecibo from '@/pages/VerificarRecibo';
+import ConfirmarAtendimentoPublico from '@/pages/ConfirmarAtendimentoPublico';
 import NotFound from '@/pages/NotFound';
 
 /**
@@ -113,6 +114,15 @@ const PublicLinkDispatcher = () => {
     return <AssinarExtrato />;
   }
 
+  if (
+    slug.startsWith('confirmar-sessao') ||
+    slug.startsWith('confirmar-atendimento') ||
+    slug.startsWith('confirmacao-') ||
+    slug.includes('confirmar-sessao')
+  ) {
+    return <ConfirmarAtendimentoPublico />;
+  }
+
   return <NotFound />;
 };
 
@@ -166,6 +176,12 @@ function App() {
               <Route path="/assinar-contrato" element={<AssinarContrato />} />
               <Route path="/contrato/:id" element={<AssinarContrato />} />
               <Route path="/contrato" element={<AssinarContrato />} />
+
+              {/* Confirmação Digital de Atendimento / Sessão */}
+              <Route path="/confirmar-sessao/:token" element={<ConfirmarAtendimentoPublico />} />
+              <Route path="/confirmar-sessao" element={<ConfirmarAtendimentoPublico />} />
+              <Route path="/confirmar-atendimento/:token" element={<ConfirmarAtendimentoPublico />} />
+              <Route path="/confirmar-atendimento" element={<ConfirmarAtendimentoPublico />} />
 
               {/* Verificação Pública de Recibos */}
               <Route path="/verificar/:hash" element={<VerificarRecibo />} />

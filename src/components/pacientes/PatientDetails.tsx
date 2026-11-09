@@ -3,7 +3,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, CalendarPlus, Edit2, Plus, User, FileText, ClipboardList, ListChecks, FolderOpen, History, DollarSign, Stethoscope, MessageCircle, RotateCcw } from 'lucide-react';
+import { ArrowLeft, CalendarPlus, Edit2, Plus, User, FileText, ClipboardList, ListChecks, FolderOpen, History, DollarSign, Stethoscope, MessageCircle, RotateCcw, Activity } from 'lucide-react';
 import { openWhatsApp } from '@/lib/whatsapp';
 import PatientPersonalInfo from './PatientPersonalInfo';
 import PatientMedicalRecords from './PatientMedicalRecords';
@@ -13,6 +13,7 @@ import PatientTimeline from './PatientTimeline';
 import PatientFinancial from './PatientFinancial';
 import PatientOrcamentos from './PatientOrcamentos';
 import PatientDocumentosClinicos from './PatientDocumentosClinicos';
+import PatientEtapasTratamento from '../tratamentos/PatientEtapasTratamento';
 import { ImpressaoDocs } from './ImpressaoDocs';
 import ModalAgendarRetorno from './ModalAgendarRetorno';
 
@@ -158,10 +159,14 @@ const PatientDetails = ({ patient, onClose, onEdit, onSchedule, onAddProcediment
       </div>
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4 sm:space-y-6">
-        <TabsList className="flex overflow-x-auto sm:grid w-full sm:grid-cols-4 lg:grid-cols-8 h-auto p-1 gap-1 border border-border bg-muted/60 no-scrollbar">
+        <TabsList className="flex overflow-x-auto sm:grid w-full sm:grid-cols-5 lg:grid-cols-9 h-auto p-1 gap-1 border border-border bg-muted/60 no-scrollbar">
           <TabsTrigger value="personal" className="flex items-center gap-1.5 shrink-0 text-xs py-2">
             <User className="h-4 w-4" />
             <span>Dados Pessoais</span>
+          </TabsTrigger>
+          <TabsTrigger value="tratamentos" className="flex items-center gap-1.5 shrink-0 text-xs py-2 font-medium">
+            <Activity className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            <span>Etapas do Tratamento</span>
           </TabsTrigger>
           <TabsTrigger value="records" className="flex items-center gap-1.5 shrink-0 text-xs py-2">
             <FileText className="h-4 w-4" />
@@ -196,6 +201,10 @@ const PatientDetails = ({ patient, onClose, onEdit, onSchedule, onAddProcediment
 
         <TabsContent value="personal" className="space-y-6">
           <PatientPersonalInfo patient={patient} onSchedule={onSchedule} />
+        </TabsContent>
+
+        <TabsContent value="tratamentos" className="space-y-6">
+          <PatientEtapasTratamento patient={patient} />
         </TabsContent>
 
         <TabsContent value="records" className="space-y-6">
