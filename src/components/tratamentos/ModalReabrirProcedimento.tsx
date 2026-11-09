@@ -90,3 +90,4 @@ export const ModalReabrirProcedimento: React.FC<Props> = ({
     </Dialog>
   );
 };
+

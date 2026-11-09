@@ -406,3 +406,4 @@ export const tratamentoService = {
     return (data || []) as HistoricoTratamento[];
   },
 };
+

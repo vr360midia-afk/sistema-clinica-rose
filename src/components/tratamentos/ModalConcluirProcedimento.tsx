@@ -88,3 +88,4 @@ export const ModalConcluirProcedimento: React.FC<Props> = ({
     </Dialog>
   );
 };
+

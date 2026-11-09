@@ -234,3 +234,4 @@ export const ModalSessaoTratamento: React.FC<Props> = ({
     </Dialog>
   );
 };
+

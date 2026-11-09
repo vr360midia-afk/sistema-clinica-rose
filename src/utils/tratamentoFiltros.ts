@@ -80,3 +80,4 @@ export function analisarItensOrcamento(itens: Array<{ nome: string; valor?: numb
     };
   });
 }
+

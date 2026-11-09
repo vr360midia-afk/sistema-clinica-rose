@@ -532,12 +532,16 @@ BEGIN
             'data_realizada', v_sess.data_realizada,
             'hora_realizada', v_sess.hora_realizada,
             'profissional_nome', v_sess.profissional_nome,
+            'descricao_atos', v_sess.descricao_atos,
+            'atos_praticados', v_sess.descricao_atos,
+            'observacoes_clinicas', v_sess.observacoes_clinicas,
             'observacoes_paciente', p_observacoes_paciente,
             'concorda_realizacao', p_concorda,
             'ip_origem', p_ip,
             'user_agent', p_user_agent,
             'token', p_token,
-            'hash_integridade', v_hash
+            'hash_integridade', v_hash,
+            'assinatura_base64', p_assinatura_base64
         ),
         v_sess.profissional_nome,
         p_assinante_nome,

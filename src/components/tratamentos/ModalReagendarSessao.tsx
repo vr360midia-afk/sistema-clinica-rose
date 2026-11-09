@@ -107,3 +107,4 @@ export const ModalReagendarSessao: React.FC<Props> = ({
     </Dialog>
   );
 };
+

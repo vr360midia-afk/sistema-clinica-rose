@@ -211,3 +211,4 @@ export function useTratamentos(pacienteId?: string) {
     reabrirProcedimento,
   };
 }
+

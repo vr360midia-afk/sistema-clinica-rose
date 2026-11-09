@@ -105,3 +105,4 @@ export interface HistoricoTratamento {
   justificativa?: string | null;
   criado_em: string;
 }
+

@@ -452,3 +452,4 @@ export const ProcedimentoTratamentoCard: React.FC<Props> = ({
     </>
   );
 };
+
