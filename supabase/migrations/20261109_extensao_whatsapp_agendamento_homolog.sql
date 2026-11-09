@@ -98,7 +98,87 @@ BEGIN
     END IF;
 END $$;
 
--- 4. FUNÇÃO TRANSACIONAL ATÔMICA: AGENDAMENTO SEGURO ANTI-CONCORRÊNCIA
+-- 4. FUNÇÃO DE VALIDAÇÃO DE CONFLITO PARA A TABELA CONSULTAS (PROTEGE O SISTEMA PRINCIPAL E EXTENSÃO)
+CREATE OR REPLACE FUNCTION public.validar_conflito_consulta_trigger()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_inicio_min INTEGER;
+    v_fim_min INTEGER;
+    v_conflito RECORD;
+    v_bloqueio RECORD;
+BEGIN
+    -- Ignora consultas canceladas ou remarcadas
+    IF NEW.status IN ('cancelado', 'remarcado') THEN
+        RETURN NEW;
+    END IF;
+
+    -- Converte horários para minutos do dia
+    v_inicio_min := (split_part(NEW.hora, ':', 1)::integer * 60) + split_part(NEW.hora, ':', 2)::integer;
+    v_fim_min := v_inicio_min + COALESCE(NEW.duracao, 60);
+
+    -- Trava transacional atômica serializada por clínica, profissional e data
+    PERFORM pg_advisory_xact_lock(hashtext(NEW.user_id::text || '_' || COALESCE(NEW.dentista, 'geral') || '_' || NEW.data::text));
+
+    -- 1. Verifica bloqueios de agenda para esta clínica
+    FOR v_bloqueio IN
+        SELECT titulo, hora_inicio, hora_fim, dia_inteiro
+        FROM public.bloqueios_agenda
+        WHERE user_id = NEW.user_id
+          AND data_inicio <= NEW.data AND data_fim >= NEW.data
+          AND (dentista IS NULL OR dentista = '' OR dentista = NEW.dentista)
+    LOOP
+        IF v_bloqueio.dia_inteiro THEN
+            RAISE EXCEPTION 'Horário bloqueado na agenda: % (dia inteiro)', v_bloqueio.titulo;
+        END IF;
+
+        IF v_bloqueio.hora_inicio IS NOT NULL AND v_bloqueio.hora_fim IS NOT NULL THEN
+            DECLARE
+                b_inicio_min INTEGER := (split_part(v_bloqueio.hora_inicio, ':', 1)::integer * 60) + split_part(v_bloqueio.hora_inicio, ':', 2)::integer;
+                b_fim_min INTEGER := (split_part(v_bloqueio.hora_fim, ':', 1)::integer * 60) + split_part(v_bloqueio.hora_fim, ':', 2)::integer;
+            BEGIN
+                IF v_inicio_min < b_fim_min AND b_inicio_min < v_fim_min THEN
+                    RAISE EXCEPTION 'Horário bloqueado na agenda: % (% às %)', v_bloqueio.titulo, v_bloqueio.hora_inicio, v_bloqueio.hora_fim;
+                END IF;
+            END;
+        END IF;
+    END LOOP;
+
+    -- 2. Verifica conflito com consultas já existentes nesta mesma clínica
+    FOR v_conflito IN
+        SELECT id, hora, duracao, paciente_nome
+        FROM public.consultas
+        WHERE user_id = NEW.user_id
+          AND data = NEW.data
+          AND dentista = NEW.dentista
+          AND (TG_OP = 'INSERT' OR id != NEW.id)
+          AND status NOT IN ('cancelado', 'remarcado')
+    LOOP
+        DECLARE
+            c_inicio_min INTEGER := (split_part(v_conflito.hora, ':', 1)::integer * 60) + split_part(v_conflito.hora, ':', 2)::integer;
+            c_fim_min INTEGER := c_inicio_min + COALESCE(v_conflito.duracao, 60);
+        BEGIN
+            IF v_inicio_min < c_fim_min AND c_inicio_min < v_fim_min THEN
+                RAISE EXCEPTION 'Conflito de horário: % já tem consulta às % (% min) com %',
+                    NEW.dentista, v_conflito.hora, COALESCE(v_conflito.duracao, 60), COALESCE(v_conflito.paciente_nome, 'outro paciente');
+            END IF;
+        END;
+    END LOOP;
+
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_validar_conflito_consulta ON public.consultas;
+CREATE TRIGGER trg_validar_conflito_consulta
+    BEFORE INSERT OR UPDATE ON public.consultas
+    FOR EACH ROW
+    EXECUTE FUNCTION public.validar_conflito_consulta_trigger();
+
+-- 5. FUNÇÃO TRANSACIONAL ATÔMICA DA EXTENSÃO (VALIDAÇÃO DE ENTRADA E MULTI-TENANCY ESTRITO)
 CREATE OR REPLACE FUNCTION public.agendar_consulta_extensao(
     p_paciente_id UUID,
     p_data DATE,
@@ -118,16 +198,33 @@ DECLARE
     v_user_id UUID;
     v_clinica_id UUID;
     v_paciente_nome TEXT;
-    v_hora_inicio_min INTEGER;
-    v_hora_fim_min INTEGER;
-    v_conflito RECORD;
-    v_bloqueio RECORD;
     v_nova_consulta_id UUID;
     v_permissoes JSONB;
 BEGIN
     v_user_id := auth.uid();
     IF v_user_id IS NULL THEN
         RAISE EXCEPTION 'Acesso negado: Usuário não autenticado.';
+    END IF;
+
+    -- Validação estrita de parâmetros de entrada no servidor
+    IF p_paciente_id IS NULL THEN
+        RAISE EXCEPTION 'ID do paciente é obrigatório.';
+    END IF;
+
+    IF p_data IS NULL THEN
+        RAISE EXCEPTION 'Data da consulta é obrigatória.';
+    END IF;
+
+    IF p_hora IS NULL OR NOT (p_hora ~ '^([0-1][0-9]|2[0-3]):[0-5][0-9]$') THEN
+        RAISE EXCEPTION 'Horário inválido. Formato esperado: HH:MI (00:00 às 23:59).';
+    END IF;
+
+    IF p_duracao IS NULL OR p_duracao < 15 OR p_duracao > 480 THEN
+        RAISE EXCEPTION 'Duração inválida. Deve ser entre 15 e 480 minutos.';
+    END IF;
+
+    IF p_dentista IS NULL OR trim(p_dentista) = '' THEN
+        RAISE EXCEPTION 'Profissional dentista é obrigatório.';
     END IF;
 
     -- Obtém clinica_id e valida permissões
@@ -142,66 +239,16 @@ BEGIN
         RAISE EXCEPTION 'Acesso negado: Usuário não possui permissão para gerenciar agenda.';
     END IF;
 
-    -- Localiza o paciente
-    SELECT nome FROM public.pacientes WHERE id = p_paciente_id INTO v_paciente_nome;
+    -- Localiza o paciente garantindo isolamento multi-tenant da clínica
+    SELECT nome FROM public.pacientes WHERE id = p_paciente_id AND user_id = v_clinica_id INTO v_paciente_nome;
     IF v_paciente_nome IS NULL THEN
-        RAISE EXCEPTION 'Paciente não localizado para agendamento.';
+        RAISE EXCEPTION 'Paciente não localizado ou não pertence à clínica autorizada.';
     END IF;
 
-    -- Converte horários para minutos do dia
-    v_hora_inicio_min := (split_part(p_hora, ':', 1)::integer * 60) + split_part(p_hora, ':', 2)::integer;
-    v_hora_fim_min := v_hora_inicio_min + COALESCE(p_duracao, 60);
+    -- Trava transacional atômica serializada por clínica, dentista e data
+    PERFORM pg_advisory_xact_lock(hashtext(v_clinica_id::text || '_' || COALESCE(p_dentista, 'geral') || '_' || p_data::text));
 
-    -- =========================================================================
-    -- TRAVA TRANSACIONAL ATÔMICA (ADVISORY LOCK POR DENTISTA E DATA)
-    -- Impede estritamente que duas transações concorrentes tentem alocar o mesmo profissional
-    -- na mesma data simultaneamente, garantindo serialização estrita sem deadlocks
-    -- =========================================================================
-    PERFORM pg_advisory_xact_lock(hashtext(COALESCE(p_dentista, 'geral') || '_' || p_data::text));
-
-    -- 1. Verifica bloqueios de agenda existentes para o dentista e data
-    FOR v_bloqueio IN
-        SELECT titulo, hora_inicio, hora_fim, dia_inteiro
-        FROM public.bloqueios_agenda
-        WHERE data_inicio <= p_data AND data_fim >= p_data
-          AND (dentista IS NULL OR dentista = '' OR dentista = p_dentista)
-    LOOP
-        IF v_bloqueio.dia_inteiro THEN
-            RAISE EXCEPTION 'Horário bloqueado na agenda: % (dia inteiro)', v_bloqueio.titulo;
-        END IF;
-
-        IF v_bloqueio.hora_inicio IS NOT NULL AND v_bloqueio.hora_fim IS NOT NULL THEN
-            DECLARE
-                b_inicio_min INTEGER := (split_part(v_bloqueio.hora_inicio, ':', 1)::integer * 60) + split_part(v_bloqueio.hora_inicio, ':', 2)::integer;
-                b_fim_min INTEGER := (split_part(v_bloqueio.hora_fim, ':', 1)::integer * 60) + split_part(v_bloqueio.hora_fim, ':', 2)::integer;
-            BEGIN
-                IF v_hora_inicio_min < b_fim_min AND b_inicio_min < v_hora_fim_min THEN
-                    RAISE EXCEPTION 'Horário bloqueado na agenda: % (% às %)', v_bloqueio.titulo, v_bloqueio.hora_inicio, v_bloqueio.hora_fim;
-                END IF;
-            END;
-        END IF;
-    END LOOP;
-
-    -- 2. Verifica conflito com consultas já existentes (exceto canceladas e remarcadas)
-    FOR v_conflito IN
-        SELECT hora, duracao, paciente_nome
-        FROM public.consultas
-        WHERE data = p_data
-          AND dentista = p_dentista
-          AND status NOT IN ('cancelado', 'remarcado')
-    LOOP
-        DECLARE
-            c_inicio_min INTEGER := (split_part(v_conflito.hora, ':', 1)::integer * 60) + split_part(v_conflito.hora, ':', 2)::integer;
-            c_fim_min INTEGER := c_inicio_min + COALESCE(v_conflito.duracao, 60);
-        BEGIN
-            IF v_hora_inicio_min < c_fim_min AND c_inicio_min < v_hora_fim_min THEN
-                RAISE EXCEPTION 'Conflito de horário: % já tem consulta às % (% min) com %',
-                    p_dentista, v_conflito.hora, COALESCE(v_conflito.duracao, 60), COALESCE(v_conflito.paciente_nome, 'outro paciente');
-            END IF;
-        END;
-    END LOOP;
-
-    -- 3. Insere a consulta atômica
+    -- Insere a consulta atômica (o trigger trg_validar_conflito_consulta executará a validação de sobreposição)
     INSERT INTO public.consultas (
         user_id,
         paciente_id,
@@ -232,7 +279,7 @@ BEGIN
         now()
     ) RETURNING id INTO v_nova_consulta_id;
 
-    -- 4. Se houver lead associado, atualiza o status para Agendado
+    -- Se houver lead associado, atualiza o status para Agendado
     IF p_lead_id IS NOT NULL THEN
         UPDATE public.crm_leads
         SET status = 'Agendado',
