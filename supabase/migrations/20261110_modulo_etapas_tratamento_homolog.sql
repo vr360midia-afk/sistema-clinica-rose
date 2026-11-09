@@ -227,16 +227,18 @@ BEGIN
     END IF;
 END $$;
 
--- 8. FUNÇÃO RPC: SINCRONIZAÇÃO IDEMPOTENTE DE PROCEDIMENTOS APROVADOS
+-- 8. FUNÇÃO RPC: SINCRONIZAÇÃO IDEMPOTENTE E ESTRUTURADA DE PROCEDIMENTOS APROVADOS
+DROP FUNCTION IF EXISTS public.sincronizar_procedimentos_orcamento(UUID, UUID, TEXT);
 CREATE OR REPLACE FUNCTION public.sincronizar_procedimentos_orcamento(
     p_orcamento_id UUID,
     p_usuario_id UUID,
-    p_usuario_nome TEXT DEFAULT 'Profissional'
+    p_usuario_nome TEXT DEFAULT 'Profissional',
+    p_indices_selecionados INTEGER[] DEFAULT NULL
 )
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, auth, pg_temp
+SET search_path = public, extensions, auth, pg_temp
 AS $$
 DECLARE
     v_orc RECORD;
@@ -252,7 +254,25 @@ DECLARE
     v_novo_id UUID;
     v_eh_financeiro BOOLEAN;
 BEGIN
-    -- 1. Busca o orçamento aprovado
+    -- 1. Validação de autenticação e tenant
+    IF auth.uid() IS NOT NULL AND auth.role() <> 'service_role' THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM public.orcamentos o
+            WHERE o.id = p_orcamento_id
+              AND (
+                  o.user_id = auth.uid()
+                  OR EXISTS (
+                      SELECT 1 FROM public.equipe e
+                      WHERE e.usuario_id = auth.uid()
+                        AND (e.clinica_id = o.user_id OR e.clinica_id = (SELECT e2.clinica_id FROM public.equipe e2 WHERE e2.usuario_id = o.user_id))
+                  )
+              )
+        ) THEN
+            RAISE EXCEPTION 'Acesso negado: usuário não possui permissão para acessar o orçamento %', p_orcamento_id;
+        END IF;
+    END IF;
+
+    -- 2. Busca o orçamento aprovado
     SELECT id, user_id, paciente_id, contrato_id, status, itens
     INTO v_orc
     FROM public.orcamentos
@@ -274,7 +294,7 @@ BEGIN
         v_clinica_id := v_orc.user_id;
     END IF;
 
-    -- 2. Varre cada item do array JSONB itens
+    -- 3. Varre cada item do array JSONB itens
     FOR v_item IN SELECT * FROM jsonb_to_recordset(v_orc.itens) AS x(
         nome TEXT,
         quantidade NUMERIC,
@@ -288,18 +308,26 @@ BEGIN
         v_qtd_item := GREATEST(COALESCE(v_item.quantidade::INTEGER, 1), 1);
         v_proc_id := v_item.procedimento_id;
 
-        -- Regra de Filtro Inteligente: ignora taxas financeiras, cartão, juros, maquininha e descontos
-        v_eh_financeiro := (
-            v_nome_item ~* '^(taxa|juros|acréscimo|acrescimo|desconto|maquininha|máquina|maquina|parcelamento|cartão|cartao|ajuste\s+financeiro|tarifa|estorno)'
-            OR v_valor_item <= 0
-        );
+        -- Se foi fornecida uma seleção explícita pelo profissional, respeita os índices escolhidos
+        IF p_indices_selecionados IS NOT NULL THEN
+            IF NOT (v_idx = ANY(p_indices_selecionados)) THEN
+                v_ignorados := v_ignorados + 1;
+                CONTINUE;
+            END IF;
+        ELSE
+            -- Classificação automática padrão: ignora itens estritamente financeiros e deduções
+            v_eh_financeiro := (
+                v_nome_item ~* '^(taxa|juros|acréscimo|acrescimo|desconto|maquininha|máquina|maquina|maquineta|parcelamento|cartão|cartao|ajuste\s+financeiro|tarifa|estorno)'
+                OR v_valor_item < 0
+            );
 
-        IF v_eh_financeiro THEN
-            v_ignorados := v_ignorados + 1;
-            CONTINUE;
+            IF v_eh_financeiro THEN
+                v_ignorados := v_ignorados + 1;
+                CONTINUE;
+            END IF;
         END IF;
 
-        -- 3. Insere ou ignora caso já exista (idempotência via uq_tratamento_orcamento_item)
+        -- 4. Insere ou ignora caso já exista (idempotência via uq_tratamento_orcamento_item)
         INSERT INTO public.tratamentos_procedimentos (
             user_id,
             clinica_id,
@@ -356,7 +384,7 @@ BEGIN
                     'item_orcamento_index', v_idx,
                     'orcamento_id', v_orc.id
                 ),
-                'Importação automática de item clínico a partir de orçamento aprovado'
+                'Importação de item clínico a partir de orçamento aprovado com classificação estruturada'
             );
         END IF;
     END LOOP;
@@ -375,7 +403,7 @@ CREATE OR REPLACE FUNCTION public.obter_confirmacao_sessao_publica(p_token TEXT)
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, auth, pg_temp
+SET search_path = public, extensions, auth, pg_temp
 AS $$
 DECLARE
     v_conf RECORD;
@@ -383,6 +411,11 @@ DECLARE
     v_proc RECORD;
     v_pac RECORD;
 BEGIN
+    -- Validação estrita do formato do token (hex 32-64 chars)
+    IF p_token IS NULL OR p_token !~ '^[a-fA-F0-9]{32,64}$' THEN
+        RETURN jsonb_build_object('sucesso', false, 'valido', false, 'erro', 'Formato de token de confirmação inválido.');
+    END IF;
+
     SELECT * INTO v_conf
     FROM public.tratamento_confirmacoes
     WHERE token = p_token;
@@ -399,7 +432,8 @@ BEGIN
             'assinado_em', v_conf.assinado_em,
             'assinante_nome', v_conf.assinante_nome,
             'declaracao_texto', v_conf.declaracao_texto,
-            'observacoes_paciente', v_conf.observacoes_paciente
+            'observacoes_paciente', v_conf.observacoes_paciente,
+            'hash_integridade', v_conf.hash_integridade
         );
     END IF;
 
@@ -407,7 +441,7 @@ BEGIN
         RETURN jsonb_build_object('sucesso', false, 'valido', false, 'erro', 'Este link de confirmação expirou. Solicite um novo link à recepção da clínica.');
     END IF;
 
-    -- Busca dados vinculados
+    -- Busca metadados da sessão, procedimento e paciente com isolamento rigoroso
     SELECT * INTO v_sess FROM public.tratamento_sessoes WHERE id = v_conf.sessao_id;
     SELECT * INTO v_proc FROM public.tratamentos_procedimentos WHERE id = v_sess.tratamento_procedimento_id;
     SELECT id, nome, telefone INTO v_pac FROM public.pacientes WHERE id = v_conf.paciente_id;
@@ -437,7 +471,7 @@ BEGIN
 END;
 $$;
 
--- 10. FUNÇÃO RPC PÚBLICA: ASSINAR CONFIRMAÇÃO DA SESSÃO COM ATOMICIDADE E HASH
+-- 10. FUNÇÃO RPC PÚBLICA: ASSINAR CONFIRMAÇÃO DA SESSÃO COM ATOMICIDADE, PAYLOAD CANÔNICO E HASH
 CREATE OR REPLACE FUNCTION public.assinar_confirmacao_sessao_publica(
     p_token TEXT,
     p_assinatura_base64 TEXT,
@@ -461,7 +495,13 @@ DECLARE
     v_sess RECORD;
     v_proc RECORD;
     v_pac RECORD;
+    v_payload_canonico TEXT;
 BEGIN
+    -- Validação estrita de formato do token
+    IF p_token IS NULL OR p_token !~ '^[a-fA-F0-9]{32,64}$' THEN
+        RETURN jsonb_build_object('sucesso', false, 'erro', 'Formato de token de confirmação inválido.');
+    END IF;
+
     -- Trava atômica na linha para impedir duplo clique concorrente
     SELECT * INTO v_conf
     FROM public.tratamento_confirmacoes
@@ -469,7 +509,7 @@ BEGIN
     FOR UPDATE;
 
     IF NOT FOUND THEN
-        RETURN jsonb_build_object('sucesso', false, 'erro', 'Token inválido.');
+        RETURN jsonb_build_object('sucesso', false, 'erro', 'Token inválido ou não localizado.');
     END IF;
 
     IF v_conf.status = 'confirmado' THEN
@@ -489,16 +529,27 @@ BEGIN
     SELECT * INTO v_proc FROM public.tratamentos_procedimentos WHERE id = v_sess.tratamento_procedimento_id;
     SELECT * INTO v_pac FROM public.pacientes WHERE id = v_conf.paciente_id;
 
-    -- Gera hash SHA-256 de integridade criptográfica
-    v_hash := encode(extensions.digest(
-        (v_conf.id::text || ':' || 
-        v_conf.sessao_id::text || ':' || 
-        p_token || ':' || 
-        v_now::text || ':' || 
-        COALESCE(p_observacoes_paciente, '') || ':' || 
-        p_assinatura_base64)::bytea,
-        'sha256'
-    ), 'hex');
+    -- Constrói payload canônico vinculando estritamente:
+    -- Atos clínicos realizados, declaração, observações, identificação, timestamp e assinatura
+    v_payload_canonico := (
+        'ID:' || v_conf.id::text || '|' ||
+        'SESSAO_ID:' || v_conf.sessao_id::text || '|' ||
+        'TOKEN:' || p_token || '|' ||
+        'PROC:' || v_proc.procedimento_nome || '|' ||
+        'NUM_SESSAO:' || v_sess.numero_sessao::text || '|' ||
+        'OBJETIVO:' || v_sess.nome_objetivo || '|' ||
+        'ATOS_CLINICOS:' || COALESCE(v_sess.descricao_atos, '') || '|' ||
+        'DECLARACAO:' || v_conf.declaracao_texto || '|' ||
+        'OBS_PACIENTE:' || COALESCE(p_observacoes_paciente, '') || '|' ||
+        'CONCORDA:' || CASE WHEN p_concorda THEN 'SIM' ELSE 'NAO' END || '|' ||
+        'ASSINANTE_NOME:' || COALESCE(p_assinante_nome, '') || '|' ||
+        'ASSINANTE_CPF:' || COALESCE(p_assinante_cpf, '') || '|' ||
+        'TIMESTAMP_ISO:' || to_char(v_now, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') || '|' ||
+        'ASSINATURA_BASE64:' || p_assinatura_base64
+    );
+
+    -- Gera hash SHA-256 canônico de integridade criptográfica
+    v_hash := encode(extensions.digest(v_payload_canonico::bytea, 'sha256'), 'hex');
 
     -- Cria o documento clínico / comprovante arquivado no prontuário
     INSERT INTO public.documentos_clinicos (
@@ -541,7 +592,8 @@ BEGIN
             'user_agent', p_user_agent,
             'token', p_token,
             'hash_integridade', v_hash,
-            'assinatura_base64', p_assinatura_base64
+            'assinatura_base64', p_assinatura_base64,
+            'assinado_em', v_now
         ),
         v_sess.profissional_nome,
         p_assinante_nome,
@@ -594,7 +646,8 @@ BEGIN
             'hash_integridade', v_hash,
             'documento_clinico_id', v_doc_id,
             'concorda_realizacao', p_concorda,
-            'observacoes_paciente', p_observacoes_paciente
+            'observacoes_paciente', p_observacoes_paciente,
+            'atos_clinicos', v_sess.descricao_atos
         ),
         'Assinatura digital de confirmação de sessão realizada pelo paciente'
     );
@@ -608,7 +661,40 @@ BEGIN
 END;
 $$;
 
--- 11. FUNÇÃO RPC: CONCLUIR PROCEDIMENTO DE TRATAMENTO
+-- 11. TRIGGER DE IMUTABILIDADE DE CONFIRMAÇÕES ASSINADAS (SEGURANÇA JURÍDICA E AUDITORIA)
+CREATE OR REPLACE FUNCTION public.fn_impedir_alteracao_confirmacao_assinada()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth, pg_temp
+AS $$
+BEGIN
+    IF OLD.status = 'confirmado' THEN
+        IF TG_OP = 'DELETE' THEN
+            RAISE EXCEPTION 'Operação não permitida: confirmação digital já assinada possui validade jurídica probatória e não pode ser excluída.';
+        END IF;
+        IF TG_OP = 'UPDATE' THEN
+            IF OLD.hash_integridade IS DISTINCT FROM NEW.hash_integridade
+               OR OLD.assinatura_base64 IS DISTINCT FROM NEW.assinatura_base64
+               OR OLD.declaracao_texto IS DISTINCT FROM NEW.declaracao_texto
+               OR OLD.assinado_em IS DISTINCT FROM NEW.assinado_em
+               OR OLD.sessao_id IS DISTINCT FROM NEW.sessao_id
+               OR OLD.paciente_id IS DISTINCT FROM NEW.paciente_id THEN
+                RAISE EXCEPTION 'Operação não permitida: os dados da confirmação digital assinada são estritamente imutáveis no banco de dados.';
+            END IF;
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_confirmacao_imutavel ON public.tratamento_confirmacoes;
+CREATE TRIGGER trg_confirmacao_imutavel
+    BEFORE UPDATE OR DELETE ON public.tratamento_confirmacoes
+    FOR EACH ROW
+    EXECUTE FUNCTION public.fn_impedir_alteracao_confirmacao_assinada();
+
+-- 12. FUNÇÃO RPC: CONCLUIR PROCEDIMENTO DE TRATAMENTO
 CREATE OR REPLACE FUNCTION public.concluir_procedimento_tratamento(
     p_procedimento_id UUID,
     p_usuario_id UUID,
@@ -618,7 +704,7 @@ CREATE OR REPLACE FUNCTION public.concluir_procedimento_tratamento(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, auth, pg_temp
+SET search_path = public, extensions, auth, pg_temp
 AS $$
 DECLARE
     v_proc RECORD;
@@ -633,6 +719,24 @@ BEGIN
 
     IF NOT FOUND THEN
         RETURN jsonb_build_object('sucesso', false, 'erro', 'Procedimento não localizado.');
+    END IF;
+
+    -- Validação de tenant e permissão
+    IF auth.uid() IS NOT NULL AND auth.role() <> 'service_role' THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM public.tratamentos_procedimentos tp
+            WHERE tp.id = p_procedimento_id
+              AND (
+                  tp.clinica_id = auth.uid()
+                  OR tp.user_id = auth.uid()
+                  OR EXISTS (
+                      SELECT 1 FROM public.equipe e
+                      WHERE e.usuario_id = auth.uid() AND e.clinica_id = tp.clinica_id
+                  )
+              )
+        ) THEN
+            RAISE EXCEPTION 'Acesso negado: usuário não possui permissão para concluir este procedimento';
+        END IF;
     END IF;
 
     IF v_proc.status = 'concluido' THEN
@@ -722,7 +826,7 @@ BEGIN
 END;
 $$;
 
--- 12. FUNÇÃO RPC: REABRIR PROCEDIMENTO DE TRATAMENTO AUDITADO
+-- 13. FUNÇÃO RPC: REABRIR PROCEDIMENTO DE TRATAMENTO AUDITADO
 CREATE OR REPLACE FUNCTION public.reabrir_procedimento_tratamento(
     p_procedimento_id UUID,
     p_usuario_id UUID,
@@ -732,7 +836,7 @@ CREATE OR REPLACE FUNCTION public.reabrir_procedimento_tratamento(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, auth, pg_temp
+SET search_path = public, extensions, auth, pg_temp
 AS $$
 DECLARE
     v_proc RECORD;
@@ -744,6 +848,24 @@ BEGIN
 
     IF NOT FOUND THEN
         RETURN jsonb_build_object('sucesso', false, 'erro', 'Procedimento não localizado.');
+    END IF;
+
+    -- Validação de tenant e permissão
+    IF auth.uid() IS NOT NULL AND auth.role() <> 'service_role' THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM public.tratamentos_procedimentos tp
+            WHERE tp.id = p_procedimento_id
+              AND (
+                  tp.clinica_id = auth.uid()
+                  OR tp.user_id = auth.uid()
+                  OR EXISTS (
+                      SELECT 1 FROM public.equipe e
+                      WHERE e.usuario_id = auth.uid() AND e.clinica_id = tp.clinica_id
+                  )
+              )
+        ) THEN
+            RAISE EXCEPTION 'Acesso negado: usuário não possui permissão para reabrir este procedimento';
+        END IF;
     END IF;
 
     IF v_proc.status <> 'concluido' THEN
@@ -796,17 +918,22 @@ BEGIN
 END;
 $$;
 
--- 13. PERMISSÕES E GRANTS PARA OS ROLES SUPABASE
+-- 14. PERMISSÕES E GRANTS PARA OS ROLES SUPABASE
 GRANT ALL ON TABLE public.tratamentos_procedimentos TO postgres, authenticated, service_role;
 GRANT ALL ON TABLE public.tratamento_sessoes TO postgres, authenticated, service_role;
 GRANT ALL ON TABLE public.tratamento_confirmacoes TO postgres, authenticated, service_role;
 GRANT ALL ON TABLE public.tratamento_historico_alteracoes TO postgres, authenticated, service_role;
 GRANT ALL ON TABLE public.documentos_clinicos TO postgres, authenticated, service_role;
 
-GRANT EXECUTE ON FUNCTION public.sincronizar_procedimentos_orcamento TO authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.obter_confirmacao_sessao_publica TO anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.assinar_confirmacao_sessao_publica TO anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.concluir_procedimento_tratamento TO authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.reabrir_procedimento_tratamento TO authenticated, service_role;
+-- Revoga de PUBLIC e anon para RPCs administrativas com privilégios restritos
+REVOKE EXECUTE ON FUNCTION public.sincronizar_procedimentos_orcamento(UUID, UUID, TEXT, INTEGER[]) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.sincronizar_procedimentos_orcamento(UUID, UUID, TEXT, INTEGER[]) TO authenticated, service_role;
 
+GRANT EXECUTE ON FUNCTION public.obter_confirmacao_sessao_publica(TEXT) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.assinar_confirmacao_sessao_publica(TEXT, TEXT, TEXT, TEXT, TEXT, BOOLEAN, TEXT, TEXT) TO anon, authenticated, service_role;
 
+REVOKE EXECUTE ON FUNCTION public.concluir_procedimento_tratamento(UUID, UUID, TEXT, TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.concluir_procedimento_tratamento(UUID, UUID, TEXT, TEXT) TO authenticated, service_role;
+
+REVOKE EXECUTE ON FUNCTION public.reabrir_procedimento_tratamento(UUID, UUID, TEXT, TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.reabrir_procedimento_tratamento(UUID, UUID, TEXT, TEXT) TO authenticated, service_role;

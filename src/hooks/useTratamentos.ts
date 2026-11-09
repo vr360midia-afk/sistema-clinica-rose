@@ -35,14 +35,15 @@ export function useTratamentos(pacienteId?: string) {
     carregar();
   }, [carregar]);
 
-  const sincronizarOrcamento = async (orcamentoId: string) => {
+  const sincronizarOrcamento = async (orcamentoId: string, indicesSelecionados?: number[]) => {
     if (!user?.id) throw new Error('Usuário não autenticado');
     setIsSyncing(true);
     try {
       const res = await tratamentoService.sincronizarProcedimentosOrcamento(
         orcamentoId,
         user.id,
-        user.user_metadata?.nome || user.email?.split('@')[0] || 'Profissional'
+        user.user_metadata?.nome || user.email?.split('@')[0] || 'Profissional',
+        indicesSelecionados
       );
       await carregar(true);
       toast.success(

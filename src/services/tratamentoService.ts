@@ -66,17 +66,19 @@ export const tratamentoService = {
   },
 
   /**
-   * Sincroniza procedimentos a partir de um orçamento aprovado via RPC atômico.
+   * Sincroniza procedimentos a partir de um orçamento aprovado via RPC atômico com suporte a seleção manual estruturada.
    */
   async sincronizarProcedimentosOrcamento(
     orcamentoId: string,
     usuarioId: string,
-    usuarioNome: string
-  ): Promise<{ sucesso: boolean; importados: number; ignorados_financeiros: number }> {
+    usuarioNome: string,
+    indicesSelecionados?: number[]
+  ): Promise<{ sucesso: boolean; importados: number; ignorados_financeiros: number; total_itens_orcamento: number }> {
     const { data, error } = await supabase.rpc('sincronizar_procedimentos_orcamento', {
       p_orcamento_id: orcamentoId,
       p_usuario_id: usuarioId,
       p_usuario_nome: usuarioNome,
+      p_indices_selecionados: indicesSelecionados && indicesSelecionados.length > 0 ? indicesSelecionados : null,
     });
 
     if (error) throw error;

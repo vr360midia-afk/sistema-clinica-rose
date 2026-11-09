@@ -35,11 +35,13 @@ import { ModalMarcarRealizada } from './ModalMarcarRealizada';
 import { ModalReagendarSessao } from './ModalReagendarSessao';
 import { ModalConcluirProcedimento } from './ModalConcluirProcedimento';
 import { ModalReabrirProcedimento } from './ModalReabrirProcedimento';
+import { baixarTermoConfirmacaoPdf } from '@/utils/tratamentoPdf';
 import { toast } from 'sonner';
 
 interface Props {
   procedimento: ProcedimentoTratamento;
   pacienteTelefone?: string;
+  pacienteNome?: string;
   onAdicionarSessao: (dados: any) => Promise<any>;
   onMarcarRealizada: (sessaoId: string, dados: any) => Promise<any>;
   onReagendarSessao: (sessaoId: string, novaData: string, motivo: string) => Promise<any>;
@@ -52,6 +54,7 @@ interface Props {
 export const ProcedimentoTratamentoCard: React.FC<Props> = ({
   procedimento,
   pacienteTelefone,
+  pacienteNome,
   onAdicionarSessao,
   onMarcarRealizada,
   onReagendarSessao,
@@ -135,6 +138,38 @@ export const ProcedimentoTratamentoCard: React.FC<Props> = ({
       window.open(`https://wa.me/${foneCompleto}?text=${msg}`, '_blank');
     } catch (err: any) {
       toast.error('Erro ao gerar link para WhatsApp');
+    }
+  };
+
+  const handleBaixarPdfSessao = async (sessao: SessaoTratamento) => {
+    if (!sessao.confirmacao) return;
+    try {
+      toast.info('Gerando PDF do termo assinado...');
+      await baixarTermoConfirmacaoPdf({
+        pacienteNome: pacienteNome || 'Paciente',
+        procedimentoNome: procedimento.procedimento_nome,
+        numeroSessao: sessao.numero_sessao,
+        nomeObjetivo: sessao.nome_objetivo,
+        dataRealizada: sessao.data_realizada,
+        horaRealizada: sessao.hora_realizada,
+        profissionalNome: sessao.profissional_nome,
+        descricaoAtos: sessao.descricao_atos || '',
+        declaracaoTexto: sessao.confirmacao.declaracao_texto,
+        observacoesPaciente: sessao.confirmacao.observacoes_paciente,
+        concordaRealizacao: sessao.confirmacao.concorda_realizacao,
+        assinaturaBase64: sessao.confirmacao.assinatura_base64 || '',
+        assinanteNome: sessao.confirmacao.assinante_nome || pacienteNome || 'Paciente',
+        assinanteCpf: sessao.confirmacao.assinante_cpf,
+        assinadoEm: sessao.confirmacao.assinado_em || new Date().toISOString(),
+        hashIntegridade: sessao.confirmacao.hash_integridade || 'NÃO DISPONÍVEL',
+        token: sessao.confirmacao.token,
+        ipOrigem: sessao.confirmacao.ip_origem,
+        userAgent: sessao.confirmacao.user_agent,
+      });
+      toast.success('PDF do termo gerado com sucesso!');
+    } catch (err: any) {
+      console.error('Erro ao gerar PDF:', err);
+      toast.error('Falha ao gerar o arquivo PDF: ' + err.message);
     }
   };
 
@@ -386,12 +421,24 @@ export const ProcedimentoTratamentoCard: React.FC<Props> = ({
                         </>
                       )}
 
-                      {/* Se confirmada: exibe comprovante */}
+                      {/* Se confirmada: exibe comprovante e opção de download do PDF */}
                       {s.status === 'confirmada' && s.confirmacao && (
-                        <Badge variant="outline" className="text-[10.5px] border-emerald-500/40 text-emerald-700 dark:text-emerald-300 gap-1 py-1">
-                          <FileCheck className="h-3 w-3 text-emerald-600" />
-                          Assinado em {new Date(s.confirmacao.assinado_em || '').toLocaleDateString('pt-BR')}
-                        </Badge>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <Badge variant="outline" className="text-[10.5px] border-emerald-500/40 text-emerald-700 dark:text-emerald-300 gap-1 py-1">
+                            <FileCheck className="h-3 w-3 text-emerald-600" />
+                            Assinado em {new Date(s.confirmacao.assinado_em || '').toLocaleDateString('pt-BR')}
+                          </Badge>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 text-[11px] gap-1 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+                            onClick={() => handleBaixarPdfSessao(s)}
+                            title="Baixar PDF assinado com hash SHA-256 e integridade jurídica"
+                          >
+                            <FileText className="h-3.5 w-3.5 text-blue-600" />
+                            PDF
+                          </Button>
+                        </div>
                       )}
                     </div>
                   </div>

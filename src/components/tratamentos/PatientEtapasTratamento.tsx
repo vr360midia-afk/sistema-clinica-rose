@@ -22,6 +22,8 @@ import {
 import { useTratamentos } from '@/hooks/useTratamentos';
 import { useOrcamentos } from '@/hooks/useOrcamentos';
 import { ProcedimentoTratamentoCard } from './ProcedimentoTratamentoCard';
+import { ModalRevisaoItensOrcamento } from './ModalRevisaoItensOrcamento';
+import { analisarItensOrcamento, ItemOrcamentoAnalise } from '@/utils/tratamentoFiltros';
 import { StatusProcedimentoTratamento } from '@/types/tratamento';
 
 interface Props {
@@ -49,6 +51,10 @@ export const PatientEtapasTratamento: React.FC<Props> = ({ patient }) => {
   const [busca, setBusca] = useState<string>('');
   const [statusFiltro, setStatusFiltro] = useState<string>('todos');
   const [orcamentoFiltro, setOrcamentoFiltro] = useState<string>('todos');
+  const [orcamentoRevisao, setOrcamentoRevisao] = useState<{
+    orcamentoId: string;
+    itens: ItemOrcamentoAnalise[];
+  } | null>(null);
 
   // Filtra apenas orçamentos aprovados do paciente
   const orcamentosAprovados = useMemo(() => {
@@ -80,9 +86,30 @@ export const PatientEtapasTratamento: React.FC<Props> = ({ patient }) => {
       alert('Nenhum orçamento com status "aprovado" localizado para este paciente.');
       return;
     }
+
+    // 1. Verifica se algum orçamento possui itens ambíguos que requerem revisão manual
+    for (const orc of orcamentosAprovados) {
+      const itensAnalise = analisarItensOrcamento(orc.itens || []);
+      const temAmbiguos = itensAnalise.some(i => i.tipoClassificacao === 'ambiguo');
+      if (temAmbiguos) {
+        setOrcamentoRevisao({
+          orcamentoId: orc.id,
+          itens: itensAnalise,
+        });
+        return;
+      }
+    }
+
+    // 2. Se não houver ambiguidades, sincroniza diretamente preservando classificação estruturada
     for (const orc of orcamentosAprovados) {
       await sincronizarOrcamento(orc.id);
     }
+  };
+
+  const handleConfirmarRevisao = async (indicesSelecionados: number[]) => {
+    if (!orcamentoRevisao) return;
+    await sincronizarOrcamento(orcamentoRevisao.orcamentoId, indicesSelecionados);
+    setOrcamentoRevisao(null);
   };
 
   return (
@@ -243,6 +270,7 @@ export const PatientEtapasTratamento: React.FC<Props> = ({ patient }) => {
               key={proc.id}
               procedimento={proc}
               pacienteTelefone={patient?.telefone}
+              pacienteNome={patient?.nome}
               onAdicionarSessao={adicionarSessao}
               onMarcarRealizada={marcarSessaoRealizada}
               onReagendarSessao={reagendarSessao}
@@ -253,6 +281,18 @@ export const PatientEtapasTratamento: React.FC<Props> = ({ patient }) => {
             />
           ))}
         </div>
+      )}
+
+      {/* Modal de Revisão Estruturada de Itens Ambíguos do Orçamento */}
+      {orcamentoRevisao && (
+        <ModalRevisaoItensOrcamento
+          isOpen={true}
+          onClose={() => setOrcamentoRevisao(null)}
+          orcamentoId={orcamentoRevisao.orcamentoId}
+          itensAnalise={orcamentoRevisao.itens}
+          onConfirmar={handleConfirmarRevisao}
+          isSyncing={isSyncing}
+        />
       )}
     </div>
   );

@@ -18,7 +18,7 @@ export default defineConfig(({ mode }) => ({
       injectRegister: null,
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
       workbox: {
-        maximumFileSizeToCacheInBytes: 5000000, // 5MB
+        maximumFileSizeToCacheInBytes: 10000000, // 10MB
         skipWaiting: true,
         clientsClaim: true,
         cleanupOutdatedCaches: true,
