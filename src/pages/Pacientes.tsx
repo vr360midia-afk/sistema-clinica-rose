@@ -33,6 +33,7 @@ import { ModalEnviarAnamnese } from '@/components/anamnese/ModalEnviarAnamnese';
 import { PacienteCombobox } from '@/components/pacientes/PacienteCombobox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
+import { useOrigensLead } from '@/hooks/useOrigensLead';
 
 
 const Pacientes = () => {
@@ -49,6 +50,7 @@ const Pacientes = () => {
     updateProcedimento,
   } = useProcedimentos();
   
+  const { obterLabel } = useOrigensLead();
   const navigate = useNavigate();
   const [showForm, setShowForm] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -340,17 +342,7 @@ const Pacientes = () => {
   };
 
   const getOrigemLead = (origem: string) => {
-    const origens: { [key: string]: string } = {
-      'indicacao': 'Indicação',
-      'google': 'Google',
-      'facebook': 'Facebook',
-      'instagram': 'Instagram',
-      'site': 'Site',
-      'whatsapp': 'WhatsApp',
-      'panfleto': 'Panfleto',
-      'outros': 'Outros'
-    };
-    return origens[origem] || origem;
+    return obterLabel(origem);
   };
 
   if (loading) {

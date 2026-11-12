@@ -11,7 +11,7 @@ export const pacienteSchema = z.object({
   dataNascimento: z.date().optional().or(z.string().optional()),
   foto: z.string().optional(),
   convenio: z.string().min(1, 'Convênio é obrigatório'),
-  origemLead: z.enum(['indicacao', 'google', 'facebook', 'instagram', 'site', 'whatsapp', 'panfleto', 'outros']),
+  origemLead: z.string().min(1, 'Origem do lead é obrigatória'),
   status: z.enum(['Ativo', 'Inativo', 'Arquivado']).default('Ativo'),
   ultimaConsulta: z.string().optional(),
   proximaConsulta: z.date().optional(),

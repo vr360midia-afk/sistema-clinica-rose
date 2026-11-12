@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { QuickPatientFormData } from '@/hooks/useQuickPatientForm';
 import PatientPhotoCapture from '../pacientes/PatientPhotoCapture';
+import SelectOrigemLead from '../pacientes/SelectOrigemLead';
 import { formatarDataNascimento, parseDataNascimento, calcularIdade } from '@/utils/idade';
 
 interface QuickPatientFormFieldsProps {
@@ -270,23 +271,14 @@ const QuickPatientFormFields = ({ form }: QuickPatientFormFieldsProps) => {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel className="font-medium">Origem do Lead</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value || ''}>
-                    <FormControl>
-                      <SelectTrigger className="h-11">
-                        <SelectValue placeholder="Como conheceu?" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="indicacao">Indicação</SelectItem>
-                      <SelectItem value="google">Google</SelectItem>
-                      <SelectItem value="instagram">Instagram</SelectItem>
-                      <SelectItem value="facebook">Facebook</SelectItem>
-                      <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                      <SelectItem value="site">Site</SelectItem>
-                      <SelectItem value="panfleto">Panfleto</SelectItem>
-                      <SelectItem value="outros">Outros</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <SelectOrigemLead
+                      value={field.value || ''}
+                      onChange={field.onChange}
+                      placeholder="Como conheceu?"
+                      triggerClassName="h-11"
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}

@@ -3,8 +3,40 @@ import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 import { brokeredPreviewStorage } from './previewAuthStorage';
 
-const SUPABASE_URL = (typeof process !== 'undefined' && (process.env?.VITE_SUPABASE_URL || process.env?.HOMOLOG_URL)) || (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) || "https://skonxcdojbkbfnfemayz.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = (typeof process !== 'undefined' && (process.env?.VITE_SUPABASE_PUBLISHABLE_KEY || process.env?.HOMOLOG_SUPABASE_ANON_KEY)) || (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_PUBLISHABLE_KEY) || "sb_publishable_aldVR3R-4sj0Fs-l1-mFSA_9gPUF9YZ";
+const rawUrl =
+  (typeof process !== 'undefined' && (process.env?.VITE_SUPABASE_URL || process.env?.HOMOLOG_URL)) ||
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL);
+
+const rawKey =
+  (typeof process !== 'undefined' && (process.env?.VITE_SUPABASE_PUBLISHABLE_KEY || process.env?.VITE_SUPABASE_ANON_KEY || process.env?.HOMOLOG_SUPABASE_ANON_KEY)) ||
+  (typeof import.meta !== 'undefined' && (import.meta.env?.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env?.VITE_SUPABASE_ANON_KEY));
+
+if (!rawUrl || !rawKey) {
+  const erroMsg =
+    '[SEGURANÇA BLOQUEADA] Configuração do Supabase ausente! VITE_SUPABASE_URL e a chave pública (VITE_SUPABASE_PUBLISHABLE_KEY ou VITE_SUPABASE_ANON_KEY) não foram configuradas. A inicialização foi interrompida para proteger o ambiente e evitar conexões não autorizadas.';
+  console.error(erroMsg);
+  if (typeof document !== 'undefined') {
+    document.body.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:system-ui,-apple-system,sans-serif;background:#0f172a;color:#f87171;padding:24px;text-align:center;">
+        <div style="background:#1e293b;border:1px solid #dc2626;border-radius:12px;padding:32px;max-width:540px;box-shadow:0 10px 25px rgba(0,0,0,0.5);">
+          <div style="font-size:36px;margin-bottom:12px;">⛔</div>
+          <h1 style="font-size:20px;font-weight:bold;margin:0 0 12px 0;color:#f87171;">Configuração do Supabase Não Encontrada</h1>
+          <p style="color:#cbd5e1;font-size:14px;line-height:1.6;margin:0 0 16px 0;">
+            As variáveis de ambiente <code>VITE_SUPABASE_URL</code> ou as credenciais públicas não foram definidas para esta sessão.
+          </p>
+          <div style="background:#0f172a;border-radius:8px;padding:12px;font-family:monospace;font-size:12px;color:#94a3b8;text-align:left;">
+            Status: Conexão bloqueada preventivamente.<br/>
+            Fallback automático de produção: Desativado por segurança.
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  throw new Error(erroMsg);
+}
+
+const SUPABASE_URL = rawUrl;
+const SUPABASE_PUBLISHABLE_KEY = rawKey;
 
 
 function isNewSupabaseApiKey(value: string): boolean {

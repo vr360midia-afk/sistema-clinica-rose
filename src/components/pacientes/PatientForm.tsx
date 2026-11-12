@@ -9,6 +9,7 @@ import { ArrowLeft, Save, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import PatientPhotoCapture from './PatientPhotoCapture';
+import SelectOrigemLead from './SelectOrigemLead';
 import { calcularIdade, formatarDataNascimento, parseDataNascimento } from '@/utils/idade';
 
 interface PatientFormProps {
@@ -327,21 +328,12 @@ const PatientForm = ({ onClose, patient }: PatientFormProps) => {
                 </div>
                 <div>
                   <Label htmlFor="origemLead" className="font-medium">Origem do Lead</Label>
-                  <Select value={formData.origemLead} onValueChange={(value) => handleInputChange('origemLead', value)}>
-                    <SelectTrigger className="h-10 mt-1">
-                      <SelectValue placeholder="Como conheceu a clínica?" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="indicacao">Indicação</SelectItem>
-                      <SelectItem value="google">Google</SelectItem>
-                      <SelectItem value="facebook">Facebook</SelectItem>
-                      <SelectItem value="instagram">Instagram</SelectItem>
-                      <SelectItem value="site">Site</SelectItem>
-                      <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                      <SelectItem value="panfleto">Panfleto</SelectItem>
-                      <SelectItem value="outros">Outros</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <SelectOrigemLead
+                    value={formData.origemLead}
+                    onChange={(value) => handleInputChange('origemLead', value)}
+                    placeholder="Como conheceu a clínica?"
+                    triggerClassName="h-10 mt-1"
+                  />
                 </div>
               </div>
             </CardContent>

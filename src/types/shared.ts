@@ -41,7 +41,8 @@ export type OrigemLead =
   | 'site'
   | 'whatsapp'
   | 'panfleto'
-  | 'outros';
+  | 'outros'
+  | (string & {});
 
 export type StatusPaciente =
   | 'Ativo'

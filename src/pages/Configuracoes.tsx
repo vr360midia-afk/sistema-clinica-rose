@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import BloqueiosManager from '@/components/configuracoes/BloqueiosManager';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
-import { Settings, Wifi, Bell, Shield, Database, MessageSquare, UserCog, Upload, Trash2, Image as ImageIcon, Handshake, ShieldCheck, Pill, Users, Calendar, FileSignature, Bot, Sparkles, CheckCircle2, AlertCircle, Eye, EyeOff, ExternalLink, CreditCard } from 'lucide-react';
+import { Settings, Wifi, Bell, Shield, Database, MessageSquare, UserCog, Upload, Trash2, Image as ImageIcon, Handshake, ShieldCheck, Pill, Users, Calendar, FileSignature, Bot, Sparkles, CheckCircle2, AlertCircle, Eye, EyeOff, ExternalLink, CreditCard, Megaphone } from 'lucide-react';
 import DentistasManager from '@/components/configuracoes/DentistasManager';
 import CertificadoDigitalManager from '@/components/configuracoes/CertificadoDigitalManager';
 import ParceirosManager from '@/components/configuracoes/ParceirosManager';
@@ -19,6 +19,7 @@ import EquipeManager from '@/components/configuracoes/EquipeManager';
 import ConfiguracoesAgenda from '@/components/configuracoes/ConfiguracoesAgenda';
 import ConfiguracaoContratoManager from '@/components/configuracoes/ConfiguracaoContratoManager';
 import MaquinasCartaoManager from '@/components/configuracoes/MaquinasCartaoManager';
+import OrigensLeadManager from '@/components/configuracoes/OrigensLeadManager';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { Loader2 } from 'lucide-react';
 import { downloadBackupCompleto, lerArquivoBackup, restaurarBackup, type ProgressoBackup } from '@/utils/backup';
@@ -250,6 +251,10 @@ const Configuracoes = () => {
               <CreditCard className="h-4 w-4 mr-1 text-emerald-500" />
               Máquinas de Cartão
             </TabsTrigger>
+            <TabsTrigger value="origens">
+              <Megaphone className="h-4 w-4 mr-1 text-indigo-400" />
+              Origens do Lead
+            </TabsTrigger>
             <TabsTrigger value="agenda"><Calendar className="h-4 w-4 mr-1" />Agenda (Sincronização)</TabsTrigger>
             <TabsTrigger value="equipe"><Users className="h-4 w-4 mr-1" />Equipe</TabsTrigger>
             <TabsTrigger value="dentistas"><UserCog className="h-4 w-4 mr-1" />Dentistas</TabsTrigger>
@@ -268,6 +273,10 @@ const Configuracoes = () => {
 
           <TabsContent value="maquinas">
             <MaquinasCartaoManager />
+          </TabsContent>
+
+          <TabsContent value="origens">
+            <OrigensLeadManager />
           </TabsContent>
 
           <TabsContent value="equipe">
