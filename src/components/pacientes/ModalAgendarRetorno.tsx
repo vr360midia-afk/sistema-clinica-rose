@@ -12,6 +12,7 @@ interface ModalAgendarRetornoProps {
   patient?: any;
   initialPatientId?: string;
   onSuccess?: () => void;
+  consultaOrigem?: any;
 }
 
 export const ModalAgendarRetorno = ({
@@ -19,7 +20,8 @@ export const ModalAgendarRetorno = ({
   onClose,
   patient,
   initialPatientId,
-  onSuccess
+  onSuccess,
+  consultaOrigem
 }: ModalAgendarRetornoProps) => {
   const { pacientes } = useDentalSystem();
   const [selectedPatientId, setSelectedPatientId] = useState<string>('');
@@ -91,6 +93,7 @@ export const ModalAgendarRetorno = ({
           {activePatient ? (
             <AgendarRetornoCard
               patient={activePatient}
+              consultaOrigem={consultaOrigem}
               onSuccess={() => {
                 onSuccess?.();
                 onClose();

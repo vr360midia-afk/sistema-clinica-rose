@@ -73,6 +73,9 @@ export interface Consulta extends BaseEntity {
   valor?: number;
   confirmacaoStatus?: ConfirmacaoStatus;
   confirmadoEm?: Date;
+  tipo?: 'consulta' | 'retorno';
+  isRetorno?: boolean;
+  consultaOrigemId?: string;
 }
 
 export type ConfirmacaoStatus = 'pendente' | 'confirmado' | 'recusado';

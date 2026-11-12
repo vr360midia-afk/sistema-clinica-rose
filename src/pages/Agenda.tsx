@@ -62,9 +62,11 @@ const Agenda = () => {
   const [bloqueioEmEdicao, setBloqueioEmEdicao] = useState<BloqueioAgenda | null>(null);
   const [isRetornoModalOpen, setIsRetornoModalOpen] = useState(false);
   const [retornoPatient, setRetornoPatient] = useState<any>(null);
+  const [retornoConsultaOrigem, setRetornoConsultaOrigem] = useState<any>(null);
 
-  const handleOpenNewRetorno = (patient?: any) => {
+  const handleOpenNewRetorno = (patient?: any, consultaOrigem?: any) => {
     setRetornoPatient(patient || null);
+    setRetornoConsultaOrigem(consultaOrigem || null);
     setIsRetornoModalOpen(true);
   };
 
@@ -529,7 +531,7 @@ const Agenda = () => {
           onAgendarRetorno={(appointment) => {
             setIsDetailsModalOpen(false);
             const pt = appointment.patientData || (pacientes || []).find((p: any) => p.id === appointment.pacienteId);
-            handleOpenNewRetorno(pt);
+            handleOpenNewRetorno(pt, appointment);
           }}
         />
 
@@ -539,8 +541,10 @@ const Agenda = () => {
           onClose={() => {
             setIsRetornoModalOpen(false);
             setRetornoPatient(null);
+            setRetornoConsultaOrigem(null);
           }}
           patient={retornoPatient}
+          consultaOrigem={retornoConsultaOrigem}
         />
         <PendentesModal
           isOpen={isPendentesModalOpen}
