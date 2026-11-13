@@ -58,6 +58,8 @@ const escapeICalText = (text: string): string => {
     .replace(/\r/g, '');
 };
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -69,6 +71,13 @@ serve(async (req) => {
 
     if (!clinicId) {
       return new Response("Missing token", { status: 400 });
+    }
+
+    if (!UUID_REGEX.test(clinicId)) {
+      return new Response(JSON.stringify({ error: "Token invalido. Formato UUID esperado." }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
     const supabaseAdmin = createClient(
@@ -84,10 +93,23 @@ serve(async (req) => {
     // Descobrir todos os user_ids relacionados à clínica (caso secretária/dentista tenha criado com outro user_id)
     const userIds = [clinicId];
     try {
+      // 1. Caso clinicId seja um membro secundário, descobre o clinica_id principal
+      const { data: memberOf } = await supabaseAdmin
+        .from('user_roles')
+        .select('clinica_id')
+        .eq('user_id', clinicId)
+        .maybeSingle();
+
+      const mainClinicaId = memberOf?.clinica_id || clinicId;
+      if (mainClinicaId && !userIds.includes(mainClinicaId)) {
+        userIds.push(mainClinicaId);
+      }
+
+      // 2. Descobre todos os outros usuários vinculados a essa mesma clínica
       const { data: roles } = await supabaseAdmin
         .from('user_roles')
         .select('user_id')
-        .eq('clinica_id', clinicId);
+        .eq('clinica_id', mainClinicaId);
 
       if (roles && roles.length > 0) {
         roles.forEach((r: any) => {
@@ -115,15 +137,20 @@ serve(async (req) => {
     }
 
     // 2. Buscar bloqueios de horários da agenda (férias, almoço, reuniões, ausências, etc.)
-    const { data: bloqueios, error: bloqueiosError } = await supabaseAdmin
+    const { data: bloqueiosRaw, error: bloqueiosError } = await supabaseAdmin
       .from('bloqueios_agenda')
       .select('*')
-      .in('user_id', userIds)
       .or(`data_fim.gte.${dataMinimaStr},data_inicio.gte.${dataMinimaStr}`);
 
     if (bloqueiosError) {
       console.error('Erro ao buscar bloqueios_agenda:', bloqueiosError);
     }
+
+    // Filtrar bloqueios pertencentes aos usuários da clínica ou globais (sem user_id explícito)
+    const bloqueios = (bloqueiosRaw || []).filter((b: any) => {
+      if (!b.user_id) return true; // Bloqueio global da clínica
+      return userIds.includes(b.user_id);
+    });
 
     const icalContent: string[] = [
       'BEGIN:VCALENDAR',
@@ -171,14 +198,14 @@ serve(async (req) => {
       }
     }
 
-    // 2. Inserir Bloqueios de Horários (Férias, Almoço, Intervalos)
+    // 2. Inserir Bloqueios de Horários (Férias, Almoço, Intervalos, Reuniões)
     for (const b of (bloqueios || [])) {
       try {
         if (!b.data_inicio) continue;
         const dataInicioStr = b.data_inicio;
         const dataFimStr = b.data_fim || dataInicioStr;
         const titulo = b.titulo || 'Bloqueio de Agenda';
-        const dentistaInfo = b.dentista ? ` (${b.dentista})` : '';
+        const dentistaInfo = b.dentista && b.dentista.toLowerCase() !== 'todos' ? ` (${b.dentista})` : '';
         const obsLimpa = escapeICalText(b.observacoes || '');
         const summary = `🔒 Bloqueio: ${escapeICalText(titulo)}${escapeICalText(dentistaInfo)}`;
 
@@ -249,7 +276,10 @@ serve(async (req) => {
       headers: {
         ...corsHeaders,
         'Content-Type': 'text/calendar; charset=utf-8',
-        'Content-Disposition': 'attachment; filename="agenda.ics"'
+        'Content-Disposition': 'attachment; filename="agenda.ics"',
+        'Cache-Control': 'no-cache, no-store, max-age=0, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
       },
     });
 

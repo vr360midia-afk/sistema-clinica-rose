@@ -4,7 +4,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { CalendarDays, Plus, Bell, Lock, CalendarCheck2, RotateCcw, RefreshCw } from 'lucide-react';
+import { CalendarDays, Plus, Bell, Lock, CalendarCheck2, RotateCcw, RefreshCw, Smartphone } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useDentalSystem } from '@/context/DentalSystemContext';
@@ -15,9 +15,11 @@ import { BloqueioDetailsModal } from '@/components/agenda/BloqueioDetailsModal';
 import { AgendaBigCalendar } from '@/components/agenda/AgendaBigCalendar';
 import AppointmentDetailsModal from '@/components/agenda/AppointmentDetailsModal';
 import ModalAgendarRetorno from '@/components/pacientes/ModalAgendarRetorno';
+import { ModalSincronizarCalendario } from '@/components/agenda/ModalSincronizarCalendario';
 import PendentesModal from '@/components/agenda/PendentesModal';
 import { useAgendaViews } from '@/hooks/useAgendaViews';
 import { useBloqueios, BloqueioAgenda, encontrarBloqueio } from '@/hooks/useBloqueios';
+import { downloadICS, AgendaEvento } from '@/utils/calendarExport';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -63,6 +65,7 @@ const Agenda = () => {
   const [isRetornoModalOpen, setIsRetornoModalOpen] = useState(false);
   const [retornoPatient, setRetornoPatient] = useState<any>(null);
   const [retornoConsultaOrigem, setRetornoConsultaOrigem] = useState<any>(null);
+  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
 
   const handleOpenNewRetorno = (patient?: any, consultaOrigem?: any) => {
     setRetornoPatient(patient || null);
@@ -99,6 +102,86 @@ const Agenda = () => {
     handleConfirmacaoChange,
     handleDeleteAppointment
   } = useAgendaViews(selectedDate || new Date());
+
+  const handleDownloadICS = () => {
+    const eventos: AgendaEvento[] = [];
+
+    // 1. Consultas
+    (transformedConsultas || []).forEach((c: any) => {
+      try {
+        if (!c.data) return;
+        const horaStr = c.hora || '08:00';
+        const [h, m] = horaStr.split(':').map(Number);
+        const [ano, mes, dia] = c.data.split('-').map(Number);
+        const dtInicio = new Date(ano, mes - 1, dia, h || 8, m || 0);
+        if (isNaN(dtInicio.getTime())) return;
+
+        eventos.push({
+          id: `consulta-${c.id}`,
+          titulo: `🦷 ${c.pacienteNome || 'Paciente'} - ${c.procedimento || 'Consulta'}`,
+          descricao: `Dentista: ${c.dentista || 'Clínica'}\nStatus: ${c.status || 'agendado'}${c.observacoes ? `\nObs: ${c.observacoes}` : ''}`,
+          inicio: dtInicio,
+          duracaoMinutos: Number(c.duracao) || 60,
+          allDay: false,
+        });
+      } catch (e) {
+        console.warn('Erro ao processar consulta para ICS:', e);
+      }
+    });
+
+    // 2. Bloqueios de Horário
+    (bloqueios || []).forEach((b) => {
+      try {
+        if (!b.dataInicio) return;
+        const [yI, mI, dI] = b.dataInicio.split('-').map(Number);
+        const dtInicio = new Date(yI, mI - 1, dI);
+        const [yF, mF, dF] = (b.dataFim || b.dataInicio).split('-').map(Number);
+        const dtFim = new Date(yF, mF - 1, dF);
+
+        const titulo = `🔒 Bloqueio: ${b.titulo}${b.dentista ? ` (${b.dentista})` : ''}`;
+        const desc = `Dentista: ${b.dentista || 'Todos'}${b.observacoes ? `\nMotivo: ${b.observacoes}` : ''}`;
+
+        if (b.diaInteiro) {
+          eventos.push({
+            id: `bloqueio-${b.id}`,
+            titulo,
+            descricao: desc,
+            inicio: dtInicio,
+            fim: dtFim,
+            allDay: true,
+          });
+        } else {
+          const cur = new Date(dtInicio);
+          let count = 0;
+          while (cur <= dtFim && count < 90) {
+            const ano = cur.getFullYear();
+            const mes = cur.getMonth();
+            const dia = cur.getDate();
+            const [hI, mI] = (b.horaInicio || '08:00').split(':').map(Number);
+            const [hF, mF] = (b.horaFim || '18:00').split(':').map(Number);
+
+            const startDt = new Date(ano, mes, dia, hI || 8, mI || 0);
+            const endDt = new Date(ano, mes, dia, hF || 18, mF || 0);
+
+            eventos.push({
+              id: `bloqueio-${b.id}-${count}`,
+              titulo,
+              descricao: `${desc}\nHorário: ${b.horaInicio || '08:00'} às ${b.horaFim || '18:00'}`,
+              inicio: startDt,
+              fim: endDt,
+              allDay: false,
+            });
+            cur.setDate(cur.getDate() + 1);
+            count++;
+          }
+        }
+      } catch (e) {
+        console.warn('Erro ao processar bloqueio para ICS:', e);
+      }
+    });
+
+    downloadICS(eventos, 'agenda-clinica.ics');
+  };
 
   const handleAppointmentClick = (appointmentOrResource: any) => {
     if (appointmentOrResource?.isBloqueio) {
@@ -381,6 +464,15 @@ const Agenda = () => {
               {isSyncing ? 'Sincronizando...' : 'Sincronizar'}
             </Button>
             <Button
+              variant="outline"
+              className="flex items-center gap-2 flex-1 sm:flex-none justify-center border-emerald-600/40 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-500/10 font-medium"
+              onClick={() => setIsSyncModalOpen(true)}
+              title="Sincronizar consultas e bloqueios no iPhone ou Google Agenda"
+            >
+              <Smartphone className="h-4 w-4 text-emerald-600" />
+              Sincronizar Celular
+            </Button>
+            <Button
               className="flex items-center gap-2 flex-1 sm:flex-none justify-center"
               onClick={handleNewAppointment}
             >
@@ -545,6 +637,13 @@ const Agenda = () => {
           }}
           patient={retornoPatient}
           consultaOrigem={retornoConsultaOrigem}
+        />
+        <ModalSincronizarCalendario
+          isOpen={isSyncModalOpen}
+          onClose={() => setIsSyncModalOpen(false)}
+          onDownloadICS={handleDownloadICS}
+          totalConsultas={transformedConsultas.length}
+          totalBloqueios={(bloqueios || []).length}
         />
         <PendentesModal
           isOpen={isPendentesModalOpen}
