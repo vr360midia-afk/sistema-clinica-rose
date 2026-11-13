@@ -21,7 +21,7 @@ interface PatientPersonalInfoProps {
 const PatientPersonalInfo = ({ patient, onSchedule }: PatientPersonalInfoProps) => {
   const idade = calcularIdade(patient.dataNascimento) ?? patient.idade;
   const { consultas, updatePaciente } = useDentalSystem();
-  
+
   const [consultaOrigemParaRetorno, setConsultaOrigemParaRetorno] = useState<any>(null);
   const agendarRetornoCardRef = useRef<HTMLDivElement>(null);
 
@@ -80,8 +80,8 @@ const PatientPersonalInfo = ({ patient, onSchedule }: PatientPersonalInfoProps) 
           return false;
         }
         const dataHora = getConsultaDateTime(consulta);
-        return (consulta?.status === 'agendado' || consulta?.status === 'confirmado') && 
-               dataHora.getTime() >= hojeInicio.getTime();
+        return (consulta?.status === 'agendado' || consulta?.status === 'confirmado') &&
+          dataHora.getTime() >= hojeInicio.getTime();
       })
       .sort((a, b) => getConsultaDateTime(a).getTime() - getConsultaDateTime(b).getTime());
   }, [consultasDoPaciente, hojeInicio]);
@@ -133,7 +133,7 @@ const PatientPersonalInfo = ({ patient, onSchedule }: PatientPersonalInfoProps) 
                 </p>
               </div>
             </div>
-            
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div className="flex items-center gap-2 min-w-0">
                 <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -157,7 +157,7 @@ const PatientPersonalInfo = ({ patient, onSchedule }: PatientPersonalInfoProps) 
                 )}
               </div>
             </div>
-            
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div className="min-w-0">
                 <span className="text-sm font-medium">CPF: </span>
@@ -184,7 +184,7 @@ const PatientPersonalInfo = ({ patient, onSchedule }: PatientPersonalInfoProps) 
               <span className="text-sm font-medium">Endereço: </span>
               <span className="text-sm">{patient.endereco || 'Não informado'}</span>
             </div>
-            
+
             <div>
               <span className="text-sm font-medium">Convênio: </span>
               <Badge variant="outline">{patient.convenio}</Badge>
@@ -203,14 +203,14 @@ const PatientPersonalInfo = ({ patient, onSchedule }: PatientPersonalInfoProps) 
                 <p className="text-sm text-muted-foreground mt-1">{patient.historicoMedico}</p>
               </div>
             )}
-            
+
             {patient.alergias && (
               <div>
                 <span className="text-sm font-medium">Alergias: </span>
                 <p className="text-sm text-muted-foreground mt-1">{patient.alergias}</p>
               </div>
             )}
-            
+
             {patient.medicamentos && (
               <div>
                 <span className="text-sm font-medium">Medicamentos: </span>
@@ -281,8 +281,8 @@ const PatientPersonalInfo = ({ patient, onSchedule }: PatientPersonalInfoProps) 
                 {proximasConsultas.map((consulta) => {
                   const ehRetorno = isConsultaRetorno(consulta);
                   return (
-                    <div 
-                      key={consulta.id} 
+                    <div
+                      key={consulta.id}
                       className="flex items-start justify-between gap-2 p-2.5 rounded-lg border border-border/60 bg-muted/20 hover:bg-muted/40 transition-colors"
                     >
                       <div className="flex items-start gap-2.5 min-w-0">
@@ -297,8 +297,8 @@ const PatientPersonalInfo = ({ patient, onSchedule }: PatientPersonalInfoProps) 
                         </div>
                       </div>
                       {ehRetorno && (
-                        <Badge 
-                          variant="outline" 
+                        <Badge
+                          variant="outline"
                           className="text-[10px] bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border-blue-300 shrink-0 font-medium"
                         >
                           Retorno
@@ -316,8 +316,8 @@ const PatientPersonalInfo = ({ patient, onSchedule }: PatientPersonalInfoProps) 
 
         {/* 2. AGENDAR RETORNO */}
         <div ref={agendarRetornoCardRef}>
-          <AgendarRetornoCard 
-            patient={patient} 
+          <AgendarRetornoCard
+            patient={patient}
             consultaOrigem={consultaOrigemParaRetorno}
             onClearConsultaOrigem={() => setConsultaOrigemParaRetorno(null)}
           />
@@ -344,8 +344,8 @@ const PatientPersonalInfo = ({ patient, onSchedule }: PatientPersonalInfoProps) 
                 {consultasRealizadas.slice(0, 5).map((consulta) => {
                   const ehRetorno = isConsultaRetorno(consulta);
                   return (
-                    <div 
-                      key={consulta.id} 
+                    <div
+                      key={consulta.id}
                       className="flex items-start justify-between gap-2 p-2.5 rounded-lg border border-border/50 bg-muted/10 hover:bg-muted/30 transition-colors"
                     >
                       <div className="flex items-start gap-2.5 min-w-0">

@@ -15,13 +15,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { 
-  RotateCcw, 
-  Calendar as CalendarIcon, 
-  Clock, 
-  Check, 
-  AlertTriangle, 
-  MessageCircle, 
+import {
+  RotateCcw,
+  Calendar as CalendarIcon,
+  Clock,
+  Check,
+  AlertTriangle,
+  MessageCircle,
   ChevronRight,
   User,
   Sparkles,
@@ -39,11 +39,11 @@ import { useDentalSystem } from '@/context/DentalSystemContext';
 import { useDentistas } from '@/hooks/useDentistas';
 import { openWhatsApp } from '@/lib/whatsapp';
 import { cn } from '@/lib/utils';
-import { 
-  isConsultaRetorno, 
-  extrairOrigemRetorno, 
+import {
+  isConsultaRetorno,
+  extrairOrigemRetorno,
   montarObservacoesRetorno,
-  type ConsultaLike 
+  type ConsultaLike
 } from '@/utils/retornoUtils';
 
 export const PRAZOS_RETORNO = [
@@ -103,7 +103,7 @@ export const buildMensagemConfirmacaoRetorno = (info: {
 }): string => {
   const dataFmt = format(info.data, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR });
   const primeiroNome = info.pacienteNome ? info.pacienteNome.trim().split(' ')[0] : 'Olá';
-  
+
   return [
     `Olá, *${primeiroNome}*! Tudo bem?`,
     '',
@@ -207,7 +207,7 @@ export const AgendarRetornoCard = ({
     if (!val) return;
     const d = parseISODate(val);
     setDataSelecionada(d);
-    
+
     // Verifica se coincide com algum prazo
     const diasDiff = differenceInCalendarDays(d, new Date());
     const prazoEncontrado = PRAZOS_RETORNO.find(p => 'dias' in p && p.dias === diasDiff);
@@ -318,7 +318,7 @@ export const AgendarRetornoCard = ({
     try {
       const dataCancelamento = new Date().toLocaleDateString('pt-BR');
       const obsAtual = proximoRetorno.observacoes || '';
-      const obsCancelado = obsAtual 
+      const obsCancelado = obsAtual
         ? `${obsAtual} [Cancelado em ${dataCancelamento}]`
         : `[Retorno Cancelado em ${dataCancelamento}]`;
 
@@ -437,10 +437,10 @@ export const AgendarRetornoCard = ({
                   {differenceInCalendarDays(new Date(proximoRetorno.data), new Date()) === 0
                     ? 'Hoje!'
                     : differenceInCalendarDays(new Date(proximoRetorno.data), new Date()) === 1
-                    ? 'Amanhã'
-                    : `Em ${differenceInCalendarDays(new Date(proximoRetorno.data), new Date())} dias`}
+                      ? 'Amanhã'
+                      : `Em ${differenceInCalendarDays(new Date(proximoRetorno.data), new Date())} dias`}
                 </span>
-                
+
                 <div className="flex items-center gap-1.5 ml-auto">
                   <Button
                     variant="ghost"
@@ -583,11 +583,10 @@ export const AgendarRetornoCard = ({
                         variant={isSelected ? 'default' : 'outline'}
                         size="sm"
                         onClick={() => aplicarPrazo(prazo)}
-                        className={`h-8 text-xs font-medium px-1 transition-all ${
-                          isSelected
+                        className={`h-8 text-xs font-medium px-1 transition-all ${isSelected
                             ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-xs font-semibold'
                             : 'hover:bg-blue-50 hover:border-blue-300 dark:hover:bg-blue-950/50'
-                        }`}
+                          }`}
                       >
                         {isSelected && <Check className="h-3 w-3 mr-0.5" />}
                         {prazo.label}
@@ -607,10 +606,10 @@ export const AgendarRetornoCard = ({
                     {diasAteRetorno === 0
                       ? 'Hoje'
                       : diasAteRetorno === 1
-                      ? 'Amanhã'
-                      : diasAteRetorno > 0
-                      ? `Em ${diasAteRetorno} dias`
-                      : 'Data passada'}
+                        ? 'Amanhã'
+                        : diasAteRetorno > 0
+                          ? `Em ${diasAteRetorno} dias`
+                          : 'Data passada'}
                   </span>
                 </div>
                 <div className="relative">
@@ -714,12 +713,12 @@ export const AgendarRetornoCard = ({
                 {/* Chips rápidos de motivo */}
                 <div className="flex flex-wrap gap-1 pt-1">
                   {['Revisão', 'Pós-Op', 'Manutenção', 'Pontos', 'Ortodontia'].map((chip, idx) => {
-                    const nomeCompleto = 
+                    const nomeCompleto =
                       chip === 'Revisão' ? 'Revisão / Avaliação Geral' :
-                      chip === 'Pós-Op' ? 'Revisão Pós-Operatório' :
-                      chip === 'Manutenção' ? 'Manutenção Preventiva' :
-                      chip === 'Pontos' ? 'Retirada de Pontos' :
-                      'Controle Ortodôntico';
+                        chip === 'Pós-Op' ? 'Revisão Pós-Operatório' :
+                          chip === 'Manutenção' ? 'Manutenção Preventiva' :
+                            chip === 'Pontos' ? 'Retirada de Pontos' :
+                              'Controle Ortodôntico';
                     return (
                       <button
                         key={idx}
