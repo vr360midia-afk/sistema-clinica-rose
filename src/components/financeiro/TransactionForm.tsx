@@ -79,6 +79,8 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId, tipoI
       valor: string;
       parcelas: string;
       taxaCartaoPercentual: string;
+      taxaCartaoValor?: string;
+      operadoraCartaoId?: string;
       status: StatusTransacao;
       data: Date;
       vencimento: Date | null;
@@ -91,6 +93,8 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId, tipoI
       valor: '',
       parcelas: '1',
       taxaCartaoPercentual: '',
+      taxaCartaoValor: '',
+      operadoraCartaoId: 'infinitepay',
       status: 'pago',
       data: new Date(),
       vencimento: null,
@@ -102,11 +106,15 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId, tipoI
       valor: '',
       parcelas: '3',
       taxaCartaoPercentual: '',
+      taxaCartaoValor: '',
+      operadoraCartaoId: 'infinitepay',
       status: 'pendente',
       data: new Date(),
       vencimento: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     },
   ]);
+
+  const [taxaCartaoValorManual, setTaxaCartaoValorManual] = useState<string>('');
 
   const emptyForm = {
     pacienteId: '',
@@ -162,6 +170,11 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId, tipoI
             ? transacao.comprovantes
             : (transacao.comprovanteUrl ? [transacao.comprovanteUrl] : [])
         });
+        if (transacao.taxaCartaoValor !== undefined && transacao.taxaCartaoValor !== null) {
+          setTaxaCartaoValorManual(String(transacao.taxaCartaoValor));
+        } else {
+          setTaxaCartaoValorManual('');
+        }
       } else {
         const tipoDefinido = tipoInicial || 'receita';
         setFormData({
@@ -171,6 +184,7 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId, tipoI
           metodoPagamento: 'pix',
           pacienteId: pacienteId || '',
         });
+        setTaxaCartaoValorManual('');
         setModoMultiplasFormas(false);
         setFormasSplit([
           {
@@ -209,10 +223,21 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId, tipoI
   const isCartao = formData.metodoPagamento === 'cartao';
   const isPixParcelado = formData.metodoPagamento === 'pix_parcelado';
   const permiteParcelamento = isCartao || isPixParcelado;
-  const taxaPerc = isCartao ? parseFloat(formData.taxaCartaoPercentual) || 0 : 0;
   const parcelas = permiteParcelamento ? Math.max(1, parseInt(formData.parcelas) || 1) : 1;
-  const taxaValor = (valorBruto * taxaPerc) / 100;
-  const valorLiquido = valorBruto - taxaValor;
+
+  let taxaValor = 0;
+  let taxaPerc = 0;
+  if (isCartao) {
+    if (taxaCartaoValorManual !== '') {
+      taxaValor = parseFloat(taxaCartaoValorManual) || 0;
+      taxaPerc = valorBruto > 0 ? Number(((taxaValor / valorBruto) * 100).toFixed(2)) : (parseFloat(formData.taxaCartaoPercentual) || 0);
+    } else {
+      taxaPerc = parseFloat(formData.taxaCartaoPercentual) || 0;
+      taxaValor = Number(((valorBruto * taxaPerc) / 100).toFixed(2));
+    }
+  }
+
+  const valorLiquido = Math.max(0, Number((valorBruto - taxaValor).toFixed(2)));
   const valorParcela = parcelas > 0 ? valorBruto / parcelas : valorBruto;
   const parceiro = parceiros.find((p) => p.id === formData.parceiroId);
   const valorParceiro = parseFloat(formData.valorParceiro) || 0;
@@ -329,9 +354,16 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId, tipoI
             (forma.metodo === 'cartao' || forma.metodo === 'pix_parcelado' || forma.metodo === 'boleto')
               ? Math.max(1, parseInt(forma.parcelas) || 1)
               : 1;
-          const fTaxaPerc = forma.metodo === 'cartao' ? parseFloat(forma.taxaCartaoPercentual) || 0 : 0;
-          const fTaxaValor = (valBrutoForma * fTaxaPerc) / 100;
-          const fValorLiquido = valBrutoForma - fTaxaValor;
+          const fTaxaValorManual = forma.taxaCartaoValor !== undefined && forma.taxaCartaoValor !== '' ? parseFloat(forma.taxaCartaoValor) : null;
+          const fTaxaPerc = forma.metodo === 'cartao'
+            ? (fTaxaValorManual !== null && valBrutoForma > 0
+                ? Number(((fTaxaValorManual / valBrutoForma) * 100).toFixed(2))
+                : (parseFloat(forma.taxaCartaoPercentual) || 0))
+            : 0;
+          const fTaxaValor = forma.metodo === 'cartao'
+            ? (fTaxaValorManual !== null ? fTaxaValorManual : Number(((valBrutoForma * fTaxaPerc) / 100).toFixed(2)))
+            : 0;
+          const fValorLiquido = Math.max(0, valBrutoForma - fTaxaValor);
           const fValorParcela = valBrutoForma / fParcelas;
 
           if (fParcelas > 1) {
@@ -1051,18 +1083,26 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId, tipoI
                         </div>
 
                         {forma.metodo === 'cartao' && (
-                          <>
+                          <div className="col-span-full grid grid-cols-1 sm:grid-cols-4 gap-2 pt-1 border-t border-border/50">
                             <div className="space-y-1">
-                              <Label className="text-[11px] text-muted-foreground">Máquina</Label>
+                              <Label className="text-[10px] text-muted-foreground font-semibold">Máquina</Label>
                               <Select
-                                defaultValue="infinitepay"
+                                value={forma.operadoraCartaoId || 'infinitepay'}
                                 onValueChange={(opId) => {
                                   const op = operadoras.find((o) => o.id === opId) || operadoraPadrao;
                                   const p = parseInt(forma.parcelas) || 1;
-                                  const calc = calcularTaxaCartao(op, p, 100);
+                                  const fVal = parseFloat(forma.valor) || 0;
+                                  const calc = calcularTaxaCartao(op, p, fVal || 100);
                                   setFormasSplit((prev) =>
                                     prev.map((f, i) =>
-                                      i === idx ? { ...f, taxaCartaoPercentual: String(calc.taxaPercentual) } : f
+                                      i === idx
+                                        ? {
+                                            ...f,
+                                            operadoraCartaoId: opId,
+                                            taxaCartaoPercentual: String(calc.taxaPercentual),
+                                            taxaCartaoValor: fVal > 0 ? String(calc.taxaValor) : '',
+                                          }
+                                        : f
                                     )
                                   );
                                 }}
@@ -1087,23 +1127,70 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId, tipoI
                                 </SelectContent>
                               </Select>
                             </div>
+
                             <div className="space-y-1">
-                              <Label className="text-[11px] text-muted-foreground">Taxa da Máquina (%)</Label>
+                              <Label className="text-[10px] text-muted-foreground font-semibold">Valor da Taxa (R$)</Label>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                placeholder="R$ 0,00"
+                                value={forma.taxaCartaoValor ?? ''}
+                                onChange={(e) => {
+                                  const valStr = e.target.value;
+                                  const v = parseFloat(valStr) || 0;
+                                  const fVal = parseFloat(forma.valor) || 0;
+                                  const p = fVal > 0 ? Number(((v / fVal) * 100).toFixed(2)) : 0;
+                                  setFormasSplit((prev) =>
+                                    prev.map((f, i) =>
+                                      i === idx
+                                        ? { ...f, taxaCartaoValor: valStr, taxaCartaoPercentual: p > 0 ? String(p) : '' }
+                                        : f
+                                    )
+                                  );
+                                }}
+                                className="h-8 text-xs font-semibold"
+                              />
+                            </div>
+
+                            <div className="space-y-1">
+                              <Label className="text-[10px] text-muted-foreground font-semibold">Taxa da Máquina (%)</Label>
                               <Input
                                 type="number"
                                 step="0.01"
                                 placeholder="Ex: 3.5"
                                 value={forma.taxaCartaoPercentual}
                                 onChange={(e) => {
-                                  const val = e.target.value;
+                                  const percStr = e.target.value;
+                                  const p = parseFloat(percStr) || 0;
+                                  const fVal = parseFloat(forma.valor) || 0;
+                                  const v = fVal > 0 ? Number(((fVal * p) / 100).toFixed(2)) : 0;
                                   setFormasSplit((prev) =>
-                                    prev.map((f, i) => (i === idx ? { ...f, taxaCartaoPercentual: val } : f))
+                                    prev.map((f, i) =>
+                                      i === idx
+                                        ? { ...f, taxaCartaoPercentual: percStr, taxaCartaoValor: v > 0 ? String(v) : '' }
+                                        : f
+                                    )
                                   );
                                 }}
-                                className="h-8 text-xs"
+                                className="h-8 text-xs font-semibold"
                               />
                             </div>
-                          </>
+
+                            <div className="space-y-1 flex flex-col justify-end">
+                              {(() => {
+                                const fVal = parseFloat(forma.valor) || 0;
+                                const fTaxaVal = parseFloat(forma.taxaCartaoValor || '') || (fVal * (parseFloat(forma.taxaCartaoPercentual) || 0)) / 100;
+                                const fLiq = Math.max(0, fVal - fTaxaVal);
+                                return (
+                                  <div className="text-[10px] leading-tight text-right space-y-0.5 bg-muted/40 p-1.5 rounded border">
+                                    <div>Cobrado: <strong>{money(fVal)}</strong></div>
+                                    <div className="text-destructive font-medium">- Taxa: {money(fTaxaVal)}</div>
+                                    <div className="text-emerald-600 font-bold">Líquido: {money(fLiq)}</div>
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          </div>
                         )}
                       </div>
                     )}
@@ -1262,19 +1349,24 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId, tipoI
           )}
 
           {permiteParcelamento && (
-            <div className="space-y-3 rounded-lg border p-3">
-              <div className={`grid ${isCartao ? "grid-cols-3" : "grid-cols-2"} gap-3`}>
+            <div className="space-y-3 rounded-lg border p-3 bg-muted/20">
+              <div className={`grid ${isCartao ? "grid-cols-1 sm:grid-cols-4" : "grid-cols-1 sm:grid-cols-2"} gap-3`}>
                 {isCartao && (
                   <div>
-                    <Label htmlFor="operadora" className="text-xs">Máquina</Label>
+                    <Label htmlFor="operadora" className="text-xs font-semibold">Máquina</Label>
                     <Select
                       value={selectedOperadoraId}
                       onValueChange={(opId) => {
                         setSelectedOperadoraId(opId);
                         const op = operadoras.find(o => o.id === opId) || operadoraPadrao;
                         const p = parseInt(formData.parcelas) || 1;
-                        const calc = calcularTaxaCartao(op, p, 100);
+                        const calc = calcularTaxaCartao(op, p, valorBruto || 100);
                         setFormData(prev => ({ ...prev, taxaCartaoPercentual: String(calc.taxaPercentual) }));
+                        if (valorBruto > 0) {
+                          setTaxaCartaoValorManual(String(calc.taxaValor));
+                        } else {
+                          setTaxaCartaoValorManual('');
+                        }
                       }}
                     >
                       <SelectTrigger id="operadora" className="h-9 text-xs font-semibold">
@@ -1296,23 +1388,9 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId, tipoI
                     </Select>
                   </div>
                 )}
-                {isCartao && (
-                  <div>
-                    <Label htmlFor="taxa" className="text-xs">Taxa da máquina (%)</Label>
-                    <Input
-                      id="taxa"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="Ex: 3.99"
-                      value={formData.taxaCartaoPercentual}
-                      onChange={(e) => setFormData(prev => ({ ...prev, taxaCartaoPercentual: e.target.value }))}
-                      className="h-9 text-xs"
-                    />
-                  </div>
-                )}
+
                 <div className={!isCartao ? "col-span-2" : ""}>
-                  <Label htmlFor="parcelas" className="text-xs">Parcelas</Label>
+                  <Label htmlFor="parcelas" className="text-xs font-semibold">Parcelas</Label>
                   <Input
                     id="parcelas"
                     type="number"
@@ -1326,8 +1404,11 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId, tipoI
                         if (isCartao && selectedOperadoraId) {
                           const op = operadoras.find(o => o.id === selectedOperadoraId) || operadoraPadrao;
                           const p = parseInt(val) || 1;
-                          const calc = calcularTaxaCartao(op, p, 100);
+                          const calc = calcularTaxaCartao(op, p, valorBruto || 100);
                           updated.taxaCartaoPercentual = String(calc.taxaPercentual);
+                          if (valorBruto > 0) {
+                            setTaxaCartaoValorManual(String(calc.taxaValor));
+                          }
                         }
                         return updated;
                       });
@@ -1335,25 +1416,74 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId, tipoI
                     className="h-9 text-xs"
                   />
                 </div>
+
+                {isCartao && (
+                  <div>
+                    <Label htmlFor="taxaValor" className="text-xs font-semibold">Valor da Taxa (R$)</Label>
+                    <Input
+                      id="taxaValor"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="R$ 0,00"
+                      value={taxaCartaoValorManual !== '' ? taxaCartaoValorManual : (taxaValor > 0 ? String(taxaValor) : '')}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setTaxaCartaoValorManual(val);
+                        const v = parseFloat(val) || 0;
+                        if (valorBruto > 0) {
+                          const p = Number(((v / valorBruto) * 100).toFixed(2));
+                          setFormData(prev => ({ ...prev, taxaCartaoPercentual: p > 0 ? String(p) : '' }));
+                        }
+                      }}
+                      className="h-9 text-xs font-semibold"
+                    />
+                  </div>
+                )}
+
+                {isCartao && (
+                  <div>
+                    <Label htmlFor="taxa" className="text-xs font-semibold">Taxa da Máquina (%)</Label>
+                    <Input
+                      id="taxa"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="Ex: 3.99"
+                      value={formData.taxaCartaoPercentual}
+                      onChange={(e) => {
+                        const percStr = e.target.value;
+                        setFormData(prev => ({ ...prev, taxaCartaoPercentual: percStr }));
+                        const p = parseFloat(percStr) || 0;
+                        if (valorBruto > 0) {
+                          const v = Number(((valorBruto * p) / 100).toFixed(2));
+                          setTaxaCartaoValorManual(v > 0 ? String(v) : '');
+                        }
+                      }}
+                      className="h-9 text-xs"
+                    />
+                  </div>
+                )}
               </div>
-              <div className="space-y-1 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Valor {isPixParcelado ? 'do PIX' : 'pago pelo cliente'}</span>
-                  <span>{money(valorBruto)}</span>
+
+              <div className="space-y-1.5 text-xs bg-card p-3 rounded-md border border-border/70">
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Valor {isPixParcelado ? 'do PIX' : 'cobrado pelo cliente (bruto)'}</span>
+                  <span className="font-semibold text-foreground">{money(valorBruto)}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Parcelamento</span>
                   <span>{parcelas}x de {money(valorParcela)}</span>
                 </div>
                 {isCartao && (
                   <>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Desconto da taxa ({taxaPerc}%)</span>
-                      <span className="text-destructive">- {money(taxaValor)}</span>
+                    <div className="flex justify-between items-center text-rose-600 dark:text-rose-400">
+                      <span className="font-medium">Valor descontado da taxa ({taxaPerc.toFixed(2)}%)</span>
+                      <span className="font-bold">- {money(taxaValor)}</span>
                     </div>
-                    <div className="flex justify-between font-medium border-t pt-1">
-                      <span>Valor líquido</span>
-                      <span className="text-primary">{money(valorLiquido)}</span>
+                    <div className="flex justify-between items-center font-bold border-t pt-1.5 text-emerald-600 dark:text-emerald-400 text-sm">
+                      <span>Valor líquido creditado</span>
+                      <span>{money(valorLiquido)}</span>
                     </div>
                   </>
                 )}

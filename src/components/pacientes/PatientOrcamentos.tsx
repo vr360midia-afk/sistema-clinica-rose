@@ -187,11 +187,13 @@ const PatientOrcamentos = ({ patient }: Props) => {
   const [flexibilizandoAprovacao, setFlexibilizandoAprovacao] = useState(false);
   const [condicaoAprovacaoEmEdicao, setCondicaoAprovacaoEmEdicao] = useState<Partial<CondicaoPagamento> | null>(null);
 
-  // Assistente de Máquina de Cartão (PagBank / InfinitePay)
+  // Assistente de Máquina de Cartão (PagBank / InfinitePay / etc.)
   const [cartaoAssistenteAtivo, setCartaoAssistenteAtivo] = useState(false);
   const [cartaoOperadoraId, setCartaoOperadoraId] = useState<string>('infinitepay');
   const [cartaoTipo, setCartaoTipo] = useState<'credito' | 'debito'>('credito');
   const [cartaoParcelas, setCartaoParcelas] = useState<number>(3);
+  const [cartaoTaxaPercentualManual, setCartaoTaxaPercentualManual] = useState<string>('');
+  const [cartaoTaxaValorManual, setCartaoTaxaValorManual] = useState<string>('');
 
   // PIX Parcelado
   const [pixParceladoAtivo, setPixParceladoAtivo] = useState(false);
@@ -212,6 +214,8 @@ const PatientOrcamentos = ({ patient }: Props) => {
   const [modalidadeSaldo, setModalidadeSaldo] = useState<'combinar' | 'cartao' | 'pix_parcelado' | 'boleto' | 'conclusao'>('combinar');
   const [saldoCartaoOperadoraId, setSaldoCartaoOperadoraId] = useState<string>('infinitepay');
   const [saldoCartaoParcelas, setSaldoCartaoParcelas] = useState<number>(3);
+  const [saldoCartaoTaxaPercentualManual, setSaldoCartaoTaxaPercentualManual] = useState<string>('');
+  const [saldoCartaoTaxaValorManual, setSaldoCartaoTaxaValorManual] = useState<string>('');
   const [saldoPixParcelas, setSaldoPixParcelas] = useState<number>(3);
   const [saldoPixDiaVencimento, setSaldoPixDiaVencimento] = useState<number>(10);
   const [saldoBoletoParcelas, setSaldoBoletoParcelas] = useState<number>(3);
@@ -373,18 +377,22 @@ const PatientOrcamentos = ({ patient }: Props) => {
       }
 
       if (f.metodo === 'cartao') {
+        const taxaStr =
+          f.taxaCartaoValor !== undefined && f.taxaCartaoValor > 0
+            ? ` [taxa: ${formatMoney(f.taxaCartaoValor)}${f.taxaCartaoPercentual ? ` / ${f.taxaCartaoPercentual}%` : ''}]`
+            : '';
         if (isDeb) {
           const dataStr = f.dataPagamento ? ` (em ${formatBrDate(f.dataPagamento)})` : '';
-          partes.push(`${f.rotulo}: ${formatMoney(f.valor)} via Débito${dataStr}${sitStr}`);
+          partes.push(`${f.rotulo}: ${formatMoney(f.valor)} via Débito${taxaStr}${dataStr}${sitStr}`);
         } else {
           const valParc = (f.parcelas || 1) > 1 ? f.valor / f.parcelas : f.valor;
           if ((f.parcelas || 1) > 1) {
             partes.push(
-              `${f.rotulo}: ${formatMoney(f.valor)} em ${f.parcelas}x de ${formatMoney(valParc)} no Cartão de Crédito${sitStr}`
+              `${f.rotulo}: ${formatMoney(f.valor)} em ${f.parcelas}x de ${formatMoney(valParc)} no Cartão de Crédito${taxaStr}${sitStr}`
             );
           } else {
             const dataStr = f.dataPagamento ? ` (em ${formatBrDate(f.dataPagamento)})` : '';
-            partes.push(`${f.rotulo}: ${formatMoney(f.valor)} via Cartão de Crédito à vista${dataStr}${sitStr}`);
+            partes.push(`${f.rotulo}: ${formatMoney(f.valor)} via Cartão de Crédito à vista${taxaStr}${dataStr}${sitStr}`);
           }
         }
       } else if ((f.parcelas || 1) > 1 && (f.metodo === 'pix_parcelado' || f.metodo === 'boleto')) {
@@ -514,13 +522,34 @@ const PatientOrcamentos = ({ patient }: Props) => {
         atualizado.datasParcelas = gerarDatasPadrao(atualizado.parcelas, campos.diaVencimento);
       }
 
-      // Cálculo em tempo real de taxas da máquina se for cartão
-      if (atualizado.metodo === 'cartao') {
+      // Se alterou a taxa manualmente (R$ ou %)
+      if (campos.taxaCartaoValor !== undefined) {
+        atualizado.taxaCartaoValor = campos.taxaCartaoValor;
+        if (atualizado.valor > 0) {
+          atualizado.taxaCartaoPercentual = Number(((campos.taxaCartaoValor / atualizado.valor) * 100).toFixed(2));
+        }
+      } else if (campos.taxaCartaoPercentual !== undefined) {
+        atualizado.taxaCartaoPercentual = campos.taxaCartaoPercentual;
+        if (atualizado.valor > 0) {
+          atualizado.taxaCartaoValor = Number(((atualizado.valor * campos.taxaCartaoPercentual) / 100).toFixed(2));
+        }
+      } else if (atualizado.metodo === 'cartao') {
         const op = operadoras.find((o) => o.id === atualizado.operadoraCartaoId) || operadoraPadrao;
         const isDeb = atualizado.tipoCartao === 'debito';
-        const calc = calcularTaxaCartao(op, atualizado.parcelas || 1, atualizado.valor || 0, isDeb);
-        atualizado.taxaCartaoPercentual = calc.taxaPercentual;
-        atualizado.taxaCartaoValor = calc.taxaValor;
+        if (campos.operadoraCartaoId !== undefined || campos.parcelas !== undefined || campos.tipoCartao !== undefined) {
+          // Se mudou máquina, parcelas ou modalidade, recalcula padrão da máquina
+          const calc = calcularTaxaCartao(op, atualizado.parcelas || 1, atualizado.valor || 0, isDeb);
+          atualizado.taxaCartaoPercentual = calc.taxaPercentual;
+          atualizado.taxaCartaoValor = calc.taxaValor;
+        } else if (campos.valor !== undefined) {
+          if (atualizado.taxaCartaoPercentual !== undefined) {
+            atualizado.taxaCartaoValor = Number(((atualizado.valor * atualizado.taxaCartaoPercentual) / 100).toFixed(2));
+          } else {
+            const calc = calcularTaxaCartao(op, atualizado.parcelas || 1, atualizado.valor || 0, isDeb);
+            atualizado.taxaCartaoPercentual = calc.taxaPercentual;
+            atualizado.taxaCartaoValor = calc.taxaValor;
+          }
+        }
       }
 
       return atualizado;
@@ -743,10 +772,14 @@ const PatientOrcamentos = ({ patient }: Props) => {
       textoSaldo = `Saldo Restante: ${formatMoney(saldo)} a combinar`;
     } else if (modalidadeSaldo === 'cartao') {
       const valParc = saldo / saldoCartaoParcelas;
+      const op = operadoras.find((o) => o.id === saldoCartaoOperadoraId) || operadoraPadrao;
+      const taxaVal = parseFloat(saldoCartaoTaxaValorManual) || 0;
+      const taxaPerc = parseFloat(saldoCartaoTaxaPercentualManual) || 0;
+      const taxaStr = taxaVal > 0 ? ` [taxa: ${formatMoney(taxaVal)} / ${taxaPerc}%]` : '';
       if (saldoCartaoParcelas === 1) {
-        textoSaldo = `Saldo: ${formatMoney(saldo)} via Cartão de Crédito à vista [Autorizado]`;
+        textoSaldo = `Saldo: ${formatMoney(saldo)} via Cartão de Crédito à vista (${op?.nome || 'Cartão'})${taxaStr} [Autorizado]`;
       } else {
-        textoSaldo = `Saldo: ${formatMoney(saldo)} em ${saldoCartaoParcelas}x de ${formatMoney(valParc)} no Cartão de Crédito [Autorizado]`;
+        textoSaldo = `Saldo: ${formatMoney(saldo)} em ${saldoCartaoParcelas}x de ${formatMoney(valParc)} no Cartão de Crédito (${op?.nome || 'Cartão'})${taxaStr} [Autorizado]`;
       }
     } else if (modalidadeSaldo === 'pix_parcelado') {
       const valParc = saldo / saldoPixParcelas;
@@ -1143,13 +1176,13 @@ const PatientOrcamentos = ({ patient }: Props) => {
             operadoraTaxasNomeItem = op?.nome || 'Cartão';
 
             const calc = calcularTaxaCartao(op, infoCartao.parcelas, Number(p.valor || 0), infoCartao.isDebito);
-            taxaPercItem = calc.taxaPercentual;
-            taxaValorItem = calc.taxaValor;
-            liquidoItem = calc.valorLiquido;
+            taxaPercItem = (p as any).taxaCartaoPercentual ?? infoCartao.taxaPercentual ?? calc.taxaPercentual;
+            taxaValorItem = (p as any).taxaCartaoValor ?? infoCartao.taxaValor ?? calc.taxaValor;
+            liquidoItem = Math.max(0, Number((Number(p.valor || 0) - (taxaValorItem || 0)).toFixed(2)));
             
             // Só acumula taxa para lançamento de despesa se a parcela do cartão foi EFETIVAMENTE quitada agora!
-            if (isQuitada && calc.taxaValor > 0) {
-              totalTaxasCartaoQuitadas += calc.taxaValor;
+            if (isQuitada && (taxaValorItem || 0) > 0) {
+              totalTaxasCartaoQuitadas += (taxaValorItem || 0);
             }
           }
 
@@ -4263,11 +4296,21 @@ const PatientOrcamentos = ({ patient }: Props) => {
                         const saldo = Math.max(0, total - valorEntrada);
                         const op = operadoras.find((o) => o.id === saldoCartaoOperadoraId) || operadoraPadrao;
                         const calc = calcularTaxaCartao(op, saldoCartaoParcelas, saldo, false);
+                        const taxaPercFinal =
+                          saldoCartaoTaxaPercentualManual !== '' && !isNaN(parseFloat(saldoCartaoTaxaPercentualManual))
+                            ? parseFloat(saldoCartaoTaxaPercentualManual)
+                            : calc.taxaPercentual;
+                        const taxaValorFinal =
+                          saldoCartaoTaxaValorManual !== '' && !isNaN(parseFloat(saldoCartaoTaxaValorManual))
+                            ? parseFloat(saldoCartaoTaxaValorManual)
+                            : Number(((saldo * taxaPercFinal) / 100).toFixed(2));
+                        const valorLiquidoFinal = Math.max(0, Number((saldo - taxaValorFinal).toFixed(2)));
+
                         return (
                           <div className="space-y-2.5 p-2.5 rounded bg-blue-950/20 border border-blue-500/30">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                               <div className="space-y-1">
-                                <Label className="text-[11px] text-muted-foreground">Operadora da Máquina</Label>
+                                <Label className="text-[11px] text-muted-foreground">Operadora</Label>
                                 <Select
                                   value={saldoCartaoOperadoraId}
                                   onValueChange={setSaldoCartaoOperadoraId}
@@ -4292,7 +4335,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
                               </div>
 
                               <div className="space-y-1">
-                                <Label className="text-[11px] text-muted-foreground">Parcelas do Saldo no Cartão</Label>
+                                <Label className="text-[11px] text-muted-foreground">Parcelas</Label>
                                 <Select
                                   value={String(saldoCartaoParcelas)}
                                   onValueChange={(v) => setSaldoCartaoParcelas(Number(v) || 1)}
@@ -4303,24 +4346,64 @@ const PatientOrcamentos = ({ patient }: Props) => {
                                   <SelectContent>
                                     {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18].map((n) => (
                                       <SelectItem key={n} value={String(n)}>
-                                        {n === 1 ? '1x à vista no crédito' : `${n}x de ${formatMoney(saldo / n)}`}
+                                        {n === 1 ? '1x à vista' : `${n}x (${formatMoney(saldo / n)})`}
                                       </SelectItem>
                                     ))}
                                   </SelectContent>
                                 </Select>
                               </div>
+
+                              <div className="space-y-1">
+                                <Label className="text-[11px] text-muted-foreground">Taxa (R$)</Label>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  placeholder="0,00"
+                                  value={saldoCartaoTaxaValorManual}
+                                  onChange={(e) => {
+                                    const v = e.target.value;
+                                    setSaldoCartaoTaxaValorManual(v);
+                                    const num = parseFloat(v);
+                                    if (!isNaN(num) && saldo > 0) {
+                                      setSaldoCartaoTaxaPercentualManual(String(Number(((num / saldo) * 100).toFixed(2))));
+                                    }
+                                  }}
+                                  className="h-8 text-xs font-semibold bg-background"
+                                />
+                              </div>
+
+                              <div className="space-y-1">
+                                <Label className="text-[11px] text-muted-foreground">Taxa (%)</Label>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  placeholder="0.00"
+                                  value={saldoCartaoTaxaPercentualManual}
+                                  onChange={(e) => {
+                                    const p = e.target.value;
+                                    setSaldoCartaoTaxaPercentualManual(p);
+                                    const numP = parseFloat(p);
+                                    if (!isNaN(numP) && saldo > 0) {
+                                      setSaldoCartaoTaxaValorManual(String(Number(((saldo * numP) / 100).toFixed(2))));
+                                    }
+                                  }}
+                                  className="h-8 text-xs font-semibold bg-background"
+                                />
+                              </div>
                             </div>
 
                             <div className="flex flex-wrap items-center justify-between gap-2 p-2 rounded bg-background/90 border border-blue-500/20 text-xs">
                               <span className="text-foreground font-medium">
-                                Plano do Saldo: <strong>{saldoCartaoParcelas}x de {formatMoney(saldo / saldoCartaoParcelas)}</strong> ({op?.nome || 'Cartão'})
+                                Cobrado: <strong>{saldoCartaoParcelas}x de {formatMoney(saldo / saldoCartaoParcelas)}</strong> ({op?.nome || 'Cartão'})
                               </span>
                               <div className="flex items-center gap-3">
                                 <span className="text-destructive font-semibold text-[11px]">
-                                  Taxa ({calc.taxaPercentual}%): -{formatMoney(calc.taxaValor)}
+                                  Desconto taxa: -{formatMoney(taxaValorFinal)} ({taxaPercFinal}%)
                                 </span>
                                 <span className="text-emerald-500 font-bold text-xs">
-                                  Líquido Saldo: {formatMoney(calc.valorLiquido)}
+                                  Líquido Saldo: {formatMoney(valorLiquidoFinal)}
                                 </span>
                               </div>
                             </div>
@@ -4544,16 +4627,26 @@ const PatientOrcamentos = ({ patient }: Props) => {
                     const op = operadoras.find((o) => o.id === cartaoOperadoraId) || operadoraPadrao;
                     const isDeb = cartaoTipo === 'debito';
                     const calc = calcularTaxaCartao(op, cartaoParcelas, total, isDeb);
+                    const taxaPercFinal =
+                      cartaoTaxaPercentualManual !== '' && !isNaN(parseFloat(cartaoTaxaPercentualManual))
+                        ? parseFloat(cartaoTaxaPercentualManual)
+                        : calc.taxaPercentual;
+                    const taxaValorFinal =
+                      cartaoTaxaValorManual !== '' && !isNaN(parseFloat(cartaoTaxaValorManual))
+                        ? parseFloat(cartaoTaxaValorManual)
+                        : Number(((total * taxaPercFinal) / 100).toFixed(2));
+                    const valorLiquidoFinal = Math.max(0, Number((total - taxaValorFinal).toFixed(2)));
                     const opNome = op?.nome || 'Cartão';
 
                     const aplicarAoOrcamento = () => {
                       let textoFinal = '';
+                      const taxaStr = taxaValorFinal > 0 ? ` [taxa: ${formatMoney(taxaValorFinal)} / ${taxaPercFinal}%]` : '';
                       if (isDeb) {
-                        textoFinal = 'Cartão de Débito';
+                        textoFinal = `Cartão de Débito (${opNome})${taxaStr}`;
                       } else if (cartaoParcelas === 1) {
-                        textoFinal = 'Cartão de Crédito à vista 1x';
+                        textoFinal = `Cartão de Crédito à vista 1x (${opNome})${taxaStr}`;
                       } else {
-                        textoFinal = `Cartão de Crédito em ${cartaoParcelas}x de ${formatMoney(calc.valorParcelaBruto)}`;
+                        textoFinal = `Cartão de Crédito em ${cartaoParcelas}x de ${formatMoney(calc.valorParcelaBruto)} (${opNome})${taxaStr}`;
                       }
                       setFormasPagamento(textoFinal);
                       toast.success(`Plano de cartão (${opNome}) aplicado ao orçamento!`);
@@ -4561,21 +4654,62 @@ const PatientOrcamentos = ({ patient }: Props) => {
 
                     return (
                       <div className="rounded-lg bg-background/90 border border-blue-500/30 p-3 space-y-2.5">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pb-2 border-b border-border/40">
+                          <div>
+                            <Label className="text-[10px] text-muted-foreground">Valor da Taxa (R$)</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              placeholder="0,00"
+                              value={cartaoTaxaValorManual}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                setCartaoTaxaValorManual(v);
+                                const num = parseFloat(v);
+                                if (!isNaN(num) && total > 0) {
+                                  setCartaoTaxaPercentualManual(String(Number(((num / total) * 100).toFixed(2))));
+                                }
+                              }}
+                              className="h-7 text-xs font-semibold"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-[10px] text-muted-foreground">Taxa da Máquina (%)</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              placeholder="0.00"
+                              value={cartaoTaxaPercentualManual}
+                              onChange={(e) => {
+                                const p = e.target.value;
+                                setCartaoTaxaPercentualManual(p);
+                                const numP = parseFloat(p);
+                                if (!isNaN(numP) && total > 0) {
+                                  setCartaoTaxaValorManual(String(Number(((total * numP) / 100).toFixed(2))));
+                                }
+                              }}
+                              className="h-7 text-xs font-semibold"
+                            />
+                          </div>
+                        </div>
+
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
                           <div className="p-2 rounded bg-muted/50 border border-border/50">
                             <span className="text-[10px] text-muted-foreground block">Valor do Orçamento:</span>
                             <span className="font-semibold text-foreground text-sm">{formatMoney(total)}</span>
                           </div>
                           <div className="p-2 rounded bg-muted/50 border border-border/50">
-                            <span className="text-[10px] text-muted-foreground block">Taxa da Máquina ({calc.taxaPercentual}%):</span>
+                            <span className="text-[10px] text-muted-foreground block">Valor descontado da taxa:</span>
                             <span className="font-bold text-destructive text-sm">
-                              -{formatMoney(calc.taxaValor)}
+                              -{formatMoney(taxaValorFinal)}
                             </span>
-                            <span className="text-[9px] text-muted-foreground block">Entra como Despesa</span>
+                            <span className="text-[9px] text-muted-foreground block">({taxaPercFinal}% - Despesa)</span>
                           </div>
                           <div className="p-2 rounded bg-emerald-500/10 border border-emerald-500/30">
                             <span className="text-[10px] text-emerald-400 block font-medium">Líquido da Clínica:</span>
-                            <span className="font-bold text-emerald-400 text-sm">{formatMoney(calc.valorLiquido)}</span>
+                            <span className="font-bold text-emerald-400 text-sm">{formatMoney(valorLiquidoFinal)}</span>
                           </div>
                           <div className="p-2 rounded bg-blue-500/10 border border-blue-500/30">
                             <span className="text-[10px] text-blue-400 block font-medium">Parcelamento:</span>
@@ -4588,7 +4722,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-border/40">
                           <p className="text-[11px] text-muted-foreground flex items-center gap-1">
                             <Sparkles className="h-3 w-3 text-blue-400 shrink-0" />
-                            Taxa de <strong>{calc.taxaPercentual}%</strong> na operadora <strong>{opNome}</strong>. Ao aprovar, o valor de {formatMoney(calc.taxaValor)} será lançado como <strong>despesa</strong> automaticamente.
+                            Taxa de <strong>{taxaPercFinal}%</strong> ({formatMoney(taxaValorFinal)}) na operadora <strong>{opNome}</strong>.
                           </p>
                           <Button
                             type="button"
@@ -4875,25 +5009,82 @@ const PatientOrcamentos = ({ patient }: Props) => {
                                 </div>
                               </div>
 
-                              {/* Banner de resumo de taxas da maquininha em tempo real */}
+                              {/* Banner e Campos de Ajuste de Taxas da Máquina */}
                               {isCartao && item.valor > 0 && (() => {
                                 const op = operadoras.find((o) => o.id === item.operadoraCartaoId) || operadoraPadrao;
                                 const isDeb = item.tipoCartao === 'debito';
                                 const calc = calcularTaxaCartao(op, item.parcelas || 1, item.valor, isDeb);
+                                const taxaPerc = item.taxaCartaoPercentual ?? calc.taxaPercentual;
+                                const taxaValor = item.taxaCartaoValor ?? calc.taxaValor;
+                                const valorLiquido = Math.max(0, Number((item.valor - taxaValor).toFixed(2)));
+
                                 return (
-                                  <div className="flex flex-wrap items-center justify-between gap-2 p-2 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-xs">
-                                    <div className="flex items-center gap-1.5 text-emerald-400 font-semibold">
-                                      <CreditCard className="h-3.5 w-3.5" />
-                                      <span>Máquina: <strong>{calc.operadoraNome}</strong> ({isDeb ? 'Débito' : `${calc.parcelas}x Crédito`})</span>
+                                  <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-2.5 space-y-2">
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 items-end">
+                                      <div>
+                                        <Label className="text-[10px] text-muted-foreground">Cobrado (Bruto)</Label>
+                                        <div className="h-7 px-2 flex items-center rounded border bg-muted/40 font-bold text-xs text-foreground">
+                                          {formatMoney(item.valor)}
+                                        </div>
+                                      </div>
+
+                                      <div>
+                                        <Label className="text-[10px] text-muted-foreground">Valor da Taxa (R$)</Label>
+                                        <Input
+                                          type="number"
+                                          step="0.01"
+                                          min={0}
+                                          placeholder="0,00"
+                                          value={item.taxaCartaoValor !== undefined ? item.taxaCartaoValor : (calc.taxaValor || '')}
+                                          onChange={(e) => {
+                                            const val = parseFloat(e.target.value);
+                                            handleAtualizarFormaMultipla(idx, {
+                                              taxaCartaoValor: isNaN(val) ? 0 : Math.max(0, val),
+                                            });
+                                          }}
+                                          className="h-7 text-xs font-semibold bg-background"
+                                        />
+                                      </div>
+
+                                      <div>
+                                        <Label className="text-[10px] text-muted-foreground">Taxa da Máquina (%)</Label>
+                                        <Input
+                                          type="number"
+                                          step="0.01"
+                                          min={0}
+                                          placeholder="0.00"
+                                          value={item.taxaCartaoPercentual !== undefined ? item.taxaCartaoPercentual : (calc.taxaPercentual || '')}
+                                          onChange={(e) => {
+                                            const val = parseFloat(e.target.value);
+                                            handleAtualizarFormaMultipla(idx, {
+                                              taxaCartaoPercentual: isNaN(val) ? 0 : Math.max(0, val),
+                                            });
+                                          }}
+                                          className="h-7 text-xs font-semibold bg-background"
+                                        />
+                                      </div>
+
+                                      <div>
+                                        <Label className="text-[10px] text-muted-foreground">Valor Líquido</Label>
+                                        <div className="h-7 px-2 flex items-center rounded border border-emerald-500/40 bg-emerald-500/20 font-bold text-xs text-emerald-600 dark:text-emerald-400">
+                                          {formatMoney(valorLiquido)}
+                                        </div>
+                                      </div>
                                     </div>
-                                    <div className="flex items-center gap-3">
-                                      <span className="text-destructive font-semibold">
-                                        Taxa ({calc.taxaPercentual}%): -{formatMoney(calc.taxaValor)}
-                                        <span className="text-[10px] text-muted-foreground ml-1 font-normal">(Despesa no financeiro)</span>
-                                      </span>
-                                      <span className="text-emerald-500 font-bold">
-                                        Líquido Clínica: {formatMoney(calc.valorLiquido)}
-                                      </span>
+
+                                    <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] pt-1.5 border-t border-emerald-500/20">
+                                      <div className="flex items-center gap-1.5 text-emerald-400 font-semibold">
+                                        <CreditCard className="h-3.5 w-3.5" />
+                                        <span>Máquina: <strong>{calc.operadoraNome}</strong> ({isDeb ? 'Débito' : `${item.parcelas || 1}x Crédito`})</span>
+                                      </div>
+                                      <div className="flex items-center gap-3">
+                                        <span className="text-destructive font-semibold">
+                                          Valor descontado da taxa: -{formatMoney(taxaValor)} ({taxaPerc}%)
+                                        </span>
+                                        <span className="text-emerald-500 font-bold">
+                                          Líquido creditado: {formatMoney(valorLiquido)}
+                                        </span>
+                                      </div>
                                     </div>
                                   </div>
                                 );

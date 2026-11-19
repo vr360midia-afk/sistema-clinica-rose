@@ -7,9 +7,10 @@ export interface TaxasParcelas {
 
 export interface OperadoraCartao {
   id: string; // 'pagbank' | 'infinitepay' | string
-  nome: string; // 'PagBank' | 'InfinitePay'
+  nome: string; // 'PagBank' | 'InfinitePay' | 'Stone' | etc.
   ativa: boolean;
   padrao?: boolean;
+  isCustom?: boolean;
   cor?: string; // Cor identificadora (hex ou classe)
   taxas: TaxasParcelas;
   observacoes?: string;

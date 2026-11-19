@@ -222,11 +222,46 @@ export const extrairDetalhesCartaoDeTexto = (
   const isCartao = /cart[aã]o|cr[eé]dito|d[eé]bito/i.test(texto);
   const operadora = identificarOperadoraEmTexto(texto, operadoras, operadoraPadraoId);
 
+  // Extrai taxa manual em R$ ou % caso esteja gravada no texto (ex: [taxa: R$ 50,00 / 2.5%] ou [taxa: 2.5%])
+  let taxaValor: number | undefined = undefined;
+  let taxaPercentual: number | undefined = undefined;
+
+  const taxaValMatch =
+    texto.match(/\[taxa:\s*(?:r\$)?\s*([\d.,]+)(?:\s*\/\s*([\d.,]+)%)?\]/i) ||
+    texto.match(/(?:taxa|tarifa):\s*(?:r\$)?\s*([\d.,]+)/i);
+  if (taxaValMatch) {
+    const rawVal = taxaValMatch[1].replace(/\./g, '').replace(',', '.');
+    const numVal = parseFloat(rawVal);
+    if (!isNaN(numVal) && numVal >= 0) {
+      taxaValor = numVal;
+    }
+    if (taxaValMatch[2]) {
+      const rawPerc = taxaValMatch[2].replace(/\./g, '').replace(',', '.');
+      const numPerc = parseFloat(rawPerc);
+      if (!isNaN(numPerc) && numPerc >= 0) {
+        taxaPercentual = numPerc;
+      }
+    }
+  }
+
+  if (taxaPercentual === undefined) {
+    const taxaPercMatch = texto.match(/(?:taxa|tarifa):\s*([\d.,]+)%/i);
+    if (taxaPercMatch) {
+      const rawPerc = taxaPercMatch[1].replace(/\./g, '').replace(',', '.');
+      const numPerc = parseFloat(rawPerc);
+      if (!isNaN(numPerc) && numPerc >= 0) {
+        taxaPercentual = numPerc;
+      }
+    }
+  }
+
   return {
     isCartao,
     isDebito,
     parcelas,
     operadora,
+    taxaValor,
+    taxaPercentual,
   };
 };
 
@@ -312,21 +347,39 @@ export const useMaquinasCartao = () => {
   };
 
   const adicionarOperadora = async (novaOp: OperadoraCartao): Promise<boolean> => {
-    if (config.operadoras.some((o) => o.id === novaOp.id)) {
-      toast.error('Já existe uma operadora com esse identificador.');
+    const idNormalizado = novaOp.id.trim().toLowerCase().replace(/\s+/g, '_');
+    if (config.operadoras.some((o) => o.id.toLowerCase() === idNormalizado)) {
+      toast.error('Já existe uma máquina com esse identificador ou nome.');
       return false;
     }
-    const novas = [...config.operadoras, novaOp];
+    const opFormatada: OperadoraCartao = {
+      ...novaOp,
+      id: idNormalizado,
+      isCustom: true,
+      ativa: novaOp.ativa !== false,
+      cor: novaOp.cor || '#3b82f6',
+      taxas: {
+        debito: Number(novaOp.taxas?.debito || 0),
+        creditoAVista: Number(novaOp.taxas?.creditoAVista || 0),
+        parcelado: novaOp.taxas?.parcelado || {},
+        taxaFixaTransacao: Number(novaOp.taxas?.taxaFixaTransacao || 0),
+      },
+    };
+    const novas = [...config.operadoras, opFormatada];
     return salvarConfig({ operadoras: novas });
   };
 
   const removerOperadora = async (operadoraId: string): Promise<boolean> => {
     if (operadoraId === 'pagbank' || operadoraId === 'infinitepay') {
-      toast.error('As operadoras PagBank e InfinitePay são padrão e não podem ser excluídas (você pode desativá-las).');
+      toast.error('As operadoras PagBank e InfinitePay são padrão do sistema e não podem ser excluídas (você pode desativá-las).');
       return false;
     }
     const novas = config.operadoras.filter((o) => o.id !== operadoraId);
-    return salvarConfig({ operadoras: novas });
+    let novaPadrao = config.operadoraPadraoId;
+    if (novaPadrao === operadoraId) {
+      novaPadrao = novas[0]?.id || 'infinitepay';
+    }
+    return salvarConfig({ operadoras: novas, operadoraPadraoId: novaPadrao });
   };
 
   const restaurarPadrao = async () => {

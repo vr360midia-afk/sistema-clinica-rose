@@ -79,6 +79,7 @@ export const ModalReceberPagamento = ({
   const [selectedOperadoraId, setSelectedOperadoraId] = useState<string>('infinitepay');
   const [parcelas, setParcelas] = useState<string>('1');
   const [taxaCartaoPercentual, setTaxaCartaoPercentual] = useState<string>('');
+  const [taxaCartaoValorManual, setTaxaCartaoValorManual] = useState<string>('');
 
   // Suporte a Pagamento Misto (PIX + Cartão de Crédito/Débito)
   const [mistoPixValor, setMistoPixValor] = useState('');
@@ -86,6 +87,8 @@ export const ModalReceberPagamento = ({
   const [mistoOperadoraCartaoId, setMistoOperadoraCartaoId] = useState<string>('infinitepay');
   const [mistoParcelasCartao, setMistoParcelasCartao] = useState<string>('1');
   const [mistoTipoCartao, setMistoTipoCartao] = useState<'credito' | 'debito'>('credito');
+  const [mistoTaxaCartaoPercentual, setMistoTaxaCartaoPercentual] = useState<string>('');
+  const [mistoTaxaCartaoValorManual, setMistoTaxaCartaoValorManual] = useState<string>('');
 
   useEffect(() => {
     if (isOpen) {
@@ -119,6 +122,15 @@ export const ModalReceberPagamento = ({
       }
       setMistoPixValor('');
       setMistoCartaoValor('');
+      setTaxaCartaoValorManual('');
+      setMistoTaxaCartaoPercentual('');
+      setMistoTaxaCartaoValorManual('');
+      if (transacaoPendente?.taxaCartaoPercentual !== undefined) {
+        setTaxaCartaoPercentual(String(transacaoPendente.taxaCartaoPercentual));
+      }
+      if (transacaoPendente?.taxaCartaoValor !== undefined) {
+        setTaxaCartaoValorManual(String(transacaoPendente.taxaCartaoValor));
+      }
       setDataRecebimento(new Date().toISOString().slice(0, 10));
       setGerarReciboAposBaixa(false);
       setCopiouPayload(false);
@@ -180,23 +192,65 @@ export const ModalReceberPagamento = ({
   const mistoValCartaoNum = parseFloat(mistoCartaoValor) || 0;
   const mistoTotalInformado = Number((mistoValPixNum + mistoValCartaoNum).toFixed(2));
 
+  // Atualiza taxa da máquina no misto quando muda operadora, parcelas ou tipo
+  useEffect(() => {
+    if (metodo === 'misto') {
+      const op = operadoras.find((o) => o.id === mistoOperadoraCartaoId) || operadoraPadrao;
+      const p = Math.max(1, parseInt(mistoParcelasCartao) || 1);
+      const isDeb = mistoTipoCartao === 'debito';
+      const calc = calcularTaxaCartao(op, p, mistoValCartaoNum > 0 ? mistoValCartaoNum : 100, isDeb);
+      setMistoTaxaCartaoPercentual(String(calc.taxaPercentual));
+      if (mistoValCartaoNum > 0) {
+        setMistoTaxaCartaoValorManual(String(calc.taxaValor));
+      } else {
+        setMistoTaxaCartaoValorManual('');
+      }
+    }
+  }, [metodo, mistoOperadoraCartaoId, mistoParcelasCartao, mistoTipoCartao, operadoras, operadoraPadrao]);
+
+  // Atualiza taxa em R$ no misto quando valor muda e tem taxa %
+  useEffect(() => {
+    if (metodo === 'misto' && mistoValCartaoNum > 0) {
+      const perc = parseFloat(mistoTaxaCartaoPercentual);
+      if (!isNaN(perc)) {
+        setMistoTaxaCartaoValorManual(String(Number(((mistoValCartaoNum * perc) / 100).toFixed(2))));
+      }
+    }
+  }, [mistoValCartaoNum]);
+
   // Cálculo de taxas para a parte de Cartão no Pagamento Misto
   const mistoCalculoCartao = useMemo(() => {
     if (metodo !== 'misto' || mistoValCartaoNum <= 0) return null;
     const op = operadoras.find((o) => o.id === mistoOperadoraCartaoId) || operadoraPadrao;
     const p = Math.max(1, parseInt(mistoParcelasCartao) || 1);
     const isDeb = mistoTipoCartao === 'debito';
-    const calc = calcularTaxaCartao(op, p, mistoValCartaoNum, isDeb);
+    const taxaPerc = parseFloat(mistoTaxaCartaoPercentual) || 0;
+    const taxaValor =
+      mistoTaxaCartaoValorManual !== '' && !isNaN(parseFloat(mistoTaxaCartaoValorManual))
+        ? Math.max(0, parseFloat(mistoTaxaCartaoValorManual))
+        : Number(((mistoValCartaoNum * taxaPerc) / 100).toFixed(2));
+    const valorLiquido = Math.max(0, Number((mistoValCartaoNum - taxaValor).toFixed(2)));
+    const valorParcela = p > 1 ? Number((mistoValCartaoNum / p).toFixed(2)) : mistoValCartaoNum;
     return {
       operadora: op,
       parcelas: p,
       isDebito: isDeb,
-      taxaPerc: calc.taxaPercentual,
-      taxaValor: calc.taxaValor,
-      valorLiquido: calc.valorLiquido,
-      valorParcela: p > 1 ? Number((mistoValCartaoNum / p).toFixed(2)) : mistoValCartaoNum,
+      taxaPerc,
+      taxaValor,
+      valorLiquido,
+      valorParcela,
     };
-  }, [metodo, mistoValCartaoNum, mistoOperadoraCartaoId, mistoParcelasCartao, mistoTipoCartao, operadoras, operadoraPadrao]);
+  }, [
+    metodo,
+    mistoValCartaoNum,
+    mistoOperadoraCartaoId,
+    mistoParcelasCartao,
+    mistoTipoCartao,
+    mistoTaxaCartaoPercentual,
+    mistoTaxaCartaoValorManual,
+    operadoras,
+    operadoraPadrao,
+  ]);
 
   // Alvo de valor para geração de payload/QR Code de PIX
   const valorPixAlvo = metodo === 'misto' ? mistoValPixNum : valNum;
@@ -206,27 +260,47 @@ export const ModalReceberPagamento = ({
     if (metodo === 'cartao') {
       const op = operadoras.find((o) => o.id === selectedOperadoraId) || operadoraPadrao;
       const p = parseInt(parcelas) || 1;
-      const calc = calcularTaxaCartao(op, p, 100);
+      const calc = calcularTaxaCartao(op, p, valNum > 0 ? valNum : 100);
       setTaxaCartaoPercentual(String(calc.taxaPercentual));
+      if (valNum > 0) {
+        setTaxaCartaoValorManual(String(calc.taxaValor));
+      } else {
+        setTaxaCartaoValorManual('');
+      }
     }
   }, [metodo, selectedOperadoraId, parcelas, operadoras, operadoraPadrao]);
+
+  // Atualiza taxa em R$ quando o valor total do cartão muda
+  useEffect(() => {
+    if (metodo === 'cartao' && valNum > 0) {
+      const perc = parseFloat(taxaCartaoPercentual);
+      if (!isNaN(perc)) {
+        setTaxaCartaoValorManual(String(Number(((valNum * perc) / 100).toFixed(2))));
+      }
+    }
+  }, [valNum]);
 
   // Cálculo de Cartão
   const calculoCartao = useMemo(() => {
     if (metodo !== 'cartao') return null;
     const p = Math.max(1, parseInt(parcelas) || 1);
     const taxaPerc = parseFloat(taxaCartaoPercentual) || 0;
-    const taxaValor = Number(((valNum * taxaPerc) / 100).toFixed(2));
+    const taxaValor =
+      taxaCartaoValorManual !== '' && !isNaN(parseFloat(taxaCartaoValorManual))
+        ? Math.max(0, parseFloat(taxaCartaoValorManual))
+        : Number(((valNum * taxaPerc) / 100).toFixed(2));
     const valorLiquido = Math.max(0, Number((valNum - taxaValor).toFixed(2)));
     const valorParcela = Number((valNum / p).toFixed(2));
+    const op = operadoras.find((o) => o.id === selectedOperadoraId) || operadoraPadrao;
     return {
+      operadora: op,
       parcelas: p,
       taxaPerc,
       taxaValor,
       valorLiquido,
       valorParcela,
     };
-  }, [metodo, parcelas, taxaCartaoPercentual, valNum]);
+  }, [metodo, parcelas, taxaCartaoPercentual, taxaCartaoValorManual, valNum, operadoras, selectedOperadoraId, operadoraPadrao]);
 
   // Gera o Payload Oficial Bacen (EMV) dinâmico com o valor em tempo real
   const payloadPix = useMemo(() => {
@@ -971,7 +1045,7 @@ export const ModalReceberPagamento = ({
                     />
                   </div>
 
-                  <div className="grid grid-cols-3 gap-1 pt-0.5">
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-1 pt-0.5">
                     <div>
                       <Label className="text-[9px] text-muted-foreground">Máquina</Label>
                       <Select value={mistoOperadoraCartaoId} onValueChange={setMistoOperadoraCartaoId}>
@@ -1022,12 +1096,53 @@ export const ModalReceberPagamento = ({
                         </SelectContent>
                       </Select>
                     </div>
+
+                    <div>
+                      <Label className="text-[9px] text-muted-foreground">Taxa (R$)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="R$ 0,00"
+                        value={mistoTaxaCartaoValorManual}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setMistoTaxaCartaoValorManual(v);
+                          const num = parseFloat(v);
+                          if (!isNaN(num) && mistoValCartaoNum > 0) {
+                            setMistoTaxaCartaoPercentual(String(Number(((num / mistoValCartaoNum) * 100).toFixed(2))));
+                          }
+                        }}
+                        className="h-6 text-[10px] px-1 font-semibold"
+                      />
+                    </div>
+
+                    <div>
+                      <Label className="text-[9px] text-muted-foreground">Taxa (%)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.0%"
+                        value={mistoTaxaCartaoPercentual}
+                        onChange={(e) => {
+                          const p = e.target.value;
+                          setMistoTaxaCartaoPercentual(p);
+                          const numP = parseFloat(p);
+                          if (!isNaN(numP) && mistoValCartaoNum > 0) {
+                            setMistoTaxaCartaoValorManual(String(Number(((mistoValCartaoNum * numP) / 100).toFixed(2))));
+                          }
+                        }}
+                        className="h-6 text-[10px] px-1 font-semibold"
+                      />
+                    </div>
                   </div>
 
                   {mistoCalculoCartao && mistoValCartaoNum > 0 && (
-                    <div className="text-[9px] text-muted-foreground flex items-center justify-between pt-0.5 border-t border-border/40">
-                      <span>Taxa: <strong className="text-destructive">-{formatMoney(mistoCalculoCartao.taxaValor)} ({mistoCalculoCartao.taxaPerc}%)</strong></span>
-                      <span>Líquido: <strong className="text-emerald-400">{formatMoney(mistoCalculoCartao.valorLiquido)}</strong></span>
+                    <div className="text-[9px] text-muted-foreground flex flex-wrap items-center justify-between pt-0.5 border-t border-border/40 gap-1">
+                      <span>Cobrado: <strong>{formatMoney(mistoValCartaoNum)}</strong></span>
+                      <span>Desconto taxa: <strong className="text-destructive">-{formatMoney(mistoCalculoCartao.taxaValor)} ({mistoCalculoCartao.taxaPerc}%)</strong></span>
+                      <span>Líquido: <strong className="text-emerald-400 font-bold">{formatMoney(mistoCalculoCartao.valorLiquido)}</strong></span>
                     </div>
                   )}
                 </div>
@@ -1090,7 +1205,7 @@ export const ModalReceberPagamento = ({
           {/* Painel de Cartão Compacto (aparece apenas quando Cartão selecionado) */}
           {metodo === 'cartao' && (
             <div className="rounded-lg border border-blue-500/30 bg-blue-50/40 dark:bg-blue-950/20 p-2 space-y-1.5 animate-in fade-in-50">
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 <div>
                   <Label className="text-[10px] text-muted-foreground">Máquina</Label>
                   <Select value={selectedOperadoraId} onValueChange={setSelectedOperadoraId}>
@@ -1126,14 +1241,42 @@ export const ModalReceberPagamento = ({
                 </div>
 
                 <div>
+                  <Label className="text-[10px] text-muted-foreground">Valor da Taxa (R$)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="Ex: 15.00"
+                    value={taxaCartaoValorManual}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setTaxaCartaoValorManual(v);
+                      const num = parseFloat(v);
+                      if (!isNaN(num) && valNum > 0) {
+                        setTaxaCartaoPercentual(String(Number(((num / valNum) * 100).toFixed(2))));
+                      }
+                    }}
+                    className="h-7 text-xs font-semibold"
+                  />
+                </div>
+
+                <div>
                   <Label className="text-[10px] text-muted-foreground">Taxa da Máquina (%)</Label>
                   <Input
                     type="number"
                     step="0.01"
+                    min="0"
                     placeholder="Ex: 3.5"
                     value={taxaCartaoPercentual}
-                    onChange={(e) => setTaxaCartaoPercentual(e.target.value)}
-                    className="h-7 text-xs"
+                    onChange={(e) => {
+                      const p = e.target.value;
+                      setTaxaCartaoPercentual(p);
+                      const numP = parseFloat(p);
+                      if (!isNaN(numP) && valNum > 0) {
+                        setTaxaCartaoValorManual(String(Number(((valNum * numP) / 100).toFixed(2))));
+                      }
+                    }}
+                    className="h-7 text-xs font-semibold"
                   />
                 </div>
               </div>
@@ -1141,14 +1284,14 @@ export const ModalReceberPagamento = ({
               {valNum > 0 && calculoCartao && (
                 <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] pt-1 border-t border-blue-500/20">
                   <span className="text-muted-foreground">
-                    Cobrado: <strong>{formatMoney(valNum)}</strong>
+                    Valor cobrado (bruto): <strong className="text-foreground">{formatMoney(valNum)}</strong>
                     {calculoCartao.parcelas > 1 && ` (${calculoCartao.parcelas}x de ${formatMoney(calculoCartao.valorParcela)})`}
                   </span>
                   <span className="text-destructive font-medium">
-                    - Taxa: {formatMoney(calculoCartao.taxaValor)} ({calculoCartao.taxaPerc}%)
+                    Valor descontado da taxa: -{formatMoney(calculoCartao.taxaValor)} ({calculoCartao.taxaPerc}%)
                   </span>
                   <span className="text-emerald-600 dark:text-emerald-400 font-bold">
-                    Líquido: {formatMoney(calculoCartao.valorLiquido)}
+                    Valor líquido creditado: {formatMoney(calculoCartao.valorLiquido)}
                   </span>
                 </div>
               )}
