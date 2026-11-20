@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -21,11 +21,13 @@ import {
   Handshake,
   Pencil,
   AlertTriangle,
+  Filter,
 } from 'lucide-react';
 import ModalApresentarOrcamento from '@/components/orcamentos/ModalApresentarOrcamento';
 import { useOrcamentos, Orcamento } from '@/hooks/useOrcamentos';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import { calcularSaldoOrcamento } from '@/utils/orcamentoSaldo';
+import { isDataNoMesString, ehTransacaoPaga } from '@/utils/financeiroCalculos';
 import { formatMoney } from '@/utils/exportCsv';
 import { ModalReceberPagamento } from './ModalReceberPagamento';
 import { ModalExcluirRegistroFinanceiro } from './ModalExcluirRegistroFinanceiro';
@@ -36,14 +38,18 @@ import { isRegistroFicticioTeste } from '@/utils/financeiroExclusao';
 import { Transacao } from '@/types/shared';
 
 interface Props {
+  selectedMonth?: string;
   onLancarPagamento?: (prefill: any) => void;
 }
 
-export const OrcamentosAbertos = ({ onLancarPagamento }: Props) => {
+export const OrcamentosAbertos = ({ selectedMonth, onLancarPagamento }: Props) => {
   const { orcamentos, loading, reload: reloadOrcamentos } = useOrcamentos();
   const { transacoes, pacientes, reloadTransacoes } = useDentalSystem();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [apresentarOrcamento, setApresentarOrcamento] = useState<any | null>(null);
+
+  // Filtro de exibição mensal vs geral
+  const [filtroAba, setFiltroAba] = useState<'ativos_mes' | 'em_aberto' | 'todos'>('ativos_mes');
 
   // Estado para Modal de Recebimento
   const [modalReceberOpen, setModalReceberOpen] = useState(false);
@@ -67,23 +73,100 @@ export const OrcamentosAbertos = ({ onLancarPagamento }: Props) => {
   const [orcamentoParaEditar, setOrcamentoParaEditar] = useState<Orcamento | null>(null);
   const [modalEditarOpen, setModalEditarOpen] = useState(false);
 
-  // Filtra orçamentos ativos, ignorando os que foram cancelados ou arquivados financeiramente
-  const aprovados = (orcamentos || [])
-    .filter((o) => {
-      if (!o || o.status?.toLowerCase() !== 'aprovado') return false;
-      const snap = (o as any).assinatura_paciente || (o as any).assinaturaPaciente || {};
-      if (
-        o.statusFinanceiro === 'cancelado' ||
-        o.statusFinanceiro === 'arquivado' ||
-        snap.statusFinanceiro === 'cancelado' ||
-        snap.statusFinanceiro === 'arquivado'
-      ) {
-        return false;
-      }
-      return true;
-    })
-    .map((o) => ({ orcamento: o, saldo: calcularSaldoOrcamento(o, transacoes as any[], orcamentos as any[]) }))
-    .sort((a, b) => b.saldo.saldo - a.saldo.saldo);
+  // Nome formatado do mês selecionado
+  const mesFormatado = useMemo(() => {
+    try {
+      if (!selectedMonth) return '';
+      const [ano, mes] = selectedMonth.split('-');
+      if (!ano || !mes) return selectedMonth;
+      const data = new Date(Number(ano), Number(mes) - 1, 1);
+      const str = data.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+      return str.charAt(0).toUpperCase() + str.slice(1);
+    } catch {
+      return selectedMonth || '';
+    }
+  }, [selectedMonth]);
+
+  // Processa todos os orçamentos aprovados enriquecidos com saldo, histórico de pagamentos e quitação
+  const todosAprovados = useMemo(() => {
+    return (orcamentos || [])
+      .filter((o) => {
+        if (!o || o.status?.toLowerCase() !== 'aprovado') return false;
+        const snap = (o as any).assinatura_paciente || (o as any).assinaturaPaciente || {};
+        if (
+          o.statusFinanceiro === 'cancelado' ||
+          o.statusFinanceiro === 'arquivado' ||
+          snap.statusFinanceiro === 'cancelado' ||
+          snap.statusFinanceiro === 'arquivado'
+        ) {
+          return false;
+        }
+        return true;
+      })
+      .map((o) => {
+        const saldo = calcularSaldoOrcamento(o, transacoes as any[], orcamentos as any[]);
+        const transacoesVinculadas = (transacoes || []).filter(
+          (t) => t.orcamentoId === o.id || (t as any).orcamento_id === o.id
+        );
+        const isQuitado = saldo.saldo <= 0.009;
+
+        // Identifica a data do último pagamento quitado ou aprovação
+        const datasPagas = transacoesVinculadas
+          .filter(ehTransacaoPaga)
+          .map((t) => t.data || t.dataPagamento)
+          .filter(Boolean) as string[];
+
+        datasPagas.sort();
+        const ultimaDataPagamento =
+          datasPagas[datasPagas.length - 1] ||
+          (o as any).aprovado_em ||
+          o.aprovadoEm ||
+          (o as any).data_assinatura ||
+          (o as any).dataAssinatura ||
+          o.criadoEm;
+
+        // Verifica se foi quitado dentro do mês atualmente selecionado
+        const quitadoNoMesSelecionado = Boolean(
+          selectedMonth && ultimaDataPagamento && isDataNoMesString(ultimaDataPagamento, selectedMonth)
+        );
+
+        // Se está 100% quitado e a quitação foi em outro mês diferente do mês selecionado
+        const quitadoEmOutroMes = Boolean(selectedMonth && isQuitado && !quitadoNoMesSelecionado);
+
+        return {
+          orcamento: o,
+          saldo,
+          transacoesVinculadas,
+          isQuitado,
+          ultimaDataPagamento,
+          quitadoNoMesSelecionado,
+          quitadoEmOutroMes,
+        };
+      })
+      .sort((a, b) => b.saldo.saldo - a.saldo.saldo);
+  }, [orcamentos, transacoes, selectedMonth]);
+
+  // Contagens para os botões de filtro
+  const qtdEmAberto = useMemo(() => todosAprovados.filter((a) => !a.isQuitado).length, [todosAprovados]);
+  const qtdAtivosMes = useMemo(
+    () => (selectedMonth ? todosAprovados.filter((a) => !a.quitadoEmOutroMes).length : todosAprovados.length),
+    [todosAprovados, selectedMonth]
+  );
+  const qtdOcultosOutrosMeses = useMemo(
+    () => (selectedMonth ? todosAprovados.filter((a) => a.quitadoEmOutroMes).length : 0),
+    [todosAprovados, selectedMonth]
+  );
+
+  // Lista efetiva de exibição conforme a aba selecionada
+  const aprovados = useMemo(() => {
+    if (filtroAba === 'em_aberto') {
+      return todosAprovados.filter((a) => !a.isQuitado);
+    }
+    if (filtroAba === 'ativos_mes' && selectedMonth) {
+      return todosAprovados.filter((a) => !a.quitadoEmOutroMes);
+    }
+    return todosAprovados;
+  }, [todosAprovados, filtroAba, selectedMonth]);
 
   const totalVendasAprovadas = aprovados.reduce((s, a) => s + Number(a.orcamento.total || 0), 0);
   const emAberto = aprovados.filter((a) => a.saldo.saldo > 0.009);
@@ -147,6 +230,84 @@ export const OrcamentosAbertos = ({ onLancarPagamento }: Props) => {
           <CardDescription className="text-xs">
             Acompanhe o saldo recebido no caixa e as parcelas em aberto de cada plano de tratamento.
           </CardDescription>
+
+          {/* Seletor de visualização mensal vs com saldo vs histórico completo */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border/40 mt-1">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Button
+                type="button"
+                variant={filtroAba === 'ativos_mes' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setFiltroAba('ativos_mes')}
+                className="h-7 text-xs font-semibold px-2.5 gap-1.5"
+              >
+                <Filter className="h-3.5 w-3.5" />
+                Ativos {mesFormatado ? `em ${mesFormatado}` : 'no Mês'} ({qtdAtivosMes})
+              </Button>
+
+              <Button
+                type="button"
+                variant={filtroAba === 'em_aberto' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setFiltroAba('em_aberto')}
+                className="h-7 text-xs font-semibold px-2.5 gap-1.5"
+              >
+                <Clock className="h-3.5 w-3.5 text-amber-500" />
+                Apenas com Saldo a Receber ({qtdEmAberto})
+              </Button>
+
+              <Button
+                type="button"
+                variant={filtroAba === 'todos' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setFiltroAba('todos')}
+                className="h-7 text-xs font-semibold px-2.5 gap-1.5"
+              >
+                Histórico Completo ({todosAprovados.length})
+              </Button>
+            </div>
+          </div>
+
+          {/* Banner explicativo quando orçamentos quitados em outros meses estão ocultos */}
+          {filtroAba === 'ativos_mes' && qtdOcultosOutrosMeses > 0 && (
+            <div className="p-2.5 rounded-lg border border-border/60 bg-muted/40 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2 mt-2">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                <span>
+                  <strong className="text-foreground">{qtdOcultosOutrosMeses}</strong> orçamento(s) já 100% quitado(s) em outros meses foram ocultados automaticamente para manter sua visão de {mesFormatado || 'mês'} focada.
+                </span>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setFiltroAba('todos')}
+                className="h-6 text-xs text-primary hover:underline px-1.5 self-start sm:self-auto font-medium"
+              >
+                Ver Histórico Completo
+              </Button>
+            </div>
+          )}
+
+          {filtroAba === 'todos' && qtdOcultosOutrosMeses > 0 && (
+            <div className="p-2.5 rounded-lg border border-amber-500/30 bg-amber-500/5 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2 mt-2">
+              <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
+                <Clock className="h-4 w-4 shrink-0" />
+                <span>
+                  Exibindo histórico completo, incluindo <strong>{qtdOcultosOutrosMeses}</strong> orçamento(s) já quitado(s) em períodos anteriores.
+                </span>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setFiltroAba('ativos_mes')}
+                className="h-6 text-xs text-amber-700 dark:text-amber-400 hover:underline px-1.5 self-start sm:self-auto font-medium"
+              >
+                Ocultar Quitados de Outros Meses
+              </Button>
+            </div>
+          )}
 
           {/* Barra de Ações em Lote e Filtros de Limpeza */}
           {aprovados.length > 0 && (
@@ -213,10 +374,8 @@ export const OrcamentosAbertos = ({ onLancarPagamento }: Props) => {
               Nenhum orçamento aprovado encontrado para este período.
             </p>
           ) : (
-            aprovados.map(({ orcamento, saldo }) => {
-              const isQuitado = saldo.saldo <= 0.009;
+            aprovados.map(({ orcamento, saldo, isQuitado, quitadoEmOutroMes, transacoesVinculadas }) => {
               const isExpanded = expandedId === orcamento.id;
-              const transacoesVinculadas = transacoes.filter((t) => t.orcamentoId === orcamento.id);
               const isSelected = selecionadosIds.has(orcamento.id);
               const isTeste = isRegistroFicticioTeste(orcamento);
               const isOrfao = !orcamento.pacienteId || !pacientes.some((p) => p.id === orcamento.pacienteId);
@@ -277,9 +436,16 @@ export const OrcamentosAbertos = ({ onLancarPagamento }: Props) => {
 
                     <div className="text-right flex-shrink-0">
                       {isQuitado ? (
-                        <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 font-semibold gap-1 text-xs">
-                          <CheckCircle2 className="h-3 w-3" /> Quitado no Caixa
-                        </Badge>
+                        <div className="flex flex-col items-end gap-1">
+                          <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 font-semibold gap-1 text-xs">
+                            <CheckCircle2 className="h-3 w-3" /> Quitado no Caixa
+                          </Badge>
+                          {quitadoEmOutroMes && (
+                            <Badge variant="outline" className="text-[10px] text-muted-foreground border-border/80">
+                              Quitado em período anterior
+                            </Badge>
+                          )}
+                        </div>
                       ) : (
                         <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400 font-semibold gap-1 text-xs">
                           <Clock className="h-3 w-3" /> Falta {formatMoney(saldo.saldo)}

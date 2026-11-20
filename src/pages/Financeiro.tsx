@@ -957,6 +957,7 @@ const Financeiro = () => {
           {/* ABA 2: ORÇAMENTOS & PARCELAS */}
           <TabsContent value="orcamentos" className="space-y-4">
             <OrcamentosAbertos
+              selectedMonth={selectedMonth}
               onLancarPagamento={(prefill) => {
                 setTransacaoParaReceber(null);
                 setEditingTransacao(prefill);
