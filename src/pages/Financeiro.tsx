@@ -10,10 +10,12 @@ import {
   DollarSign, TrendingUp, TrendingDown, Plus, CreditCard, Receipt, 
   Pencil, Trash2, Handshake, Target, CheckCircle2, QrCode, Search, 
   Filter, Clock, Check, AlertCircle, ArrowUpRight, ArrowDownRight, Wallet,
-  ArrowRightLeft
+  ArrowRightLeft, ChevronRight
 } from 'lucide-react';
 import TransactionForm from '@/components/financeiro/TransactionForm';
 import { ModalReceberPagamento } from '@/components/financeiro/ModalReceberPagamento';
+import { ModalResumoVendasFechadas } from '@/components/financeiro/ModalResumoVendasFechadas';
+import ModalApresentarOrcamento from '@/components/orcamentos/ModalApresentarOrcamento';
 import { registrarAuditoria } from '@/hooks/useAuditLog';
 import { useSecurityGate } from '@/context/SecurityContext';
 import { useDentalSystem } from '@/context/DentalSystemContext';
@@ -31,6 +33,7 @@ import { calcularSaldosOrcamentos } from '@/utils/orcamentoSaldo';
 import { 
   calcularResumoFinanceiroMes, 
   isDataNoMesString, 
+  isDataNoMesAno,
   ehTransacaoPaga, 
   ehTransacaoPendente 
 } from '@/utils/financeiroCalculos';
@@ -39,12 +42,16 @@ import { formatMoney } from '@/utils/exportCsv';
 import { Transacao } from '@/types/shared';
 
 const Financeiro = () => {
-  const { transacoes, pacientes, deleteTransacao, updateTransacao, addTransacao } = useDentalSystem();
+  const { transacoes, pacientes, deleteTransacao, updateTransacao, addTransacao, reloadTransacoes } = useDentalSystem();
   const { requireMasterPassword } = useSecurityGate();
   const { configuracoes } = useConfiguracoes();
-  const { orcamentos } = useOrcamentos();
+  const { orcamentos, reload: reloadOrcamentos } = useOrcamentos();
   const { operadoras, operadoraPadrao, config: configMaquinas } = useMaquinasCartao();
   const navigate = useNavigate();
+
+  const [activeTab, setActiveTab] = useState<'fluxo' | 'orcamentos' | 'cobrancas' | 'dre'>('fluxo');
+  const [modalVendasFechadasOpen, setModalVendasFechadasOpen] = useState(false);
+  const [apresentarOrcamento, setApresentarOrcamento] = useState<any | null>(null);
 
   const [showTransactionForm, setShowTransactionForm] = useState(false);
   const [tipoInicialTransacao, setTipoInicialTransacao] = useState<'receita' | 'despesa'>('receita');
@@ -219,10 +226,29 @@ const Financeiro = () => {
   const orcamentosFechadosNoMes = useMemo(() => {
     return (orcamentos || []).filter(o => {
       if (!o || String(o.status || '').toLowerCase() !== 'aprovado') return false;
-      const dataRef = (o as any).dataAssinatura || o.atualizadoEm || o.criadoEm;
-      return isDataNoMesString(dataRef, selectedMonth);
+      const snap = (o as any).assinatura_paciente || (o as any).assinaturaPaciente || {};
+      if (
+        o.statusFinanceiro === 'cancelado' ||
+        o.statusFinanceiro === 'arquivado' ||
+        snap.statusFinanceiro === 'cancelado' ||
+        snap.statusFinanceiro === 'arquivado'
+      ) {
+        return false;
+      }
+      const dataRef =
+        (o as any).dataAssinatura ||
+        (o as any).data_assinatura ||
+        o.aprovadoEm ||
+        (o as any).aprovado_em ||
+        snap.aprovadoEm ||
+        o.atualizadoEm ||
+        (o as any).atualizado_em ||
+        o.criadoEm ||
+        (o as any).criado_em ||
+        (o as any).created_at;
+      return isDataNoMesAno(dataRef, selectedAno, selectedMes0);
     });
-  }, [orcamentos, selectedMonth]);
+  }, [orcamentos, selectedAno, selectedMes0]);
   const totalFechadoMes = resumoFinanceiro.vendasFechadas;
 
   // Projeção (Orçamentos em Aberto criados/atualizados no Mês Selecionado)
@@ -374,13 +400,17 @@ const Financeiro = () => {
         {/* Cards de Resumo Executivo: Separação Clara entre Vendas (Fechado) e Caixa (Quitado) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
           {/* 1. Vendas Fechadas (Comercial / Contratado) */}
-          <Card className="border-amber-500/30 bg-gradient-to-br from-amber-500/5 to-yellow-500/10 dark:from-amber-950/20 dark:to-yellow-950/20">
+          <Card 
+            onClick={() => setModalVendasFechadasOpen(true)}
+            className="border-amber-500/30 bg-gradient-to-br from-amber-500/5 to-yellow-500/10 dark:from-amber-950/20 dark:to-yellow-950/20 cursor-pointer hover:border-amber-500 hover:shadow-md transition-all group select-none"
+            title="Clique para ver o detalhamento completo dos orçamentos aprovados no mês"
+          >
             <CardContent className="p-4 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-amber-700 dark:text-amber-300 uppercase tracking-wider flex items-center gap-1">
                   <CheckCircle2 className="h-4 w-4 text-amber-600" /> Vendas (Fechado)
                 </span>
-                <span className="p-1.5 rounded-full bg-amber-500/20 text-amber-600">
+                <span className="p-1.5 rounded-full bg-amber-500/20 text-amber-600 group-hover:scale-110 transition-transform">
                   <TrendingUp className="h-4 w-4" />
                 </span>
               </div>
@@ -388,12 +418,18 @@ const Financeiro = () => {
                 <p className="text-2xl font-black text-amber-600 dark:text-amber-400">
                   {formatMoney(totalFechadoMes)}
                 </p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  {orcamentosFechadosNoMes.length} orçamento(s) aprovado(s)
-                </p>
+                <div className="flex items-center justify-between text-[11px] text-muted-foreground mt-0.5">
+                  <span>{orcamentosFechadosNoMes.length} orçamento(s) aprovado(s)</span>
+                  <span className="text-amber-600 dark:text-amber-400 font-semibold group-hover:underline flex items-center gap-0.5 text-[10px]">
+                    Ver lista <ChevronRight className="h-3 w-3" />
+                  </span>
+                </div>
               </div>
-              <div className="pt-2 border-t border-amber-500/20 text-[10px] text-amber-700 dark:text-amber-300 font-medium truncate">
-                Total comercial contratado no mês
+              <div className="pt-2 border-t border-amber-500/20 text-[10px] text-amber-700 dark:text-amber-300 font-medium flex items-center justify-between">
+                <span className="truncate">Total comercial contratado no mês</span>
+                <span className="shrink-0 bg-amber-500/20 text-amber-800 dark:text-amber-200 px-1.5 py-0.5 rounded text-[9px] font-bold">
+                  Clique para abrir
+                </span>
               </div>
             </CardContent>
           </Card>
@@ -535,7 +571,7 @@ const Financeiro = () => {
         />
 
         {/* Abas de Navegação */}
-        <Tabs defaultValue="fluxo" className="space-y-6">
+        <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as any)} id="tabs-financeiro" className="space-y-6">
           <TabsList className="grid w-full grid-cols-2 lg:grid-cols-4 h-auto p-1 bg-muted/60">
             <TabsTrigger value="fluxo" className="py-2.5 text-xs font-semibold gap-1.5">
               <Receipt className="h-4 w-4" /> Extrato & Fluxo de Caixa
@@ -891,6 +927,39 @@ const Financeiro = () => {
             }}
             dados={reciboSelecionado}
             clinica={configuracoes}
+          />
+        )}
+
+        {/* Modal de Detalhamento e Resumo das Vendas Fechadas no Mês */}
+        <ModalResumoVendasFechadas
+          open={modalVendasFechadasOpen}
+          onOpenChange={setModalVendasFechadasOpen}
+          orcamentos={orcamentosFechadosNoMes}
+          transacoes={transacoes}
+          pacientes={pacientes}
+          selectedMonth={selectedMonth}
+          totalFechadoMes={totalFechadoMes}
+          onVerOrcamento={(orc) => setApresentarOrcamento(orc)}
+          onIrParaAbaOrcamentos={() => {
+            setActiveTab('orcamentos');
+            setTimeout(() => {
+              const el = document.getElementById('tabs-financeiro');
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+            }, 50);
+          }}
+        />
+
+        {/* Modal Apresentar / Imprimir Orçamento & Contrato */}
+        {apresentarOrcamento && (
+          <ModalApresentarOrcamento
+            open={!!apresentarOrcamento}
+            onOpenChange={(v) => !v && setApresentarOrcamento(null)}
+            orcamento={apresentarOrcamento}
+            paciente={pacientes.find((p) => p.id === apresentarOrcamento.pacienteId)}
+            onSalvar={() => {
+              reloadOrcamentos?.();
+              reloadTransacoes?.();
+            }}
           />
         )}
       </div>
