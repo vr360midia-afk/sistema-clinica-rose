@@ -227,9 +227,10 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
       setDocumentos(prev => prev.filter(d => d.pacienteId !== id));
       
       toast.success('Paciente removido com sucesso!');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao remover paciente:', error);
-      toast.error('Erro ao remover paciente');
+      const msg = error?.message || (typeof error === 'string' ? error : 'Tente novamente');
+      toast.error(`Falha ao remover paciente: ${msg}`);
       throw error;
     }
   };

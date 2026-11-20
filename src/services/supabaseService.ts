@@ -470,6 +470,23 @@ class SupabaseService {
   async deletePaciente(id: string): Promise<boolean> {
     const userId = await this.getCurrentUserId();
     await this.snapshotToLixeira('pacientes', id);
+
+    // 1. Tenta exclusão segura via RPC administrativa (trata bypass e cascata com integridade)
+    try {
+      const { data: rpcRes, error: rpcErr } = await (supabase as any).rpc('rpc_excluir_paciente_administrativo', {
+        p_paciente_id: id,
+        p_motivo: 'Exclusão solicitada pelo usuário no painel de pacientes',
+      });
+      if (!rpcErr && rpcRes && rpcRes.ok !== false) {
+        return true;
+      }
+      if (rpcErr) {
+        console.warn('[supabaseService] Falha na rpc_excluir_paciente_administrativo, tentando fallback direto:', rpcErr);
+      }
+    } catch (e) {
+      console.warn('[supabaseService] Exceção na rpc_excluir_paciente_administrativo:', e);
+    }
+
     const { error } = await supabase
       .from('pacientes')
       .delete()
