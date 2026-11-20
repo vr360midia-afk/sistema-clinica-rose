@@ -551,7 +551,10 @@ export const ModalReceberPagamento = ({
 
       let transacaoFinal: any = null;
 
-      if (transacaoPendente?.id) {
+      // Se for uma parcela programada sintetizada de contrato, ela não existe no banco ainda: deve ser inserida via addTransacao
+      const isSintetica = Boolean((transacaoPendente as any)?.isContratoProgramado || (transacaoPendente as any)?.isSintetica);
+
+      if (transacaoPendente?.id && !isSintetica) {
         const updates: any = {
           status: 'pago' as const,
           data: dataObj,

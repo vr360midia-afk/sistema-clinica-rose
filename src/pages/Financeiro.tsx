@@ -10,11 +10,12 @@ import {
   DollarSign, TrendingUp, TrendingDown, Plus, CreditCard, Receipt, 
   Pencil, Trash2, Handshake, Target, CheckCircle2, QrCode, Search, 
   Filter, Clock, Check, AlertCircle, ArrowUpRight, ArrowDownRight, Wallet,
-  ArrowRightLeft, ChevronRight, ChevronLeft, Calendar
+  ArrowRightLeft, ChevronRight, ChevronLeft, Calendar, FileSpreadsheet, FileText
 } from 'lucide-react';
 import TransactionForm from '@/components/financeiro/TransactionForm';
 import { ModalReceberPagamento } from '@/components/financeiro/ModalReceberPagamento';
 import { ModalResumoVendasFechadas } from '@/components/financeiro/ModalResumoVendasFechadas';
+import { ModalRelatorioFechamento } from '@/components/financeiro/ModalRelatorioFechamento';
 import ModalApresentarOrcamento from '@/components/orcamentos/ModalApresentarOrcamento';
 import { registrarAuditoria } from '@/hooks/useAuditLog';
 import { useSecurityGate } from '@/context/SecurityContext';
@@ -53,6 +54,7 @@ const Financeiro = () => {
   const [modalVendasFechadasOpen, setModalVendasFechadasOpen] = useState(false);
   const [modalVendasFechadasTab, setModalVendasFechadasTab] = useState<'parcelas_mes' | 'contratos_fechados'>('parcelas_mes');
   const [apresentarOrcamento, setApresentarOrcamento] = useState<any | null>(null);
+  const [modalRelatorioOpen, setModalRelatorioOpen] = useState(false);
 
   const [showTransactionForm, setShowTransactionForm] = useState(false);
   const [tipoInicialTransacao, setTipoInicialTransacao] = useState<'receita' | 'despesa'>('receita');
@@ -443,6 +445,16 @@ const Financeiro = () => {
                 Hoje
               </Button>
             </div>
+
+            <Button
+              onClick={() => setModalRelatorioOpen(true)}
+              variant="outline"
+              className="border-indigo-500/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/10 font-semibold text-xs h-9 gap-1.5 shadow-sm"
+              title="Gerar relatório executivo mensal com demonstrativo contábil e exportação para Excel ou PDF"
+            >
+              <FileSpreadsheet className="h-4 w-4 text-indigo-500" />
+              <span>Relatório Executivo</span>
+            </Button>
 
             <Button
               onClick={() => {
@@ -1077,6 +1089,17 @@ const Financeiro = () => {
               if (el) el.scrollIntoView({ behavior: 'smooth' });
             }, 50);
           }}
+        />
+
+        {/* Modal Relatório Executivo Mensal de Fechamento (PDF / Excel) */}
+        <ModalRelatorioFechamento
+          open={modalRelatorioOpen}
+          onOpenChange={setModalRelatorioOpen}
+          selectedMonth={selectedMonth}
+          transacoes={transacoes}
+          pacientes={pacientes}
+          orcamentos={orcamentos}
+          configuracoes={configuracoes}
         />
 
         {/* Modal Apresentar / Imprimir Orçamento & Contrato */}

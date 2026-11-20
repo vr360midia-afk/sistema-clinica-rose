@@ -22,6 +22,8 @@ import {
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { useConfiguracoesContrato } from '@/hooks/useConfiguracoesContrato';
+import { useOrcamentos } from '@/hooks/useOrcamentos';
+import { extrairTodasParcelasOrcamento } from '@/utils/orcamentoParcelasPrevisao';
 import { gerarPayloadPix } from '@/utils/pixPayload';
 import { openWhatsApp } from '@/lib/whatsapp';
 import { formatMoney } from '@/utils/exportCsv';
@@ -33,6 +35,7 @@ const diasAtraso = (vencimento: Date) =>
 
 export const Inadimplencia = () => {
   const { transacoes, pacientes, updateTransacao } = useDentalSystem();
+  const { orcamentos } = useOrcamentos();
   const { configuracoes } = useConfiguracoes();
   const { configContrato } = useConfiguracoesContrato();
 
@@ -52,12 +55,12 @@ export const Inadimplencia = () => {
   const nomeClinica = configContrato?.favorecidoPix || configuracoes?.nomeClinica || 'Clínica Odontológica';
   const cidade = (configuracoes?.cidade && !configuracoes.cidade.toUpperCase().includes('SAO PAULO')) ? configuracoes.cidade : 'MACEIO';
 
-  // Processa todas as receitas pendentes com datas
+  // Processa todas as receitas pendentes reais do banco + parcelas programadas de orçamentos aprovados
   const todasPendentes = useMemo(() => {
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
 
-    return (transacoes || [])
+    const pendentesTransacoes = (transacoes || [])
       .filter((t) => t && t.tipo === 'receita' && (t?.status === 'pendente' || t?.status === 'vencido'))
       .map((t) => {
         const venc = new Date((t.vencimento as any) || t.data);
@@ -75,9 +78,66 @@ export const Inadimplencia = () => {
           isProximos7Dias,
         };
       })
-      .filter((i) => !isNaN(i.venc.getTime()))
-      .sort((a, b) => b.dias - a.dias);
-  }, [transacoes]);
+      .filter((i) => !isNaN(i.venc.getTime()));
+
+    // Escanear orçamentos aprovados para detectar parcelas programadas a vencer ou vencidas sem transação criada
+    const pendentesOrcamentos: typeof pendentesTransacoes = [];
+    (orcamentos || [])
+      .filter((o) => o?.status === 'aprovado')
+      .forEach((orc) => {
+        const parcelas = extrairTodasParcelasOrcamento(orc, transacoes);
+        parcelas.forEach((p) => {
+          if (p.status !== 'a_vencer') return;
+
+          // Se a parcela vence até os próximos 30 dias ou já está vencida, trazer para o radar
+          const dtVenc = new Date(`${p.dataVencimento}T12:00:00`);
+          if (isNaN(dtVenc.getTime())) return;
+
+          const dias = diasAtraso(dtVenc);
+          const isHoje = dtVenc.toDateString() === hoje.toDateString();
+          const diffDias = Math.ceil((dtVenc.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24));
+          const isProximos7Dias = diffDias >= 0 && diffDias <= 7;
+
+          // Checar se já existe transação pendente correspondente para não duplicar
+          const jaExiste = pendentesTransacoes.some((pt) => {
+            if (pt.t.orcamentoId !== orc.id) return false;
+            const ptVencStr = new Date(pt.venc).toISOString().slice(0, 10);
+            return ptVencStr === p.dataVencimento;
+          });
+
+          if (!jaExiste) {
+            const sinteticaTransacao: any = {
+              id: `contrato-${orc.id}-p${p.numeroParcela || 1}`,
+              tipo: 'receita',
+              status: dias > 0 ? 'vencido' : 'pendente',
+              valor: p.valor,
+              vencimento: p.dataVencimento,
+              data: p.dataVencimento,
+              descricao: `${p.descricao} • Contrato ${orc.id.slice(0, 8).toUpperCase()}`,
+              pacienteId: orc.pacienteId,
+              pacienteNome: orc.pacienteNome,
+              metodoPagamento: p.metodo === 'pix_parcelado' ? 'PIX' : (p.metodo === 'boleto' ? 'Boleto' : 'PIX'),
+              orcamentoId: orc.id,
+              isContratoProgramado: true,
+              origemFechamentoAnoMes: p.origemFechamentoAnoMes,
+              numeroParcela: p.numeroParcela,
+              totalParcelas: p.totalParcelas,
+            };
+
+            pendentesOrcamentos.push({
+              t: sinteticaTransacao,
+              venc: dtVenc,
+              dias,
+              isHoje,
+              isVencida: dias > 0,
+              isProximos7Dias,
+            });
+          }
+        });
+      });
+
+    return [...pendentesTransacoes, ...pendentesOrcamentos].sort((a, b) => b.dias - a.dias);
+  }, [transacoes, orcamentos]);
 
   // Contadores para as abas
   const countVencidas = useMemo(() => todasPendentes.filter((i) => i.isVencida), [todasPendentes]);
@@ -290,6 +350,12 @@ export const Inadimplencia = () => {
                       <span className="font-bold text-sm text-foreground">
                         {paciente?.nome || 'Paciente não identificado'}
                       </span>
+                      {item.t.isContratoProgramado && (
+                        <Badge variant="outline" className="text-[10px] bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/30 gap-1 font-semibold">
+                          <Sparkles className="h-3 w-3 text-purple-500" />
+                          Parcela de Contrato {item.t.origemFechamentoAnoMes ? `(Fechado em ${item.t.origemFechamentoAnoMes})` : ''}
+                        </Badge>
+                      )}
                       {paciente?.telefone && (
                         <span className="text-[11px] text-muted-foreground font-mono flex items-center gap-1">
                           <Phone className="h-3 w-3 text-muted-foreground" />

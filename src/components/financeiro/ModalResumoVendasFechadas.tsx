@@ -28,6 +28,8 @@ import {
   Layers,
   Sparkles,
   History,
+  MessageCircle,
+  Copy,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatMoney } from '@/utils/exportCsv';
@@ -40,6 +42,12 @@ import {
   ResumoFinanceiroMes
 } from '@/utils/financeiroCalculos';
 import { extrairTodasParcelasOrcamento } from '@/utils/orcamentoParcelasPrevisao';
+import { useConfiguracoes } from '@/hooks/useConfiguracoes';
+import { useConfiguracoesContrato } from '@/hooks/useConfiguracoesContrato';
+import { gerarPayloadPix } from '@/utils/pixPayload';
+import { openWhatsApp } from '@/lib/whatsapp';
+import { ModalReceberPagamento } from './ModalReceberPagamento';
+import { toast } from 'sonner';
 
 interface ModalResumoVendasFechadasProps {
   open: boolean;
@@ -71,9 +79,90 @@ export const ModalResumoVendasFechadas: React.FC<ModalResumoVendasFechadasProps>
   onIrParaAbaOrcamentos,
 }) => {
   const navigate = useNavigate();
+  const { configuracoes } = useConfiguracoes();
+  const { configContrato } = useConfiguracoesContrato();
+
   const [busca, setBusca] = useState('');
   const [abaVisao, setAbaVisao] = useState<'parcelas_mes' | 'contratos_fechados'>(initialTab);
   const [filtroStatus, setFiltroStatus] = useState<'todos' | 'quitados' | 'pendentes'>('todos');
+
+  // Modal de Baixa Rápida / Recebimento Integrado
+  const [modalReceberOpen, setModalReceberOpen] = useState(false);
+  const [recebimentoPrefill, setRecebimentoPrefill] = useState<{
+    pacienteId?: string;
+    orcamentoId?: string;
+    valor?: number;
+    descricao?: string;
+    transacao?: any;
+  } | null>(null);
+
+  const chavePix = configContrato?.chavePix || configuracoes?.telefone || configuracoes?.cnpj || '';
+  const tipoChave = configContrato?.tipoChavePix;
+  const nomeClinica = configContrato?.favorecidoPix || configuracoes?.nomeClinica || 'Clínica Odontológica';
+  const cidade = (configuracoes?.cidade && !configuracoes.cidade.toUpperCase().includes('SAO PAULO')) ? configuracoes.cidade : 'MACEIO';
+
+  const cobrarWhatsAppItem = (item: any) => {
+    const paciente = item.paciente;
+    if (!paciente?.telefone) {
+      toast.error('Paciente não possui número de WhatsApp cadastrado.');
+      return;
+    }
+    const valorNum = Number(item.valorPendenteMes || item.saldo?.saldo || item.valorParcelaMes || 0);
+    const primeiroNome = paciente.nome ? paciente.nome.trim().split(' ')[0] : 'Cliente';
+    const desc = item.orcamento?.titulo || item.descricao || 'Tratamento Odontológico';
+    const vencimentoStr = item.dataVencimentoPrevista || (item.parcelaDoMes?.vencimento ? new Date(item.parcelaDoMes.vencimento).toLocaleDateString('pt-BR') : '');
+
+    const payloadPix = chavePix
+      ? gerarPayloadPix({
+          chave: chavePix,
+          tipoChave,
+          nomeFavorecido: nomeClinica,
+          cidade,
+          valor: valorNum,
+          descricao: desc.slice(0, 30),
+        })
+      : '';
+
+    const linhas = [
+      `Olá, ${primeiroNome}! Tudo bem? Esperamos que sim.`,
+      '',
+      `Passando da equipe da *${nomeClinica}* para lembrar da sua parcela referente ao seu tratamento:`,
+      `📋 *Procedimento:* ${desc}`,
+      vencimentoStr ? `📅 *Vencimento:* ${vencimentoStr}` : null,
+      `💰 *Valor:* ${formatMoney(valorNum)}`,
+      chavePix ? `🔑 *Chave PIX:* ${chavePix}` : null,
+      '',
+      payloadPix
+        ? `💎 *PIX Copia e Cola (com valor exato):*\n\`\`\`${payloadPix}\`\`\`\n\n📲 *Como pagar:*\nCopie o código acima, abra o app do seu banco e cole na opção *Pix Copia e Cola*.`
+        : null,
+      '',
+      'Caso já tenha efetuado o pagamento, por favor nos envie o comprovante. Qualquer dúvida, estamos à disposição!',
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    if (openWhatsApp(paciente.telefone, linhas)) {
+      toast.success(`Mensagem de cobrança com PIX aberta no WhatsApp para ${primeiroNome}!`);
+    } else {
+      toast.error('Não foi possível abrir o WhatsApp. Verifique o número de telefone.');
+    }
+  };
+
+  const abrirRecebimento = (item: any) => {
+    const pId = item.paciente?.id || item.orcamento?.pacienteId || item.pacienteId;
+    const orcId = item.orcamento?.id || item.orcamentoId || item.id;
+    const val = Number(item.valorPendenteMes ?? item.saldo?.saldo ?? item.valorParcelaMes ?? 0);
+    const desc = item.orcamento?.titulo ? `Parcela - ${item.orcamento.titulo}` : 'Recebimento de Parcela';
+
+    setRecebimentoPrefill({
+      pacienteId: pId,
+      orcamentoId: orcId,
+      valor: val,
+      descricao: desc,
+      transacao: item.transacaoPendente || null,
+    });
+    setModalReceberOpen(true);
+  };
 
   // Atualiza aba ao abrir com preferência externa (ex: ao clicar no card de vendas fechadas vs parcelas do mês)
   useEffect(() => {
@@ -597,7 +686,31 @@ export const ModalResumoVendasFechadas: React.FC<ModalResumoVendasFechadasProps>
                         {item.transacoes.length} lançamento(s) vinculados ao mês
                       </span>
 
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {valorPendenteMes > 0 && (
+                          <>
+                            <Button
+                              size="sm"
+                              onClick={() => cobrarWhatsAppItem(item)}
+                              className="h-7 text-xs gap-1 bg-[#25D366] hover:bg-[#20ba5a] text-white font-medium shadow-xs"
+                              title="Cobrar parcela pelo WhatsApp com chave PIX e valor"
+                            >
+                              <MessageCircle className="h-3 w-3 fill-white" />
+                              <span>Cobrar WhatsApp</span>
+                            </Button>
+
+                            <Button
+                              size="sm"
+                              onClick={() => abrirRecebimento(item)}
+                              className="h-7 text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs"
+                              title="Receber e dar baixa nesta parcela"
+                            >
+                              <CheckCircle2 className="h-3 w-3" />
+                              <span>Baixar Parcela</span>
+                            </Button>
+                          </>
+                        )}
+
                         {paciente?.id && (
                           <Button
                             variant="ghost"
@@ -689,11 +802,50 @@ export const ModalResumoVendasFechadas: React.FC<ModalResumoVendasFechadasProps>
                     </div>
 
                     <div className="pt-2 border-t border-border/40 flex flex-wrap items-center justify-between gap-2">
-                      <span className="text-[10px] text-muted-foreground">
-                        {orcamento.formasPagamento ? `Condição: ${orcamento.formasPagamento}` : 'Sem forma predefinida'}
-                      </span>
+                      {(() => {
+                        const condicaoTexto =
+                          orcamento.formasPagamento ||
+                          (orcamento as any).formas_pagamento ||
+                          (orcamento as any).condicaoEscolhida?.descricao ||
+                          (orcamento as any).condicaoEscolhida?.nome ||
+                          (orcamento as any).formaPagamento ||
+                          (orcamento.observacoes ? orcamento.observacoes.slice(0, 60) + '...' : null);
 
-                      <div className="flex items-center gap-1.5">
+                        return (
+                          <span
+                            className="text-[10px] text-muted-foreground max-w-xs sm:max-w-md truncate"
+                            title={condicaoTexto || ''}
+                          >
+                            {condicaoTexto ? `Condição: ${condicaoTexto}` : 'Sem forma predefinida'}
+                          </span>
+                        );
+                      })()}
+
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {saldo.saldo > 0.01 && (
+                          <>
+                            <Button
+                              size="sm"
+                              onClick={() => cobrarWhatsAppItem({ ...item, valorPendenteMes: saldo.saldo })}
+                              className="h-7 text-xs gap-1 bg-[#25D366] hover:bg-[#20ba5a] text-white font-medium shadow-xs"
+                              title="Cobrar saldo pendente pelo WhatsApp com chave PIX e valor"
+                            >
+                              <MessageCircle className="h-3 w-3 fill-white" />
+                              <span>Cobrar WhatsApp</span>
+                            </Button>
+
+                            <Button
+                              size="sm"
+                              onClick={() => abrirRecebimento({ ...item, valorPendenteMes: saldo.saldo })}
+                              className="h-7 text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs"
+                              title="Receber e dar baixa no saldo deste contrato"
+                            >
+                              <CheckCircle2 className="h-3 w-3" />
+                              <span>Receber Saldo</span>
+                            </Button>
+                          </>
+                        )}
+
                         {paciente?.id && (
                           <Button
                             variant="ghost"
@@ -763,6 +915,24 @@ export const ModalResumoVendasFechadas: React.FC<ModalResumoVendasFechadasProps>
           </div>
         </div>
       </DialogContent>
+
+      {/* Modal de Baixa Rápida de Parcela / Recebimento */}
+      <ModalReceberPagamento
+        isOpen={modalReceberOpen}
+        onClose={() => {
+          setModalReceberOpen(false);
+          setRecebimentoPrefill(null);
+        }}
+        transacaoPendente={recebimentoPrefill?.transacao}
+        pacientePredefinidoId={recebimentoPrefill?.pacienteId}
+        orcamentoIdPredefinido={recebimentoPrefill?.orcamentoId}
+        valorSugerido={recebimentoPrefill?.valor}
+        descricaoSugerida={recebimentoPrefill?.descricao}
+        onSuccess={() => {
+          setModalReceberOpen(false);
+          setRecebimentoPrefill(null);
+        }}
+      />
     </Dialog>
   );
 };

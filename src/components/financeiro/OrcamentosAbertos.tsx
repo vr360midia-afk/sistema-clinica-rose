@@ -25,10 +25,15 @@ import {
   History,
   Sparkles,
   Calendar,
+  MessageCircle,
 } from 'lucide-react';
 import ModalApresentarOrcamento from '@/components/orcamentos/ModalApresentarOrcamento';
 import { useOrcamentos, Orcamento } from '@/hooks/useOrcamentos';
 import { useDentalSystem } from '@/context/DentalSystemContext';
+import { useConfiguracoes } from '@/hooks/useConfiguracoes';
+import { useConfiguracoesContrato } from '@/hooks/useConfiguracoesContrato';
+import { gerarPayloadPix } from '@/utils/pixPayload';
+import { openWhatsApp } from '@/lib/whatsapp';
 import { calcularSaldoOrcamento } from '@/utils/orcamentoSaldo';
 import { isDataNoMesString, ehTransacaoPaga } from '@/utils/financeiroCalculos';
 import { analisarOrcamentoNoMes } from '@/utils/orcamentoParcelasPrevisao';
@@ -40,6 +45,7 @@ import { ModalConciliarOrcamento } from './ModalConciliarOrcamento';
 import { ModalEditarRegistroFinanceiro } from './ModalEditarRegistroFinanceiro';
 import { isRegistroFicticioTeste } from '@/utils/financeiroExclusao';
 import { Transacao } from '@/types/shared';
+import { toast } from 'sonner';
 
 interface Props {
   selectedMonth?: string;
@@ -49,8 +55,61 @@ interface Props {
 export const OrcamentosAbertos = ({ selectedMonth, onLancarPagamento }: Props) => {
   const { orcamentos, loading, reload: reloadOrcamentos } = useOrcamentos();
   const { transacoes, pacientes, reloadTransacoes } = useDentalSystem();
+  const { configuracoes } = useConfiguracoes();
+  const { configContrato } = useConfiguracoesContrato();
+
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [apresentarOrcamento, setApresentarOrcamento] = useState<any | null>(null);
+
+  const chavePix = configContrato?.chavePix || configuracoes?.telefone || configuracoes?.cnpj || '';
+  const tipoChave = configContrato?.tipoChavePix;
+  const nomeClinica = configContrato?.favorecidoPix || configuracoes?.nomeClinica || 'Clínica Odontológica';
+  const cidade = (configuracoes?.cidade && !configuracoes.cidade.toUpperCase().includes('SAO PAULO')) ? configuracoes.cidade : 'MACEIO';
+
+  const cobrarWhatsApp = (dados: { pacienteId?: string; valor: number; descricao: string; vencimento?: string }) => {
+    const paciente = pacientes.find((p) => p.id === dados.pacienteId);
+    if (!paciente?.telefone) {
+      toast.error('Paciente não possui número de WhatsApp cadastrado.');
+      return;
+    }
+    const primeiroNome = paciente.nome ? paciente.nome.trim().split(' ')[0] : 'Cliente';
+    const vencimentoStr = dados.vencimento ? new Date(dados.vencimento).toLocaleDateString('pt-BR') : '';
+
+    const payloadPix = chavePix
+      ? gerarPayloadPix({
+          chave: chavePix,
+          tipoChave,
+          nomeFavorecido: nomeClinica,
+          cidade,
+          valor: dados.valor,
+          descricao: dados.descricao.slice(0, 30),
+        })
+      : '';
+
+    const linhas = [
+      `Olá, ${primeiroNome}! Tudo bem? Esperamos que sim.`,
+      '',
+      `Passando da equipe da *${nomeClinica}* para lembrar da parcela do seu tratamento:`,
+      `📋 *Referente:* ${dados.descricao}`,
+      vencimentoStr ? `📅 *Vencimento:* ${vencimentoStr}` : null,
+      `💰 *Valor:* ${formatMoney(dados.valor)}`,
+      chavePix ? `🔑 *Chave PIX:* ${chavePix}` : null,
+      '',
+      payloadPix
+        ? `💎 *PIX Copia e Cola (com valor exato):*\n\`\`\`${payloadPix}\`\`\`\n\n📲 *Como pagar:*\nCopie o código acima, abra o app do seu banco e escolha *Pix Copia e Cola*.`
+        : null,
+      '',
+      'Caso já tenha efetuado o pagamento, por favor nos envie o comprovante. Qualquer dúvida, estamos à disposição!',
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    if (openWhatsApp(paciente.telefone, linhas)) {
+      toast.success(`Mensagem de cobrança com PIX aberta no WhatsApp para ${primeiroNome}!`);
+    } else {
+      toast.error('Não foi possível abrir o WhatsApp. Verifique o número de telefone.');
+    }
+  };
 
   // Filtro de exibição mensal vs geral
   const [filtroAba, setFiltroAba] = useState<'ativos_mes' | 'em_aberto' | 'todos'>('ativos_mes');
@@ -537,6 +596,109 @@ export const OrcamentosAbertos = ({ selectedMonth, onLancarPagamento }: Props) =
 
                       {!isQuitado && (
                         <>
+                          {parcelaDoMes.aVencerNoMes > 0 ? (
+                            <>
+                              <Button
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  cobrarWhatsApp({
+                                    pacienteId: orcamento.pacienteId,
+                                    valor: parcelaDoMes.aVencerNoMes,
+                                    descricao: `Parcela (${mesFormatado}) - ${orcamento.titulo}`,
+                                    vencimento: parcelaDoMes.vencimento,
+                                  });
+                                }}
+                                className="h-8 text-xs bg-[#25D366] hover:bg-[#20ba5a] text-white font-medium gap-1.5 shadow-sm"
+                                title="Cobrar parcela do mês pelo WhatsApp com chave PIX e valor"
+                              >
+                                <MessageCircle className="h-3.5 w-3.5 fill-white" />
+                                Cobrar Parcela
+                              </Button>
+
+                              <Button
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setTransacaoSelecionada(null);
+                                  setDadosRecebimentoAvulso({
+                                    orcamentoId: orcamento.id,
+                                    pacienteId: orcamento.pacienteId || '',
+                                    valor: parcelaDoMes.aVencerNoMes,
+                                    descricao: `Parcela (${mesFormatado}) - ${orcamento.titulo}`,
+                                  });
+                                  setModalReceberOpen(true);
+                                }}
+                                className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1.5 shadow-sm"
+                                title={`Dar baixa na parcela de ${formatMoney(parcelaDoMes.aVencerNoMes)} deste mês`}
+                              >
+                                <CheckCircle2 className="h-3.5 w-3.5" />
+                                Baixar Parcela: {formatMoney(parcelaDoMes.aVencerNoMes)}
+                              </Button>
+
+                              {saldo.saldo > parcelaDoMes.aVencerNoMes && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setTransacaoSelecionada(null);
+                                    setDadosRecebimentoAvulso({
+                                      orcamentoId: orcamento.id,
+                                      pacienteId: orcamento.pacienteId || '',
+                                      valor: saldo.saldo,
+                                      descricao: `Quitação Total: ${orcamento.titulo}`,
+                                    });
+                                    setModalReceberOpen(true);
+                                  }}
+                                  className="h-8 text-xs gap-1 border-emerald-500/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10"
+                                  title={`Quitar o saldo global restante de ${formatMoney(saldo.saldo)}`}
+                                >
+                                  <QrCode className="h-3.5 w-3.5" />
+                                  Quitar Saldo ({formatMoney(saldo.saldo)})
+                                </Button>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              <Button
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  cobrarWhatsApp({
+                                    pacienteId: orcamento.pacienteId,
+                                    valor: saldo.saldo,
+                                    descricao: `Saldo de Tratamento - ${orcamento.titulo}`,
+                                  });
+                                }}
+                                className="h-8 text-xs bg-[#25D366] hover:bg-[#20ba5a] text-white font-medium gap-1.5 shadow-sm"
+                                title="Cobrar saldo pendente pelo WhatsApp com chave PIX"
+                              >
+                                <MessageCircle className="h-3.5 w-3.5 fill-white" />
+                                Cobrar Saldo
+                              </Button>
+
+                              <Button
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setTransacaoSelecionada(null);
+                                  setDadosRecebimentoAvulso({
+                                    orcamentoId: orcamento.id,
+                                    pacienteId: orcamento.pacienteId || '',
+                                    valor: saldo.saldo,
+                                    descricao: `Pagamento: ${orcamento.titulo}`,
+                                  });
+                                  setModalReceberOpen(true);
+                                }}
+                                className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1.5 shadow-sm"
+                              >
+                                <QrCode className="h-3.5 w-3.5" />
+                                Receber Saldo
+                              </Button>
+                            </>
+                          )}
+
                           <Button
                             size="sm"
                             variant="outline"
@@ -549,25 +711,6 @@ export const OrcamentosAbertos = ({ selectedMonth, onLancarPagamento }: Props) =
                           >
                             <Eye className="h-3.5 w-3.5" />
                             Apresentar
-                          </Button>
-
-                          <Button
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setTransacaoSelecionada(null);
-                              setDadosRecebimentoAvulso({
-                                orcamentoId: orcamento.id,
-                                pacienteId: orcamento.pacienteId || '',
-                                valor: saldo.saldo,
-                                descricao: `Pagamento: ${orcamento.titulo}`,
-                              });
-                              setModalReceberOpen(true);
-                            }}
-                            className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1.5 shadow-sm"
-                          >
-                            <QrCode className="h-3.5 w-3.5" />
-                            Receber Saldo
                           </Button>
 
                           {onLancarPagamento && (
@@ -680,17 +823,37 @@ export const OrcamentosAbertos = ({ selectedMonth, onLancarPagamento }: Props) =
                                   </div>
 
                                   {!isPago && (
-                                    <Button
-                                      size="sm"
-                                      onClick={() => {
-                                        setDadosRecebimentoAvulso(null);
-                                        setTransacaoSelecionada(t);
-                                        setModalReceberOpen(true);
-                                      }}
-                                      className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
-                                    >
-                                      Receber
-                                    </Button>
+                                    <div className="flex items-center gap-1.5">
+                                      <Button
+                                        size="sm"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          cobrarWhatsApp({
+                                            pacienteId: orcamento.pacienteId || t.pacienteId,
+                                            valor: Number(t.valor || 0),
+                                            descricao: t.descricao || `Parcela - ${orcamento.titulo}`,
+                                            vencimento: (t.vencimento as any) || t.data,
+                                          });
+                                        }}
+                                        className="h-7 px-2 text-xs bg-[#25D366] hover:bg-[#20ba5a] text-white font-medium gap-1 shadow-xs"
+                                        title="Cobrar esta parcela pelo WhatsApp com chave PIX e valor"
+                                      >
+                                        <MessageCircle className="h-3 w-3 fill-white" />
+                                        Cobrar
+                                      </Button>
+
+                                      <Button
+                                        size="sm"
+                                        onClick={() => {
+                                          setDadosRecebimentoAvulso(null);
+                                          setTransacaoSelecionada(t);
+                                          setModalReceberOpen(true);
+                                        }}
+                                        className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+                                      >
+                                        Receber
+                                      </Button>
+                                    </div>
                                   )}
                                 </div>
                               </li>
