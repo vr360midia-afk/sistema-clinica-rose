@@ -330,6 +330,13 @@ export const useOrcamentos = (pacienteId?: string) => {
       await supabase.from('transacoes').delete().eq('orcamento_id', id).neq('status', 'pago');
     }
 
+    // 3.1 Limpa procedimentos de tratamento vinculados (se houver)
+    try {
+      await supabase.from('tratamentos_procedimentos').delete().eq('orcamento_id', id);
+    } catch (tpErr) {
+      console.warn('[useOrcamentos] Aviso ao limpar tratamentos_procedimentos vinculados:', tpErr);
+    }
+
     // 4. Executa delete exigindo confirmação de linhas afetadas no banco via .select('id')
     const { data, error } = await supabase.from('orcamentos').delete().eq('id', id).select('id');
     if (error) {

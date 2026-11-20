@@ -306,6 +306,19 @@ export async function executarExclusaoOuCancelamentoFinanceiro({
           .neq('status', 'pago');
       } catch (_) {}
 
+      // Atualiza procedimentos de tratamento não iniciados para cancelado
+      try {
+        await client
+          .from('tratamentos_procedimentos')
+          .update({
+            status: 'cancelado',
+            justificativa_cancelamento: `Cancelamento financeiro do orçamento: ${motivo}`,
+            atualizado_em: new Date().toISOString(),
+          })
+          .eq('orcamento_id', orcamento.id)
+          .eq('status', 'nao_iniciado');
+      } catch (_) {}
+
       // Notifica componentes em tempo real para sincronização sem necessidade de F5
       if (typeof window !== 'undefined') {
         window.dispatchEvent(
@@ -416,6 +429,13 @@ export async function executarExclusaoOuCancelamentoFinanceiro({
       usuarioEmail,
       client
     );
+
+    // 2.1 Limpa tratamentos e etapas vinculadas a este orçamento (se houver)
+    try {
+      await client.from('tratamentos_procedimentos').delete().eq('orcamento_id', orcamento.id);
+    } catch (tpErr) {
+      console.warn('[FinanceiroExclusao] Aviso ao limpar tratamentos_procedimentos vinculados:', tpErr);
+    }
 
     // 3. Remove orçamento da tabela orcamentos
     const { error: delErr } = await client.from('orcamentos').delete().eq('id', orcamento.id);
