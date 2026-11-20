@@ -342,6 +342,12 @@ export const useOrcamentos = (pacienteId?: string) => {
         load();
         return true;
       }
+      if (rpcRes && rpcRes.ok === false) {
+        toast.error('Exclusão física bloqueada', {
+          description: rpcRes.mensagem || 'Não é possível excluir este orçamento pois há registros vinculados.',
+        });
+        return false;
+      }
     } catch (_) {}
 
     // Fallback: exclusão direta caso a RPC não esteja disponível

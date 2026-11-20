@@ -439,10 +439,17 @@ export async function executarExclusaoOuCancelamentoFinanceiro({
       });
       if (!rpcErr && rpcRes?.ok) {
         excluiuViaRpc = true;
+      } else if (rpcRes && !rpcRes.ok) {
+        return {
+          ok: false,
+          tipo: 'bloqueado',
+          mensagem: rpcRes.mensagem || 'Exclusão física bloqueada por regras de integridade financeira.',
+          error: rpcRes.mensagem,
+        };
       }
     } catch (_) {}
 
-    // Fallback: se não excluiu via RPC, faz a limpeza manual direta
+    // Fallback: se não excluiu via RPC e a RPC não bloqueou expressamente, faz a limpeza manual direta
     if (!excluiuViaRpc) {
       try {
         await client.from('tratamentos_procedimentos').delete().eq('orcamento_id', orcamento.id);
@@ -455,9 +462,6 @@ export async function executarExclusaoOuCancelamentoFinanceiro({
       if (delErr) {
         throw new Error(`Falha ao remover orçamento: ${delErr.message}`);
       }
-    }
-    if (delErr) {
-      throw new Error(`Falha ao remover orçamento: ${delErr.message}`);
     }
 
     // 4. Registra auditoria rigorosa

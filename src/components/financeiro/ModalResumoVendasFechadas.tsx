@@ -25,19 +25,29 @@ import {
   ArrowRight,
   Receipt,
   FileCheck2,
+  Layers,
+  Sparkles,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatMoney } from '@/utils/exportCsv';
 import { calcularSaldosOrcamentos } from '@/utils/orcamentoSaldo';
+import { 
+  isDataNoMesString, 
+  ehTransacaoPaga, 
+  ehTransacaoPendente,
+  ResumoFinanceiroMes
+} from '@/utils/financeiroCalculos';
 
 interface ModalResumoVendasFechadasProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   orcamentos: any[];
+  orcamentosFechadosNoMes?: any[];
   transacoes: any[];
   pacientes: any[];
   selectedMonth: string;
   totalFechadoMes: number;
+  resumoFinanceiro?: ResumoFinanceiroMes;
   onVerOrcamento?: (orcamento: any) => void;
   onIrParaAbaOrcamentos?: () => void;
 }
@@ -45,16 +55,19 @@ interface ModalResumoVendasFechadasProps {
 export const ModalResumoVendasFechadas: React.FC<ModalResumoVendasFechadasProps> = ({
   open,
   onOpenChange,
-  orcamentos,
-  transacoes,
-  pacientes,
+  orcamentos = [],
+  orcamentosFechadosNoMes = [],
+  transacoes = [],
+  pacientes = [],
   selectedMonth,
   totalFechadoMes,
+  resumoFinanceiro,
   onVerOrcamento,
   onIrParaAbaOrcamentos,
 }) => {
   const navigate = useNavigate();
   const [busca, setBusca] = useState('');
+  const [abaVisao, setAbaVisao] = useState<'parcelas_mes' | 'contratos_fechados'>('parcelas_mes');
   const [filtroStatus, setFiltroStatus] = useState<'todos' | 'quitados' | 'pendentes'>('todos');
 
   // Mapa de pacientes por ID
@@ -66,7 +79,16 @@ export const ModalResumoVendasFechadas: React.FC<ModalResumoVendasFechadasProps>
     return map;
   }, [pacientes]);
 
-  // Mapa de saldos atualizados de todos os orçamentos
+  // Mapa de orçamentos por ID
+  const orcamentosMap = useMemo(() => {
+    const map = new Map<string, any>();
+    (orcamentos || []).forEach((o) => {
+      if (o?.id) map.set(o.id, o);
+    });
+    return map;
+  }, [orcamentos]);
+
+  // Mapa de saldos de todos os orçamentos
   const saldosMap = useMemo(() => {
     return calcularSaldosOrcamentos(orcamentos, transacoes);
   }, [orcamentos, transacoes]);
@@ -84,38 +106,93 @@ export const ModalResumoVendasFechadas: React.FC<ModalResumoVendasFechadasProps>
     }
   }, [selectedMonth]);
 
-  // Totais agregados dos orçamentos do mês
-  const estatisticas = useMemo(() => {
-    let totalContratado = 0;
-    let totalPago = 0;
-    let totalSaldo = 0;
+  const formatarData = (d: any) => {
+    if (!d) return '-';
+    try {
+      const date = new Date(d);
+      if (isNaN(date.getTime())) return String(d).slice(0, 10);
+      return date.toLocaleDateString('pt-BR');
+    } catch {
+      return '-';
+    }
+  };
 
-    orcamentos.forEach((o) => {
-      const val = Number(o?.total || 0);
-      totalContratado += val;
-      const saldoObj = saldosMap.get(o.id);
-      if (saldoObj) {
-        totalPago += saldoObj.pago;
-        totalSaldo += saldoObj.saldo;
-      } else {
-        totalSaldo += val;
-      }
+  // 1. VISÃO PARCELAS DO MÊS VIGENTE (Sem inflar com o valor total de orçamentos fechados no passado)
+  const parcelasDoMesItens = useMemo(() => {
+    // Filtra transações de receita com data ou vencimento no mês selecionado
+    const transacoesMes = (transacoes || []).filter((t) => {
+      if (t?.tipo !== 'receita') return false;
+      const dataRef = ehTransacaoPaga(t) ? (t.data || t.dataPagamento) : (t.vencimento || t.data);
+      return isDataNoMesString(dataRef, selectedMonth);
     });
 
-    const percentualPago = totalContratado > 0 ? (totalPago / totalContratado) * 100 : 0;
+    // Agrupa por paciente/orçamento para exibir a parcela consolidada do mês
+    const grupos = new Map<string, any>();
 
-    return {
-      totalContratado: totalContratado || totalFechadoMes,
-      totalPago,
-      totalSaldo,
-      percentualPago,
-      quantidade: orcamentos.length,
-    };
-  }, [orcamentos, saldosMap, totalFechadoMes]);
+    transacoesMes.forEach((t) => {
+      const orcId = t.orcamentoId || t.orcamento_id;
+      const pacId = t.pacienteId || t.paciente_id || '';
+      const key = orcId ? `orc_${orcId}` : `pac_${pacId}_${t.descricao || 'avulso'}`;
 
-  // Lista de orçamentos enriquecida e filtrada
-  const orcamentosFiltrados = useMemo(() => {
-    return orcamentos
+      const orc = orcId ? orcamentosMap.get(orcId) : (orcamentos || []).find((o) => o.pacienteId === pacId && o.status === 'aprovado');
+      const pac = pacId ? pacientesMap.get(pacId) : (orc?.pacienteId ? pacientesMap.get(orc.pacienteId) : null);
+      const pacNome = pac?.nome || t.pacienteNome || orc?.pacienteNome || 'Paciente';
+
+      const isPago = ehTransacaoPaga(t);
+      const valor = Number(t.valor || 0);
+
+      if (!grupos.has(key)) {
+        const snap = (orc as any)?.assinatura_paciente || (orc as any)?.assinaturaPaciente || {};
+        const codigoContrato = snap.codigoContrato || orc?.numero || (orc?.id ? `ORC-${String(orc.id).slice(0, 8).toUpperCase()}` : 'AVULSO');
+        
+        // Data real de fechamento do orçamento (sempre criada ou aprovada, sem atualizadoEm)
+        const dataFechamento = orc
+          ? (orc.aprovadoEm || orc.dataAssinatura || (orc as any).data_assinatura || snap.aprovadoEm || orc.criadoEm)
+          : t.data;
+
+        const saldoObj = orc ? (saldosMap.get(orc.id) || { total: Number(orc.total || 0), pago: 0, saldo: 0, percentual: 0 }) : null;
+
+        grupos.set(key, {
+          id: key,
+          orcamento: orc,
+          paciente: pac,
+          pacNome,
+          codigoContrato,
+          dataFechamento,
+          saldoGeral: saldoObj,
+          transacoes: [],
+          valorPagoMes: 0,
+          valorPendenteMes: 0,
+          valorParcelaMes: 0,
+          formasPagamento: orc?.formasPagamento || orc?.formas_pagamento || t.metodoPagamento,
+          parcelasInfo: orc?.parcelas ? `${orc.parcelas}x` : (t.parcelas ? `${t.parcelas}x` : ''),
+        });
+      }
+
+      const item = grupos.get(key)!;
+      item.transacoes.push(t);
+      if (isPago) {
+        item.valorPagoMes += valor;
+      } else {
+        item.valorPendenteMes += valor;
+      }
+      item.valorParcelaMes += valor;
+    });
+
+    const lista = Array.from(grupos.values()).map((item) => {
+      const isQuitadaNoMes = item.valorPendenteMes <= 0.01;
+      return {
+        ...item,
+        isQuitadaNoMes,
+      };
+    });
+
+    return lista;
+  }, [transacoes, orcamentos, orcamentosMap, pacientesMap, saldosMap, selectedMonth]);
+
+  // 2. VISÃO NOVOS CONTRATOS FECHADOS NO MÊS
+  const contratosFechadosItens = useMemo(() => {
+    return (orcamentosFechadosNoMes || [])
       .map((o) => {
         const pac = pacientesMap.get(o.pacienteId);
         const pacNome = pac?.nome || o.pacienteNome || 'Paciente não identificado';
@@ -128,14 +205,13 @@ export const ModalResumoVendasFechadas: React.FC<ModalResumoVendasFechadasProps>
 
         const snap = (o as any).assinatura_paciente || (o as any).assinaturaPaciente || {};
         const codigoContrato = snap.codigoContrato || o.numero || `ORC-${String(o.id).slice(0, 8).toUpperCase()}`;
-        
+
         const dataAprovacao =
           (o as any).dataAssinatura ||
           (o as any).data_assinatura ||
           o.aprovadoEm ||
           (o as any).aprovado_em ||
           snap.aprovadoEm ||
-          o.atualizadoEm ||
           o.criadoEm;
 
         const isQuitado = saldoObj.saldo <= 0.01;
@@ -149,8 +225,53 @@ export const ModalResumoVendasFechadas: React.FC<ModalResumoVendasFechadasProps>
           saldo: saldoObj,
           isQuitado,
         };
-      })
-      .filter((item) => {
+      });
+  }, [orcamentosFechadosNoMes, pacientesMap, saldosMap]);
+
+  // Totais agregados calculados para o cabeçalho
+  const totaisParcelasMes = useMemo(() => {
+    let pago = 0;
+    let pendente = 0;
+    parcelasDoMesItens.forEach((it) => {
+      pago += it.valorPagoMes;
+      pendente += it.valorPendenteMes;
+    });
+    const total = pago + pendente;
+    return {
+      total: resumoFinanceiro?.parcelasMesTotal || total,
+      pago: resumoFinanceiro?.receitaCaixa || pago,
+      pendente: resumoFinanceiro?.aReceberNoMes || pendente,
+      quantidade: parcelasDoMesItens.length,
+    };
+  }, [parcelasDoMesItens, resumoFinanceiro]);
+
+  const totaisContratos = useMemo(() => {
+    const total = contratosFechadosItens.reduce((sum, c) => sum + Number(c.orcamento?.total || 0), 0);
+    return {
+      total: total || totalFechadoMes,
+      quantidade: contratosFechadosItens.length,
+    };
+  }, [contratosFechadosItens, totalFechadoMes]);
+
+  // Filtragem e busca
+  const itensExibicao = useMemo(() => {
+    if (abaVisao === 'parcelas_mes') {
+      return parcelasDoMesItens.filter((item) => {
+        if (filtroStatus === 'quitados' && !item.isQuitadaNoMes) return false;
+        if (filtroStatus === 'pendentes' && item.isQuitadaNoMes) return false;
+
+        if (busca.trim()) {
+          const q = busca.toLowerCase();
+          const matchNome = item.pacNome.toLowerCase().includes(q);
+          const matchContrato = item.codigoContrato.toLowerCase().includes(q);
+          const matchDesc = item.transacoes.some((t: any) => (t.descricao || '').toLowerCase().includes(q));
+          if (!matchNome && !matchContrato && !matchDesc) return false;
+        }
+
+        return true;
+      }).sort((a, b) => b.valorParcelaMes - a.valorParcelaMes);
+    } else {
+      return contratosFechadosItens.filter((item) => {
         if (filtroStatus === 'quitados' && !item.isQuitado) return false;
         if (filtroStatus === 'pendentes' && item.isQuitado) return false;
 
@@ -158,62 +279,70 @@ export const ModalResumoVendasFechadas: React.FC<ModalResumoVendasFechadasProps>
           const q = busca.toLowerCase();
           const matchNome = item.pacNome.toLowerCase().includes(q);
           const matchContrato = item.codigoContrato.toLowerCase().includes(q);
-          const matchProcedimentos = (item.orcamento.itens || []).some((it: any) =>
-            (it.descricao || it.procedimento || '').toLowerCase().includes(q)
-          );
-          if (!matchNome && !matchContrato && !matchProcedimentos) return false;
+          if (!matchNome && !matchContrato) return false;
         }
 
         return true;
-      })
-      .sort((a, b) => new Date(b.dataAprovacao || 0).getTime() - new Date(a.dataAprovacao || 0).getTime());
-  }, [orcamentos, pacientesMap, saldosMap, busca, filtroStatus]);
-
-  const formatarData = (d: any) => {
-    if (!d) return '-';
-    try {
-      const date = new Date(d);
-      if (isNaN(date.getTime())) return String(d).slice(0, 10);
-      return date.toLocaleDateString('pt-BR');
-    } catch {
-      return '-';
+      }).sort((a, b) => Number(b.orcamento?.total || 0) - Number(a.orcamento?.total || 0));
     }
-  };
+  }, [abaVisao, parcelasDoMesItens, contratosFechadosItens, filtroStatus, busca]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
         {/* Header */}
-        <DialogHeader className="p-5 pb-4 border-b border-border/60 bg-muted/20">
-          <div className="flex items-center justify-between">
+        <DialogHeader className="p-5 pb-3 border-b border-border/60 bg-muted/20">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div className="space-y-1">
               <DialogTitle className="text-xl font-bold flex items-center gap-2">
                 <span className="p-1.5 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400">
                   <TrendingUp className="h-5 w-5" />
                 </span>
-                <span>Resumo de Vendas Fechadas</span>
+                <span>Faturamento & Parcelas do Mês</span>
                 <Badge variant="outline" className="border-amber-500/40 text-amber-700 dark:text-amber-300 font-semibold text-xs ml-1">
                   {mesFormatado}
                 </Badge>
               </DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground">
-                Detalhamento dos orçamentos aprovados no período comercial. Veja quem fechou, procedimentos contratados e o status de recebimento.
+                Contabilização justa por competência: contabiliza apenas a parcela do mês vigente de cada paciente, sem inflar com o valor total de orçamentos parcelados.
               </DialogDescription>
+            </div>
+
+            {/* Alternador de Visão no Topo */}
+            <div className="flex items-center gap-1 bg-muted p-1 rounded-lg border border-border/60 shrink-0 self-start sm:self-center">
+              <Button
+                variant={abaVisao === 'parcelas_mes' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setAbaVisao('parcelas_mes')}
+                className="h-7 text-xs font-semibold px-2.5"
+              >
+                Parcelas do Mês ({parcelasDoMesItens.length})
+              </Button>
+              <Button
+                variant={abaVisao === 'contratos_fechados' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setAbaVisao('contratos_fechados')}
+                className="h-7 text-xs font-semibold px-2.5"
+              >
+                Novos Contratos ({contratosFechadosItens.length})
+              </Button>
             </div>
           </div>
 
-          {/* Cards Rápidos de Indicadores no Topo do Modal */}
+          {/* Cards Rápidos de Indicadores do Mês */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3">
             <Card className="border-amber-500/30 bg-amber-500/5">
               <CardContent className="p-3">
                 <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-300 uppercase tracking-wider block">
-                  Total Contratado
+                  {abaVisao === 'parcelas_mes' ? 'Parcelas do Mês Vigente' : 'Novos Contratos do Mês'}
                 </span>
                 <p className="text-xl font-black text-amber-600 dark:text-amber-400">
-                  {formatMoney(estatisticas.totalContratado)}
+                  {formatMoney(abaVisao === 'parcelas_mes' ? totaisParcelasMes.total : totaisContratos.total)}
                 </p>
                 <p className="text-[10px] text-muted-foreground">
-                  {estatisticas.quantidade} orçamento(s) aprovado(s)
+                  {abaVisao === 'parcelas_mes' 
+                    ? `${totaisParcelasMes.quantidade} paciente(s) com parcelas no mês`
+                    : `${totaisContratos.quantidade} novo(s) contrato(s) aprovado(s)`}
                 </p>
               </CardContent>
             </Card>
@@ -221,13 +350,13 @@ export const ModalResumoVendasFechadas: React.FC<ModalResumoVendasFechadasProps>
             <Card className="border-emerald-500/30 bg-emerald-500/5">
               <CardContent className="p-3">
                 <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider block">
-                  Já Recebido (Caixa)
+                  Já Recebido no Caixa
                 </span>
                 <p className="text-xl font-black text-emerald-600 dark:text-emerald-400">
-                  {formatMoney(estatisticas.totalPago)}
+                  {formatMoney(totaisParcelasMes.pago)}
                 </p>
                 <p className="text-[10px] text-emerald-700 dark:text-emerald-300 font-medium">
-                  {estatisticas.percentualPago.toFixed(1)}% do valor liquidado
+                  Parcelas já quitadas no mês
                 </p>
               </CardContent>
             </Card>
@@ -235,13 +364,13 @@ export const ModalResumoVendasFechadas: React.FC<ModalResumoVendasFechadasProps>
             <Card className="border-blue-500/30 bg-blue-500/5">
               <CardContent className="p-3">
                 <span className="text-[11px] font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wider block">
-                  Saldo a Receber
+                  A Receber no Mês
                 </span>
                 <p className="text-xl font-black text-blue-600 dark:text-blue-400">
-                  {formatMoney(estatisticas.totalSaldo)}
+                  {formatMoney(totaisParcelasMes.pendente)}
                 </p>
                 <p className="text-[10px] text-muted-foreground">
-                  Parcelas vincendas ou a acertar
+                  Parcelas com vencimento no mês
                 </p>
               </CardContent>
             </Card>
@@ -253,7 +382,7 @@ export const ModalResumoVendasFechadas: React.FC<ModalResumoVendasFechadasProps>
           <div className="relative w-full sm:w-72">
             <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Buscar paciente, contrato ou procedimento..."
+              placeholder={abaVisao === 'parcelas_mes' ? "Buscar paciente, descrição ou contrato..." : "Buscar novo contrato..."}
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
               className="h-8 pl-8 text-xs"
@@ -267,7 +396,7 @@ export const ModalResumoVendasFechadas: React.FC<ModalResumoVendasFechadasProps>
               onClick={() => setFiltroStatus('todos')}
               className="h-7 text-xs px-2.5"
             >
-              Todos ({orcamentos.length})
+              Todos ({itensExibicao.length})
             </Button>
             <Button
               variant={filtroStatus === 'quitados' ? 'default' : 'outline'}
@@ -283,138 +412,235 @@ export const ModalResumoVendasFechadas: React.FC<ModalResumoVendasFechadasProps>
               onClick={() => setFiltroStatus('pendentes')}
               className="h-7 text-xs px-2.5"
             >
-              Com Saldo
+              A Receber
             </Button>
           </div>
         </div>
 
-        {/* Lista de Orçamentos com Rolagem */}
+        {/* Lista de Itens com Rolagem */}
         <div className="flex-1 overflow-y-auto p-5 space-y-3">
-          {orcamentosFiltrados.length === 0 ? (
+          {itensExibicao.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <FileCheck2 className="h-12 w-12 mx-auto stroke-1 opacity-40 mb-3" />
-              <p className="text-sm font-medium">Nenhum orçamento encontrado para os filtros selecionados.</p>
-              <p className="text-xs mt-1">Verifique o termo buscado ou altere o mês no cabeçalho do Financeiro.</p>
+              <p className="text-sm font-medium">Nenhum registro encontrado para os filtros selecionados.</p>
+              <p className="text-xs mt-1">Verifique o termo buscado ou selecione outro mês no cabeçalho.</p>
             </div>
           ) : (
-            orcamentosFiltrados.map((item) => {
-              const { orcamento, pacNome, codigoContrato, dataAprovacao, saldo, isQuitado } = item;
-              const itensQtd = (orcamento.itens || []).length;
-              const itensDesc = (orcamento.itens || [])
-                .map((it: any) => it.descricao || it.procedimento || 'Procedimento')
-                .slice(0, 3)
-                .join(', ');
+            itensExibicao.map((item: any) => {
+              if (abaVisao === 'parcelas_mes') {
+                const { id, pacNome, paciente, orcamento, codigoContrato, dataFechamento, saldoGeral, valorParcelaMes, valorPagoMes, valorPendenteMes, isQuitadaNoMes, parcelasInfo } = item;
+                const totalContratoGeral = saldoGeral?.total || Number(orcamento?.total || 0);
 
-              return (
-                <div
-                  key={orcamento.id}
-                  className="p-4 rounded-xl border border-border/70 hover:border-amber-500/40 bg-card hover:bg-muted/30 transition-all shadow-xs space-y-3"
-                >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-bold text-sm text-foreground flex items-center gap-1.5">
-                          <User className="h-4 w-4 text-primary shrink-0" />
-                          {pacNome}
-                        </span>
-                        <Badge variant="outline" className="text-[10px] bg-muted/60 font-mono">
-                          {codigoContrato}
-                        </Badge>
-                        {isQuitado ? (
-                          <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[10px] font-semibold gap-1">
-                            <CheckCircle2 className="h-3 w-3" /> 100% Quitado
-                          </Badge>
-                        ) : (
-                          <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 text-[10px] font-semibold gap-1">
-                            <Clock className="h-3 w-3" /> Saldo a Receber
-                          </Badge>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          Aprovado em: {formatarData(dataAprovacao)}
-                        </span>
-                        {itensDesc && (
-                          <span className="truncate max-w-md hidden md:inline" title={itensDesc}>
-                            • {itensDesc} {itensQtd > 3 ? `(+${itensQtd - 3})` : ''}
+                return (
+                  <div
+                    key={id}
+                    className="p-4 rounded-xl border border-border/70 hover:border-amber-500/40 bg-card hover:bg-muted/30 transition-all shadow-xs space-y-3"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-sm text-foreground flex items-center gap-1.5">
+                            <User className="h-4 w-4 text-primary shrink-0" />
+                            {pacNome}
                           </span>
-                        )}
-                      </div>
-                    </div>
+                          <Badge variant="outline" className="text-[10px] bg-muted/60 font-mono">
+                            {codigoContrato}
+                          </Badge>
+                          {isQuitadaNoMes ? (
+                            <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[10px] font-semibold gap-1">
+                              <CheckCircle2 className="h-3 w-3" /> Parcela Quitada no Mês
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 text-[10px] font-semibold gap-1">
+                              <Clock className="h-3 w-3" /> Parcela a Receber no Mês
+                            </Badge>
+                          )}
+                        </div>
 
-                    {/* Valores */}
-                    <div className="text-right sm:shrink-0">
-                      <div className="text-base font-extrabold text-foreground">
-                        {formatMoney(saldo.total)}
-                      </div>
-                      <div className="text-[11px] text-muted-foreground flex items-center sm:justify-end gap-1.5 mt-0.5">
-                        <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
-                          Pago: {formatMoney(saldo.pago)}
-                        </span>
-                        {saldo.saldo > 0.01 && (
-                          <>
-                            <span>•</span>
-                            <span className="text-amber-600 dark:text-amber-400 font-semibold">
-                              Resta: {formatMoney(saldo.saldo)}
+                        <div className="flex items-center gap-3 text-[11px] text-muted-foreground flex-wrap">
+                          <span className="flex items-center gap-1">
+                            <Calendar className="h-3 w-3" />
+                            Contrato fechado em: {formatarData(dataFechamento)}
+                          </span>
+                          {totalContratoGeral > 0 && totalContratoGeral !== valorParcelaMes && (
+                            <span className="text-muted-foreground">
+                              • Tratamento Total: <strong className="text-foreground">{formatMoney(totalContratoGeral)}</strong> {parcelasInfo ? `(${parcelasInfo})` : ''}
                             </span>
-                          </>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Valores da Parcela do Mês Vigente */}
+                      <div className="text-left sm:text-right sm:shrink-0">
+                        <div className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">
+                          Parcela do Mês
+                        </div>
+                        <div className="text-lg font-black text-amber-600 dark:text-amber-400">
+                          {formatMoney(valorParcelaMes)}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground flex items-center sm:justify-end gap-1.5 mt-0.5">
+                          {valorPagoMes > 0 && (
+                            <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                              Quitado: {formatMoney(valorPagoMes)}
+                            </span>
+                          )}
+                          {valorPendenteMes > 0 && (
+                            <>
+                              {valorPagoMes > 0 && <span>•</span>}
+                              <span className="text-amber-600 dark:text-amber-400 font-semibold">
+                                A receber: {formatMoney(valorPendenteMes)}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Barra de Progresso Geral do Tratamento (se houver orcamento vinculado) */}
+                    {saldoGeral && saldoGeral.total > 0 && (
+                      <div className="space-y-1 pt-1 border-t border-border/40">
+                        <div className="flex justify-between text-[10px] text-muted-foreground font-medium">
+                          <span>Quitação Global do Tratamento: {formatMoney(saldoGeral.pago)} de {formatMoney(saldoGeral.total)}</span>
+                          <span>{saldoGeral.percentual.toFixed(0)}%</span>
+                        </div>
+                        <Progress value={saldoGeral.percentual} className="h-1.5" />
+                      </div>
+                    )}
+
+                    {/* Ações Rápidas */}
+                    <div className="pt-2 border-t border-border/40 flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-[10px] text-muted-foreground">
+                        {item.transacoes.length} lançamento(s) vinculados ao mês
+                      </span>
+
+                      <div className="flex items-center gap-1.5">
+                        {paciente?.id && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              onOpenChange(false);
+                              navigate(`/pacientes/${paciente.id}?tab=orcamentos`);
+                            }}
+                            className="h-7 text-xs gap-1 text-muted-foreground hover:text-foreground"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            <span>Prontuário</span>
+                          </Button>
+                        )}
+
+                        {orcamento && onVerOrcamento && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => onVerOrcamento(orcamento)}
+                            className="h-7 text-xs gap-1 border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 font-semibold"
+                          >
+                            <Eye className="h-3 w-3" />
+                            <span>Ver Orçamento & Contrato</span>
+                          </Button>
                         )}
                       </div>
                     </div>
                   </div>
+                );
+              } else {
+                // Visão Novos Contratos Fechados no Mês
+                const { orcamento, pacNome, paciente, codigoContrato, dataAprovacao, saldo, isQuitado } = item;
+                return (
+                  <div
+                    key={orcamento.id}
+                    className="p-4 rounded-xl border border-border/70 hover:border-amber-500/40 bg-card hover:bg-muted/30 transition-all shadow-xs space-y-3"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-sm text-foreground flex items-center gap-1.5">
+                            <User className="h-4 w-4 text-primary shrink-0" />
+                            {pacNome}
+                          </span>
+                          <Badge variant="outline" className="text-[10px] bg-muted/60 font-mono">
+                            {codigoContrato}
+                          </Badge>
+                          {isQuitado ? (
+                            <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[10px] font-semibold gap-1">
+                              <CheckCircle2 className="h-3 w-3" /> Quitado
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 text-[10px] font-semibold gap-1">
+                              <Clock className="h-3 w-3" /> Em Andamento
+                            </Badge>
+                          )}
+                        </div>
 
-                  {/* Barra de Progresso de Pagamento */}
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-[10px] text-muted-foreground font-medium">
-                      <span>Progresso da Quitação</span>
-                      <span>{saldo.percentual.toFixed(0)}%</span>
+                        <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <Calendar className="h-3 w-3" />
+                            Fechado em: {formatarData(dataAprovacao)}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="text-left sm:text-right sm:shrink-0">
+                        <div className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">
+                          Valor Contratado
+                        </div>
+                        <div className="text-lg font-black text-foreground">
+                          {formatMoney(saldo.total)}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground flex items-center sm:justify-end gap-1.5 mt-0.5">
+                          <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                            Pago: {formatMoney(saldo.pago)}
+                          </span>
+                          {saldo.saldo > 0.01 && (
+                            <>
+                              <span>•</span>
+                              <span className="text-amber-600 dark:text-amber-400 font-semibold">
+                                Resta: {formatMoney(saldo.saldo)}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <Progress value={saldo.percentual} className="h-1.5" />
-                  </div>
 
-                  {/* Ações Rápidas */}
-                  <div className="pt-2 border-t border-border/50 flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-[10px] text-muted-foreground">
-                      {orcamento.formaPagamento ? `Condição: ${orcamento.formaPagamento}` : 'Sem forma predefinida'}
-                      {orcamento.parcelas ? ` (${orcamento.parcelas}x)` : ''}
-                    </span>
+                    <div className="pt-2 border-t border-border/40 flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-[10px] text-muted-foreground">
+                        {orcamento.formasPagamento ? `Condição: ${orcamento.formasPagamento}` : 'Sem forma predefinida'}
+                      </span>
 
-                    <div className="flex items-center gap-1.5">
-                      {item.paciente?.id && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            onOpenChange(false);
-                            navigate(`/pacientes/${item.paciente.id}?tab=orcamentos`);
-                          }}
-                          className="h-7 text-xs gap-1 text-muted-foreground hover:text-foreground"
-                          title="Abrir prontuário do paciente na aba de orçamentos"
-                        >
-                          <ExternalLink className="h-3 w-3" />
-                          <span>Prontuário</span>
-                        </Button>
-                      )}
+                      <div className="flex items-center gap-1.5">
+                        {paciente?.id && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              onOpenChange(false);
+                              navigate(`/pacientes/${paciente.id}?tab=orcamentos`);
+                            }}
+                            className="h-7 text-xs gap-1 text-muted-foreground hover:text-foreground"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            <span>Prontuário</span>
+                          </Button>
+                        )}
 
-                      {onVerOrcamento && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            onVerOrcamento(orcamento);
-                          }}
-                          className="h-7 text-xs gap-1 border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 font-semibold"
-                        >
-                          <Eye className="h-3 w-3" />
-                          <span>Ver Orçamento & Contrato</span>
-                        </Button>
-                      )}
+                        {onVerOrcamento && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => onVerOrcamento(orcamento)}
+                            className="h-7 text-xs gap-1 border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 font-semibold"
+                          >
+                            <Eye className="h-3 w-3" />
+                            <span>Ver Orçamento & Contrato</span>
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
+                );
+              }
             })
           )}
         </div>
@@ -422,7 +648,7 @@ export const ModalResumoVendasFechadas: React.FC<ModalResumoVendasFechadasProps>
         {/* Rodapé com Navegação para a aba Orçamentos & Parcelas */}
         <div className="p-4 border-t border-border/60 bg-muted/20 flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="text-xs text-muted-foreground text-center sm:text-left">
-            Dica: Para baixar parcelas, conciliar recebimentos ou renegociar, acesse a aba{' '}
+            Para gerenciar todas as cobranças e conciliações detalhadas, acesse a aba{' '}
             <strong className="text-foreground">Orçamentos & Parcelas</strong>.
           </p>
 

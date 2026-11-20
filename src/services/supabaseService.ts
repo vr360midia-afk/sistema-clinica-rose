@@ -480,10 +480,16 @@ class SupabaseService {
       if (!rpcErr && rpcRes && rpcRes.ok !== false) {
         return true;
       }
+      if (rpcRes && rpcRes.ok === false) {
+        throw new Error(rpcRes.mensagem || 'Não é possível excluir o paciente pois há registros clínicos ou contratuais vinculados.');
+      }
       if (rpcErr) {
         console.warn('[supabaseService] Falha na rpc_excluir_paciente_administrativo, tentando fallback direto:', rpcErr);
       }
-    } catch (e) {
+    } catch (e: any) {
+      if (e?.message && !e.message.includes('not found') && !e.message.includes('function')) {
+        throw e;
+      }
       console.warn('[supabaseService] Exceção na rpc_excluir_paciente_administrativo:', e);
     }
 

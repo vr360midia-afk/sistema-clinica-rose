@@ -241,8 +241,6 @@ const Financeiro = () => {
         o.aprovadoEm ||
         (o as any).aprovado_em ||
         snap.aprovadoEm ||
-        o.atualizadoEm ||
-        (o as any).atualizado_em ||
         o.criadoEm ||
         (o as any).criado_em ||
         (o as any).created_at;
@@ -397,18 +395,18 @@ const Financeiro = () => {
           </div>
         </div>
 
-        {/* Cards de Resumo Executivo: Separação Clara entre Vendas (Fechado) e Caixa (Quitado) */}
+        {/* Cards de Resumo Executivo: Faturamento do Mês por Parcelas, Caixa Quitado e Previsão */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
-          {/* 1. Vendas Fechadas (Comercial / Contratado) */}
+          {/* 1. Parcelas do Mês Vigente (Sem inflar com contratos fechados no passado) */}
           <Card 
             onClick={() => setModalVendasFechadasOpen(true)}
             className="border-amber-500/30 bg-gradient-to-br from-amber-500/5 to-yellow-500/10 dark:from-amber-950/20 dark:to-yellow-950/20 cursor-pointer hover:border-amber-500 hover:shadow-md transition-all group select-none"
-            title="Clique para ver o detalhamento completo dos orçamentos aprovados no mês"
+            title="Clique para ver o detalhamento completo das parcelas do mês e novos contratos"
           >
             <CardContent className="p-4 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-amber-700 dark:text-amber-300 uppercase tracking-wider flex items-center gap-1">
-                  <CheckCircle2 className="h-4 w-4 text-amber-600" /> Vendas (Fechado)
+                  <CheckCircle2 className="h-4 w-4 text-amber-600" /> Parcelas do Mês
                 </span>
                 <span className="p-1.5 rounded-full bg-amber-500/20 text-amber-600 group-hover:scale-110 transition-transform">
                   <TrendingUp className="h-4 w-4" />
@@ -416,17 +414,17 @@ const Financeiro = () => {
               </div>
               <div>
                 <p className="text-2xl font-black text-amber-600 dark:text-amber-400">
-                  {formatMoney(totalFechadoMes)}
+                  {formatMoney(resumoFinanceiro.parcelasMesTotal)}
                 </p>
                 <div className="flex items-center justify-between text-[11px] text-muted-foreground mt-0.5">
-                  <span>{orcamentosFechadosNoMes.length} orçamento(s) aprovado(s)</span>
+                  <span>{resumoFinanceiro.receitasPagasQtd} paga(s) • {resumoFinanceiro.parcelasVencendoNoMesQtd} a vencer</span>
                   <span className="text-amber-600 dark:text-amber-400 font-semibold group-hover:underline flex items-center gap-0.5 text-[10px]">
                     Ver lista <ChevronRight className="h-3 w-3" />
                   </span>
                 </div>
               </div>
               <div className="pt-2 border-t border-amber-500/20 text-[10px] text-amber-700 dark:text-amber-300 font-medium flex items-center justify-between">
-                <span className="truncate">Total comercial contratado no mês</span>
+                <span className="truncate">Previsto do mês (Caixa + A Receber)</span>
                 <span className="shrink-0 bg-amber-500/20 text-amber-800 dark:text-amber-200 px-1.5 py-0.5 rounded text-[9px] font-bold">
                   Clique para abrir
                 </span>
@@ -473,12 +471,12 @@ const Financeiro = () => {
             </CardContent>
           </Card>
 
-          {/* 3. A Receber / Passar Cartão */}
+          {/* 3. A Receber no Mês */}
           <Card className="border-orange-500/30 bg-gradient-to-br from-orange-500/5 to-amber-500/10 dark:from-orange-950/20 dark:to-amber-950/20">
             <CardContent className="p-4 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-orange-700 dark:text-orange-300 uppercase tracking-wider flex items-center gap-1">
-                  <Clock className="h-4 w-4 text-orange-600" /> A Receber / Cartão
+                  <Clock className="h-4 w-4 text-orange-600" /> A Receber no Mês
                 </span>
                 <span className="p-1.5 rounded-full bg-orange-500/20 text-orange-600">
                   <TrendingDown className="h-4 w-4" />
@@ -486,14 +484,14 @@ const Financeiro = () => {
               </div>
               <div>
                 <p className="text-2xl font-black text-orange-600 dark:text-orange-400">
-                  {formatMoney(totalAReceber)}
+                  {formatMoney(resumoFinanceiro.aReceberNoMes)}
                 </p>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  {totalPendenteCartao > 0 ? `Passar cartão: ${formatMoney(totalPendenteCartao)}` : 'Aguardando quitação'}
+                  {resumoFinanceiro.parcelasVencendoNoMesQtd} parcela(s) vencendo no mês
                 </p>
               </div>
               <div className="pt-2 border-t border-orange-500/20 text-[10px] text-orange-700 dark:text-orange-300 truncate">
-                {totalOrcamentosAberto > 0 ? `Orçamentos abertos: ${formatMoney(totalOrcamentosAberto)}` : 'Sem pendências críticas'}
+                Carteira total a receber: {formatMoney(totalAReceber)}
               </div>
             </CardContent>
           </Card>
@@ -930,15 +928,17 @@ const Financeiro = () => {
           />
         )}
 
-        {/* Modal de Detalhamento e Resumo das Vendas Fechadas no Mês */}
+        {/* Modal de Detalhamento e Resumo das Vendas Fechadas e Parcelas do Mês */}
         <ModalResumoVendasFechadas
           open={modalVendasFechadasOpen}
           onOpenChange={setModalVendasFechadasOpen}
-          orcamentos={orcamentosFechadosNoMes}
+          orcamentos={orcamentos}
+          orcamentosFechadosNoMes={orcamentosFechadosNoMes}
           transacoes={transacoes}
           pacientes={pacientes}
           selectedMonth={selectedMonth}
           totalFechadoMes={totalFechadoMes}
+          resumoFinanceiro={resumoFinanceiro}
           onVerOrcamento={(orc) => setApresentarOrcamento(orc)}
           onIrParaAbaOrcamentos={() => {
             setActiveTab('orcamentos');

@@ -72,7 +72,10 @@ export function ehTransacaoPendente(t: any): boolean {
 export interface ResumoFinanceiroMes {
   ano: number;
   mes: number;
-  // 1. Vendas Comerciais (Fechado/Aprovado no Mês)
+  // 1. Parcelas do Mês Vigente (Recebido no Caixa + A Receber com vencimento no mês)
+  parcelasMesTotal: number;
+  parcelasMesQtd: number;
+  // 2. Vendas Comerciais (Novos Contratos Fechados/Aprovados no Mês)
   vendasFechadas: number;
   orcamentosAprovadosQtd: number;
   // 2. Caixa Real (Efetivamente Recebido no Mês)
@@ -204,7 +207,7 @@ export function calcularResumoFinanceiroMes({
   // 4. Saldo / Financeiro Líquido (Receita Caixa Real - Despesas Pagas no Caixa)
   const financeiroLiquido = receitaCaixa - despesasPagas;
 
-  // 5. Vendas Fechadas (Orçamentos Fechados/Aprovados no Mês)
+  // 5. Vendas Fechadas (Novos Orçamentos Fechados/Aprovados no Mês)
   const orcamentosFechadosMes = (orcamentos || []).filter((o) => {
     if (!o || String(o.status || '').toLowerCase() !== 'aprovado') return false;
     const snap = (o as any).assinatura_paciente || (o as any).assinaturaPaciente || {};
@@ -215,8 +218,6 @@ export function calcularResumoFinanceiroMes({
       o.aprovadoEm ||
       (o as any).aprovado_em ||
       snap.aprovadoEm ||
-      o.atualizadoEm ||
-      (o as any).atualizado_em ||
       o.criadoEm ||
       (o as any).criado_em ||
       (o as any).created_at;
@@ -289,9 +290,16 @@ export function calcularResumoFinanceiroMes({
   // Receitas pendentes com cartão no mês
   const totalPendenteCartao = parcelasCartaoNoMes;
 
+  // 8. Total de Parcelas do Mês Vigente (Recebidas no Caixa + A Vencer no Mês)
+  // Contabiliza apenas as parcelas referentes ao mês, sem inflar o mês com valores integrais de parcelamentos futuros
+  const parcelasMesTotal = receitaCaixa + aReceberNoMes;
+  const parcelasMesQtd = receitasPagas.length + parcelasVencendoNoMes.length;
+
   return {
     ano,
     mes: mes0Indexed,
+    parcelasMesTotal,
+    parcelasMesQtd,
     vendasFechadas,
     orcamentosAprovadosQtd: orcamentosFechadosMes.length,
     receitaCaixa,
