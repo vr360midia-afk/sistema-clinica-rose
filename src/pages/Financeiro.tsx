@@ -10,7 +10,7 @@ import {
   DollarSign, TrendingUp, TrendingDown, Plus, CreditCard, Receipt, 
   Pencil, Trash2, Handshake, Target, CheckCircle2, QrCode, Search, 
   Filter, Clock, Check, AlertCircle, ArrowUpRight, ArrowDownRight, Wallet,
-  ArrowRightLeft, ChevronRight
+  ArrowRightLeft, ChevronRight, ChevronLeft, Calendar
 } from 'lucide-react';
 import TransactionForm from '@/components/financeiro/TransactionForm';
 import { ModalReceberPagamento } from '@/components/financeiro/ModalReceberPagamento';
@@ -67,6 +67,8 @@ const Financeiro = () => {
     return `${dataAtual.getFullYear()}-${String(dataAtual.getMonth() + 1).padStart(2, '0')}`;
   });
 
+  const inputMonthRef = React.useRef<HTMLInputElement>(null);
+
   const [filtroTipo, setFiltroTipo] = useState<'todos' | 'receita' | 'despesa' | 'pix' | 'cartao' | 'pago' | 'pendente'>('todos');
   const [buscaTexto, setBuscaTexto] = useState('');
 
@@ -74,6 +76,54 @@ const Financeiro = () => {
     const dataAtual = new Date();
     setSelectedMonth(`${dataAtual.getFullYear()}-${String(dataAtual.getMonth() + 1).padStart(2, '0')}`);
   };
+
+  const handleMesAnterior = () => {
+    const [anoStr, mesStr] = (selectedMonth || '').split('-');
+    let ano = Number(anoStr) || new Date().getFullYear();
+    let mes = (Number(mesStr) || (new Date().getMonth() + 1)) - 1;
+    if (mes < 1) {
+      mes = 12;
+      ano -= 1;
+    }
+    setSelectedMonth(`${ano}-${String(mes).padStart(2, '0')}`);
+  };
+
+  const handleProximoMes = () => {
+    const [anoStr, mesStr] = (selectedMonth || '').split('-');
+    let ano = Number(anoStr) || new Date().getFullYear();
+    let mes = (Number(mesStr) || (new Date().getMonth() + 1)) + 1;
+    if (mes > 12) {
+      mes = 1;
+      ano += 1;
+    }
+    setSelectedMonth(`${ano}-${String(mes).padStart(2, '0')}`);
+  };
+
+  const handleAbrirPicker = () => {
+    if (inputMonthRef.current) {
+      if ('showPicker' in inputMonthRef.current) {
+        try {
+          inputMonthRef.current.showPicker();
+        } catch {
+          inputMonthRef.current.focus();
+        }
+      } else {
+        inputMonthRef.current.focus();
+      }
+    }
+  };
+
+  const mesFormatadoExtenso = useMemo(() => {
+    try {
+      const [ano, mes] = (selectedMonth || '').split('-');
+      if (!ano || !mes) return selectedMonth;
+      const data = new Date(Number(ano), Number(mes) - 1, 1);
+      const str = data.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+      return str.charAt(0).toUpperCase() + str.slice(1);
+    } catch {
+      return selectedMonth;
+    }
+  }, [selectedMonth]);
 
   const handleBaixaImediata = async (transacao: Transacao) => {
     try {
@@ -134,8 +184,9 @@ const Financeiro = () => {
   // Filtragem básica por mês (imune a desvios de fuso horário)
   const filteredTransacoes = useMemo(() => {
     return (transacoes || []).filter(t => {
-      if (!t?.data) return false;
-      return isDataNoMesString(t.data, selectedMonth);
+      const dataRef = t?.data || t?.dataPagamento || t?.vencimento;
+      if (!dataRef) return false;
+      return isDataNoMesString(dataRef, selectedMonth);
     });
   }, [transacoes, selectedMonth]);
 
@@ -340,18 +391,53 @@ const Financeiro = () => {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1.5 bg-background border rounded-lg p-1 shadow-sm">
-              <Input
-                type="month"
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                className="h-8 text-xs border-0 focus-visible:ring-0 w-36"
-              />
+            {/* Seletor de Mês Inteligente com Navegação por Setas e Calendário Nativo */}
+            <div className="flex items-center gap-1 bg-background border rounded-lg p-1 shadow-sm">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleMesAnterior}
+                className="h-7 w-7 text-muted-foreground hover:text-foreground shrink-0"
+                title="Mês anterior"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+
+              <div 
+                onClick={handleAbrirPicker} 
+                className="relative flex items-center gap-1.5 px-2.5 py-1 rounded cursor-pointer hover:bg-muted/60 transition-colors select-none"
+                title="Clique para escolher qualquer mês no calendário"
+              >
+                <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0 pointer-events-none" />
+                <span className="text-xs font-semibold capitalize shrink-0 pointer-events-none">
+                  {mesFormatadoExtenso}
+                </span>
+                <input
+                  ref={inputMonthRef}
+                  type="month"
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                  aria-label="Selecionar mês"
+                />
+              </div>
+
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleProximoMes}
+                className="h-7 w-7 text-muted-foreground hover:text-foreground shrink-0"
+                title="Próximo mês"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={handleMudarParaMesAtual}
-                className="h-7 text-xs px-2 text-muted-foreground hover:text-foreground"
+                className="h-7 text-xs px-2 text-muted-foreground hover:text-foreground border-l ml-1 rounded-l-none"
+                title="Voltar para o mês vigente de hoje"
               >
                 Hoje
               </Button>
