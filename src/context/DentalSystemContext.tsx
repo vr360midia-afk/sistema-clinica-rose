@@ -15,7 +15,7 @@ export type { DentalSystemContextType };
 
 export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, signOut } = useAuth();
-  
+
   // Estados
   const [pacientes, setPacientes] = useState<Paciente[]>([]);
   const [consultas, setConsultas] = useState<Consulta[]>([]);
@@ -75,8 +75,8 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
           return { nome, ok: true, data: await fn() };
         } catch (error: any) {
           if (error.message?.toLowerCase().includes('jwt expired')) {
-             console.warn(`[DentalSystemContext] Token expirado ao carregar ${nome}, mantendo dados anteriores.`);
-             return { nome, ok: false, data: fallback };
+            console.warn(`[DentalSystemContext] Token expirado ao carregar ${nome}, mantendo dados anteriores.`);
+            return { nome, ok: false, data: fallback };
           }
           console.error(`Erro ao carregar ${nome} (tentativa ${tentativa + 1}):`, error);
           if (tentativa === 0) await new Promise(r => setTimeout(r, 600));
@@ -161,7 +161,7 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const addPaciente = async (pacienteData: Omit<Paciente, 'id' | 'criadoEm' | 'atualizadoEm'>): Promise<Paciente> => {
     try {
       console.log('addPaciente chamado com:', pacienteData);
-      
+
       // Filtrar apenas os campos que existem na tabela pacientes
       const cleanPacienteData = {
         nome: pacienteData.nome?.trim(),
@@ -187,11 +187,11 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
         dataArquivamento: pacienteData.dataArquivamento || null,
         motivoArquivamento: pacienteData.motivoArquivamento || null
       };
-      
+
       console.log('Dados limpos para salvar:', cleanPacienteData);
       const novoPaciente = await supabaseService.savePaciente(cleanPacienteData as any);
       console.log('Paciente salvo no Supabase:', novoPaciente);
-      
+
       setPacientes(prev => [novoPaciente, ...prev]);
       return novoPaciente;
     } catch (error) {
@@ -218,14 +218,14 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
     try {
       await supabaseService.deletePaciente(id);
       setPacientes(prev => prev.filter(p => p.id !== id));
-      
+
       // Remover dados relacionados
       setConsultas(prev => prev.filter(c => c.pacienteId !== id));
       setTransacoes(prev => prev.filter(t => t.pacienteId !== id));
       setProntuarios(prev => prev.filter(p => p.pacienteId !== id));
       setAnamneses(prev => prev.filter(a => a.pacienteId !== id));
       setDocumentos(prev => prev.filter(d => d.pacienteId !== id));
-      
+
       toast.success('Paciente removido com sucesso!');
     } catch (error: any) {
       console.error('Erro ao remover paciente:', error);
@@ -458,7 +458,7 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
         telefone: (anamnese as any)?.telefone,
         cpf: (anamnese as any)?.cpf,
       };
-    
+
     const token = anamnese?.tokenAssinatura || Math.random().toString(36).substring(2, 12);
     const expiracaoLink = new Date();
     expiracaoLink.setDate(expiracaoLink.getDate() + 7); // 7 dias para expirar
@@ -483,7 +483,7 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
         observacoes: anamnese?.observacoes,
       }
     });
-    
+
     // Atualizar anamnese com token e link amigável silenciosamente em background
     try {
       localStorageService.updateAnamnese(anamneseId, {
@@ -505,14 +505,14 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
     } catch (e) {
       console.warn('Aviso ao sincronizar token de anamnese no banco:', e);
     }
-    
+
     return fullLink;
   };
 
   const signAnamnese = async (id: string, signatureData: any, signerType: 'paciente' | 'dentista') => {
     try {
       const updates: Partial<Anamnese> = {};
-      
+
       if (signerType === 'paciente') {
         updates.assinaturaPaciente = signatureData;
         updates.dataAssinatura = new Date();
@@ -525,7 +525,7 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
       if (anamnese) {
         const temAssinaturaPaciente = signerType === 'paciente' || anamnese.assinaturaPaciente;
         const temAssinaturaDentista = signerType === 'dentista' || anamnese.assinaturaDoutor;
-        
+
         if (temAssinaturaPaciente && temAssinaturaDentista) {
           updates.statusAssinatura = 'completo';
         } else {

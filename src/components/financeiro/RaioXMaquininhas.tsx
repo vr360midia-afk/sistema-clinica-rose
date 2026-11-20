@@ -51,7 +51,23 @@ export const RaioXMaquininhas: React.FC<RaioXMaquininhasProps> = ({
   const { operadoras, config } = useMaquinasCartao();
   const { orcamentos } = useOrcamentos();
   const { updateTransacao } = useDentalSystem();
-  const [expandido, setExpandido] = useState<boolean>(true);
+  const [expandido, setExpandido] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('raio_x_maquininhas_expandido');
+      if (saved !== null) return saved === 'true';
+    }
+    return false;
+  });
+
+  const toggleExpandido = () => {
+    setExpandido((prev) => {
+      const next = !prev;
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('raio_x_maquininhas_expandido', String(next));
+      }
+      return next;
+    });
+  };
   const [mostrarTransacoes, setMostrarTransacoes] = useState<boolean>(false);
 
   // Processamento e conciliação de cartões no mês
@@ -365,7 +381,7 @@ export const RaioXMaquininhas: React.FC<RaioXMaquininhasProps> = ({
               type="button"
               variant="ghost"
               size="sm"
-              onClick={() => setExpandido(!expandido)}
+              onClick={toggleExpandido}
               className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
             >
               {expandido ? (
