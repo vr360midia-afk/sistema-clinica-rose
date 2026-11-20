@@ -1,5 +1,6 @@
 
 import React, { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Layout from '@/components/layout/Layout';
 import StatsCard from '@/components/dashboard/StatsCard';
 import ConfirmacoesPendentes from '@/components/dashboard/ConfirmacoesPendentes';
@@ -19,6 +20,7 @@ import { calcularResumoFinanceiroMes } from '@/utils/financeiroCalculos';
 import { motion } from 'framer-motion';
 
 const Dashboard = () => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { pacientes, consultas, transacoes } = useDentalSystem();
   const { orcamentos } = useOrcamentos();
@@ -142,6 +144,7 @@ const Dashboard = () => {
             isMaskable={true}
             defaultMasked={true}
             storageKey="dashboard_privacy_vendas"
+            onClick={() => navigate('/financeiro')}
           />
           <StatsCard
             title="Receita (Caixa)"
@@ -157,6 +160,7 @@ const Dashboard = () => {
             isMaskable={true}
             defaultMasked={true}
             storageKey="dashboard_privacy_receita"
+            onClick={() => navigate('/financeiro')}
           />
           <StatsCard
             title="Financeiro Líquido"
@@ -172,6 +176,7 @@ const Dashboard = () => {
             isMaskable={true}
             defaultMasked={true}
             storageKey="dashboard_privacy_liquido"
+            onClick={() => navigate('/financeiro')}
           />
         </motion.div>
 

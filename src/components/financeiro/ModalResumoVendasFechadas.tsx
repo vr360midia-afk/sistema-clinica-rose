@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -51,6 +51,7 @@ interface ModalResumoVendasFechadasProps {
   selectedMonth: string;
   totalFechadoMes: number;
   resumoFinanceiro?: ResumoFinanceiroMes;
+  initialTab?: 'parcelas_mes' | 'contratos_fechados';
   onVerOrcamento?: (orcamento: any) => void;
   onIrParaAbaOrcamentos?: () => void;
 }
@@ -65,13 +66,21 @@ export const ModalResumoVendasFechadas: React.FC<ModalResumoVendasFechadasProps>
   selectedMonth,
   totalFechadoMes,
   resumoFinanceiro,
+  initialTab = 'parcelas_mes',
   onVerOrcamento,
   onIrParaAbaOrcamentos,
 }) => {
   const navigate = useNavigate();
   const [busca, setBusca] = useState('');
-  const [abaVisao, setAbaVisao] = useState<'parcelas_mes' | 'contratos_fechados'>('parcelas_mes');
+  const [abaVisao, setAbaVisao] = useState<'parcelas_mes' | 'contratos_fechados'>(initialTab);
   const [filtroStatus, setFiltroStatus] = useState<'todos' | 'quitados' | 'pendentes'>('todos');
+
+  // Atualiza aba ao abrir com preferência externa (ex: ao clicar no card de vendas fechadas vs parcelas do mês)
+  useEffect(() => {
+    if (open && initialTab) {
+      setAbaVisao(initialTab);
+    }
+  }, [open, initialTab]);
 
   // Mapa de pacientes por ID
   const pacientesMap = useMemo(() => {

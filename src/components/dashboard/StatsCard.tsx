@@ -13,6 +13,7 @@ export interface StatsCardProps {
   isMaskable?: boolean;
   defaultMasked?: boolean;
   storageKey?: string;
+  onClick?: () => void;
 }
 
 const StatsCard = ({
@@ -25,6 +26,7 @@ const StatsCard = ({
   isMaskable = false,
   defaultMasked = true,
   storageKey,
+  onClick,
 }: StatsCardProps) => {
   const changeColor = {
     positive: 'text-green-600',
@@ -66,7 +68,13 @@ const StatsCard = ({
   };
 
   return (
-    <Card className="transition-all hover:border-primary/40 relative overflow-hidden group">
+    <Card
+      onClick={onClick}
+      className={cn(
+        "transition-all hover:border-primary/40 relative overflow-hidden group",
+        onClick && "cursor-pointer hover:shadow-sm"
+      )}
+    >
       <CardContent className="p-4 sm:p-5">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0 space-y-1 flex-1">

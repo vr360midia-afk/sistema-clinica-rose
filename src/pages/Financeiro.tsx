@@ -51,6 +51,7 @@ const Financeiro = () => {
 
   const [activeTab, setActiveTab] = useState<'fluxo' | 'orcamentos' | 'cobrancas' | 'dre'>('fluxo');
   const [modalVendasFechadasOpen, setModalVendasFechadasOpen] = useState(false);
+  const [modalVendasFechadasTab, setModalVendasFechadasTab] = useState<'parcelas_mes' | 'contratos_fechados'>('parcelas_mes');
   const [apresentarOrcamento, setApresentarOrcamento] = useState<any | null>(null);
 
   const [showTransactionForm, setShowTransactionForm] = useState(false);
@@ -481,13 +482,16 @@ const Financeiro = () => {
           </div>
         </div>
 
-        {/* Cards de Resumo Executivo: Faturamento do Mês por Parcelas, Caixa Quitado e Previsão */}
+        {/* Cards de Resumo Executivo: Faturamento do Mês por Parcelas, Vendas Comerciais, Caixa Quitado e Previsão */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
           {/* 1. Parcelas do Mês Vigente (Sem inflar com contratos fechados no passado) */}
           <Card 
-            onClick={() => setModalVendasFechadasOpen(true)}
+            onClick={() => {
+              setModalVendasFechadasTab('parcelas_mes');
+              setModalVendasFechadasOpen(true);
+            }}
             className="border-amber-500/30 bg-gradient-to-br from-amber-500/5 to-yellow-500/10 dark:from-amber-950/20 dark:to-yellow-950/20 cursor-pointer hover:border-amber-500 hover:shadow-md transition-all group select-none"
-            title="Clique para ver o detalhamento completo das parcelas do mês e novos contratos"
+            title="Clique para ver o detalhamento completo das parcelas do mês"
           >
             <CardContent className="p-4 space-y-2">
               <div className="flex items-center justify-between">
@@ -518,7 +522,45 @@ const Financeiro = () => {
             </CardContent>
           </Card>
 
-          {/* 2. Receita Caixa (Realizado / Efetivamente Quitado) */}
+          {/* 2. Vendas Comerciais (Novos Contratos Fechados no Mês) */}
+          <Card 
+            onClick={() => {
+              setModalVendasFechadasTab('contratos_fechados');
+              setModalVendasFechadasOpen(true);
+            }}
+            className="border-amber-500/30 bg-gradient-to-br from-amber-500/5 to-orange-500/10 dark:from-amber-950/20 dark:to-orange-950/20 cursor-pointer hover:border-amber-500 hover:shadow-md transition-all group select-none"
+            title="Clique para ver os contratos formalizados no mês (alinhado com o Dashboard)"
+          >
+            <CardContent className="p-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-amber-700 dark:text-amber-300 uppercase tracking-wider flex items-center gap-1">
+                  <CheckCircle2 className="h-4 w-4 text-amber-600" /> Vendas (Fechado)
+                </span>
+                <span className="p-1.5 rounded-full bg-amber-500/20 text-amber-600 group-hover:scale-110 transition-transform">
+                  <TrendingUp className="h-4 w-4" />
+                </span>
+              </div>
+              <div>
+                <p className="text-2xl font-black text-amber-600 dark:text-amber-400">
+                  {formatMoney(totalFechadoMes)}
+                </p>
+                <div className="flex items-center justify-between text-[11px] text-muted-foreground mt-0.5">
+                  <span>{orcamentosFechadosNoMes.length} orçamento(s) aprovado(s)</span>
+                  <span className="text-amber-600 dark:text-amber-400 font-semibold group-hover:underline flex items-center gap-0.5 text-[10px]">
+                    Ver contratos <ChevronRight className="h-3 w-3" />
+                  </span>
+                </div>
+              </div>
+              <div className="pt-2 border-t border-amber-500/20 text-[10px] text-amber-700 dark:text-amber-300 font-medium flex items-center justify-between">
+                <span className="truncate">Total comercial contratado no mês</span>
+                <span className="shrink-0 bg-amber-500/20 text-amber-800 dark:text-amber-200 px-1.5 py-0.5 rounded text-[9px] font-bold">
+                  Clique para abrir
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* 3. Receita Caixa (Realizado / Efetivamente Quitado) */}
           <Card className="border-emerald-500/30 bg-gradient-to-br from-emerald-500/5 to-teal-500/10 dark:from-emerald-950/20 dark:to-teal-950/20">
             <CardContent className="p-4 space-y-2">
               <div className="flex items-center justify-between">
@@ -1019,6 +1061,7 @@ const Financeiro = () => {
         <ModalResumoVendasFechadas
           open={modalVendasFechadasOpen}
           onOpenChange={setModalVendasFechadasOpen}
+          initialTab={modalVendasFechadasTab}
           orcamentos={orcamentos}
           orcamentosFechadosNoMes={orcamentosFechadosNoMes}
           transacoes={transacoes}
