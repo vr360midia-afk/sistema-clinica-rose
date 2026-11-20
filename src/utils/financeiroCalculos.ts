@@ -4,6 +4,7 @@
  */
 
 import { calcularSaldosOrcamentos } from './orcamentoSaldo';
+import { extrairTodasParcelasOrcamento } from './orcamentoParcelasPrevisao';
 
 /**
  * Extrai Ano e Mês (0-indexed) de forma infalível e imune a desvios de fuso horário (UTC vs Horário de Brasília).
@@ -249,7 +250,7 @@ export function calcularResumoFinanceiroMes({
     return isDataNoMesAno(dataVenc, ano, mes0Indexed);
   });
 
-  const aReceberNoMes = parcelasVencendoNoMes.reduce((sum, t) => sum + Number(t?.valor || 0), 0);
+  let aReceberNoMes = parcelasVencendoNoMes.reduce((sum, t) => sum + Number(t?.valor || 0), 0);
   let parcelasPixNoMes = 0;
   let parcelasCartaoNoMes = 0;
   let parcelasOutrasNoMes = 0;
@@ -263,6 +264,48 @@ export function calcularResumoFinanceiroMes({
       parcelasCartaoNoMes += val;
     } else {
       parcelasOutrasNoMes += val;
+    }
+  });
+
+  // Previsão de Faturamento / Parcelas Programadas de Orçamentos Ativos
+  // Para meses futuros (ou parcelamentos em PIX/boleto com datas explícitas ainda não convertidas em transações pendentes)
+  let qtdParcelasProgramadasExtra = 0;
+  const orcsAprovadosLista = (orcamentos || []).filter((o) => {
+    if (!o || String(o?.status || '').toLowerCase() !== 'aprovado') return false;
+    const snap = (o as any).assinatura_paciente || (o as any).assinaturaPaciente || {};
+    return (
+      o.statusFinanceiro !== 'cancelado' &&
+      o.statusFinanceiro !== 'arquivado' &&
+      snap.statusFinanceiro !== 'cancelado' &&
+      snap.statusFinanceiro !== 'arquivado'
+    );
+  });
+
+  orcsAprovadosLista.forEach((o) => {
+    // Se o orçamento já tem transação vinculada neste mês no fluxo de caixa, já foi contabilizada
+    const jaTemTransacaoNoMes = (transacoes || []).some((t) => {
+      const orcId = t.orcamentoId || t.orcamento_id;
+      if (orcId !== o.id) return false;
+      const dt = ehTransacaoPaga(t) ? (t.data || t.dataPagamento) : (t.vencimento || t.data);
+      return isDataNoMesAno(dt, ano, mes0Indexed);
+    });
+
+    if (!jaTemTransacaoNoMes) {
+      const parcelasOrc = extrairTodasParcelasOrcamento(o, transacoes);
+      const parcelasDesteMes = parcelasOrc.filter(
+        (p) => p.ano === ano && p.mes0Indexed === mes0Indexed && p.status === 'a_vencer'
+      );
+      parcelasDesteMes.forEach((p) => {
+        aReceberNoMes += p.valor;
+        qtdParcelasProgramadasExtra++;
+        if (p.metodo === 'pix' || p.metodo === 'pix_parcelado') {
+          parcelasPixNoMes += p.valor;
+        } else if (p.metodo === 'cartao') {
+          parcelasCartaoNoMes += p.valor;
+        } else {
+          parcelasOutrasNoMes += p.valor;
+        }
+      });
     }
   });
 
@@ -292,8 +335,9 @@ export function calcularResumoFinanceiroMes({
 
   // 8. Total de Parcelas do Mês Vigente (Recebidas no Caixa + A Vencer no Mês)
   // Contabiliza apenas as parcelas referentes ao mês, sem inflar o mês com valores integrais de parcelamentos futuros
+  const totalVencendoQtd = parcelasVencendoNoMes.length + qtdParcelasProgramadasExtra;
   const parcelasMesTotal = receitaCaixa + aReceberNoMes;
-  const parcelasMesQtd = receitasPagas.length + parcelasVencendoNoMes.length;
+  const parcelasMesQtd = receitasPagas.length + totalVencendoQtd;
 
   return {
     ano,
@@ -309,7 +353,7 @@ export function calcularResumoFinanceiroMes({
     receitaDinheiro,
     receitaOutros,
     aReceberNoMes,
-    parcelasVencendoNoMesQtd: parcelasVencendoNoMes.length,
+    parcelasVencendoNoMesQtd: totalVencendoQtd,
     parcelasPixNoMes,
     parcelasCartaoNoMes,
     parcelasOutrasNoMes,

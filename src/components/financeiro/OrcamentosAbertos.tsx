@@ -22,12 +22,16 @@ import {
   Pencil,
   AlertTriangle,
   Filter,
+  History,
+  Sparkles,
+  Calendar,
 } from 'lucide-react';
 import ModalApresentarOrcamento from '@/components/orcamentos/ModalApresentarOrcamento';
 import { useOrcamentos, Orcamento } from '@/hooks/useOrcamentos';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import { calcularSaldoOrcamento } from '@/utils/orcamentoSaldo';
 import { isDataNoMesString, ehTransacaoPaga } from '@/utils/financeiroCalculos';
+import { analisarOrcamentoNoMes } from '@/utils/orcamentoParcelasPrevisao';
 import { formatMoney } from '@/utils/exportCsv';
 import { ModalReceberPagamento } from './ModalReceberPagamento';
 import { ModalExcluirRegistroFinanceiro } from './ModalExcluirRegistroFinanceiro';
@@ -87,6 +91,16 @@ export const OrcamentosAbertos = ({ selectedMonth, onLancarPagamento }: Props) =
     }
   }, [selectedMonth]);
 
+  // Ano e Mês selecionados (0-indexed)
+  const [anoAtual, mes0Atual] = useMemo(() => {
+    if (!selectedMonth) {
+      const d = new Date();
+      return [d.getFullYear(), d.getMonth()];
+    }
+    const [y, m] = selectedMonth.split('-').map(Number);
+    return [y, (m || 1) - 1];
+  }, [selectedMonth]);
+
   // Processa todos os orçamentos aprovados enriquecidos com saldo, histórico de pagamentos e quitação
   const todosAprovados = useMemo(() => {
     return (orcamentos || [])
@@ -104,52 +118,34 @@ export const OrcamentosAbertos = ({ selectedMonth, onLancarPagamento }: Props) =
         return true;
       })
       .map((o) => {
-        const saldo = calcularSaldoOrcamento(o, transacoes as any[], orcamentos as any[]);
+        const analise = analisarOrcamentoNoMes(o, transacoes as any[], orcamentos as any[], anoAtual, mes0Atual);
         const transacoesVinculadas = (transacoes || []).filter(
           (t) => t.orcamentoId === o.id || (t as any).orcamento_id === o.id
         );
-        const isQuitado = saldo.saldo <= 0.009;
-
-        // Identifica a data do último pagamento quitado ou aprovação
-        const datasPagas = transacoesVinculadas
-          .filter(ehTransacaoPaga)
-          .map((t) => t.data || t.dataPagamento)
-          .filter(Boolean) as string[];
-
-        datasPagas.sort();
-        const ultimaDataPagamento =
-          datasPagas[datasPagas.length - 1] ||
-          (o as any).aprovado_em ||
-          o.aprovadoEm ||
-          (o as any).data_assinatura ||
-          (o as any).dataAssinatura ||
-          o.criadoEm;
-
-        // Verifica se foi quitado dentro do mês atualmente selecionado
-        const quitadoNoMesSelecionado = Boolean(
-          selectedMonth && ultimaDataPagamento && isDataNoMesString(ultimaDataPagamento, selectedMonth)
-        );
-
-        // Se está 100% quitado e a quitação foi em outro mês diferente do mês selecionado
-        const quitadoEmOutroMes = Boolean(selectedMonth && isQuitado && !quitadoNoMesSelecionado);
 
         return {
           orcamento: o,
-          saldo,
+          saldo: analise.saldoGeral,
           transacoesVinculadas,
-          isQuitado,
-          ultimaDataPagamento,
-          quitadoNoMesSelecionado,
-          quitadoEmOutroMes,
+          isQuitado: analise.isQuitadoGlobal,
+          quitadoNoMesSelecionado: analise.quitadoNoMes,
+          quitadoEmOutroMes: analise.quitadoEmOutroMes,
+          pertenceAoMes: analise.pertenceAoMes,
+          isPacienteOutroMes: analise.isPacienteOutroMes,
+          isFechadoNesteMes: analise.isFechadoNesteMes,
+          mesFechamento: analise.mesFechamento,
+          mesQuitacao: analise.mesQuitacao,
+          parcelaDoMes: analise.parcelaDoMes,
+          proximasParcelas: analise.proximasParcelas,
         };
       })
       .sort((a, b) => b.saldo.saldo - a.saldo.saldo);
-  }, [orcamentos, transacoes, selectedMonth]);
+  }, [orcamentos, transacoes, anoAtual, mes0Atual]);
 
   // Contagens para os botões de filtro
   const qtdEmAberto = useMemo(() => todosAprovados.filter((a) => !a.isQuitado).length, [todosAprovados]);
   const qtdAtivosMes = useMemo(
-    () => (selectedMonth ? todosAprovados.filter((a) => !a.quitadoEmOutroMes).length : todosAprovados.length),
+    () => (selectedMonth ? todosAprovados.filter((a) => a.pertenceAoMes).length : todosAprovados.length),
     [todosAprovados, selectedMonth]
   );
   const qtdOcultosOutrosMeses = useMemo(
@@ -163,7 +159,7 @@ export const OrcamentosAbertos = ({ selectedMonth, onLancarPagamento }: Props) =
       return todosAprovados.filter((a) => !a.isQuitado);
     }
     if (filtroAba === 'ativos_mes' && selectedMonth) {
-      return todosAprovados.filter((a) => !a.quitadoEmOutroMes);
+      return todosAprovados.filter((a) => a.pertenceAoMes);
     }
     return todosAprovados;
   }, [todosAprovados, filtroAba, selectedMonth]);
@@ -374,7 +370,20 @@ export const OrcamentosAbertos = ({ selectedMonth, onLancarPagamento }: Props) =
               Nenhum orçamento aprovado encontrado para este período.
             </p>
           ) : (
-            aprovados.map(({ orcamento, saldo, isQuitado, quitadoEmOutroMes, transacoesVinculadas }) => {
+            aprovados.map(({
+              orcamento,
+              saldo,
+              isQuitado,
+              quitadoNoMesSelecionado,
+              quitadoEmOutroMes,
+              transacoesVinculadas,
+              isPacienteOutroMes,
+              isFechadoNesteMes,
+              mesFechamento,
+              mesQuitacao,
+              parcelaDoMes,
+              proximasParcelas,
+            }) => {
               const isExpanded = expandedId === orcamento.id;
               const isSelected = selecionadosIds.has(orcamento.id);
               const isTeste = isRegistroFicticioTeste(orcamento);
@@ -388,7 +397,9 @@ export const OrcamentosAbertos = ({ selectedMonth, onLancarPagamento }: Props) =
                       ? 'ring-2 ring-primary/60 bg-primary/[0.02] border-primary/40'
                       : isQuitado
                         ? 'bg-card border-border/60'
-                        : 'bg-gradient-to-r from-amber-500/[0.03] to-transparent border-amber-500/30'
+                        : isPacienteOutroMes
+                          ? 'bg-gradient-to-r from-purple-500/[0.03] to-transparent border-purple-500/30'
+                          : 'bg-gradient-to-r from-amber-500/[0.03] to-transparent border-amber-500/30'
                   }`}
                 >
                   <div
@@ -411,8 +422,18 @@ export const OrcamentosAbertos = ({ selectedMonth, onLancarPagamento }: Props) =
                     </div>
 
                     <div className="min-w-0 flex-1">
-                      <div className="font-bold text-sm sm:text-base truncate pr-2 flex items-center gap-2 text-foreground">
+                      <div className="font-bold text-sm sm:text-base truncate pr-2 flex items-center gap-2 text-foreground flex-wrap">
                         {orcamento.titulo}
+                        {isPacienteOutroMes && (
+                          <Badge className="bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30 text-[10px] font-semibold gap-1">
+                            <History className="h-3 w-3" /> Paciente de Outro Mês (Fechado em {mesFechamento})
+                          </Badge>
+                        )}
+                        {isFechadoNesteMes && (
+                          <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 text-[10px] font-semibold gap-1">
+                            <Sparkles className="h-3 w-3" /> Novo Contrato deste Mês
+                          </Badge>
+                        )}
                         {isTeste && (
                           <Badge variant="outline" className="text-[10px] h-4 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-800">
                             Homologação/Teste
@@ -429,36 +450,66 @@ export const OrcamentosAbertos = ({ selectedMonth, onLancarPagamento }: Props) =
                           <ChevronDown className="h-4 w-4 text-muted-foreground" />
                         )}
                       </div>
-                      <div className="text-xs text-muted-foreground truncate">
-                        Paciente: <strong className="text-foreground">{orcamento.pacienteNome || 'Sem paciente'}</strong>
+                      <div className="text-xs text-muted-foreground truncate flex items-center gap-2 mt-0.5">
+                        <span>Paciente: <strong className="text-foreground">{orcamento.pacienteNome || 'Sem paciente'}</strong></span>
+                        {isPacienteOutroMes && (
+                          <span className="text-[11px] text-purple-600 dark:text-purple-400 font-medium">
+                            • Origem: Fechado em {mesFechamento}
+                          </span>
+                        )}
                       </div>
                     </div>
 
-                    <div className="text-right flex-shrink-0">
+                    <div className="text-right flex-shrink-0 space-y-0.5">
                       {isQuitado ? (
                         <div className="flex flex-col items-end gap-1">
                           <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 font-semibold gap-1 text-xs">
-                            <CheckCircle2 className="h-3 w-3" /> Quitado no Caixa
+                            <CheckCircle2 className="h-3 w-3" /> Quitado no Caixa {quitadoNoMesSelecionado && mesFormatado ? `(em ${mesFormatado})` : ''}
                           </Badge>
                           {quitadoEmOutroMes && (
                             <Badge variant="outline" className="text-[10px] text-muted-foreground border-border/80">
-                              Quitado em período anterior
+                              Quitado em {mesQuitacao}
                             </Badge>
                           )}
                         </div>
                       ) : (
-                        <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400 font-semibold gap-1 text-xs">
-                          <Clock className="h-3 w-3" /> Falta {formatMoney(saldo.saldo)}
-                        </Badge>
+                        <div>
+                          {parcelaDoMes && parcelaDoMes.pagoNoMes > 0 && (
+                            <div className="text-xs text-emerald-600 font-bold flex items-center justify-end gap-1">
+                              <CheckCircle2 className="h-3 w-3" /> Parcela do Mês: {formatMoney(parcelaDoMes.pagoNoMes)} (Paga)
+                            </div>
+                          )}
+                          {parcelaDoMes && parcelaDoMes.aVencerNoMes > 0 && (
+                            <div className="text-xs text-amber-600 dark:text-amber-400 font-bold flex items-center justify-end gap-1">
+                              <Clock className="h-3 w-3" /> Parcela Prevista: {formatMoney(parcelaDoMes.aVencerNoMes)} {parcelaDoMes.vencimento ? `(${parcelaDoMes.vencimento})` : ''}
+                            </div>
+                          )}
+                          {(!parcelaDoMes || parcelaDoMes.valor === 0) && (
+                            <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400 font-semibold gap-1 text-xs">
+                              <Clock className="h-3 w-3" /> Falta {formatMoney(saldo.saldo)}
+                            </Badge>
+                          )}
+                        </div>
                       )}
-                      <div className="text-xs text-muted-foreground mt-1 font-medium">
-                        Pago: <span className="text-emerald-600 font-bold">{formatMoney(saldo.pago)}</span> de{' '}
-                        {formatMoney(saldo.total)} ({saldo.percentual.toFixed(0)}%)
+                      <div className="text-xs text-muted-foreground mt-0.5 font-medium">
+                        Tratamento: <strong className="text-foreground">{formatMoney(saldo.total)}</strong> · Pago no Total: <span className="text-emerald-600 font-bold">{formatMoney(saldo.pago)}</span> ({saldo.percentual.toFixed(0)}%)
                       </div>
                     </div>
                   </div>
 
                   <Progress value={saldo.percentual} className="h-2.5 bg-muted" />
+
+                  {proximasParcelas && proximasParcelas.length > 0 && (
+                    <div className="p-2 rounded-lg bg-muted/40 border border-border/50 text-[11px] flex flex-wrap items-center justify-between gap-1 text-muted-foreground">
+                      <span className="flex items-center gap-1.5 font-medium text-foreground">
+                        <Calendar className="h-3.5 w-3.5 text-primary" />
+                        Expectativa de Parcelamento Futuro: <strong>{proximasParcelas.length} parcela(s) restante(s)</strong>
+                      </span>
+                      <span>
+                        Próxima Parcela: <strong className="text-foreground">{formatMoney(proximasParcelas[0].valor)}</strong> em <strong>{proximasParcelas[0].dataBr}</strong> ({proximasParcelas[0].metodo})
+                      </span>
+                    </div>
+                  )}
 
                   <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-border/40">
                     <span className="text-[11px] text-muted-foreground">

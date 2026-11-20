@@ -27,6 +27,7 @@ import {
   FileCheck2,
   Layers,
   Sparkles,
+  History,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatMoney } from '@/utils/exportCsv';
@@ -35,8 +36,10 @@ import {
   isDataNoMesString, 
   ehTransacaoPaga, 
   ehTransacaoPendente,
+  extrairAnoMes,
   ResumoFinanceiroMes
 } from '@/utils/financeiroCalculos';
+import { extrairTodasParcelasOrcamento } from '@/utils/orcamentoParcelasPrevisao';
 
 interface ModalResumoVendasFechadasProps {
   open: boolean;
@@ -179,11 +182,73 @@ export const ModalResumoVendasFechadas: React.FC<ModalResumoVendasFechadasProps>
       item.valorParcelaMes += valor;
     });
 
+    const [anoSel, mesSel] = (selectedMonth || '').split('-').map(Number);
+
+    // Também inclui orçamentos com parcelas programadas para o mês selecionado (ex: PIX parcelado, boleto)
+    (orcamentos || []).forEach((o) => {
+      if (!o || String(o.status || '').toLowerCase() !== 'aprovado') return;
+      const snap = (o as any)?.assinatura_paciente || (o as any)?.assinaturaPaciente || {};
+      if (
+        o.statusFinanceiro === 'cancelado' ||
+        o.statusFinanceiro === 'arquivado' ||
+        snap.statusFinanceiro === 'cancelado' ||
+        snap.statusFinanceiro === 'arquivado'
+      ) {
+        return;
+      }
+
+      const orcKey = `orc_${o.id}`;
+      if (grupos.has(orcKey)) return;
+
+      const parcelasOrc = extrairTodasParcelasOrcamento(o, transacoes);
+      const parcelasDesteMes = parcelasOrc.filter(
+        (p) => p.ano === anoSel && p.mes0Indexed === mesSel - 1
+      );
+
+      if (parcelasDesteMes.length > 0) {
+        const codigoContrato = snap.codigoContrato || o.numero || `ORC-${String(o.id).slice(0, 8).toUpperCase()}`;
+        const pac = o.pacienteId ? pacientesMap.get(o.pacienteId) : null;
+        const pacNome = pac?.nome || o.pacienteNome || 'Paciente';
+        const saldoObj = saldosMap.get(o.id) || { total: Number(o.total || 0), pago: 0, saldo: 0, percentual: 0 };
+        const dataFechamento = o.aprovadoEm || o.dataAssinatura || (o as any).data_assinatura || snap.aprovadoEm || o.criadoEm;
+        const valorPendente = parcelasDesteMes.reduce((s, p) => s + p.valor, 0);
+
+        grupos.set(orcKey, {
+          id: orcKey,
+          orcamento: o,
+          paciente: pac,
+          pacNome,
+          codigoContrato,
+          dataFechamento,
+          saldoGeral: saldoObj,
+          transacoes: [],
+          valorPagoMes: 0,
+          valorPendenteMes: valorPendente,
+          valorParcelaMes: valorPendente,
+          formasPagamento: o.formasPagamento || o.formas_pagamento || parcelasDesteMes[0]?.metodo,
+          parcelasInfo: o.parcelas ? `${o.parcelas}x` : `${parcelasDesteMes.length}x`,
+          isPrevisaoFutura: true,
+          dataVencimentoPrevista: parcelasDesteMes[0]?.dataBr,
+        });
+      }
+    });
+
     const lista = Array.from(grupos.values()).map((item) => {
       const isQuitadaNoMes = item.valorPendenteMes <= 0.01;
+      const amFechamento = extrairAnoMes(item.dataFechamento);
+      const isPacienteOutroMes = Boolean(
+        amFechamento &&
+        anoSel &&
+        mesSel &&
+        (amFechamento.ano < anoSel || (amFechamento.ano === anoSel && amFechamento.mes < mesSel - 1))
+      );
+      const mesFechamento = amFechamento ? `${String(amFechamento.mes + 1).padStart(2, '0')}/${amFechamento.ano}` : '';
+
       return {
         ...item,
         isQuitadaNoMes,
+        isPacienteOutroMes,
+        mesFechamento,
       };
     });
 
@@ -446,6 +511,11 @@ export const ModalResumoVendasFechadas: React.FC<ModalResumoVendasFechadasProps>
                           <Badge variant="outline" className="text-[10px] bg-muted/60 font-mono">
                             {codigoContrato}
                           </Badge>
+                          {item.isPacienteOutroMes && (
+                            <Badge className="bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30 text-[10px] font-semibold gap-1">
+                              <History className="h-3 w-3" /> Paciente de Outro Mês (Fechado em {item.mesFechamento})
+                            </Badge>
+                          )}
                           {isQuitadaNoMes ? (
                             <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[10px] font-semibold gap-1">
                               <CheckCircle2 className="h-3 w-3" /> Parcela Quitada no Mês
@@ -462,6 +532,11 @@ export const ModalResumoVendasFechadas: React.FC<ModalResumoVendasFechadasProps>
                             <Calendar className="h-3 w-3" />
                             Contrato fechado em: {formatarData(dataFechamento)}
                           </span>
+                          {item.isPrevisaoFutura && item.dataVencimentoPrevista && (
+                            <span className="text-amber-600 dark:text-amber-400 font-medium">
+                              • Vencimento Previsto: <strong>{item.dataVencimentoPrevista}</strong>
+                            </span>
+                          )}
                           {totalContratoGeral > 0 && totalContratoGeral !== valorParcelaMes && (
                             <span className="text-muted-foreground">
                               • Tratamento Total: <strong className="text-foreground">{formatMoney(totalContratoGeral)}</strong> {parcelasInfo ? `(${parcelasInfo})` : ''}
