@@ -2,6 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import { useOrcamentos } from '@/hooks/useOrcamentos';
@@ -37,6 +39,14 @@ import {
   CreditCard,
   Building,
   Users,
+  Search,
+  User,
+  Calendar,
+  ChevronDown,
+  ChevronUp,
+  ExternalLink,
+  Receipt,
+  QrCode,
 } from 'lucide-react';
 import { formatMoney } from '@/utils/exportCsv';
 import { isDataNoMesAno, ehTransacaoPaga } from '@/utils/financeiroCalculos';
@@ -112,9 +122,18 @@ const classificarEspecialidade = (texto: string): string => {
 };
 
 export const FinanceiroDRE: React.FC<FinanceiroDREProps> = ({ selectedMonth }) => {
-  const { transacoes } = useDentalSystem();
+  const { transacoes, pacientes } = useDentalSystem();
   const { orcamentos } = useOrcamentos();
   const [visaoVisual, setVisaoVisual] = useState<'gerencial' | 'tabela'>('gerencial');
+  const [buscaPaciente, setBuscaPaciente] = useState('');
+  const [pacientesExpandidos, setPacientesExpandidos] = useState<Record<string, boolean>>({});
+
+  const toggleExpandirPaciente = (pacId: string) => {
+    setPacientesExpandidos((prev) => ({
+      ...prev,
+      [pacId]: !prev[pacId],
+    }));
+  };
 
   const [ano, mes] = selectedMonth
     ? selectedMonth.split('-')
@@ -123,8 +142,9 @@ export const FinanceiroDRE: React.FC<FinanceiroDREProps> = ({ selectedMonth }) =
   // 1. Filtragem das transações REAIS do mês (imune a UTC)
   const transacoesMes = useMemo(() => {
     return (transacoes || []).filter((t) => {
-      if (!t?.data) return false;
-      return isDataNoMesAno(t.data, Number(ano), Number(mes) - 1);
+      const dataRef = t?.data || t?.dataPagamento || t?.vencimento;
+      if (!dataRef) return false;
+      return isDataNoMesAno(dataRef, Number(ano), Number(mes) - 1);
     });
   }, [transacoes, mes, ano]);
 
@@ -288,6 +308,67 @@ export const FinanceiroDRE: React.FC<FinanceiroDREProps> = ({ selectedMonth }) =
       { etapa: '7. Lucro Líquido', valor: lucroLiquidoReal, fill: lucroLiquidoReal >= 0 ? '#6366F1' : '#DC2626' },
     ];
 
+    // 4. DETALHAMENTO DE FATURAMENTO POR PACIENTE (PARA CONFERÊNCIA ESPECIFICADA DO DRE)
+    const pacientesMap = new Map<string, any>();
+    (pacientes || []).forEach((p) => {
+      if (p?.id) pacientesMap.set(p.id, p);
+    });
+
+    const gruposPacientes = new Map<string, {
+      pacienteId: string;
+      pacienteNome: string;
+      totalBruto: number;
+      totalTaxas: number;
+      totalLiquido: number;
+      transacoes: any[];
+      metodos: Set<string>;
+      orcamentosIds: Set<string>;
+      procedimentos: Set<string>;
+    }>();
+
+    receitasPagas.forEach((r) => {
+      const pacId = r.pacienteId || r.paciente_id || 'avulso';
+      const pac = pacId !== 'avulso' ? pacientesMap.get(pacId) : null;
+      const pacNome = pac?.nome || r.pacienteNome || (pacId === 'avulso' ? 'Lançamento Avulso (Sem Paciente)' : 'Paciente');
+      const val = Number(r.valor || 0);
+      const taxa = Number(r.taxaCartaoValor || 0);
+      const liq = r.valorLiquido ? Number(r.valorLiquido) : (val - taxa);
+
+      if (!gruposPacientes.has(pacId)) {
+        gruposPacientes.set(pacId, {
+          pacienteId: pacId,
+          pacienteNome: pacNome,
+          totalBruto: 0,
+          totalTaxas: 0,
+          totalLiquido: 0,
+          transacoes: [],
+          metodos: new Set<string>(),
+          orcamentosIds: new Set<string>(),
+          procedimentos: new Set<string>(),
+        });
+      }
+
+      const g = gruposPacientes.get(pacId)!;
+      g.totalBruto += val;
+      g.totalTaxas += taxa;
+      g.totalLiquido += liq;
+      g.transacoes.push(r);
+      const m = r.metodoPagamento || r.metodo_pagamento;
+      if (m) g.metodos.add(m);
+      if (r.descricao) g.procedimentos.add(r.descricao);
+      const orcId = r.orcamentoId || r.orcamento_id;
+      if (orcId) g.orcamentosIds.add(orcId);
+    });
+
+    const listaPacientesDRE = Array.from(gruposPacientes.values())
+      .map((g) => ({
+        ...g,
+        percentualDoTotal: faturamentoBruto > 0 ? (g.totalBruto / faturamentoBruto) * 100 : 0,
+        metodosArray: Array.from(g.metodos),
+        procedimentosArray: Array.from(g.procedimentos),
+      }))
+      .sort((a, b) => b.totalBruto - a.totalBruto);
+
     return {
       faturamentoBruto,
       totalTaxasCartao,
@@ -305,8 +386,10 @@ export const FinanceiroDRE: React.FC<FinanceiroDREProps> = ({ selectedMonth }) =
       dadosCascataDRE,
       qtdReceitas: receitasPagas.length,
       qtdDespesas: despesasPagas.length,
+      listaPacientesDRE,
+      receitasPagas,
     };
-  }, [transacoesMes, orcamentos]);
+  }, [transacoesMes, orcamentos, pacientes]);
 
   const {
     faturamentoBruto,
@@ -323,11 +406,54 @@ export const FinanceiroDRE: React.FC<FinanceiroDREProps> = ({ selectedMonth }) =
     dadosEspecialidadesReais,
     dadosPizzaDespesas,
     dadosCascataDRE,
+    listaPacientesDRE,
+    receitasPagas,
   } = calculosDRE;
 
   const handleImprimir = () => {
     window.print();
   };
+
+  const renderMetodoBadge = (metodo: string) => {
+    const m = (metodo || '').toLowerCase();
+    if (m === 'pix' || m === 'pix_parcelado') {
+      return (
+        <Badge key={metodo} className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[10px] font-bold">
+          PIX
+        </Badge>
+      );
+    }
+    if (m === 'cartao' || m.includes('cart')) {
+      return (
+        <Badge key={metodo} className="bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30 text-[10px] font-bold">
+          Cartão
+        </Badge>
+      );
+    }
+    if (m === 'dinheiro') {
+      return (
+        <Badge key={metodo} className="bg-green-500/15 text-green-600 dark:text-green-400 border border-green-500/30 text-[10px] font-bold">
+          Dinheiro
+        </Badge>
+      );
+    }
+    return (
+      <Badge key={metodo} variant="outline" className="text-[10px]">
+        {metodo || 'Outro'}
+      </Badge>
+    );
+  };
+
+  const pacientesFiltrados = useMemo(() => {
+    if (!buscaPaciente.trim()) return listaPacientesDRE || [];
+    const q = buscaPaciente.toLowerCase();
+    return (listaPacientesDRE || []).filter((p) => {
+      const matchNome = p.pacienteNome.toLowerCase().includes(q);
+      const matchProc = p.procedimentosArray.some((desc: string) => desc.toLowerCase().includes(q));
+      const matchMetodo = p.metodosArray.some((m: string) => m.toLowerCase().includes(q));
+      return matchNome || matchProc || matchMetodo;
+    });
+  }, [listaPacientesDRE, buscaPaciente]);
 
   const COLORS_PIE = ['#ef4444', '#f97316', '#eab308', '#84cc16', '#06b6d4', '#8b5cf6', '#ec4899', '#64748b'];
 
@@ -398,7 +524,7 @@ export const FinanceiroDRE: React.FC<FinanceiroDREProps> = ({ selectedMonth }) =
                 lucroLiquidoReal >= 0 ? 'text-indigo-900 dark:text-indigo-200' : 'text-red-600'
               }`}
             >
-              R$ {formatMoney(lucroLiquidoReal)}
+              {formatMoney(lucroLiquidoReal)}
             </div>
             <p className="text-xs text-indigo-700/80 dark:text-indigo-300/80 mt-1 flex items-center font-medium">
               {lucroLiquidoReal >= 0 ? (
@@ -421,7 +547,7 @@ export const FinanceiroDRE: React.FC<FinanceiroDREProps> = ({ selectedMonth }) =
           </CardHeader>
           <CardContent className="p-4 pt-0">
             <div className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400">
-              R$ {formatMoney(faturamentoBruto)}
+              {formatMoney(faturamentoBruto)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               Receita operacional líquida: {formatMoney(receitaLiquida)}
@@ -439,7 +565,7 @@ export const FinanceiroDRE: React.FC<FinanceiroDREProps> = ({ selectedMonth }) =
           </CardHeader>
           <CardContent className="p-4 pt-0">
             <div className="text-2xl sm:text-3xl font-black text-purple-600 dark:text-purple-400">
-              R$ {formatMoney(margemContribuicao)}
+              {formatMoney(margemContribuicao)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               {margemContribuicaoPerc.toFixed(1)}% após taxas ({formatMoney(totalTaxasCartao)}) e repasses ({formatMoney(totalRepasses)})
@@ -457,7 +583,7 @@ export const FinanceiroDRE: React.FC<FinanceiroDREProps> = ({ selectedMonth }) =
           </CardHeader>
           <CardContent className="p-4 pt-0">
             <div className="text-2xl sm:text-3xl font-black text-red-600 dark:text-red-400">
-              R$ {formatMoney(totalCustosFixos)}
+              {formatMoney(totalCustosFixos)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               Inadimplência pendente no mês: {formatMoney(faturasPendentes)}
@@ -755,6 +881,197 @@ export const FinanceiroDRE: React.FC<FinanceiroDREProps> = ({ selectedMonth }) =
           </CardContent>
         </Card>
       )}
+
+      {/* SEÇÃO DE CONFERÊNCIA: DETALHAMENTO DE FATURAMENTO POR PACIENTE */}
+      <Card className="border border-border shadow-xs">
+        <CardHeader className="p-4 sm:p-5 pb-3 border-b border-border/60">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <CardTitle className="text-base sm:text-lg font-bold flex items-center gap-2 text-foreground">
+                <Users className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                Conferência de Faturamento por Paciente
+                <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 text-xs font-bold">
+                  {calculosDRE.listaPacientesDRE.length} paciente(s)
+                </Badge>
+              </CardTitle>
+              <CardDescription className="text-xs text-muted-foreground mt-0.5">
+                Especificação individual de cada paciente e lançamentos que somam exatamente o <strong>Faturamento Bruto ({formatMoney(faturamentoBruto)})</strong> no mês.
+              </CardDescription>
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <div className="relative flex-1 sm:w-64">
+                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  type="text"
+                  placeholder="Buscar paciente ou procedimento..."
+                  value={buscaPaciente}
+                  onChange={(e) => setBuscaPaciente(e.target.value)}
+                  className="h-8 pl-8 text-xs bg-muted/40"
+                />
+              </div>
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs text-left">
+              <thead>
+                <tr className="border-b bg-muted/40 font-semibold text-muted-foreground text-[11px] uppercase tracking-wider">
+                  <th className="p-3 pl-4">Paciente</th>
+                  <th className="p-3">Procedimento / Lançamento</th>
+                  <th className="p-3 text-center">Forma Pagto</th>
+                  <th className="p-3 text-right">Taxas Retidas</th>
+                  <th className="p-3 text-right">Líquido Clínica</th>
+                  <th className="p-3 text-right">Faturamento Bruto</th>
+                  <th className="p-3 text-right pr-4">% Participação</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/60">
+                {pacientesFiltrados.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="p-8 text-center text-muted-foreground text-xs">
+                      Nenhum recebimento encontrado para o filtro informado.
+                    </td>
+                  </tr>
+                ) : (
+                  pacientesFiltrados.map((item) => {
+                    const isExpandido = Boolean(pacientesExpandidos[item.pacienteId]);
+                    const temMultiplasTransacoes = item.transacoes.length > 1;
+
+                    return (
+                      <React.Fragment key={item.pacienteId}>
+                        <tr 
+                          onClick={() => temMultiplasTransacoes && toggleExpandirPaciente(item.pacienteId)}
+                          className={`hover:bg-muted/40 transition-colors ${temMultiplasTransacoes ? 'cursor-pointer' : ''}`}
+                        >
+                          <td className="p-3 pl-4 font-bold text-foreground">
+                            <div className="flex items-center gap-2">
+                              {temMultiplasTransacoes ? (
+                                <button
+                                  type="button"
+                                  className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-transform"
+                                  title={isExpandido ? 'Recolher parcelas' : 'Ver parcelas'}
+                                >
+                                  {isExpandido ? (
+                                    <ChevronUp className="h-3.5 w-3.5" />
+                                  ) : (
+                                    <ChevronDown className="h-3.5 w-3.5" />
+                                  )}
+                                </button>
+                              ) : (
+                                <User className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" />
+                              )}
+                              <span>{item.pacienteNome}</span>
+                              {temMultiplasTransacoes && (
+                                <Badge variant="secondary" className="text-[10px] py-0 px-1.5 font-normal">
+                                  {item.transacoes.length}x
+                                </Badge>
+                              )}
+                            </div>
+                          </td>
+
+                          <td className="p-3 text-muted-foreground max-w-xs truncate" title={item.procedimentosArray.join(', ')}>
+                            {item.procedimentosArray.length > 0 ? item.procedimentosArray.join(', ') : 'Tratamento odontológico'}
+                          </td>
+
+                          <td className="p-3 text-center">
+                            <div className="flex items-center justify-center gap-1 flex-wrap">
+                              {item.metodosArray.map((m: string) => renderMetodoBadge(m))}
+                            </div>
+                          </td>
+
+                          <td className="p-3 text-right">
+                            {item.totalTaxas > 0 ? (
+                              <span className="text-rose-600 dark:text-rose-400 font-medium">
+                                -{formatMoney(item.totalTaxas)}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground/60">-</span>
+                            )}
+                          </td>
+
+                          <td className="p-3 text-right font-medium text-foreground">
+                            {formatMoney(item.totalLiquido)}
+                          </td>
+
+                          <td className="p-3 text-right font-black text-emerald-600 dark:text-emerald-400 text-sm">
+                            {formatMoney(item.totalBruto)}
+                          </td>
+
+                          <td className="p-3 text-right pr-4">
+                            <div className="flex items-center justify-end gap-2">
+                              <Progress value={item.percentualDoTotal} className="h-1.5 w-12 hidden sm:block" />
+                              <span className="font-semibold text-muted-foreground text-[11px] tabular-nums">
+                                {item.percentualDoTotal.toFixed(1)}%
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+
+                        {/* Linhas filhas caso tenha múltiplas parcelas ou queira ver detalhes */}
+                        {isExpandido && item.transacoes.map((t: any, idx: number) => {
+                          const dataStr = t.data ? new Date(t.data).toLocaleDateString('pt-BR') : '-';
+                          const tVal = Number(t.valor || 0);
+                          const tTaxa = Number(t.taxaCartaoValor || 0);
+                          const tLiq = t.valorLiquido ? Number(t.valorLiquido) : (tVal - tTaxa);
+
+                          return (
+                            <tr key={t.id || idx} className="bg-muted/20 text-[11px] text-muted-foreground">
+                              <td className="p-2 pl-10 font-normal">
+                                <span className="flex items-center gap-1.5 text-muted-foreground">
+                                  <Receipt className="h-3 w-3 text-muted-foreground/60" />
+                                  Parcela / Lançamento #{idx + 1} • {dataStr}
+                                </span>
+                              </td>
+                              <td className="p-2 truncate max-w-xs">{t.descricao || 'Recebimento'}</td>
+                              <td className="p-2 text-center">{renderMetodoBadge(t.metodoPagamento)}</td>
+                              <td className="p-2 text-right text-rose-500">
+                                {tTaxa > 0 ? `-${formatMoney(tTaxa)}` : '-'}
+                              </td>
+                              <td className="p-2 text-right">{formatMoney(tLiq)}</td>
+                              <td className="p-2 text-right font-semibold text-emerald-600 dark:text-emerald-400">
+                                {formatMoney(tVal)}
+                              </td>
+                              <td className="p-2 text-right pr-4 text-[10px] text-muted-foreground/80">
+                                {(faturamentoBruto > 0 ? (tVal / faturamentoBruto) * 100 : 0).toFixed(1)}%
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </React.Fragment>
+                    );
+                  })
+                )}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 bg-muted/50 font-bold text-foreground text-xs">
+                  <td className="p-3 pl-4">
+                    TOTAL CONFERÊNCIA ({pacientesFiltrados.length} pacientes)
+                  </td>
+                  <td className="p-3 text-muted-foreground font-normal">
+                    {receitasPagas.length} recebimento(s) quitado(s) no mês
+                  </td>
+                  <td className="p-3 text-center">-</td>
+                  <td className="p-3 text-right text-rose-600 dark:text-rose-400">
+                    {totalTaxasCartao > 0 ? `-${formatMoney(totalTaxasCartao)}` : 'R$ 0,00'}
+                  </td>
+                  <td className="p-3 text-right">
+                    {formatMoney(receitaLiquida)}
+                  </td>
+                  <td className="p-3 text-right font-black text-emerald-600 dark:text-emerald-400 text-sm">
+                    {formatMoney(faturamentoBruto)}
+                  </td>
+                  <td className="p-3 text-right pr-4 text-emerald-600 dark:text-emerald-400 font-black">
+                    100.0%
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };
