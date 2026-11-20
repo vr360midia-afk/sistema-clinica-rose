@@ -430,15 +430,32 @@ export async function executarExclusaoOuCancelamentoFinanceiro({
       client
     );
 
-    // 2.1 Limpa tratamentos e etapas vinculadas a este orçamento (se houver)
+    // 2.1 Executa exclusão administrativa segura via RPC (com tratamento de cascade e integridade)
+    let excluiuViaRpc = false;
     try {
-      await client.from('tratamentos_procedimentos').delete().eq('orcamento_id', orcamento.id);
-    } catch (tpErr) {
-      console.warn('[FinanceiroExclusao] Aviso ao limpar tratamentos_procedimentos vinculados:', tpErr);
-    }
+      const { data: rpcRes, error: rpcErr } = await client.rpc('rpc_excluir_orcamento_administrativo', {
+        p_orcamento_id: orcamento.id,
+        p_motivo: motivo,
+      });
+      if (!rpcErr && rpcRes?.ok) {
+        excluiuViaRpc = true;
+      }
+    } catch (_) {}
 
-    // 3. Remove orçamento da tabela orcamentos
-    const { error: delErr } = await client.from('orcamentos').delete().eq('id', orcamento.id);
+    // Fallback: se não excluiu via RPC, faz a limpeza manual direta
+    if (!excluiuViaRpc) {
+      try {
+        await client.from('tratamentos_procedimentos').delete().eq('orcamento_id', orcamento.id);
+      } catch (tpErr) {
+        console.warn('[FinanceiroExclusao] Aviso ao limpar tratamentos_procedimentos vinculados:', tpErr);
+      }
+
+      // 3. Remove orçamento da tabela orcamentos
+      const { error: delErr } = await client.from('orcamentos').delete().eq('id', orcamento.id);
+      if (delErr) {
+        throw new Error(`Falha ao remover orçamento: ${delErr.message}`);
+      }
+    }
     if (delErr) {
       throw new Error(`Falha ao remover orçamento: ${delErr.message}`);
     }

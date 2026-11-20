@@ -325,7 +325,26 @@ export const useOrcamentos = (pacienteId?: string) => {
       return false;
     }
 
-    // 3. Remove parcelas pendentes vinculadas para não deixar transações órfãs
+    // 3. Tenta primeiro via RPC administrativa com governança e auditoria
+    try {
+      const { data: rpcRes, error: rpcErr } = await supabase.rpc('rpc_excluir_orcamento_administrativo', {
+        p_orcamento_id: id,
+        p_motivo: 'Exclusão solicitada via painel de orçamentos',
+      });
+      if (!rpcErr && rpcRes?.ok) {
+        await registrarAuditoria({ acao: 'removeu', entidade: 'orcamento', entidadeId: id });
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent('financeiro:transacoes-atualizadas', { detail: { orcamentoId: id, tipo: 'excluido' } })
+          );
+        }
+        toast.success('Orçamento removido com sucesso');
+        load();
+        return true;
+      }
+    } catch (_) {}
+
+    // Fallback: exclusão direta caso a RPC não esteja disponível
     if (transVinculadas && transVinculadas.length > 0) {
       await supabase.from('transacoes').delete().eq('orcamento_id', id).neq('status', 'pago');
     }
