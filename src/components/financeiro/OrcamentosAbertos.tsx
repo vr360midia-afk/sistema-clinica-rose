@@ -26,7 +26,15 @@ import {
   Sparkles,
   Calendar,
   MessageCircle,
+  Target,
+  Send,
+  ExternalLink,
+  User,
+  TrendingUp,
+  Search,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Input } from '@/components/ui/input';
 import ModalApresentarOrcamento from '@/components/orcamentos/ModalApresentarOrcamento';
 import { useOrcamentos, Orcamento } from '@/hooks/useOrcamentos';
 import { useDentalSystem } from '@/context/DentalSystemContext';
@@ -50,16 +58,25 @@ import { toast } from 'sonner';
 interface Props {
   selectedMonth?: string;
   onLancarPagamento?: (prefill: any) => void;
+  initialVisao?: 'aprovados' | 'aguardando';
 }
 
-export const OrcamentosAbertos = ({ selectedMonth, onLancarPagamento }: Props) => {
-  const { orcamentos, loading, reload: reloadOrcamentos } = useOrcamentos();
+export const OrcamentosAbertos = ({ selectedMonth, onLancarPagamento, initialVisao = 'aprovados' }: Props) => {
+  const { orcamentos, loading, reload: reloadOrcamentos, updateStatus } = useOrcamentos();
   const { transacoes, pacientes, reloadTransacoes } = useDentalSystem();
   const { configuracoes } = useConfiguracoes();
   const { configContrato } = useConfiguracoesContrato();
+  const navigate = useNavigate();
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [apresentarOrcamento, setApresentarOrcamento] = useState<any | null>(null);
+
+  // Modo de visualização principal: Contratos Aprovados vs Orçamentos em Aberto (Esperando Aprovação & Previsibilidade)
+  const [visaoModo, setVisaoModo] = useState<'aprovados' | 'aguardando'>(initialVisao);
+
+  // Filtros específicos para orçamentos aguardando aprovação
+  const [buscaAguardando, setBuscaAguardando] = useState('');
+  const [filtroStatusAguardando, setFiltroStatusAguardando] = useState<'todos' | 'enviados' | 'rascunhos'>('todos');
 
   const chavePix = configContrato?.chavePix || configuracoes?.telefone || configuracoes?.cnpj || '';
   const tipoChave = configContrato?.tipoChavePix;
@@ -108,6 +125,57 @@ export const OrcamentosAbertos = ({ selectedMonth, onLancarPagamento }: Props) =
       toast.success(`Mensagem de cobrança com PIX aberta no WhatsApp para ${primeiroNome}!`);
     } else {
       toast.error('Não foi possível abrir o WhatsApp. Verifique o número de telefone.');
+    }
+  };
+
+  const enviarFollowUpWhatsApp = (orc: Orcamento) => {
+    const paciente = pacientes.find((p) => p.id === orc.pacienteId);
+    const telefone = paciente?.telefone;
+    if (!telefone) {
+      toast.error('Paciente não possui número de WhatsApp cadastrado.');
+      return;
+    }
+    const primeiroNome = (paciente?.nome || orc.pacienteNome || 'Cliente').trim().split(' ')[0];
+    const valorNum = Number(orc.total || 0);
+    const tituloPlano = orc.titulo || 'Plano de Tratamento';
+    const linkProposta = orc.tokenAssinatura
+      ? `${window.location.origin}/orcamento-online/${orc.tokenAssinatura}`
+      : null;
+
+    const linhas = [
+      `Olá, ${primeiroNome}! Tudo bem? Esperamos que sim.`,
+      '',
+      `Passando da equipe da *${nomeClinica}* para saber se você conseguiu analisar a proposta do seu tratamento:`,
+      `📋 *Plano:* ${tituloPlano}`,
+      `💰 *Valor Total da Proposta:* ${formatMoney(valorNum)}`,
+      orc.formasPagamento ? `💳 *Condições Previstas:* ${orc.formasPagamento}` : null,
+      '',
+      linkProposta
+        ? `🔗 *Você pode revisar a proposta completa e aprovar online pelo link:*\n${linkProposta}\n`
+        : null,
+      'Ficou com alguma dúvida sobre os procedimentos ou formas de parcelamento? Estamos à disposição para agendarmos o seu início!',
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    if (openWhatsApp(telefone, linhas)) {
+      toast.success(`Mensagem de acompanhamento comercial aberta no WhatsApp para ${primeiroNome}!`);
+    } else {
+      toast.error('Não foi possível abrir o WhatsApp. Verifique o número de telefone.');
+    }
+  };
+
+  const handleAprovarContrato = async (orc: Orcamento) => {
+    try {
+      await updateStatus(orc.id, 'aprovado');
+      toast.success(`Contrato de ${formatMoney(Number(orc.total || 0))} aprovado com sucesso!`, {
+        description: `O plano de ${orc.pacienteNome || 'Paciente'} foi fechado e integrado ao financeiro.`,
+      });
+      reloadOrcamentos();
+      reloadTransacoes();
+    } catch (err) {
+      console.error('Erro ao aprovar orçamento:', err);
+      toast.error('Não foi possível aprovar o orçamento.');
     }
   };
 
@@ -259,11 +327,391 @@ export const OrcamentosAbertos = ({ selectedMonth, onLancarPagamento }: Props) =
     setSelecionadosIds(new Set(idsFicticios));
   };
 
-  if (loading && aprovados.length === 0) return null;
+  // Todos os orçamentos que estão em aberto esperando aprovação
+  const orcamentosAguardando = useMemo(() => {
+    return (orcamentos || [])
+      .filter((o) => {
+        if (!o) return false;
+        const st = String(o.status || '').toLowerCase().trim();
+        return st !== 'aprovado' && st !== 'recusado' && st !== 'cancelado';
+      })
+      .sort((a, b) => Number(b.total || 0) - Number(a.total || 0)); // Maiores propostas no topo
+  }, [orcamentos]);
+
+  // Indicadores de Previsibilidade de Novos Contratos (Pipeline Comercial)
+  const totalPrevisaoAguardando = useMemo(() => {
+    return orcamentosAguardando.reduce((s, o) => s + Number(o.total || 0), 0);
+  }, [orcamentosAguardando]);
+
+  const orcamentosEnviados = useMemo(() => {
+    return orcamentosAguardando.filter(
+      (o) => o.status === 'enviado' || o.status === 'aguardando_aprovacao' || o.status === 'nova_proposta_enviada'
+    );
+  }, [orcamentosAguardando]);
+
+  const totalEnviados = useMemo(() => {
+    return orcamentosEnviados.reduce((s, o) => s + Number(o.total || 0), 0);
+  }, [orcamentosEnviados]);
+
+  const orcamentosRascunhos = useMemo(() => {
+    return orcamentosAguardando.filter(
+      (o) => o.status === 'rascunho' || o.status === 'em_revisao' || o.status === 'ajuste_solicitado'
+    );
+  }, [orcamentosAguardando]);
+
+  const totalRascunhos = useMemo(() => {
+    return orcamentosRascunhos.reduce((s, o) => s + Number(o.total || 0), 0);
+  }, [orcamentosRascunhos]);
+
+  const ticketMedioAguardando = useMemo(() => {
+    return orcamentosAguardando.length > 0 ? totalPrevisaoAguardando / orcamentosAguardando.length : 0;
+  }, [totalPrevisaoAguardando, orcamentosAguardando.length]);
+
+  // Projeção ponderada realista: 70% de conversão para propostas já enviadas e 40% para rascunhos em negociação
+  const previsaoPonderada = useMemo(() => {
+    return (totalEnviados * 0.7) + (totalRascunhos * 0.4);
+  }, [totalEnviados, totalRascunhos]);
+
+  // Lista filtrada para exibição na aba de aguardando
+  const listaAguardandoFiltrada = useMemo(() => {
+    let base = orcamentosAguardando;
+    if (filtroStatusAguardando === 'enviados') {
+      base = orcamentosEnviados;
+    } else if (filtroStatusAguardando === 'rascunhos') {
+      base = orcamentosRascunhos;
+    }
+
+    if (!buscaAguardando.trim()) return base;
+    const termo = buscaAguardando.toLowerCase().trim();
+
+    return base.filter((o) => {
+      const nomeP = String(o.pacienteNome || '').toLowerCase();
+      const titulo = String(o.titulo || '').toLowerCase();
+      const cod = String(o.id || '').toLowerCase();
+      return nomeP.includes(termo) || titulo.includes(termo) || cod.includes(termo);
+    });
+  }, [orcamentosAguardando, filtroStatusAguardando, orcamentosEnviados, orcamentosRascunhos, buscaAguardando]);
+
+  if (loading && aprovados.length === 0 && orcamentosAguardando.length === 0) return null;
 
   return (
     <>
-      <Card>
+      {/* Seletor Principal de Visão: Contratos Aprovados vs Esperando Aprovação (Pipeline) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+        <div className="inline-flex p-1 rounded-xl bg-muted/60 border border-border/50 text-xs font-semibold shadow-xs">
+          <button
+            type="button"
+            onClick={() => setVisaoModo('aprovados')}
+            className={`px-3 py-1.5 rounded-lg flex items-center gap-2 transition-all ${
+              visaoModo === 'aprovados'
+                ? 'bg-background text-foreground shadow-xs font-bold'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+            <span>Contratos Aprovados & Caixa</span>
+            <Badge variant="secondary" className="text-[10px] py-0 px-1.5 h-4 font-bold">
+              {todosAprovados.length}
+            </Badge>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setVisaoModo('aguardando')}
+            className={`px-3 py-1.5 rounded-lg flex items-center gap-2 transition-all ${
+              visaoModo === 'aguardando'
+                ? 'bg-indigo-600 text-white shadow-xs font-bold'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Target className="h-4 w-4" />
+            <span>Esperando Aprovação (Previsibilidade)</span>
+            <Badge className={`text-[10px] py-0 px-1.5 h-4 font-bold ${
+              visaoModo === 'aguardando' ? 'bg-indigo-500/30 text-white border-indigo-300/40' : 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300'
+            }`}>
+              {orcamentosAguardando.length} • {formatMoney(totalPrevisaoAguardando)}
+            </Badge>
+          </button>
+        </div>
+
+        <div className="text-xs text-muted-foreground">
+          {visaoModo === 'aprovados' ? (
+            <span>{qtdAtivosMes} contrato(s) ativo(s) neste mês</span>
+          ) : (
+            <span className="font-semibold text-indigo-700 dark:text-indigo-300">
+              Pipeline Comercial: {formatMoney(totalPrevisaoAguardando)} em potencial a fechar
+            </span>
+          )}
+        </div>
+      </div>
+
+      {visaoModo === 'aguardando' ? (
+        <Card className="border shadow-sm">
+          <CardHeader className="pb-3 border-b bg-muted/20">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+                  <Target className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-base sm:text-lg font-bold text-foreground">
+                      Orçamentos em Aberto • Previsibilidade de Fechamento
+                    </CardTitle>
+                    <Badge className="bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border-indigo-500/30 text-xs font-bold">
+                      {orcamentosAguardando.length} propostas • {formatMoney(totalPrevisaoAguardando)} a fechar
+                    </Badge>
+                  </div>
+                  <CardDescription className="text-xs text-muted-foreground mt-0.5">
+                    Acompanhe propostas enviadas e em negociação para prever faturamento e acelerar o fechamento de novos contratos.
+                  </CardDescription>
+                </div>
+              </div>
+
+              <div className="relative w-full sm:w-72">
+                <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar paciente ou tratamento em negociação..."
+                  value={buscaAguardando}
+                  onChange={(e) => setBuscaAguardando(e.target.value)}
+                  className="h-8 pl-8 text-xs"
+                />
+              </div>
+            </div>
+
+            {/* 4 Cards de Previsibilidade e Pipeline */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3">
+              <div className="p-3 rounded-xl border border-indigo-500/30 bg-indigo-500/5">
+                <span className="text-[10px] font-bold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider block">
+                  Potencial Total a Fechar
+                </span>
+                <span className="text-lg font-black text-indigo-700 dark:text-indigo-300 block mt-0.5">
+                  {formatMoney(totalPrevisaoAguardando)}
+                </span>
+                <span className="text-[10px] text-muted-foreground block mt-0.5">
+                  {orcamentosAguardando.length} contrato(s) no pipeline
+                </span>
+              </div>
+
+              <div className="p-3 rounded-xl border border-sky-500/30 bg-sky-500/5">
+                <span className="text-[10px] font-bold text-sky-700 dark:text-sky-300 uppercase tracking-wider block">
+                  Aguardando Paciente
+                </span>
+                <span className="text-lg font-black text-sky-700 dark:text-sky-300 block mt-0.5">
+                  {formatMoney(totalEnviados)}
+                </span>
+                <span className="text-[10px] text-muted-foreground block mt-0.5">
+                  {orcamentosEnviados.length} proposta(s) apresentada(s)
+                </span>
+              </div>
+
+              <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-500/5">
+                <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 uppercase tracking-wider block">
+                  Em Elaboração / Rascunhos
+                </span>
+                <span className="text-lg font-black text-amber-700 dark:text-amber-300 block mt-0.5">
+                  {formatMoney(totalRascunhos)}
+                </span>
+                <span className="text-[10px] text-muted-foreground block mt-0.5">
+                  {orcamentosRascunhos.length} plano(s) em estudo
+                </span>
+              </div>
+
+              <div className="p-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5">
+                <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider block">
+                  Expectativa Ponderada
+                </span>
+                <span className="text-lg font-black text-emerald-700 dark:text-emerald-300 block mt-0.5">
+                  {formatMoney(previsaoPonderada)}
+                </span>
+                <span className="text-[10px] text-muted-foreground block mt-0.5">
+                  Projeção realista (70% env / 40% rasc)
+                </span>
+              </div>
+            </div>
+
+            {/* Filtros Rápidos de Status */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-border/40 mt-3">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Button
+                  type="button"
+                  variant={filtroStatusAguardando === 'todos' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setFiltroStatusAguardando('todos')}
+                  className="h-7 text-xs font-semibold px-2.5"
+                >
+                  Todos ({orcamentosAguardando.length})
+                </Button>
+                <Button
+                  type="button"
+                  variant={filtroStatusAguardando === 'enviados' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setFiltroStatusAguardando('enviados')}
+                  className="h-7 text-xs font-semibold px-2.5 gap-1.5"
+                >
+                  <Send className="h-3 w-3 text-sky-500" />
+                  Aguardando Paciente ({orcamentosEnviados.length})
+                </Button>
+                <Button
+                  type="button"
+                  variant={filtroStatusAguardando === 'rascunhos' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setFiltroStatusAguardando('rascunhos')}
+                  className="h-7 text-xs font-semibold px-2.5 gap-1.5"
+                >
+                  <FileText className="h-3 w-3 text-amber-500" />
+                  Em Elaboração ({orcamentosRascunhos.length})
+                </Button>
+              </div>
+
+              <span className="text-xs text-muted-foreground">
+                Ticket Médio: <strong className="text-foreground">{formatMoney(ticketMedioAguardando)}</strong>
+              </span>
+            </div>
+          </CardHeader>
+
+          <CardContent className="p-4 sm:p-5 space-y-3">
+            {listaAguardandoFiltrada.length === 0 ? (
+              <div className="py-12 text-center space-y-2">
+                <CheckCircle2 className="h-10 w-10 text-muted-foreground/40 mx-auto" />
+                <h4 className="font-bold text-foreground text-sm">Nenhum orçamento encontrado</h4>
+                <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                  {buscaAguardando
+                    ? 'Nenhum resultado corresponde à busca informada.'
+                    : 'Não há orçamentos em aberto nesta categoria.'}
+                </p>
+              </div>
+            ) : (
+              listaAguardandoFiltrada.map((orc) => {
+                const paciente = pacientes.find((p) => p.id === orc.pacienteId);
+                const valorNum = Number(orc.total || 0);
+                const dataCriacaoStr = orc.criadoEm ? new Date(orc.criadoEm).toLocaleDateString('pt-BR') : '-';
+                const validadeStr = orc.validade ? new Date(orc.validade).toLocaleDateString('pt-BR') : null;
+                const isEnviado = orc.status === 'enviado' || orc.status === 'aguardando_aprovacao' || orc.status === 'nova_proposta_enviada';
+                const isRascunho = orc.status === 'rascunho' || orc.status === 'em_revisao';
+                const itensCount = Array.isArray(orc.itens) ? orc.itens.length : 0;
+
+                const condicoesTexto =
+                  orc.formasPagamento ||
+                  (orc as any).formas_pagamento ||
+                  (orc as any).condicaoEscolhida?.descricao ||
+                  (orc as any).condicaoEscolhida?.nome ||
+                  (orc.observacoes ? orc.observacoes.slice(0, 60) + '...' : null);
+
+                return (
+                  <div
+                    key={orc.id}
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl border border-border/80 bg-card hover:bg-muted/30 transition-all shadow-xs"
+                  >
+                    <div className="min-w-0 space-y-1.5 flex-1 pr-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-bold text-sm text-foreground flex items-center gap-1.5">
+                          <User className="h-4 w-4 text-primary shrink-0" />
+                          {paciente?.nome || orc.pacienteNome || 'Paciente não identificado'}
+                        </span>
+
+                        <Badge variant="outline" className="text-[10px] font-mono bg-muted/60">
+                          {orc.id.slice(0, 8).toUpperCase()}
+                        </Badge>
+
+                        {isEnviado ? (
+                          <Badge className="bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-500/30 text-[10px] font-semibold gap-1">
+                            <Send className="h-3 w-3" /> Aguardando Paciente
+                          </Badge>
+                        ) : isRascunho ? (
+                          <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 text-[10px] font-semibold gap-1">
+                            <FileText className="h-3 w-3" /> Em Elaboração
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30 text-[10px] font-semibold gap-1">
+                            <Clock className="h-3 w-3" /> {orc.status}
+                          </Badge>
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <span className="font-semibold text-foreground">{orc.titulo}</span>
+                        {itensCount > 0 && <span>• {itensCount} procedimento(s)</span>}
+                        <span>• Criado em: {dataCriacaoStr}</span>
+                        {validadeStr && (
+                          <span className="text-amber-600 dark:text-amber-400 font-medium">
+                            • Válido até: {validadeStr}
+                          </span>
+                        )}
+                      </div>
+
+                      {condicoesTexto && (
+                        <p className="text-[11px] text-muted-foreground max-w-xl truncate" title={condicoesTexto}>
+                          💳 <strong className="text-foreground">Condição prevista:</strong> {condicoesTexto}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between sm:justify-end gap-2.5 shrink-0 pt-2 sm:pt-0 border-t sm:border-0 border-border/50">
+                      <div className="text-left sm:text-right mr-1">
+                        <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider block">
+                          Previsão Total
+                        </span>
+                        <span className="text-lg font-black text-indigo-600 dark:text-indigo-400">
+                          {formatMoney(valorNum)}
+                        </span>
+                      </div>
+
+                      {/* Botão Follow-up WhatsApp */}
+                      <Button
+                        size="sm"
+                        onClick={() => enviarFollowUpWhatsApp(orc)}
+                        className="h-8 px-2.5 text-xs font-semibold gap-1.5 bg-[#25D366] hover:bg-[#20ba5a] text-white shadow-xs"
+                        title="Enviar mensagem de acompanhamento comercial pelo WhatsApp para fechar"
+                      >
+                        <MessageCircle className="h-3.5 w-3.5 fill-white" />
+                        <span>Follow-up WhatsApp</span>
+                      </Button>
+
+                      {/* Botão Apresentar Proposta */}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setApresentarOrcamento(orc)}
+                        className="h-8 px-2.5 text-xs font-semibold gap-1 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
+                        title="Apresentar proposta completa para o paciente ou imprimir"
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                        <span>Apresentar</span>
+                      </Button>
+
+                      {/* Botão Aprovar e Fechar Contrato */}
+                      <Button
+                        size="sm"
+                        onClick={() => handleAprovarContrato(orc)}
+                        className="h-8 px-2.5 text-xs font-semibold gap-1 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                        title="Aprovar orçamento e formalizar contrato fechado no financeiro"
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        <span>Aprovar Contrato</span>
+                      </Button>
+
+                      {/* Botão Prontuário */}
+                      {paciente?.id && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => navigate(`/pacientes/${paciente.id}?tab=orcamentos`)}
+                          className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
+                          title="Acessar prontuário e ficha do paciente"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
             <span className="flex items-center gap-2 font-bold text-foreground">
@@ -319,6 +767,23 @@ export const OrcamentosAbertos = ({ selectedMonth, onLancarPagamento }: Props) =
                 className="h-7 text-xs font-semibold px-2.5 gap-1.5"
               >
                 Histórico Completo ({todosAprovados.length})
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setVisaoModo('aguardando')}
+                className="h-7 text-xs font-semibold px-2.5 gap-1.5 border-indigo-500/30 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/10"
+                title="Ver orçamentos que estão aguardando aprovação do paciente e o valor total previsto"
+              >
+                <Target className="h-3.5 w-3.5 text-indigo-500" />
+                Esperando Aprovação ({orcamentosAguardando.length})
+                {totalPrevisaoAguardando > 0 && (
+                  <span className="font-bold text-indigo-600 dark:text-indigo-400">
+                    • {formatMoney(totalPrevisaoAguardando)}
+                  </span>
+                )}
               </Button>
             </div>
           </div>
@@ -869,6 +1334,7 @@ export const OrcamentosAbertos = ({ selectedMonth, onLancarPagamento }: Props) =
           )}
         </CardContent>
       </Card>
+      )}
 
       {/* Modal de Apresentar Orçamento */}
       {apresentarOrcamento && (
