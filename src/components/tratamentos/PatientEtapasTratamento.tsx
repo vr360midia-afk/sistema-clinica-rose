@@ -101,6 +101,8 @@ export const PatientEtapasTratamento: React.FC<Props> = ({ patient, onTabChange 
     modo: 'detalhes' | 'debito';
   } | null>(null);
   const [isModalAnotacaoOpen, setIsModalAnotacaoOpen] = useState(false);
+  const [anotacaoEmEdicao, setAnotacaoEmEdicao] = useState<AnotacaoItem | null>(null);
+  const [textoAnotacaoRapida, setTextoAnotacaoRapida] = useState('');
 
   // Carrega dados persistidos do paciente
   useEffect(() => {
@@ -172,7 +174,14 @@ export const PatientEtapasTratamento: React.FC<Props> = ({ patient, onTabChange 
     };
 
     try {
-      await updatePaciente(patient.id, { odontograma: payload });
+      const textoObservacoes = novasAnotacoes.length > 0
+        ? novasAnotacoes.map((a) => a.texto).join('\n\n')
+        : patient?.observacoes;
+
+      await updatePaciente(patient.id, {
+        odontograma: payload,
+        observacoes: textoObservacoes,
+      });
     } catch (err) {
       console.error('Erro ao salvar odontograma no paciente:', err);
     }
@@ -552,16 +561,41 @@ export const PatientEtapasTratamento: React.FC<Props> = ({ patient, onTabChange 
     toast.success('Procedimento marcado como Realizado com sucesso!');
   };
 
-  // Salvar Anotação
-  const handleSaveAnotacao = (novaAnotacao: AnotacaoItem) => {
-    const atualizadas = [novaAnotacao, ...anotacoes];
+  // Salvar Anotação (Cria ou Atualiza)
+  const handleSaveAnotacao = (item: AnotacaoItem) => {
+    let atualizadas: AnotacaoItem[];
+    const existe = anotacoes.some((a) => a.id === item.id);
+    if (existe) {
+      atualizadas = anotacoes.map((a) => (a.id === item.id ? item : a));
+      toast.success('Anotação atualizada com sucesso!');
+    } else {
+      atualizadas = [item, ...anotacoes];
+      toast.success('Anotação adicionada à Ficha do Paciente!');
+    }
+
     setAnotacoes(atualizadas);
     salvarNoPaciente(procedimentosLocais, atualizadas);
-    toast.success('Anotação adicionada com sucesso!');
+    setAnotacaoEmEdicao(null);
+  };
+
+  // Salvar Anotação rápida digitada diretamente no painel
+  const handleSalvarAnotacaoRapida = () => {
+    if (!textoAnotacaoRapida.trim()) return;
+    const novaAnotacao: AnotacaoItem = {
+      id: `note_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+      texto: textoAnotacaoRapida.trim(),
+      data: new Date().toISOString(),
+      autor: 'Profissional',
+    };
+    handleSaveAnotacao(novaAnotacao);
+    setTextoAnotacaoRapida('');
   };
 
   // Excluir Anotação
   const handleDeleteAnotacao = (id: string) => {
+    const confirmou = window.confirm('Deseja realmente remover esta anotação da ficha?');
+    if (!confirmou) return;
+
     const atualizadas = anotacoes.filter((a) => a.id !== id);
     setAnotacoes(atualizadas);
     salvarNoPaciente(procedimentosLocais, atualizadas);
@@ -720,8 +754,22 @@ export const PatientEtapasTratamento: React.FC<Props> = ({ patient, onTabChange 
                 </Select>
               </div>
 
-              {/* Botões de Ação: Gerar Orçamento */}
-              <div className="flex items-center gap-2 justify-end">
+              {/* Botões de Ação: Adicionar Anotação e Gerar Orçamento */}
+              <div className="flex items-center gap-2 justify-end flex-wrap">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setAnotacaoEmEdicao(null);
+                    setIsModalAnotacaoOpen(true);
+                  }}
+                  className="h-8.5 px-3 text-xs font-semibold border-purple-400/60 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/40 rounded-lg gap-1.5 shadow-2xs"
+                  title="Adicionar anotação clínica na Ficha Geral"
+                >
+                  <MessageSquare className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
+                  <span>+ Anotação na Ficha</span>
+                </Button>
+
                 <Button
                   type="button"
                   disabled={isGerandoOrcamento}
@@ -991,20 +1039,59 @@ export const PatientEtapasTratamento: React.FC<Props> = ({ patient, onTabChange 
         {/* COLUNA DIREITA: Anotações Clínicas do Paciente                            */}
         {/* ========================================================================= */}
         <div className="lg:col-span-4 xl:col-span-3 space-y-4">
-          <div className="bg-card border border-border rounded-xl p-4 sm:p-5 shadow-xs space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-foreground">Anotações</h3>
-              {anotacoes.length > 0 && (
-                <span className="text-xs text-muted-foreground font-semibold">
-                  {anotacoes.length} {anotacoes.length === 1 ? 'nota' : 'notas'}
-                </span>
-              )}
+          <div className="bg-card border border-border rounded-xl p-4 sm:p-5 shadow-xs space-y-3.5">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-bold text-foreground">Anotações</h3>
+                {anotacoes.length > 0 && (
+                  <span className="text-xs text-muted-foreground font-semibold">
+                    {anotacoes.length} {anotacoes.length === 1 ? 'nota' : 'notas'}
+                  </span>
+                )}
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setAnotacaoEmEdicao(null);
+                  setIsModalAnotacaoOpen(true);
+                }}
+                className="h-7 px-2.5 text-[11px] font-semibold border-purple-600 text-purple-700 hover:bg-purple-50 dark:hover:bg-purple-950/30 rounded-md gap-1"
+                title="Adicionar anotação na ficha clínica"
+              >
+                <Plus className="h-3 w-3" />
+                <span>Adicionar anotação</span>
+              </Button>
+            </div>
+
+            {/* Inserção Rápida de Anotação sem abrir Modal */}
+            <div className="space-y-1.5 p-2.5 rounded-lg border border-purple-200/80 dark:border-purple-900/60 bg-purple-50/40 dark:bg-purple-950/20">
+              <textarea
+                value={textoAnotacaoRapida}
+                onChange={(e) => setTextoAnotacaoRapida(e.target.value)}
+                placeholder="Escreva uma anotação rápida na ficha..."
+                rows={2}
+                className="w-full text-xs p-2 rounded-md border border-border bg-background focus:ring-1 focus:ring-purple-600 outline-none resize-none leading-relaxed"
+              />
+              <div className="flex justify-end pt-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={!textoAnotacaoRapida.trim()}
+                  onClick={handleSalvarAnotacaoRapida}
+                  className="h-7 px-3 text-[11px] font-semibold bg-purple-700 hover:bg-purple-800 text-white rounded-md gap-1 shadow-2xs"
+                >
+                  <Plus className="h-3 w-3" />
+                  Salvar Nota
+                </Button>
+              </div>
             </div>
 
             {/* Conteúdo das Anotações */}
             {anotacoes.length === 0 ? (
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                O paciente não possui anotações adicionadas.
+              <p className="text-xs text-muted-foreground leading-relaxed py-2">
+                O paciente não possui anotações adicionadas. Use o campo acima para adicionar anotações clínicas na ficha geral.
               </p>
             ) : (
               <div className="space-y-3 max-h-[460px] overflow-y-auto pr-1 no-scrollbar">
@@ -1019,34 +1106,34 @@ export const PatientEtapasTratamento: React.FC<Props> = ({ patient, onTabChange 
                         {item.data ? format(new Date(item.data), "dd/MM/yyyy 'às' HH:mm") : ''}
                       </span>
                     </div>
-                    <p className="text-xs text-foreground whitespace-pre-line leading-relaxed">
+                    <p className="text-xs text-foreground whitespace-pre-line leading-relaxed pr-8">
                       {item.texto}
                     </p>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteAnotacao(item.id)}
-                      className="absolute top-2 right-2 p-1 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                      title="Excluir anotação"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
+                    <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAnotacaoEmEdicao(item);
+                          setIsModalAnotacaoOpen(true);
+                        }}
+                        className="p-1 text-muted-foreground hover:text-purple-600 rounded transition-colors"
+                        title="Editar anotação"
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteAnotacao(item.id)}
+                        className="p-1 text-muted-foreground hover:text-destructive rounded transition-colors"
+                        title="Excluir anotação"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
             )}
-
-            {/* Botão + Adicionar Anotação */}
-            <div className="pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setIsModalAnotacaoOpen(true)}
-                className="w-full h-9 text-xs font-semibold border-purple-600 text-purple-700 hover:bg-purple-50 dark:hover:bg-purple-950/30 rounded-lg gap-1.5 shadow-2xs"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Adicionar anotação
-              </Button>
-            </div>
           </div>
         </div>
       </div>
@@ -1096,8 +1183,12 @@ export const PatientEtapasTratamento: React.FC<Props> = ({ patient, onTabChange 
 
       <ModalAnotacao
         isOpen={isModalAnotacaoOpen}
-        onClose={() => setIsModalAnotacaoOpen(false)}
+        onClose={() => {
+          setIsModalAnotacaoOpen(false);
+          setAnotacaoEmEdicao(null);
+        }}
         onSave={handleSaveAnotacao}
+        anotacaoEmEdicao={anotacaoEmEdicao}
       />
     </div>
   );
