@@ -3,13 +3,12 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, CalendarPlus, Edit2, Plus, User, FileText, ClipboardList, ListChecks, FolderOpen, History, DollarSign, Stethoscope, MessageCircle, RotateCcw, Activity } from 'lucide-react';
+import { ArrowLeft, CalendarPlus, Edit2, Plus, User, FileText, ClipboardList, ListChecks, FolderOpen, DollarSign, Stethoscope, MessageCircle, RotateCcw, Activity } from 'lucide-react';
 import { openWhatsApp } from '@/lib/whatsapp';
 import PatientPersonalInfo from './PatientPersonalInfo';
 import PatientMedicalRecords from './PatientMedicalRecords';
 import PatientAnamnesis from './PatientAnamnesis';
 import PatientDocuments from './PatientDocuments';
-import PatientTimeline from './PatientTimeline';
 import PatientFinancial from './PatientFinancial';
 import PatientOrcamentos from './PatientOrcamentos';
 import PatientDocumentosClinicos from './PatientDocumentosClinicos';
@@ -159,7 +158,7 @@ const PatientDetails = ({ patient, onClose, onEdit, onSchedule, onAddProcediment
       </div>
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4 sm:space-y-6">
-        <TabsList className="flex overflow-x-auto sm:grid w-full sm:grid-cols-5 lg:grid-cols-9 h-auto p-1 gap-1 border border-border bg-muted/60 no-scrollbar">
+        <TabsList className="flex overflow-x-auto sm:grid w-full sm:grid-cols-4 lg:grid-cols-8 h-auto p-1 gap-1 border border-border bg-muted/60 no-scrollbar">
           <TabsTrigger value="personal" className="flex items-center gap-1.5 shrink-0 text-xs py-2">
             <User className="h-4 w-4" />
             <span>Dados Pessoais</span>
@@ -175,10 +174,6 @@ const PatientDetails = ({ patient, onClose, onEdit, onSchedule, onAddProcediment
           <TabsTrigger value="anamnesis" className="flex items-center gap-1.5 shrink-0 text-xs py-2">
             <ClipboardList className="h-4 w-4" />
             <span>Anamneses</span>
-          </TabsTrigger>
-          <TabsTrigger value="timeline" className="flex items-center gap-1.5 shrink-0 text-xs py-2">
-            <History className="h-4 w-4" />
-            <span>Linha do tempo</span>
           </TabsTrigger>
           <TabsTrigger value="financial" className="flex items-center gap-1.5 shrink-0 text-xs py-2">
             <DollarSign className="h-4 w-4" />
@@ -213,10 +208,6 @@ const PatientDetails = ({ patient, onClose, onEdit, onSchedule, onAddProcediment
 
         <TabsContent value="anamnesis" className="space-y-6">
           <PatientAnamnesis patient={patient} />
-        </TabsContent>
-
-        <TabsContent value="timeline" className="space-y-6">
-          <PatientTimeline patient={patient} />
         </TabsContent>
 
         <TabsContent value="financial" className="space-y-6">
