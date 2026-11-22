@@ -25,3 +25,26 @@ export interface ResumoSaldoConta {
   totalPendente: number;
   quantidadeTransacoes: number;
 }
+
+export interface SaldoProgressivoInfo {
+  saldoAnterior: number;
+  impacto: number; // +valor (receita) ou -valor (despesa)
+  saldoApos: number;
+  isPendente?: boolean;
+}
+
+export interface MovimentacaoExtratoConta {
+  transacaoId: string;
+  data: Date;
+  descricao: string;
+  pacienteNome?: string;
+  metodoPagamento?: string;
+  tipo: 'receita' | 'despesa';
+  valor: number;
+  impacto: number;
+  saldoApos: number;
+  contaId: string;
+  contaNome: string;
+  contaCor: string;
+  status: string;
+}

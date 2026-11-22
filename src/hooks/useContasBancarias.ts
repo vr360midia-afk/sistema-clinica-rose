@@ -1,7 +1,13 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
-import { ContaBancaria, ResumoSaldoConta, TipoContaBancaria } from '@/types/contaBancaria';
+import {
+  ContaBancaria,
+  ResumoSaldoConta,
+  TipoContaBancaria,
+  SaldoProgressivoInfo,
+  MovimentacaoExtratoConta,
+} from '@/types/contaBancaria';
 import { MetodoPagamento, TipoTransacao, Transacao } from '@/types/shared';
 
 const STORAGE_KEY_PREFIX = 'sistema_clinica_contas_bancarias_';
@@ -17,6 +23,7 @@ export const CONTAS_BANCARIAS_PADRAO: ContaBancaria[] = [
     ativa: true,
     padraoPara: ['pix'],
     descricao: 'Conta digital principal para recebimento de PIX dos pacientes',
+    saldoInicial: 0,
   },
   {
     id: 'nubank',
@@ -27,6 +34,7 @@ export const CONTAS_BANCARIAS_PADRAO: ContaBancaria[] = [
     ativa: true,
     padraoPara: [],
     descricao: 'Conta Nubank da clínica para transferências e PIX secundário',
+    saldoInicial: 0,
   },
   {
     id: 'infinitepay',
@@ -37,6 +45,7 @@ export const CONTAS_BANCARIAS_PADRAO: ContaBancaria[] = [
     ativa: true,
     padraoPara: ['cartao'],
     descricao: 'Conta de liquidação e recebimento de cartões da maquininha InfinitePay',
+    saldoInicial: 0,
   },
   {
     id: 'pagbank',
@@ -47,6 +56,7 @@ export const CONTAS_BANCARIAS_PADRAO: ContaBancaria[] = [
     ativa: true,
     padraoPara: [],
     descricao: 'Conta de liquidação e recebimento de cartões da maquininha PagBank',
+    saldoInicial: 0,
   },
   {
     id: 'caixa_fisico',
@@ -57,6 +67,7 @@ export const CONTAS_BANCARIAS_PADRAO: ContaBancaria[] = [
     ativa: true,
     padraoPara: ['dinheiro'],
     descricao: 'Gaveta física da recepção da clínica para pagamentos em espécie',
+    saldoInicial: 0,
   },
   {
     id: 'itau',
@@ -67,6 +78,7 @@ export const CONTAS_BANCARIAS_PADRAO: ContaBancaria[] = [
     ativa: true,
     padraoPara: ['despesa'],
     descricao: 'Conta bancária tradicional para pagamento de fornecedores e contas fixas',
+    saldoInicial: 0,
   },
 ];
 
@@ -199,6 +211,21 @@ export const useContasBancarias = () => {
     [contaPadraoDespesa, contaPadraoPix, contaPadraoCartao, contaPadraoDinheiro]
   );
 
+  /**
+   * Resolve o ID da conta de uma transação (explícita ou por dedução inteligente)
+   */
+  const obterContaIdParaTransacao = useCallback(
+    (t: Transacao): string => {
+      if (t.contaBancaria) return t.contaBancaria;
+      if (t.tipo === 'despesa') return contaPadraoDespesa.id;
+      if (t.metodoPagamento === 'pix' || t.metodoPagamento === 'pix_parcelado') return contaPadraoPix.id;
+      if (t.metodoPagamento === 'cartao') return contaPadraoCartao.id;
+      if (t.metodoPagamento === 'dinheiro') return contaPadraoDinheiro.id;
+      return contaPadraoPix.id;
+    },
+    [contaPadraoDespesa, contaPadraoPix, contaPadraoCartao, contaPadraoDinheiro]
+  );
+
   const adicionarConta = useCallback(
     (nova: Omit<ContaBancaria, 'id'>) => {
       const id =
@@ -217,6 +244,7 @@ export const useContasBancarias = () => {
         ativa: nova.ativa ?? true,
         cor: nova.cor || '#3B82F6',
         padraoPara: nova.padraoPara || [],
+        saldoInicial: nova.saldoInicial || 0,
       };
 
       const listaAtualizada = [...contas, novaContaCompleta];
@@ -319,19 +347,10 @@ export const useContasBancarias = () => {
       });
 
       transacoes.forEach((t) => {
-        // Tenta resolver a conta: explícita ou deduzida por método/tipo
-        let contaId = t.contaBancaria;
-        if (!contaId) {
-          if (t.tipo === 'despesa') contaId = contaPadraoDespesa.id;
-          else if (t.metodoPagamento === 'pix' || t.metodoPagamento === 'pix_parcelado') contaId = contaPadraoPix.id;
-          else if (t.metodoPagamento === 'cartao') contaId = contaPadraoCartao.id;
-          else if (t.metodoPagamento === 'dinheiro') contaId = contaPadraoDinheiro.id;
-          else contaId = contaPadraoPix.id;
-        }
+        const contaId = obterContaIdParaTransacao(t);
 
         let entry = mapResumo.get(contaId);
         if (!entry) {
-          // Conta não encontrada na lista (ex: cadastrada e depois removida)
           const contaFallback: ContaBancaria = {
             id: contaId,
             nome: t.contaBancariaNome || contaId,
@@ -339,6 +358,7 @@ export const useContasBancarias = () => {
             tipo: 'corrente',
             cor: '#64748B',
             ativa: true,
+            saldoInicial: 0,
           };
           entry = {
             conta: contaFallback,
@@ -358,7 +378,6 @@ export const useContasBancarias = () => {
 
         if (isPago) {
           if (t.tipo === 'receita') {
-            // Se tiver valor líquido (descontada a taxa de cartão), usa no saldo
             const valReal = t.valorLiquido !== undefined && t.valorLiquido !== null ? Number(t.valorLiquido) : valor;
             entry.totalEntradas += valReal;
             entry.saldoAtual += valReal;
@@ -375,7 +394,106 @@ export const useContasBancarias = () => {
 
       return Array.from(mapResumo.values());
     },
-    [contas, contaPadraoDespesa, contaPadraoPix, contaPadraoCartao, contaPadraoDinheiro]
+    [contas, obterContaIdParaTransacao]
+  );
+
+  /**
+   * Calcula o Saldo Progressivo (Running Balance) de cada transação paga no tempo.
+   * Conforme cada receita entra (+), soma no saldo da conta.
+   * Conforme cada despesa é quitada (-), desconta do saldo da conta.
+   * Retorna um Map com transacao.id -> { saldoAnterior, impacto, saldoApos }
+   */
+  const calcularSaldoProgressivoTransacoes = useCallback(
+    (transacoes: Transacao[]): Map<string, SaldoProgressivoInfo> => {
+      const mapa = new Map<string, SaldoProgressivoInfo>();
+
+      // Saldos correntes por conta bancária, iniciando pelo saldoInicial configurado
+      const saldosCorrentes = new Map<string, number>();
+      contas.forEach((c) => {
+        saldosCorrentes.set(c.id, c.saldoInicial || 0);
+      });
+
+      // Ordena cronologicamente do passado para o presente (mais antigas primeiro)
+      const ordenadas = [...transacoes].sort((a, b) => {
+        const timeA = new Date(a.data).getTime();
+        const timeB = new Date(b.data).getTime();
+        if (timeA !== timeB) return timeA - timeB;
+        const criadoA = a.criadoEm ? new Date(a.criadoEm).getTime() : 0;
+        const criadoB = b.criadoEm ? new Date(b.criadoEm).getTime() : 0;
+        return criadoA - criadoB;
+      });
+
+      for (const t of ordenadas) {
+        const cId = obterContaIdParaTransacao(t);
+        const saldoAtual = saldosCorrentes.get(cId) ?? 0;
+
+        if (t.status === 'pago') {
+          let impacto = 0;
+          if (t.tipo === 'receita') {
+            const valReal = t.valorLiquido !== undefined && t.valorLiquido !== null ? Number(t.valorLiquido) : Number(t.valor) || 0;
+            impacto = valReal;
+          } else if (t.tipo === 'despesa') {
+            impacto = -(Number(t.valor) || 0);
+          }
+
+          const novoSaldo = Number((saldoAtual + impacto).toFixed(2));
+          saldosCorrentes.set(cId, novoSaldo);
+
+          mapa.set(t.id, {
+            saldoAnterior: saldoAtual,
+            impacto,
+            saldoApos: novoSaldo,
+            isPendente: false,
+          });
+        } else {
+          mapa.set(t.id, {
+            saldoAnterior: saldoAtual,
+            impacto: 0,
+            saldoApos: saldoAtual,
+            isPendente: true,
+          });
+        }
+      }
+
+      return mapa;
+    },
+    [contas, obterContaIdParaTransacao]
+  );
+
+  /**
+   * Gera o extrato detalhado de uma conta bancária com cada entrada somando e saída descontando
+   */
+  const gerarExtratoConta = useCallback(
+    (contaId: string, transacoes: Transacao[]): MovimentacaoExtratoConta[] => {
+      const mapaProgressivo = calcularSaldoProgressivoTransacoes(transacoes);
+      const conta = getContaById(contaId) || contas[0];
+
+      return transacoes
+        .filter((t) => obterContaIdParaTransacao(t) === contaId)
+        .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())
+        .map((t) => {
+          const info = mapaProgressivo.get(t.id);
+          const isReceita = t.tipo === 'receita';
+          const valNum = isReceita && t.valorLiquido !== undefined && t.valorLiquido !== null ? Number(t.valorLiquido) : Number(t.valor) || 0;
+
+          return {
+            transacaoId: t.id,
+            data: new Date(t.data),
+            descricao: t.descricao || (isReceita ? 'Receita' : 'Despesa'),
+            pacienteNome: t.pacienteNome,
+            metodoPagamento: t.metodoPagamento,
+            tipo: t.tipo,
+            valor: valNum,
+            impacto: info?.impacto ?? (isReceita ? valNum : -valNum),
+            saldoApos: info?.saldoApos ?? 0,
+            contaId,
+            contaNome: conta?.nome || contaId,
+            contaCor: conta?.cor || '#3b82f6',
+            status: t.status,
+          };
+        });
+    },
+    [calcularSaldoProgressivoTransacoes, getContaById, contas, obterContaIdParaTransacao]
   );
 
   return {
@@ -387,11 +505,14 @@ export const useContasBancarias = () => {
     contaPadraoDespesa,
     getContaById,
     obterContaSugeridaParaMetodo,
+    obterContaIdParaTransacao,
     adicionarConta,
     atualizarConta,
     removerConta,
     definirPadrao,
     restaurarPadroes,
     calcularSaldosContas,
+    calcularSaldoProgressivoTransacoes,
+    gerarExtratoConta,
   };
 };

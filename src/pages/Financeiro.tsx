@@ -10,7 +10,7 @@ import {
   DollarSign, TrendingUp, TrendingDown, Plus, CreditCard, Receipt, 
   Pencil, Trash2, Handshake, Target, CheckCircle2, QrCode, Search, 
   Filter, Clock, Check, AlertCircle, ArrowUpRight, ArrowDownRight, Wallet,
-  ArrowRightLeft, ChevronRight, ChevronLeft, Calendar, FileSpreadsheet, FileText, Building2
+  ArrowRightLeft, ChevronRight, ChevronLeft, Calendar, FileSpreadsheet, FileText, Building2, LayoutGrid, Eye
 } from 'lucide-react';
 import TransactionForm from '@/components/financeiro/TransactionForm';
 import { ModalReceberPagamento } from '@/components/financeiro/ModalReceberPagamento';
@@ -76,9 +76,18 @@ const Financeiro = () => {
 
   const [filtroTipo, setFiltroTipo] = useState<'todos' | 'receita' | 'despesa' | 'pix' | 'cartao' | 'pago' | 'pendente'>('todos');
   const [buscaTexto, setBuscaTexto] = useState('');
-  const { contas, contasAtivas, getContaById, calcularSaldosContas } = useContasBancarias();
+  const {
+    contas,
+    contasAtivas,
+    getContaById,
+    calcularSaldosContas,
+    calcularSaldoProgressivoTransacoes,
+    obterContaIdParaTransacao,
+  } = useContasBancarias();
   const [modalContasOpen, setModalContasOpen] = useState(false);
+  const [contaParaAbrirExtrato, setContaParaAbrirExtrato] = useState<string | null>(null);
   const [filtroConta, setFiltroConta] = useState<string>('todas');
+  const [modoVisualizacaoExtrato, setModoVisualizacaoExtrato] = useState<'cards' | 'tabela'>('cards');
 
   const handleMudarParaMesAtual = () => {
     const dataAtual = new Date();
@@ -815,6 +824,49 @@ const Financeiro = () => {
                   );
                 })}
               </div>
+
+              {/* Banner de foco quando uma conta bancária está filtrada */}
+              {filtroConta !== 'todas' && (() => {
+                const contaSel = getContaById(filtroConta);
+                const resumoSel = saldosContasMes.find((s) => s.conta.id === filtroConta);
+                if (!contaSel) return null;
+                return (
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 rounded-lg bg-card border border-primary/30 gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <span className="w-3.5 h-3.5 rounded-full shrink-0 shadow-xs" style={{ backgroundColor: contaSel.cor }} />
+                      <div>
+                        <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                          Extrato Bancário: {contaSel.nome} ({selectedMonth})
+                        </span>
+                        <p className="text-[11px] text-muted-foreground">
+                          Cada receita adiciona (+) e cada despesa desconta (-) diretamente do saldo deste banco.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 text-xs font-bold">
+                        <span className="text-emerald-600">+{formatMoney(resumoSel?.totalEntradas || 0)}</span>
+                        <span className="text-rose-600">-{formatMoney(resumoSel?.totalSaidas || 0)}</span>
+                        <span className="px-2 py-0.5 rounded bg-muted text-foreground border font-black">
+                          Saldo: {formatMoney(resumoSel?.saldoAtual || 0)}
+                        </span>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setContaParaAbrirExtrato(contaSel.id);
+                          setModalContasOpen(true);
+                        }}
+                        className="h-7 text-xs font-semibold gap-1 text-primary border-primary/40 hover:bg-primary/10"
+                      >
+                        <FileText className="h-3.5 w-3.5" /> Extrato Completo
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             <Card>
@@ -833,7 +885,7 @@ const Financeiro = () => {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <div className="relative w-full sm:w-60">
+                    <div className="relative w-full sm:w-56">
                       <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
                       <Input
                         placeholder="Buscar paciente, descrição..."
@@ -841,6 +893,30 @@ const Financeiro = () => {
                         onChange={(e) => setBuscaTexto(e.target.value)}
                         className="h-8 pl-8 text-xs"
                       />
+                    </div>
+
+                    {/* Alternador de Modo de Visualização: Cartões vs Tabela de Extrato */}
+                    <div className="hidden sm:flex items-center border rounded-lg p-0.5 bg-muted/40 shrink-0">
+                      <Button
+                        type="button"
+                        variant={modoVisualizacaoExtrato === 'cards' ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => setModoVisualizacaoExtrato('cards')}
+                        className="h-7 text-xs px-2 gap-1"
+                        title="Visualização em Lista de Cartões"
+                      >
+                        <LayoutGrid className="h-3.5 w-3.5" /> Cartões
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={modoVisualizacaoExtrato === 'tabela' ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => setModoVisualizacaoExtrato('tabela')}
+                        className="h-7 text-xs px-2 gap-1 font-semibold"
+                        title="Visualização em Tabela / Livro-Caixa com Saldo Progressivo"
+                      >
+                        <FileSpreadsheet className="h-3.5 w-3.5" /> Tabela Extrato
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -908,6 +984,135 @@ const Financeiro = () => {
                         <QrCode className="h-3.5 w-3.5" /> Registrar Recebimento PIX
                       </Button>
                     </div>
+                  </div>
+                ) : modoVisualizacaoExtrato === 'tabela' ? (
+                  <div className="overflow-x-auto rounded-lg border bg-card">
+                    <table className="w-full text-xs">
+                      <thead className="bg-muted/50 border-b text-muted-foreground font-semibold">
+                        <tr>
+                          <th className="py-2.5 px-3 text-left">Data</th>
+                          <th className="py-2.5 px-3 text-left">Conta / Banco</th>
+                          <th className="py-2.5 px-3 text-left">Descrição / Paciente</th>
+                          <th className="py-2.5 px-3 text-left">Método</th>
+                          <th className="py-2.5 px-3 text-right text-emerald-600 dark:text-emerald-400 font-bold">Entrada (+)</th>
+                          <th className="py-2.5 px-3 text-right text-rose-600 dark:text-rose-400 font-bold">Despesa (-)</th>
+                          <th className="py-2.5 px-3 text-right font-black text-foreground">Saldo da Conta</th>
+                          <th className="py-2.5 px-3 text-center">Situação</th>
+                          <th className="py-2.5 px-3 text-right">Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/60">
+                        {transacoesExibicao.map((transacao) => {
+                          const isReceita = transacao.tipo === 'receita';
+                          const isPago = ehTransacaoPaga(transacao);
+                          const cId = obterContaIdParaTransacao(transacao);
+                          const cObj = getContaById(cId);
+                          const info = mapaSaldoProgressivo.get(transacao.id);
+                          const pacNome = transacao.pacienteId ? getPacienteName(transacao.pacienteId) : '';
+                          const valorReal = isReceita && transacao.valorLiquido !== undefined ? Number(transacao.valorLiquido) : Number(transacao.valor) || 0;
+
+                          return (
+                            <tr key={transacao.id} className="hover:bg-muted/30 transition-colors">
+                              <td className="py-2 px-3 whitespace-nowrap text-muted-foreground font-medium">
+                                {new Date(transacao.data).toLocaleDateString('pt-BR')}
+                              </td>
+                              <td className="py-2 px-3 whitespace-nowrap">
+                                <span className="inline-flex items-center gap-1.5 font-semibold text-xs" style={{ color: cObj?.cor || '#64748B' }}>
+                                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cObj?.cor || '#64748B' }} />
+                                  {cObj?.nome || transacao.contaBancariaNome || cId}
+                                </span>
+                              </td>
+                              <td className="py-2 px-3">
+                                <div className="font-semibold text-foreground truncate max-w-[220px]">
+                                  {pacNome || transacao.descricao}
+                                </div>
+                                {pacNome && transacao.descricao && (
+                                  <div className="text-[10px] text-muted-foreground truncate max-w-[220px]">
+                                    {transacao.descricao}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="py-2 px-3 whitespace-nowrap">
+                                {renderMetodoIcon(transacao.metodoPagamento)}
+                              </td>
+                              <td className="py-2 px-3 text-right whitespace-nowrap font-bold text-emerald-600 dark:text-emerald-400">
+                                {isReceita ? `+${formatMoney(valorReal)}` : '-'}
+                              </td>
+                              <td className="py-2 px-3 text-right whitespace-nowrap font-bold text-rose-600 dark:text-rose-400">
+                                {!isReceita ? `-${formatMoney(transacao.valor)}` : '-'}
+                              </td>
+                              <td className="py-2 px-3 text-right whitespace-nowrap font-black">
+                                {info && !info.isPendente ? (
+                                  <span className={info.saldoApos >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}>
+                                    {formatMoney(info.saldoApos)}
+                                  </span>
+                                ) : (
+                                  <span className="text-muted-foreground text-[10px]">-</span>
+                                )}
+                              </td>
+                              <td className="py-2 px-3 text-center whitespace-nowrap">
+                                {isPago ? (
+                                  <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-0 text-[10px] py-0">
+                                    No Caixa
+                                  </Badge>
+                                ) : (
+                                  <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border-0 text-[10px] py-0">
+                                    Pendente
+                                  </Badge>
+                                )}
+                              </td>
+                              <td className="py-2 px-3 text-right whitespace-nowrap">
+                                <div className="flex items-center justify-end gap-1">
+                                  {!isPago && isReceita && (
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-6 px-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 text-[10px] gap-1"
+                                      onClick={() => {
+                                        setTransacaoParaReceber(transacao);
+                                        setShowModalReceber(true);
+                                      }}
+                                      title="Dar baixa e receber no caixa"
+                                    >
+                                      <CheckCircle2 className="h-3 w-3" /> Receber
+                                    </Button>
+                                  )}
+                                  {isPago && isReceita && (
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                                      onClick={() => handleGerarRecibo(transacao)}
+                                      title="Gerar recibo oficial"
+                                    >
+                                      <Receipt className="h-3.5 w-3.5" />
+                                    </Button>
+                                  )}
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                                    onClick={() => handleEdit(transacao)}
+                                    title="Editar lançamento"
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-6 w-6 p-0 text-muted-foreground hover:text-rose-500"
+                                    onClick={() => handleDelete(transacao.id)}
+                                    title="Excluir lançamento"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -1239,7 +1444,11 @@ const Financeiro = () => {
         {/* Modal de Gestão de Contas Bancárias e Financeiras */}
         <ModalContasBancarias
           isOpen={modalContasOpen}
-          onClose={() => setModalContasOpen(false)}
+          onClose={() => {
+            setModalContasOpen(false);
+            setContaParaAbrirExtrato(null);
+          }}
+          contaInicialId={contaParaAbrirExtrato || undefined}
         />
       </div>
     </Layout>
