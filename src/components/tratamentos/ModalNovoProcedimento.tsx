@@ -9,8 +9,17 @@ import { Badge } from '@/components/ui/badge';
 import { useProcedimentos } from '@/hooks/useProcedimentos';
 import { useOrcamentos } from '@/hooks/useOrcamentos';
 import { EstadoProcedimentoVisual } from './OdontogramaVisual';
-import { Sparkles, AlertCircle, X, Plus, Calculator, Layers, FileText } from 'lucide-react';
+import { Sparkles, AlertCircle, X, Plus, Calculator, Layers, FileText, Camera, UploadCloud, Loader2, Eye, Image as ImageIcon } from 'lucide-react';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+
+export interface FotoProcedimento {
+  id: string;
+  url: string;
+  nome?: string;
+  data?: string;
+  tipo?: string;
+}
 
 export interface ProcedimentoItemData {
   id: string;
@@ -27,6 +36,8 @@ export interface ProcedimentoItemData {
   dataRealizado?: string;
   dataPrevista?: string;
   observacoes?: string;
+  observacoesConclusao?: string;
+  fotos?: FotoProcedimento[];
   criadoEm: string;
 }
 
@@ -80,6 +91,9 @@ export const ModalNovoProcedimento: React.FC<ModalNovoProcedimentoProps> = ({
   const [dataPrevista, setDataPrevista] = useState<string>('');
   const [observacoes, setObservacoes] = useState('');
   const [isCriandoOrcamento, setIsCriandoOrcamento] = useState(false);
+  const [fotos, setFotos] = useState<FotoProcedimento[]>([]);
+  const [uploadingFoto, setUploadingFoto] = useState(false);
+  const [previewFoto, setPreviewFoto] = useState<string | null>(null);
 
   // Inicialização do formulário
   useEffect(() => {
@@ -99,6 +113,7 @@ export const ModalNovoProcedimento: React.FC<ModalNovoProcedimentoProps> = ({
       setOrcamentoId(procedimentoEmEdicao.orcamentoId || 'nenhum');
       setDataPrevista(procedimentoEmEdicao.dataPrevista || '');
       setObservacoes(procedimentoEmEdicao.observacoes || '');
+      setFotos(procedimentoEmEdicao.fotos || []);
     } else {
       let dPadrao: string[] = [];
       if (dentesIniciais && dentesIniciais.length > 0) {
@@ -109,6 +124,7 @@ export const ModalNovoProcedimento: React.FC<ModalNovoProcedimentoProps> = ({
         dPadrao = ['16'];
       }
       setDentesSelecionados(dPadrao);
+      setFotos([]);
 
       if (presetTipo === 'lentes') {
         const qtd = dPadrao.length;
@@ -230,6 +246,63 @@ export const ModalNovoProcedimento: React.FC<ModalNovoProcedimentoProps> = ({
     }
   };
 
+  const handleUploadFoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setUploadingFoto(true);
+    try {
+      const novasFotos: FotoProcedimento[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        let url = '';
+        try {
+          const ext = file.name.split('.').pop() || 'jpg';
+          const fileName = `${pacienteId || 'geral'}/proc_${Date.now()}_${i}.${ext}`;
+          const { error: upErr } = await supabase.storage
+            .from('documentos-pacientes')
+            .upload(fileName, file, { cacheControl: '3600', upsert: true });
+
+          if (upErr) throw upErr;
+
+          const { data: urlData } = supabase.storage
+            .from('documentos-pacientes')
+            .getPublicUrl(fileName);
+          url = urlData.publicUrl;
+        } catch (storageErr) {
+          // Fallback seguro em base64
+          url = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+        }
+
+        novasFotos.push({
+          id: `foto_${Date.now()}_${i}_${Math.random().toString(36).substring(2, 6)}`,
+          url,
+          nome: file.name.replace(/\.[^/.]+$/, ''),
+          data: new Date().toISOString(),
+          tipo: 'clinica',
+        });
+      }
+
+      setFotos((prev) => [...prev, ...novasFotos]);
+      toast.success(`${novasFotos.length} imagem(ns) adicionada(s)!`);
+    } catch (err) {
+      console.error('Erro ao anexar foto:', err);
+      toast.error('Não foi possível carregar a imagem.');
+    } finally {
+      setUploadingFoto(false);
+      if (e.target) e.target.value = '';
+    }
+  };
+
+  const handleRemoveFoto = (id: string) => {
+    setFotos((prev) => prev.filter((f) => f.id !== id));
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!nome.trim()) return;
@@ -259,6 +332,8 @@ export const ModalNovoProcedimento: React.FC<ModalNovoProcedimentoProps> = ({
           : undefined,
       dataPrevista: dataPrevista || undefined,
       observacoes: observacoes.trim() || undefined,
+      observacoesConclusao: procedimentoEmEdicao?.observacoesConclusao,
+      fotos,
       criadoEm: procedimentoEmEdicao?.criadoEm || new Date().toISOString(),
     };
 
@@ -534,6 +609,84 @@ export const ModalNovoProcedimento: React.FC<ModalNovoProcedimentoProps> = ({
             />
           </div>
 
+          {/* FOTOS E IMAGENS CLÍNICAS */}
+          <div className="space-y-1.5 pt-1">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-semibold flex items-center gap-1.5">
+                <Camera className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
+                <span>Fotos e Imagens Clínicas</span>
+              </Label>
+              {fotos.length > 0 && (
+                <span className="text-[11px] text-purple-700 dark:text-purple-300 font-semibold">
+                  {fotos.length} foto(s)
+                </span>
+              )}
+            </div>
+
+            <div className="p-3 rounded-xl border border-border/80 bg-muted/20 space-y-2">
+              <div className="flex flex-wrap gap-2.5 items-center">
+                <label
+                  htmlFor="proc-modal-upload"
+                  className={`h-20 w-24 rounded-lg border-2 border-dashed border-purple-400/50 hover:border-purple-600 dark:border-purple-800/80 dark:hover:border-purple-500 bg-purple-50/40 dark:bg-purple-950/20 hover:bg-purple-50/70 flex flex-col items-center justify-center gap-1 cursor-pointer transition-all ${
+                    uploadingFoto ? 'opacity-50 pointer-events-none' : ''
+                  }`}
+                >
+                  <input
+                    id="proc-modal-upload"
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={handleUploadFoto}
+                    disabled={uploadingFoto}
+                  />
+                  {uploadingFoto ? (
+                    <>
+                      <Loader2 className="h-5 w-5 text-purple-600 animate-spin" />
+                      <span className="text-[10px] text-purple-700 dark:text-purple-300 font-semibold">Enviando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <UploadCloud className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                      <span className="text-[10px] text-purple-700 dark:text-purple-300 font-semibold">+ Anexar</span>
+                    </>
+                  )}
+                </label>
+
+                {fotos.map((f) => (
+                  <div
+                    key={f.id}
+                    className="relative h-20 w-24 rounded-lg overflow-hidden border border-border group bg-black/5 shadow-2xs"
+                  >
+                    <img
+                      src={f.url}
+                      alt={f.nome || 'Foto clínica'}
+                      className="h-full w-full object-cover cursor-pointer hover:scale-105 transition-transform"
+                      onClick={() => setPreviewFoto(f.url)}
+                    />
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemoveFoto(f.id);
+                      }}
+                      className="absolute top-1 right-1 h-5 w-5 rounded-full bg-black/70 hover:bg-destructive text-white flex items-center justify-center transition-colors shadow-xs"
+                      title="Remover foto"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+
+                {fotos.length === 0 && !uploadingFoto && (
+                  <span className="text-[11px] text-muted-foreground ml-2">
+                    Anexe fotos do planejamento, antes/depois ou exames.
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
           <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-border/50">
             <Button
               type="button"
@@ -551,6 +704,16 @@ export const ModalNovoProcedimento: React.FC<ModalNovoProcedimentoProps> = ({
             </Button>
           </div>
         </form>
+
+        {previewFoto && (
+          <Dialog open={Boolean(previewFoto)} onOpenChange={() => setPreviewFoto(null)}>
+            <DialogContent className="max-w-2xl p-2 bg-black/95 border-none">
+              <div className="relative flex items-center justify-center p-2">
+                <img src={previewFoto} alt="Pré-visualização" className="max-h-[80vh] w-auto rounded-lg object-contain" />
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
       </DialogContent>
     </Dialog>
   );

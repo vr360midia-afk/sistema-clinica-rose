@@ -2,14 +2,26 @@ import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { CalendarIcon } from 'lucide-react';
-import { format } from 'date-fns';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { CalendarIcon, Camera, UploadCloud, Loader2, X, CheckCircle2, Sparkles } from 'lucide-react';
+import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { FotoProcedimento } from './ModalNovoProcedimento';
+
+export interface DadosConclusaoProcedimento {
+  dataConclusao: string;
+  observacoesConclusao?: string;
+  fotosConclusao?: FotoProcedimento[];
+}
 
 interface ModalMarcarRealizadoProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirmar: (dataConclusao: string) => void;
+  onConfirmar: (dados: DadosConclusaoProcedimento) => void;
   procedimentoNome?: string;
+  procedimentoDente?: string;
+  pacienteId?: string;
 }
 
 export const ModalMarcarRealizado: React.FC<ModalMarcarRealizadoProps> = ({
@@ -17,45 +29,217 @@ export const ModalMarcarRealizado: React.FC<ModalMarcarRealizadoProps> = ({
   onClose,
   onConfirmar,
   procedimentoNome,
+  procedimentoDente,
+  pacienteId,
 }) => {
-  // Padrão: data de hoje no formato YYYY-MM-DD
   const hoje = new Date().toISOString().split('T')[0];
   const [dataSelecionada, setDataSelecionada] = useState<string>(hoje);
+  const [observacoes, setObservacoes] = useState('');
+  const [fotos, setFotos] = useState<FotoProcedimento[]>([]);
+  const [uploadingFoto, setUploadingFoto] = useState(false);
+  const [previewFoto, setPreviewFoto] = useState<string | null>(null);
+
+  const handleUploadFoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setUploadingFoto(true);
+    try {
+      const novas: FotoProcedimento[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        let url = '';
+        try {
+          const ext = file.name.split('.').pop() || 'jpg';
+          const fileName = `${pacienteId || 'geral'}/conclusao_${Date.now()}_${i}.${ext}`;
+          const { error: upErr } = await supabase.storage
+            .from('documentos-pacientes')
+            .upload(fileName, file, { cacheControl: '3600', upsert: true });
+
+          if (upErr) throw upErr;
+
+          const { data: urlData } = supabase.storage
+            .from('documentos-pacientes')
+            .getPublicUrl(fileName);
+          url = urlData.publicUrl;
+        } catch (storageErr) {
+          // Fallback seguro em base64
+          url = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+        }
+
+        novas.push({
+          id: `foto_conclusao_${Date.now()}_${i}_${Math.random().toString(36).substring(2, 6)}`,
+          url,
+          nome: file.name.replace(/\.[^/.]+$/, ''),
+          data: new Date().toISOString(),
+          tipo: 'conclusao',
+        });
+      }
+
+      setFotos((prev) => [...prev, ...novas]);
+      toast.success(`${novas.length} foto(s) anexada(s) à conclusão!`);
+    } catch (err) {
+      console.error('Erro ao anexar foto:', err);
+      toast.error('Erro ao anexar imagem.');
+    } finally {
+      setUploadingFoto(false);
+      if (e.target) e.target.value = '';
+    }
+  };
+
+  const handleRemoveFoto = (id: string) => {
+    setFotos((prev) => prev.filter((f) => f.id !== id));
+  };
 
   const handleSalvar = (e: React.FormEvent) => {
     e.preventDefault();
-    onConfirmar(dataSelecionada || hoje);
+    onConfirmar({
+      dataConclusao: dataSelecionada || hoje,
+      observacoesConclusao: observacoes.trim() || undefined,
+      fotosConclusao: fotos.length > 0 ? fotos : undefined,
+    });
+    // Limpa estado para o próximo
+    setObservacoes('');
+    setFotos([]);
     onClose();
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-sm sm:max-w-md p-5 rounded-2xl">
+      <DialogContent className="max-w-md sm:max-w-lg p-5 rounded-2xl max-h-[92vh] overflow-y-auto no-scrollbar">
         <DialogHeader className="pb-1 text-left">
-          <DialogTitle className="text-base sm:text-lg font-bold text-foreground">
-            Marcar como realizado
+          <DialogTitle className="text-base sm:text-lg font-bold text-foreground flex items-center gap-2">
+            <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+            <span>Marcar como realizado</span>
           </DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSalvar} className="space-y-4 pt-1">
-          <p className="text-xs sm:text-sm text-foreground/80 leading-relaxed">
-            Selecione abaixo a data para marcar o procedimento{' '}
-            {procedimentoNome ? <strong className="text-foreground">"{procedimentoNome}"</strong> : ''}{' '}
-            como 'Realizado':
-          </p>
-
-          <div className="relative">
-            <Input
-              type="date"
-              value={dataSelecionada}
-              onChange={(e) => setDataSelecionada(e.target.value)}
-              className="h-10 text-xs sm:text-sm pr-9 rounded-lg border-purple-500/40 focus:border-purple-600 focus:ring-purple-500"
-              required
-            />
-            <CalendarIcon className="h-4 w-4 text-purple-600 dark:text-purple-400 absolute right-3 top-3 pointer-events-none" />
+          {/* Resumo do Procedimento */}
+          <div className="bg-muted/40 border border-border/70 rounded-xl p-3 flex items-center justify-between">
+            <div className="min-w-0">
+              <span className="text-[11px] text-muted-foreground font-semibold block">Procedimento</span>
+              <span className="text-xs sm:text-sm font-bold text-foreground truncate block">
+                {procedimentoNome || 'Tratamento Odontológico'}
+              </span>
+            </div>
+            {procedimentoDente && (
+              <span className="text-xs font-bold text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-950/60 px-2.5 py-1 rounded-md shrink-0 ml-2">
+                Dente {procedimentoDente}
+              </span>
+            )}
           </div>
 
-          <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-border/50">
+          {/* Campo Data de Conclusão */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold">Data da Conclusão / Realização *</Label>
+            <div className="relative">
+              <Input
+                type="date"
+                value={dataSelecionada}
+                onChange={(e) => setDataSelecionada(e.target.value)}
+                className="h-9.5 text-xs sm:text-sm pr-9 rounded-lg border-purple-500/40 focus:border-purple-600 focus:ring-purple-500"
+                required
+              />
+              <CalendarIcon className="h-4 w-4 text-purple-600 dark:text-purple-400 absolute right-3 top-3 pointer-events-none" />
+            </div>
+          </div>
+
+          {/* Campo Observações da Conclusão */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold">Observações Clínicas / Evolução da Conclusão</Label>
+            <Textarea
+              value={observacoes}
+              onChange={(e) => setObservacoes(e.target.value)}
+              placeholder="Ex: Procedimento concluído sem intercorrências, anestesia infiltrativa, resina polida, oclusão checada e orientações pós-operatórias passadas ao paciente..."
+              className="text-xs min-h-[75px]"
+            />
+          </div>
+
+          {/* Seção Anexar Fotos do Resultado */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-semibold flex items-center gap-1.5">
+                <Camera className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span>Fotos do Resultado / Pós-Procedimento (Opcional)</span>
+              </Label>
+              {fotos.length > 0 && (
+                <span className="text-[11px] text-emerald-700 dark:text-emerald-300 font-semibold">
+                  {fotos.length} foto(s)
+                </span>
+              )}
+            </div>
+
+            <div className="p-3 rounded-xl border border-border/80 bg-muted/20 space-y-2">
+              <div className="flex flex-wrap gap-2.5 items-center">
+                <label
+                  htmlFor="conclusao-foto-upload"
+                  className={`h-20 w-24 rounded-lg border-2 border-dashed border-emerald-400/50 hover:border-emerald-600 dark:border-emerald-800/80 dark:hover:border-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/20 hover:bg-emerald-50/70 flex flex-col items-center justify-center gap-1 cursor-pointer transition-all ${
+                    uploadingFoto ? 'opacity-50 pointer-events-none' : ''
+                  }`}
+                >
+                  <input
+                    id="conclusao-foto-upload"
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={handleUploadFoto}
+                    disabled={uploadingFoto}
+                  />
+                  {uploadingFoto ? (
+                    <>
+                      <Loader2 className="h-5 w-5 text-emerald-600 animate-spin" />
+                      <span className="text-[10px] text-emerald-700 dark:text-emerald-300 font-semibold">Enviando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <UploadCloud className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                      <span className="text-[10px] text-emerald-700 dark:text-emerald-300 font-semibold">+ Anexar Foto</span>
+                    </>
+                  )}
+                </label>
+
+                {fotos.map((f) => (
+                  <div
+                    key={f.id}
+                    className="relative h-20 w-24 rounded-lg overflow-hidden border border-border group bg-black/5 shadow-2xs"
+                  >
+                    <img
+                      src={f.url}
+                      alt={f.nome || 'Foto do resultado'}
+                      className="h-full w-full object-cover cursor-pointer hover:scale-105 transition-transform"
+                      onClick={() => setPreviewFoto(f.url)}
+                    />
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemoveFoto(f.id);
+                      }}
+                      className="absolute top-1 right-1 h-5 w-5 rounded-full bg-black/70 hover:bg-destructive text-white flex items-center justify-center transition-colors shadow-xs"
+                      title="Remover foto"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+
+                {fotos.length === 0 && !uploadingFoto && (
+                  <span className="text-[11px] text-muted-foreground ml-2">
+                    Anexe foto do resultado imediato, pós-operatório ou antes/depois.
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-border/50">
             <Button
               type="button"
               variant="outline"
@@ -66,12 +250,23 @@ export const ModalMarcarRealizado: React.FC<ModalMarcarRealizadoProps> = ({
             </Button>
             <Button
               type="submit"
-              className="h-9 px-5 text-xs font-semibold bg-purple-700 hover:bg-purple-800 text-white rounded-lg shadow-2xs"
+              className="h-9 px-5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-2xs gap-1.5"
             >
-              Salvar
+              <CheckCircle2 className="h-4 w-4" />
+              Salvar como Realizado
             </Button>
           </div>
         </form>
+
+        {previewFoto && (
+          <Dialog open={Boolean(previewFoto)} onOpenChange={() => setPreviewFoto(null)}>
+            <DialogContent className="max-w-2xl p-2 bg-black/95 border-none">
+              <div className="relative flex items-center justify-center p-2">
+                <img src={previewFoto} alt="Pré-visualização" className="max-h-[80vh] w-auto rounded-lg object-contain" />
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
       </DialogContent>
     </Dialog>
   );

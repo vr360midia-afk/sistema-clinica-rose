@@ -40,8 +40,8 @@ import {
   DenticaoTipo,
   EstadoProcedimentoVisual,
 } from './OdontogramaVisual';
-import { ModalNovoProcedimento, ProcedimentoItemData } from './ModalNovoProcedimento';
-import { ModalMarcarRealizado } from './ModalMarcarRealizado';
+import { ModalNovoProcedimento, ProcedimentoItemData, FotoProcedimento } from './ModalNovoProcedimento';
+import { ModalMarcarRealizado, DadosConclusaoProcedimento } from './ModalMarcarRealizado';
 import { ModalDetalhesProcedimento } from './ModalDetalhesProcedimento';
 import { ModalAnotacao, AnotacaoItem } from './ModalAnotacao';
 
@@ -488,9 +488,13 @@ export const PatientEtapasTratamento: React.FC<Props> = ({ patient, onTabChange 
     sincronizarRascunhoOrcamento(filtrados);
   };
 
-  // Concluir Procedimento (Marcar como realizado com data)
-  const handleConfirmarConclusao = async (dataConclusao: string) => {
+  // Concluir Procedimento (Marcar como realizado com data, observações e fotos)
+  const handleConfirmarConclusao = async (dados: DadosConclusaoProcedimento | string) => {
     if (!procParaConcluir) return;
+
+    const dataConclusao = typeof dados === 'string' ? dados : dados.dataConclusao;
+    const observacoesConclusao = typeof dados === 'string' ? undefined : dados.observacoesConclusao;
+    const fotosConclusao = typeof dados === 'string' ? undefined : dados.fotosConclusao;
 
     const id = procParaConcluir.id;
     // Se for um procedimento estruturado do useTratamentos, atualiza via serviço também
@@ -500,12 +504,27 @@ export const PatientEtapasTratamento: React.FC<Props> = ({ patient, onTabChange 
       }
     } catch (_) {}
 
+    const mesclarFotos = (existentes: FotoProcedimento[] = [], novas: FotoProcedimento[] = []) => {
+      const ids = new Set(existentes.map((f) => f.id));
+      const complementares = novas.filter((f) => !ids.has(f.id));
+      return [...existentes, ...complementares];
+    };
+
     const atualizados = procedimentosLocais.map((p) => {
       if (p.id === id) {
+        const obsFinal = observacoesConclusao
+          ? p.observacoes
+            ? `${p.observacoes}\n\n[Conclusão]: ${observacoesConclusao}`
+            : `[Conclusão]: ${observacoesConclusao}`
+          : p.observacoes;
+
         return {
           ...p,
           estado: 'realizado' as EstadoProcedimentoVisual,
           dataRealizado: dataConclusao,
+          observacoes: obsFinal,
+          observacoesConclusao: observacoesConclusao || p.observacoesConclusao,
+          fotos: fotosConclusao && fotosConclusao.length > 0 ? mesclarFotos(p.fotos, fotosConclusao) : p.fotos,
         };
       }
       return p;
@@ -521,6 +540,9 @@ export const PatientEtapasTratamento: React.FC<Props> = ({ patient, onTabChange 
             ...procParaConcluir,
             estado: 'realizado' as EstadoProcedimentoVisual,
             dataRealizado: dataConclusao,
+            observacoes: observacoesConclusao || procParaConcluir.observacoes,
+            observacoesConclusao,
+            fotos: fotosConclusao || procParaConcluir.fotos,
           },
         ];
 
@@ -1054,6 +1076,8 @@ export const PatientEtapasTratamento: React.FC<Props> = ({ patient, onTabChange 
         }}
         onConfirmar={handleConfirmarConclusao}
         procedimentoNome={procParaConcluir?.nome}
+        procedimentoDente={procParaConcluir?.dente}
+        pacienteId={patient?.id}
       />
 
       <ModalDetalhesProcedimento

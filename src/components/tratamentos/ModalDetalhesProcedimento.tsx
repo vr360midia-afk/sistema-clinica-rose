@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ProcedimentoItemData } from './ModalNovoProcedimento';
-import { DollarSign, FileText, Calendar, CheckCircle2, Clock, Activity, ShieldCheck } from 'lucide-react';
+import { DollarSign, FileText, Calendar, CheckCircle2, Clock, Activity, ShieldCheck, Camera, Image as ImageIcon } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface ModalDetalhesProcedimentoProps {
@@ -23,6 +23,8 @@ export const ModalDetalhesProcedimento: React.FC<ModalDetalhesProcedimentoProps>
   onMarcarRealizado,
   onAbrirOrcamento,
 }) => {
+  const [previewFoto, setPreviewFoto] = useState<string | null>(null);
+
   if (!procedimento) return null;
 
   const renderBadge = (estado: string) => {
@@ -146,6 +148,32 @@ export const ModalDetalhesProcedimento: React.FC<ModalDetalhesProcedimentoProps>
                 </div>
               )}
 
+              {/* FOTOS E IMAGENS ANEXADAS */}
+              {procedimento.fotos && procedimento.fotos.length > 0 && (
+                <div className="pt-2 border-t border-border/60 space-y-1.5">
+                  <span className="text-xs text-muted-foreground font-semibold flex items-center gap-1.5">
+                    <Camera className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
+                    <span>Fotos Anexadas ({procedimento.fotos.length}):</span>
+                  </span>
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {procedimento.fotos.map((f) => (
+                      <div
+                        key={f.id}
+                        className="relative h-18 w-20 rounded-lg overflow-hidden border border-border group bg-black/5 shadow-2xs cursor-pointer hover:ring-2 hover:ring-purple-600 transition-all"
+                        onClick={() => setPreviewFoto(f.url)}
+                        title={f.nome || 'Clique para ampliar'}
+                      >
+                        <img
+                          src={f.url}
+                          alt={f.nome || 'Foto do procedimento'}
+                          className="h-full w-full object-cover group-hover:scale-105 transition-transform"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/60 text-xs">
                 <div>
                   <span className="text-muted-foreground block">Data de Criação:</span>
@@ -191,6 +219,16 @@ export const ModalDetalhesProcedimento: React.FC<ModalDetalhesProcedimentoProps>
               </Button>
             </div>
           </div>
+        )}
+
+        {previewFoto && (
+          <Dialog open={Boolean(previewFoto)} onOpenChange={() => setPreviewFoto(null)}>
+            <DialogContent className="max-w-2xl p-2 bg-black/95 border-none">
+              <div className="relative flex items-center justify-center p-2">
+                <img src={previewFoto} alt="Pré-visualização da Foto" className="max-h-[80vh] w-auto rounded-lg object-contain" />
+              </div>
+            </DialogContent>
+          </Dialog>
         )}
       </DialogContent>
     </Dialog>
