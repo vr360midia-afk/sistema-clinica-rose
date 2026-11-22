@@ -28,12 +28,19 @@ import {
   MapPin,
   ExternalLink,
   Receipt,
+  Download,
+  Loader2,
 } from 'lucide-react';
 import {
   DadosNotaFiscalPaciente,
   formatarCpf,
   gerarTextoDiscriminacaoNF,
 } from '@/utils/notaFiscalExport';
+import {
+  gerarHtmlDeclaracaoFiscalPaciente,
+  imprimirDocumentoOficial,
+  baixarDocumentoOficialPdf,
+} from '@/utils/documentoFiscalOficial';
 import { formatMoney } from '@/utils/exportCsv';
 import { toast } from 'sonner';
 
@@ -52,6 +59,8 @@ export const ModalExportarNotaFiscalPaciente: React.FC<ModalExportarNotaFiscalPa
 }) => {
   const [copiadoTexto, setCopiadoTexto] = useState(false);
   const [copiadoCpf, setCopiadoCpf] = useState(false);
+  const [imprimindo, setImprimindo] = useState(false);
+  const [baixandoPdf, setBaixandoPdf] = useState(false);
 
   if (!dados) return null;
 
@@ -78,8 +87,36 @@ export const ModalExportarNotaFiscalPaciente: React.FC<ModalExportarNotaFiscalPa
     setTimeout(() => setCopiadoCpf(false), 2000);
   };
 
-  const handleImprimir = () => {
-    window.print();
+  const handleImprimirOficial = async () => {
+    setImprimindo(true);
+    try {
+      const html = gerarHtmlDeclaracaoFiscalPaciente(dados, configuracoes);
+      await imprimirDocumentoOficial(html);
+    } catch {
+      toast.error('Erro ao preparar impressão do documento oficial.');
+    } finally {
+      setImprimindo(false);
+    }
+  };
+
+  const handleBaixarPdfOficial = async () => {
+    setBaixandoPdf(true);
+    try {
+      toast.info('Gerando documento oficial em folha A4...');
+      const html = gerarHtmlDeclaracaoFiscalPaciente(dados, configuracoes);
+      const nomePacienteLimpo = (dados.pacienteNome || 'paciente').toLowerCase().replace(/[^a-z0-9]/g, '_');
+      const nomeArquivo = `declaracao_fiscal_${nomePacienteLimpo}_${dados.orcamentoId?.slice(0, 8) || 'doc'}`;
+      const ok = await baixarDocumentoOficialPdf(html, nomeArquivo);
+      if (ok) {
+        toast.success('Documento fiscal oficial (PDF A4) baixado!');
+      } else {
+        toast.error('Falha ao gerar o PDF. Você também pode usar o botão "Imprimir Documento Oficial".');
+      }
+    } catch {
+      toast.error('Erro ao gerar arquivo PDF.');
+    } finally {
+      setBaixandoPdf(false);
+    }
   };
 
   return (
@@ -101,15 +138,31 @@ export const ModalExportarNotaFiscalPaciente: React.FC<ModalExportarNotaFiscalPa
               </div>
             </div>
 
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleImprimir}
-              className="text-xs gap-1.5 h-8 shrink-0 hidden sm:flex"
-            >
-              <Printer className="h-3.5 w-3.5" />
-              Imprimir / PDF
-            </Button>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleBaixarPdfOficial}
+                disabled={baixandoPdf}
+                className="text-xs gap-1.5 h-8 border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 font-medium"
+                title="Baixar Declaração Fiscal Oficial em arquivo PDF (folha A4 timbrada com assinaturas)"
+              >
+                {baixandoPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5 text-emerald-600" />}
+                Baixar PDF A4
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleImprimirOficial}
+                disabled={imprimindo}
+                className="text-xs gap-1.5 h-8 font-medium"
+                title="Imprimir documento oficial em folha A4 limpa (sem elementos do sistema)"
+              >
+                {imprimindo ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Printer className="h-3.5 w-3.5" />}
+                Imprimir Documento
+              </Button>
+            </div>
           </div>
         </DialogHeader>
 
@@ -307,7 +360,7 @@ export const ModalExportarNotaFiscalPaciente: React.FC<ModalExportarNotaFiscalPa
           </div>
         </div>
 
-        <DialogFooter className="border-t pt-3 flex flex-row items-center justify-between gap-2">
+        <DialogFooter className="border-t pt-3 flex flex-col sm:flex-row items-center justify-between gap-2">
           <Button
             type="button"
             variant="ghost"
@@ -318,14 +371,40 @@ export const ModalExportarNotaFiscalPaciente: React.FC<ModalExportarNotaFiscalPa
             Fechar
           </Button>
 
-          <Button
-            type="button"
-            onClick={handleCopiarTexto}
-            className="bg-primary text-primary-foreground font-semibold text-xs gap-1.5"
-          >
-            {copiadoTexto ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-            Copiar Dados da NF
-          </Button>
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleBaixarPdfOficial}
+              disabled={baixandoPdf}
+              className="border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 text-xs font-semibold gap-1.5"
+            >
+              {baixandoPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5 text-emerald-600" />}
+              Baixar PDF Oficial
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleImprimirOficial}
+              disabled={imprimindo}
+              className="text-xs font-semibold gap-1.5"
+            >
+              {imprimindo ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Printer className="h-3.5 w-3.5" />}
+              Imprimir A4
+            </Button>
+
+            <Button
+              type="button"
+              onClick={handleCopiarTexto}
+              className="bg-primary text-primary-foreground font-semibold text-xs gap-1.5 shadow-sm"
+            >
+              {copiadoTexto ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+              Copiar Dados da NF
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

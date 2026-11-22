@@ -28,6 +28,7 @@ import {
   Eye,
   Receipt,
   Download,
+  Loader2,
 } from 'lucide-react';
 import {
   gerarDadosNotaFiscalMes,
@@ -36,6 +37,11 @@ import {
   formatarCpf,
   gerarTextoDiscriminacaoNF,
 } from '@/utils/notaFiscalExport';
+import {
+  gerarHtmlRelatorioFiscalMensal,
+  imprimirDocumentoOficial,
+  baixarDocumentoOficialPdf,
+} from '@/utils/documentoFiscalOficial';
 import { formatMoney } from '@/utils/exportCsv';
 import { ModalExportarNotaFiscalPaciente } from './ModalExportarNotaFiscalPaciente';
 import { Transacao, Paciente } from '@/types/shared';
@@ -66,6 +72,8 @@ export const ModalExportarNotaFiscalMensal: React.FC<ModalExportarNotaFiscalMens
   const [pacienteSelecionadoNF, setPacienteSelecionadoNF] = useState<DadosNotaFiscalPaciente | null>(null);
   const [modalPacienteOpen, setModalPacienteOpen] = useState(false);
   const [copiadoLote, setCopiadoLote] = useState(false);
+  const [imprimindoMensal, setImprimindoMensal] = useState(false);
+  const [baixandoPdfMensal, setBaixandoPdfMensal] = useState(false);
 
   // Agregação dos dados fiscais do mês
   const resumoMes = useMemo(() => {
@@ -142,6 +150,37 @@ Relatório gerado em ${new Date().toLocaleDateString('pt-BR')}`;
     setModalPacienteOpen(true);
   };
 
+  const handleImprimirRelatorioOficial = async () => {
+    setImprimindoMensal(true);
+    try {
+      const html = gerarHtmlRelatorioFiscalMensal(resumoMes, configuracoes);
+      await imprimirDocumentoOficial(html);
+    } catch {
+      toast.error('Erro ao preparar impressão oficial.');
+    } finally {
+      setImprimindoMensal(false);
+    }
+  };
+
+  const handleBaixarPdfRelatorioOficial = async () => {
+    setBaixandoPdfMensal(true);
+    try {
+      toast.info('Gerando demonstrativo contábil em folha A4...');
+      const html = gerarHtmlRelatorioFiscalMensal(resumoMes, configuracoes);
+      const nomeArquivo = `demonstrativo_fiscal_${selectedMonth.replace('-', '_')}`;
+      const ok = await baixarDocumentoOficialPdf(html, nomeArquivo);
+      if (ok) {
+        toast.success('Demonstrativo fiscal oficial (PDF A4) baixado!');
+      } else {
+        toast.error('Falha ao gerar PDF. Você pode usar a opção de Imprimir.');
+      }
+    } catch {
+      toast.error('Erro ao gerar arquivo PDF.');
+    } finally {
+      setBaixandoPdfMensal(false);
+    }
+  };
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -165,17 +204,43 @@ Relatório gerado em ${new Date().toLocaleDateString('pt-BR')}`;
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleBaixarPdfRelatorioOficial}
+                  disabled={baixandoPdfMensal}
+                  className="h-8 text-xs font-semibold gap-1.5 border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10"
+                  title="Baixar Relatório Fiscal Oficial em arquivo PDF (folha A4 timbrada)"
+                >
+                  {baixandoPdfMensal ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5 text-emerald-600" />}
+                  Baixar PDF A4
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleImprimirRelatorioOficial}
+                  disabled={imprimindoMensal}
+                  className="h-8 text-xs font-semibold gap-1.5"
+                  title="Imprimir relatório fiscal oficial em folha A4 limpa (sem elementos do sistema)"
+                >
+                  {imprimindoMensal ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Printer className="h-3.5 w-3.5" />}
+                  Imprimir A4
+                </Button>
+
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   onClick={handleExportarExcel}
-                  className="h-8 text-xs font-semibold gap-1.5 border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10"
+                  className="h-8 text-xs font-semibold gap-1.5 border-primary/40 text-primary hover:bg-primary/10"
                   title="Exportar planilha Excel (CSV UTF-8 com BOM) para a contabilidade"
                 >
-                  <Download className="h-3.5 w-3.5 text-emerald-600" />
-                  Exportar Excel
+                  <FileSpreadsheet className="h-3.5 w-3.5 text-primary" />
+                  Excel (CSV)
                 </Button>
 
                 <Button
@@ -411,7 +476,7 @@ Relatório gerado em ${new Date().toLocaleDateString('pt-BR')}`;
               </strong>
             </span>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
               <Button
                 type="button"
                 variant="ghost"
@@ -424,10 +489,34 @@ Relatório gerado em ${new Date().toLocaleDateString('pt-BR')}`;
 
               <Button
                 type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleBaixarPdfRelatorioOficial}
+                disabled={baixandoPdfMensal}
+                className="border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 text-xs font-semibold gap-1.5"
+              >
+                {baixandoPdfMensal ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5 text-emerald-600" />}
+                Baixar PDF A4
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleImprimirRelatorioOficial}
+                disabled={imprimindoMensal}
+                className="text-xs font-semibold gap-1.5"
+              >
+                {imprimindoMensal ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Printer className="h-3.5 w-3.5" />}
+                Imprimir A4
+              </Button>
+
+              <Button
+                type="button"
                 onClick={handleExportarExcel}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs gap-1.5 shadow-sm"
               >
-                <Download className="h-3.5 w-3.5" />
+                <FileSpreadsheet className="h-3.5 w-3.5" />
                 Baixar Planilha (Excel / CSV)
               </Button>
             </div>
