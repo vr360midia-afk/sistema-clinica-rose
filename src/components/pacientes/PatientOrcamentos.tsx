@@ -1916,6 +1916,20 @@ const PatientOrcamentos = ({ patient }: Props) => {
     setOpen(true);
   };
 
+  // Auto-abertura do orçamento quando migrado da Ficha do Paciente
+  useEffect(() => {
+    try {
+      const autoOpenId = sessionStorage.getItem('auto_open_orcamento_id');
+      if (autoOpenId && orcamentos.length > 0) {
+        sessionStorage.removeItem('auto_open_orcamento_id');
+        const target = orcamentos.find((o) => o.id === autoOpenId);
+        if (target) {
+          abrirEdicao(target);
+        }
+      }
+    } catch (_) {}
+  }, [orcamentos]);
+
   const handleSave = async () => {
     if (itens.length === 0) {
       toast.error('Adicione pelo menos um procedimento');

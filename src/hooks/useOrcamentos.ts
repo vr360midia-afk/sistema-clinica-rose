@@ -246,6 +246,7 @@ export const useOrcamentos = (pacienteId?: string) => {
     });
     toast.success('Orçamento salvo');
     load();
+    return savedId;
   };
 
   const updateStatus = async (id: string, status: Orcamento['status']) => {

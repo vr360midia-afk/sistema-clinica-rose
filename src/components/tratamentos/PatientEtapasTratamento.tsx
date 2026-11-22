@@ -26,13 +26,15 @@ import {
   X,
   MessageSquare,
   AlertCircle,
+  ArrowRight,
+  FileSignature,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import { useTratamentos } from '@/hooks/useTratamentos';
-import { useOrcamentos } from '@/hooks/useOrcamentos';
+import { useOrcamentos, OrcamentoItem } from '@/hooks/useOrcamentos';
 import {
   OdontogramaVisual,
   DenticaoTipo,
@@ -67,7 +69,7 @@ export const PatientEtapasTratamento: React.FC<Props> = ({ patient, onTabChange 
     concluirProcedimento,
     atualizarStatusProcedimento,
   } = useTratamentos(patient?.id);
-  const { orcamentos } = useOrcamentos(patient?.id);
+  const { orcamentos, saveOrcamento } = useOrcamentos(patient?.id);
 
   // Estado da Dentição
   const [denticao, setDenticao] = useState<DenticaoTipo>('permanente');
@@ -75,6 +77,7 @@ export const PatientEtapasTratamento: React.FC<Props> = ({ patient, onTabChange 
   // Dentes selecionados no odontograma (seleção múltipla e individual)
   const [selectedDentes, setSelectedDentes] = useState<string[]>([]);
   const [presetTipoModal, setPresetTipoModal] = useState<'lentes' | 'carie' | null>(null);
+  const [isGerandoOrcamento, setIsGerandoOrcamento] = useState(false);
 
   // Filtro de estado (Pills)
   const [filtroAtivo, setFiltroAtivo] = useState<FiltroPill>('ficha_geral');
@@ -311,6 +314,146 @@ export const PatientEtapasTratamento: React.FC<Props> = ({ patient, onTabChange 
     };
   }, [procedimentosUnificados]);
 
+  // Procedimentos da Ficha que entram no orçamento (a realizar, iniciado ou com valor definido)
+  const procedimentosOrcaveis = useMemo(() => {
+    return procedimentosUnificados.filter((p) => {
+      if (p.estado === 'pre_existente' && (!p.valor || p.valor <= 0)) return false;
+      return true;
+    });
+  }, [procedimentosUnificados]);
+
+  // Subtotal acumulado dos procedimentos da ficha
+  const valorTotalOrcamento = useMemo(() => {
+    return procedimentosOrcaveis.reduce((sum, p) => sum + (Number(p.valor) || 0), 0);
+  }, [procedimentosOrcaveis]);
+
+  // Orçamento em rascunho ativo do paciente (se houver)
+  const rascunhoAtivo = useMemo(() => {
+    return orcamentos.find((o) => o.status === 'rascunho') || null;
+  }, [orcamentos]);
+
+  // Sincroniza dinamicamente o rascunho do orçamento conforme procedimentos são colocados na ficha
+  const sincronizarRascunhoOrcamento = async (procs: ProcedimentoItemData[]) => {
+    if (!saveOrcamento || !patient?.id) return;
+
+    const orcaveis = procs.filter((p) => {
+      if (p.estado === 'pre_existente' && (!p.valor || p.valor <= 0)) return false;
+      return true;
+    });
+
+    if (orcaveis.length === 0) return;
+
+    const itens: OrcamentoItem[] = orcaveis.map((p) => {
+      let denteTexto = '';
+      if (p.dentes && p.dentes.length > 1) {
+        denteTexto = ` (${p.dentes.length} dentes: ${p.dentes.join(', ')})`;
+      } else if (p.dente && p.dente !== 'Geral / Arcada') {
+        denteTexto = ` (Dente ${p.dente})`;
+      }
+      const facesTexto = p.faces && p.faces.length > 0 ? ` [Faces: ${p.faces.join(', ')}]` : '';
+
+      return {
+        nome: `${p.nome}${denteTexto}${facesTexto}`,
+        quantidade: 1,
+        valor: Number(p.valor || 0),
+      };
+    });
+
+    const total = itens.reduce((acc, i) => acc + (i.valor || 0) * (i.quantidade || 1), 0);
+    const rascunho = orcamentos.find((o) => o.status === 'rascunho');
+
+    try {
+      await saveOrcamento({
+        id: rascunho?.id || undefined,
+        pacienteId: patient.id,
+        pacienteNome: patient.nome,
+        titulo: `Plano de Tratamento - ${patient.nome || 'Paciente'}`,
+        status: 'rascunho',
+        itens,
+        desconto: rascunho?.desconto || 0,
+        total: Math.max(0, total - (rascunho?.desconto || 0)),
+        observacoes: `Orçamento gerado e atualizado dinamicamente pela Ficha do Paciente.`,
+      });
+    } catch (err) {
+      console.warn('Erro ao sincronizar rascunho de orçamento:', err);
+    }
+  };
+
+  // Gerar Orçamento Oficial e Migrar para a aba Orçamentos
+  const handleGerarEMigrarOrcamento = async () => {
+    if (procedimentosOrcaveis.length === 0) {
+      if (onTabChange) onTabChange('orcamentos');
+      return;
+    }
+
+    setIsGerandoOrcamento(true);
+    try {
+      const itens: OrcamentoItem[] = procedimentosOrcaveis.map((p) => {
+        let denteTexto = '';
+        if (p.dentes && p.dentes.length > 1) {
+          denteTexto = ` (${p.dentes.length} dentes: ${p.dentes.join(', ')})`;
+        } else if (p.dente && p.dente !== 'Geral / Arcada') {
+          denteTexto = ` (Dente ${p.dente})`;
+        }
+        const facesTexto = p.faces && p.faces.length > 0 ? ` [Faces: ${p.faces.join(', ')}]` : '';
+
+        return {
+          nome: `${p.nome}${denteTexto}${facesTexto}`,
+          quantidade: 1,
+          valor: Number(p.valor || 0),
+        };
+      });
+
+      const total = itens.reduce((acc, i) => acc + (i.valor || 0) * (i.quantidade || 1), 0);
+      const rascunho = orcamentos.find((o) => o.status === 'rascunho');
+
+      let savedId: string | undefined;
+      if (saveOrcamento) {
+        savedId = await saveOrcamento({
+          id: rascunho?.id || undefined,
+          pacienteId: patient?.id,
+          pacienteNome: patient?.nome,
+          titulo: `Plano de Tratamento - ${patient?.nome || 'Paciente'}`,
+          status: 'rascunho',
+          itens,
+          desconto: rascunho?.desconto || 0,
+          total: Math.max(0, total - (rascunho?.desconto || 0)),
+          observacoes: `Orçamento gerado a partir da Ficha do Paciente em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm")}.`,
+        });
+      }
+
+      const idFinal = savedId || rascunho?.id;
+      if (idFinal) {
+        // Vincula orcamento aos procedimentos locais
+        const vinculados = procedimentosLocais.map((p) => ({
+          ...p,
+          orcamentoId: idFinal,
+          orcamentoTitulo: `Plano de Tratamento - ${patient?.nome || 'Paciente'}`,
+        }));
+        setProcedimentosLocais(vinculados);
+        salvarNoPaciente(vinculados, anotacoes);
+
+        // Marca para auto-abertura na tela de orçamentos
+        try {
+          sessionStorage.setItem('auto_open_orcamento_id', idFinal);
+        } catch (_) {}
+      }
+
+      toast.success('Orçamento gerado com sucesso! Abrindo tela de Orçamentos...');
+      if (onTabChange) {
+        setTimeout(() => {
+          onTabChange('orcamentos');
+        }, 200);
+      }
+    } catch (err) {
+      console.error('Erro ao gerar orçamento:', err);
+      toast.error('Erro ao salvar orçamento. Abrindo tela de Orçamentos...');
+      if (onTabChange) onTabChange('orcamentos');
+    } finally {
+      setIsGerandoOrcamento(false);
+    }
+  };
+
   // Salvar ou Criar Procedimento
   const handleSaveProcedimento = (item: ProcedimentoItemData) => {
     let atualizados: ProcedimentoItemData[];
@@ -326,6 +469,9 @@ export const PatientEtapasTratamento: React.FC<Props> = ({ patient, onTabChange 
 
     setProcedimentosLocais(atualizados);
     salvarNoPaciente(atualizados, anotacoes);
+
+    // Conforme for sendo colocado na ficha do paciente, já vai gerando/sincronizando o orçamento
+    sincronizarRascunhoOrcamento(atualizados);
   };
 
   // Excluir Procedimento
@@ -337,6 +483,9 @@ export const PatientEtapasTratamento: React.FC<Props> = ({ patient, onTabChange 
     setProcedimentosLocais(filtrados);
     salvarNoPaciente(filtrados, anotacoes);
     toast.success('Procedimento excluído com sucesso.');
+
+    // Sincroniza orçamento
+    sincronizarRascunhoOrcamento(filtrados);
   };
 
   // Concluir Procedimento (Marcar como realizado com data)
@@ -549,20 +698,67 @@ export const PatientEtapasTratamento: React.FC<Props> = ({ patient, onTabChange 
                 </Select>
               </div>
 
-              {/* Botões de Ação */}
+              {/* Botões de Ação: Gerar Orçamento */}
               <div className="flex items-center gap-2 justify-end">
                 <Button
                   type="button"
-                  onClick={() => {
-                    if (onTabChange) onTabChange('orcamentos');
-                  }}
-                  className="h-8.5 px-3.5 text-xs font-semibold bg-purple-700 hover:bg-purple-800 text-white rounded-lg gap-1.5 shadow-2xs"
+                  disabled={isGerandoOrcamento}
+                  onClick={handleGerarEMigrarOrcamento}
+                  className="h-8.5 px-3.5 text-xs font-bold bg-purple-700 hover:bg-purple-800 text-white rounded-lg gap-1.5 shadow-2xs transition-all hover:scale-[1.02] cursor-pointer"
+                  title="Gerar orçamento a partir dos procedimentos cadastrados e migrar para a tela de Orçamentos"
                 >
-                  <Plus className="h-3.5 w-3.5" />
-                  Novo Orçamento
+                  <FileText className="h-3.5 w-3.5 text-purple-200" />
+                  <span>
+                    {isGerandoOrcamento
+                      ? 'Gerando...'
+                      : procedimentosOrcaveis.length > 0
+                      ? `Gerar Orçamento (${procedimentosOrcaveis.length} • R$ ${valorTotalOrcamento.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})`
+                      : 'Gerar Orçamento'}
+                  </span>
+                  <ArrowRight className="h-3 w-3 opacity-80" />
                 </Button>
               </div>
             </div>
+
+            {/* Banner Dinâmico: O que for sendo colocado na Ficha já vai acumulando no Orçamento */}
+            {procedimentosOrcaveis.length > 0 && (
+              <div className="bg-gradient-to-r from-purple-50/90 via-purple-100/50 to-purple-50/90 dark:from-purple-950/40 dark:via-purple-900/20 dark:to-purple-950/40 border border-purple-200/90 dark:border-purple-800/60 rounded-xl p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+                <div className="flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-lg bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                    <Sparkles className="h-4 w-4 text-amber-300" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-bold text-purple-950 dark:text-purple-200">
+                        Orçamento do Plano de Tratamento em Elaboração
+                      </span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-purple-200 text-purple-900 dark:bg-purple-900 dark:text-purple-200">
+                        {procedimentosOrcaveis.length} {procedimentosOrcaveis.length === 1 ? 'item' : 'itens'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Total acumulado na ficha:{' '}
+                      <strong className="text-foreground font-bold text-xs sm:text-sm text-purple-700 dark:text-purple-300">
+                        R$ {valorTotalOrcamento.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </strong>
+                      <span className="hidden sm:inline text-muted-foreground/80"> • Clique para migrar e definir condições de pagamento</span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button
+                    type="button"
+                    disabled={isGerandoOrcamento}
+                    onClick={handleGerarEMigrarOrcamento}
+                    className="w-full sm:w-auto h-8 px-3.5 text-xs font-bold bg-purple-700 hover:bg-purple-800 text-white rounded-lg gap-1.5 shadow-2xs cursor-pointer"
+                  >
+                    <span>{isGerandoOrcamento ? 'Gerando...' : 'Migrar para Orçamentos'}</span>
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+            )}
 
             {/* Cabeçalho da Seção */}
             <div className="pt-2 border-t border-border/50 flex items-center justify-between">
