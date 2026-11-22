@@ -30,6 +30,7 @@ import {
   Pencil,
   Trash2,
   Eye,
+  FileText,
 } from 'lucide-react';
 import { useOrcamentos, Orcamento } from '@/hooks/useOrcamentos';
 import { useDentalSystem } from '@/context/DentalSystemContext';
@@ -40,6 +41,8 @@ import { ModalReceberPagamento } from './ModalReceberPagamento';
 import { ModalConciliarOrcamento } from './ModalConciliarOrcamento';
 import { ModalEditarRegistroFinanceiro } from './ModalEditarRegistroFinanceiro';
 import { ModalExcluirRegistroFinanceiro } from './ModalExcluirRegistroFinanceiro';
+import { ModalExportarNotaFiscalPaciente } from './ModalExportarNotaFiscalPaciente';
+import { DadosNotaFiscalPaciente } from '@/utils/notaFiscalExport';
 import ModalApresentarOrcamento from '@/components/orcamentos/ModalApresentarOrcamento';
 import { useNavigate } from 'react-router-dom';
 import { Transacao } from '@/types/shared';
@@ -75,6 +78,52 @@ export const TratamentosEmPagamento = ({ selectedMonth, onLancarPagamento }: Pro
   const [modalEditarOpen, setModalEditarOpen] = useState(false);
   const [orcamentoParaExcluir, setOrcamentoParaExcluir] = useState<Orcamento | null>(null);
   const [modalExcluirOpen, setModalExcluirOpen] = useState(false);
+  const [modalNotaFiscalOpen, setModalNotaFiscalOpen] = useState(false);
+  const [dadosNFSelecionado, setDadosNFSelecionado] = useState<DadosNotaFiscalPaciente | null>(null);
+
+  const handleAbrirNotaFiscal = (orcamento: Orcamento) => {
+    const paciente = pacientes.find((p) => p.id === orcamento.pacienteId);
+    const transacoesOrc = (transacoes || []).filter(
+      (t) => t.orcamentoId === orcamento.id && t.tipo === 'receita' && ehTransacaoPaga(t)
+    );
+    const totalPago = transacoesOrc.reduce((acc, t) => acc + (t.valor || 0), 0);
+    const metodos = Array.from(new Set(transacoesOrc.map((t) => (t.metodoPagamento || 'pix').toUpperCase())));
+    const contas = Array.from(new Set(transacoesOrc.map((t) => t.contaBancariaNome).filter(Boolean))) as string[];
+    const datas = Array.from(new Set(transacoesOrc.map((t) => new Date(t.data).toLocaleDateString('pt-BR'))));
+
+    const procs = (orcamento.itens || []).map((it) => ({
+      nome: it.nome,
+      quantidade: it.quantidade || 1,
+      valorUnitario: it.valor || 0,
+      valorTotal: (it.quantidade || 1) * (it.valor || 0),
+    }));
+
+    const dadosNF: DadosNotaFiscalPaciente = {
+      pacienteId: orcamento.pacienteId || '',
+      pacienteNome: orcamento.pacienteNome || paciente?.nome || 'Paciente não identificado',
+      cpf: paciente?.cpf || '',
+      rg: paciente?.rg,
+      endereco: paciente?.endereco,
+      telefone: paciente?.telefone,
+      email: paciente?.email,
+      orcamentoId: orcamento.id,
+      orcamentoTitulo: orcamento.titulo || 'Tratamento Odontológico',
+      procedimentos: procs,
+      tratamentoDescricao: orcamento.titulo || 'Tratamento Odontológico',
+      valorTotalTratamento: orcamento.total || 0,
+      valorRecebidoNoMes: totalPago,
+      valorTotalPagoHistorico: totalPago,
+      saldoRestante: Math.max(0, (orcamento.total || 0) - totalPago),
+      metodosPagamento: metodos,
+      contasEntrada: contas,
+      datasPagamentoMes: datas,
+      transacoesIds: transacoesOrc.map((t) => t.id),
+      possuiCpf: Boolean(paciente?.cpf && paciente.cpf.trim().length >= 11),
+    };
+
+    setDadosNFSelecionado(dadosNF);
+    setModalNotaFiscalOpen(true);
+  };
 
   // Mapeamento e cálculo de todos os tratamentos aprovados
   const tratamentosProcessados = useMemo(() => {
@@ -86,8 +135,8 @@ export const TratamentosEmPagamento = ({ selectedMonth, onLancarPagamento }: Pro
         if (!o || o.status?.toLowerCase() !== 'aprovado') return false;
         const snap = (o as any).assinatura_paciente || (o as any).assinaturaPaciente || {};
         if (
-          o.statusFinanceiro === 'cancelado' ||
-          o.statusFinanceiro === 'arquivado' ||
+          (o as any).statusFinanceiro === 'cancelado' ||
+          (o as any).statusFinanceiro === 'arquivado' ||
           snap.statusFinanceiro === 'cancelado' ||
           snap.statusFinanceiro === 'arquivado'
         ) {
@@ -488,6 +537,17 @@ export const TratamentosEmPagamento = ({ selectedMonth, onLancarPagamento }: Pro
 
                       <Button
                         size="sm"
+                        variant="outline"
+                        className="h-7 text-xs border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 gap-1 px-2 font-medium"
+                        onClick={() => handleAbrirNotaFiscal(orcamento)}
+                        title="Ver e exportar dados do paciente e tratamento para Nota Fiscal (NFS-e)"
+                      >
+                        <FileText className="h-3 w-3 text-amber-500" />
+                        Nota Fiscal
+                      </Button>
+
+                      <Button
+                        size="sm"
                         variant="ghost"
                         className="h-7 text-xs text-muted-foreground hover:text-foreground gap-1 px-2"
                         onClick={() => {
@@ -611,16 +671,17 @@ export const TratamentosEmPagamento = ({ selectedMonth, onLancarPagamento }: Pro
 
       {/* Modal de Recebimento */}
       <ModalReceberPagamento
-        open={modalReceberOpen}
-        onOpenChange={(open) => {
-          setModalReceberOpen(open);
-          if (!open) {
-            setTransacaoSelecionada(null);
-            setDadosRecebimentoAvulso(null);
-          }
+        isOpen={modalReceberOpen}
+        onClose={() => {
+          setModalReceberOpen(false);
+          setTransacaoSelecionada(null);
+          setDadosRecebimentoAvulso(null);
         }}
-        transacao={transacaoSelecionada}
-        dadosAvulsos={dadosRecebimentoAvulso}
+        transacaoPendente={transacaoSelecionada}
+        pacientePredefinidoId={dadosRecebimentoAvulso?.pacienteId}
+        orcamentoIdPredefinido={dadosRecebimentoAvulso?.orcamentoId}
+        valorSugerido={dadosRecebimentoAvulso?.valor}
+        descricaoSugerida={dadosRecebimentoAvulso?.descricao}
         onSuccess={() => {
           reloadOrcamentos();
         }}
@@ -661,11 +722,18 @@ export const TratamentosEmPagamento = ({ selectedMonth, onLancarPagamento }: Pro
       {/* Modal Apresentar Orçamento */}
       {apresentarOrcamento && (
         <ModalApresentarOrcamento
-          open={!!apresentarOrcamento}
-          onOpenChange={(open) => !open && setApresentarOrcamento(null)}
+          isOpen={!!apresentarOrcamento}
+          onClose={() => setApresentarOrcamento(null)}
           orcamento={apresentarOrcamento}
         />
       )}
+
+      {/* Modal de Exportação para Nota Fiscal do Paciente */}
+      <ModalExportarNotaFiscalPaciente
+        open={modalNotaFiscalOpen}
+        onOpenChange={setModalNotaFiscalOpen}
+        dados={dadosNFSelecionado}
+      />
     </div>
   );
 };

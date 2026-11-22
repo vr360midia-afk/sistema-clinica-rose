@@ -24,6 +24,9 @@ import { Handshake, Activity, Layers, Calendar } from 'lucide-react';
 import { useMaquinasCartao, calcularTaxaCartao } from '@/hooks/useMaquinasCartao';
 import { slugifyNome } from '@/utils/anamneseEngine';
 import { EditProcedimentoValorModal } from './EditProcedimentoValorModal';
+import { ModalExportarNotaFiscalPaciente } from '@/components/financeiro/ModalExportarNotaFiscalPaciente';
+import { DadosNotaFiscalPaciente } from '@/utils/notaFiscalExport';
+import { FileText } from 'lucide-react';
 
 interface PatientFinancialProps {
   patient: any;
@@ -91,6 +94,58 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
 
   const [modalConciliarOpen, setModalConciliarOpen] = useState(false);
   const [orcamentoParaConciliar, setOrcamentoParaConciliar] = useState<any | null>(null);
+  const [modalNotaFiscalOpen, setModalNotaFiscalOpen] = useState(false);
+  const [dadosNF, setDadosNF] = useState<DadosNotaFiscalPaciente | null>(null);
+
+  const handleAbrirNotaFiscal = () => {
+    const pacienteTrans = (transacoes || []).filter((t) => t?.pacienteId === patient?.id);
+    const receitasPagas = pacienteTrans.filter((t) => t.tipo === 'receita' && ehTransacaoPaga(t));
+    const totalPago = receitasPagas.reduce((acc, t) => acc + (t.valor || 0), 0);
+    const metodos = Array.from(new Set(receitasPagas.map((t) => (t.metodoPagamento || 'pix').toUpperCase())));
+    const contas = Array.from(new Set(receitasPagas.map((t) => t.contaBancariaNome).filter(Boolean))) as string[];
+    const datas = Array.from(new Set(receitasPagas.map((t) => new Date(t.data).toLocaleDateString('pt-BR'))));
+
+    const orcAprovado = (orcamentos || []).find((o) => o?.status === 'aprovado') || (orcamentos || [])[0];
+    const procs = (orcAprovado?.itens || []).map((it) => ({
+      nome: it.nome,
+      quantidade: it.quantidade || 1,
+      valorUnitario: it.valor || 0,
+      valorTotal: (it.quantidade || 1) * (it.valor || 0),
+    }));
+
+    const valorTotalTrat = orcAprovado?.total || resumo?.total || totalPago;
+
+    const dados: DadosNotaFiscalPaciente = {
+      pacienteId: patient.id,
+      pacienteNome: patient.nome,
+      cpf: patient.cpf || '',
+      rg: patient.rg,
+      endereco: patient.endereco,
+      telefone: patient.telefone,
+      email: patient.email,
+      orcamentoId: orcAprovado?.id,
+      orcamentoTitulo: orcAprovado?.titulo || 'Tratamento Odontológico',
+      procedimentos: procs.length > 0 ? procs : [{
+        nome: orcAprovado?.titulo || 'Tratamento Odontológico Clínico',
+        quantidade: 1,
+        valorUnitario: valorTotalTrat,
+        valorTotal: valorTotalTrat,
+      }],
+      tratamentoDescricao: orcAprovado?.titulo || 'Tratamento Odontológico',
+      valorTotalTratamento: valorTotalTrat,
+      valorRecebidoNoMes: totalPago,
+      valorTotalPagoHistorico: totalPago,
+      saldoRestante: Math.max(0, valorTotalTrat - totalPago),
+      metodosPagamento: metodos,
+      contasEntrada: contas,
+      datasPagamentoMes: datas,
+      transacoesIds: receitasPagas.map((t) => t.id),
+      possuiCpf: Boolean(patient.cpf && patient.cpf.trim().length >= 11),
+    };
+
+    setDadosNF(dados);
+    setModalNotaFiscalOpen(true);
+  };
 
   // Orçamentos órfãos que possuem o nome deste paciente
   const orfaosSugeridos = useMemo(() => {
@@ -109,7 +164,7 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
     const aprovados = (orcamentos || []).filter((o) => {
       if (!o || o.status !== 'aprovado') return false;
       const snap = (o as any).assinatura_paciente || (o as any).assinaturaPaciente || {};
-      return o.statusFinanceiro !== 'cancelado' && o.statusFinanceiro !== 'arquivado' && snap.statusFinanceiro !== 'cancelado' && snap.statusFinanceiro !== 'arquivado';
+      return (o as any).statusFinanceiro !== 'cancelado' && (o as any).statusFinanceiro !== 'arquivado' && snap.statusFinanceiro !== 'cancelado' && snap.statusFinanceiro !== 'arquivado';
     });
 
     if (aprovados.length === 0) return null;
@@ -239,7 +294,7 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
     const aprovados = (orcamentos || []).filter((o) => {
       if (!o || o?.status !== 'aprovado') return false;
       const snap = (o as any).assinatura_paciente || (o as any).assinaturaPaciente || {};
-      return o.statusFinanceiro !== 'cancelado' && o.statusFinanceiro !== 'arquivado' && snap.statusFinanceiro !== 'cancelado' && snap.statusFinanceiro !== 'arquivado';
+      return (o as any).statusFinanceiro !== 'cancelado' && (o as any).statusFinanceiro !== 'arquivado' && snap.statusFinanceiro !== 'cancelado' && snap.statusFinanceiro !== 'arquivado';
     });
     const idsAprovados = new Set(aprovados.map((o) => o.id));
     const saldosMap = calcularSaldosOrcamentos(orcamentos || [], trans as any[]);
@@ -411,6 +466,16 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
           >
             <Plus className="h-4 w-4 mr-1.5" />
             Novo Pagamento
+          </Button>
+          <Button
+            size="sm"
+            onClick={handleAbrirNotaFiscal}
+            variant="outline"
+            className="w-full sm:w-auto border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 gap-1.5"
+            title="Exportar dados do paciente e tratamentos para Nota Fiscal (NFS-e)"
+          >
+            <FileText className="h-4 w-4 text-amber-500" />
+            Dados p/ Nota Fiscal
           </Button>
           <Button onClick={enviarParaAssinar} disabled={enviando} variant="outline" className="w-full sm:w-auto">
             {enviando ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <MessageCircle className="h-4 w-4 mr-2" />}
@@ -838,7 +903,13 @@ const PatientFinancial = ({ patient }: PatientFinancialProps) => {
         transacaoPendente={transacaoParaReceber}
         pacientePredefinidoId={patient?.id}
       />
-    <EditProcedimentoValorModal isOpen={!!itemToEdit} onClose={() => setItemToEdit(null)} item={itemToEdit} />
+      <ModalExportarNotaFiscalPaciente
+        open={modalNotaFiscalOpen}
+        onOpenChange={setModalNotaFiscalOpen}
+        dados={dadosNF}
+        configuracoes={configuracoes}
+      />
+      <EditProcedimentoValorModal isOpen={!!itemToEdit} onClose={() => setItemToEdit(null)} item={itemToEdit} />
     </div>
   );
 };

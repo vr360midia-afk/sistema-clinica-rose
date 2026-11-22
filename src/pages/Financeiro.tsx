@@ -17,6 +17,9 @@ import { ModalReceberPagamento } from '@/components/financeiro/ModalReceberPagam
 import { ModalResumoVendasFechadas } from '@/components/financeiro/ModalResumoVendasFechadas';
 import { ModalRelatorioFechamento } from '@/components/financeiro/ModalRelatorioFechamento';
 import { ModalContasBancarias } from '@/components/financeiro/ModalContasBancarias';
+import { ModalExportarNotaFiscalMensal } from '@/components/financeiro/ModalExportarNotaFiscalMensal';
+import { ModalExportarNotaFiscalPaciente } from '@/components/financeiro/ModalExportarNotaFiscalPaciente';
+import { DadosNotaFiscalPaciente } from '@/utils/notaFiscalExport';
 import { useContasBancarias } from '@/hooks/useContasBancarias';
 import ModalApresentarOrcamento from '@/components/orcamentos/ModalApresentarOrcamento';
 import { registrarAuditoria } from '@/hooks/useAuditLog';
@@ -65,6 +68,11 @@ const Financeiro = () => {
   const [transacaoParaReceber, setTransacaoParaReceber] = useState<Transacao | null>(null);
   const [reciboModalOpen, setReciboModalOpen] = useState(false);
   const [reciboSelecionado, setReciboSelecionado] = useState<ReciboDados | null>(null);
+
+  // Estados para Exportação de Nota Fiscal (NFS-e)
+  const [modalNotaFiscalMensalOpen, setModalNotaFiscalMensalOpen] = useState(false);
+  const [modalNotaFiscalPacienteOpen, setModalNotaFiscalPacienteOpen] = useState(false);
+  const [dadosNotaFiscalSelecionado, setDadosNotaFiscalSelecionado] = useState<DadosNotaFiscalPaciente | null>(null);
 
   // Filtros
   const [selectedMonth, setSelectedMonth] = useState(() => {
@@ -499,6 +507,16 @@ const Financeiro = () => {
             >
               <FileSpreadsheet className="h-4 w-4 text-indigo-500" />
               <span>Relatório Executivo</span>
+            </Button>
+
+            <Button
+              onClick={() => setModalNotaFiscalMensalOpen(true)}
+              variant="outline"
+              className="border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 font-semibold text-xs h-9 gap-1.5 shadow-sm"
+              title="Exportar dados do mês e de cada paciente para emissão de Nota Fiscal (NFS-e)"
+            >
+              <FileText className="h-4 w-4 text-amber-500" />
+              <span>Exportar Nota Fiscal</span>
             </Button>
 
             <Button
@@ -1475,6 +1493,25 @@ const Financeiro = () => {
             setContaParaAbrirExtrato(null);
           }}
           contaInicialId={contaParaAbrirExtrato || undefined}
+        />
+
+        {/* Modal de Exportação para Nota Fiscal & Contabilidade Mensal */}
+        <ModalExportarNotaFiscalMensal
+          open={modalNotaFiscalMensalOpen}
+          onOpenChange={setModalNotaFiscalMensalOpen}
+          selectedMonth={selectedMonth}
+          transacoes={transacoes}
+          orcamentos={orcamentos}
+          pacientes={pacientes}
+          configuracoes={configuracoes}
+        />
+
+        {/* Modal de Exportação de Nota Fiscal Individual do Paciente */}
+        <ModalExportarNotaFiscalPaciente
+          open={modalNotaFiscalPacienteOpen}
+          onOpenChange={setModalNotaFiscalPacienteOpen}
+          dados={dadosNotaFiscalSelecionado}
+          configuracoes={configuracoes}
         />
       </div>
     </Layout>
