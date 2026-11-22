@@ -3,7 +3,7 @@
  * para Declaração Fiscal de Serviços Odontológicos (por Paciente e Consolidado Mensal).
  */
 
-import { DadosNotaFiscalPaciente, ResumoNotaFiscalMes, formatarCpf } from '@/utils/notaFiscalExport';
+import { DadosNotaFiscalPaciente, ResumoNotaFiscalMes, formatarCpf, formatarCnpjCpf } from '@/utils/notaFiscalExport';
 import { formatMoney } from '@/utils/exportCsv';
 import { valorPorExtenso } from '@/utils/recibo';
 import { formatarDataPorExtenso } from '@/utils/contratoEngine';
@@ -55,6 +55,7 @@ export const gerarHtmlDeclaracaoFiscalPaciente = (
   const valorRecebidoExtenso = valorPorExtenso(dados.valorRecebidoNoMes);
   const valorTotalExtenso = valorPorExtenso(dados.valorTotalTratamento);
   const codigoAutenticidade = `NF-${(dados.orcamentoId || dados.pacienteId || 'DOC').slice(0, 8).toUpperCase()}-${dataHoje.getFullYear()}`;
+  const temPagadorDiferente = Boolean(dados.pagador?.diferenteDoPaciente && dados.pagador.nomeRazaoSocial?.trim());
 
   const linhasProcedimentos =
     dados.procedimentos.length > 0
@@ -295,6 +296,10 @@ export const gerarHtmlDeclaracaoFiscalPaciente = (
       margin-top: 25px;
       page-break-inside: avoid;
     }
+    .grid-assinaturas.tres-colunas {
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 16px;
+    }
     .bloco-assinatura {
       text-align: center;
     }
@@ -391,9 +396,82 @@ export const gerarHtmlDeclaracaoFiscalPaciente = (
       </div>
     </div>
 
-    <!-- 2. IDENTIFICAÇÃO DO TOMADOR (PACIENTE) -->
+    <!-- IDENTIFICAÇÃO DO TOMADOR / PAGADOR E DO BENEFICIÁRIO / PACIENTE -->
+    ${
+      temPagadorDiferente && dados.pagador
+        ? `
+    <!-- 2. TOMADOR / PAGADOR (PESSOA JURÍDICA OU TERCEIRO) -->
     <div class="secao-box">
-      <div class="secao-titulo">2. Tomador dos Serviços (Paciente)</div>
+      <div class="secao-titulo">2. Tomador / Pagador dos Serviços (${dados.pagador.tipo === 'cnpj' ? 'Pessoa Jurídica / Empresa' : 'Pessoa Física / Terceiro'})</div>
+      <div class="secao-conteudo">
+        <div class="grid-dados">
+          <div class="item-dado item-dado-full">
+            <span class="rotulo-dado">Razão Social / Nome do Pagador:</span>
+            <span class="valor-dado" style="font-size: 11pt; font-weight: bold; color: #1e3a8a;">${dados.pagador.nomeRazaoSocial}</span>
+          </div>
+          <div class="item-dado">
+            <span class="rotulo-dado">${dados.pagador.tipo === 'cnpj' ? 'CNPJ do Pagador:' : 'CPF do Pagador:'}</span>
+            <span class="valor-dado" style="font-family: monospace; font-weight: bold; font-size: 10pt;">
+              ${formatarCnpjCpf(dados.pagador.documento)}
+            </span>
+          </div>
+          <div class="item-dado">
+            <span class="rotulo-dado">Enquadramento Fiscal:</span>
+            <span class="valor-dado">${dados.pagador.tipo === 'cnpj' ? 'Pessoa Jurídica (Emissão de NFS-e PJ)' : 'Pessoa Física (Responsável Financeiro)'}</span>
+          </div>
+          ${
+            dados.pagador.endereco
+              ? `
+          <div class="item-dado item-dado-full">
+            <span class="rotulo-dado">Endereço Fiscal do Pagador:</span>
+            <span class="valor-dado">${dados.pagador.endereco}</span>
+          </div>`
+              : ''
+          }
+          ${
+            dados.pagador.telefone
+              ? `
+          <div class="item-dado">
+            <span class="rotulo-dado">Telefone do Pagador:</span>
+            <span class="valor-dado">${dados.pagador.telefone}</span>
+          </div>`
+              : ''
+          }
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. BENEFICIÁRIO / FAVORECIDO (PACIENTE QUE UTILIZOU O SERVIÇO) -->
+    <div class="secao-box">
+      <div class="secao-titulo">3. Beneficiário / Favorecido do Tratamento Odontológico (Paciente)</div>
+      <div class="secao-conteudo">
+        <div class="grid-dados">
+          <div class="item-dado item-dado-full">
+            <span class="rotulo-dado">Nome Completo do Paciente (Beneficiário):</span>
+            <span class="valor-dado" style="font-size: 11pt; font-weight: bold;">${dados.pacienteNome}</span>
+          </div>
+          <div class="item-dado">
+            <span class="rotulo-dado">CPF do Paciente:</span>
+            <span class="valor-dado" style="font-family: monospace; font-weight: bold; font-size: 10pt;">
+              ${dados.cpf ? formatarCpf(dados.cpf) : 'NÃO INFORMADO NO CADASTRO'}
+            </span>
+          </div>
+          <div class="item-dado">
+            <span class="rotulo-dado">RG / Doc. Identidade:</span>
+            <span class="valor-dado">${dados.rg || 'Não informado'}</span>
+          </div>
+          <div class="item-dado item-dado-full">
+            <span class="rotulo-dado">Endereço Residencial:</span>
+            <span class="valor-dado">${dados.endereco || 'Endereço não informado'}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    `
+        : `
+    <!-- 2. TOMADOR E BENEFICIÁRIO (PACIENTE) -->
+    <div class="secao-box">
+      <div class="secao-titulo">2. Tomador dos Serviços e Beneficiário (Paciente)</div>
       <div class="secao-conteudo">
         <div class="grid-dados">
           <div class="item-dado item-dado-full">
@@ -425,10 +503,12 @@ export const gerarHtmlDeclaracaoFiscalPaciente = (
         </div>
       </div>
     </div>
+    `
+    }
 
-    <!-- 3. DISCRIMINAÇÃO DOS PROCEDIMENTOS E TRATAMENTOS -->
+    <!-- DISCRIMINAÇÃO DOS PROCEDIMENTOS E TRATAMENTOS -->
     <div class="secao-box">
-      <div class="secao-titulo">3. Discriminação dos Procedimentos e Serviços Odontológicos</div>
+      <div class="secao-titulo">${temPagadorDiferente ? '4' : '3'}. Discriminação dos Procedimentos e Serviços Odontológicos</div>
       <div class="secao-conteudo" style="padding: 6px;">
         <div style="font-size: 9.5pt; font-weight: bold; margin-bottom: 6px; color: #0f172a;">
           Plano de Tratamento: ${dados.tratamentoDescricao}
@@ -451,9 +531,9 @@ export const gerarHtmlDeclaracaoFiscalPaciente = (
       </div>
     </div>
 
-    <!-- 4. DEMONSTRATIVO FINANCEIRO E DE QUITAÇÃO -->
+    <!-- DEMONSTRATIVO FINANCEIRO E DE QUITAÇÃO -->
     <div class="secao-box">
-      <div class="secao-titulo">4. Demonstrativo Financeiro de Pagamento e Quitação</div>
+      <div class="secao-titulo">${temPagadorDiferente ? '5' : '4'}. Demonstrativo Financeiro de Pagamento e Quitação</div>
       <div class="secao-conteudo">
         <table class="tabela-totais">
           <tr>
@@ -494,7 +574,11 @@ export const gerarHtmlDeclaracaoFiscalPaciente = (
 
     <!-- DECLARAÇÃO LEGAL -->
     <div class="declaracao-legal">
-      <strong>DECLARAÇÃO:</strong> Declaro para os devidos fins de direito, em especial perante a Secretaria da Receita Federal do Brasil (RFB) e para emissão da respectiva Nota Fiscal de Serviços Eletrônica (NFS-e), que os procedimentos odontológicos acima discriminados foram executados para o(a) paciente qualificado(a), tendo sido recebido o montante especificado, conferindo-lhe quitação irrevogável e formal sobre o valor pago.
+      ${
+        temPagadorDiferente && dados.pagador
+          ? `<strong>DECLARAÇÃO CONJUNTA DE PRESTAÇÃO DE SERVIÇOS E PAGAMENTO:</strong> Declaro para os devidos fins de direito, em especial perante a Secretaria da Receita Federal do Brasil (RFB) e para emissão da respectiva Nota Fiscal de Serviços Eletrônica (NFS-e), que os procedimentos odontológicos acima discriminados foram executados para o(a) Beneficiário(a) <strong>${dados.pacienteNome}</strong>, tendo sido o respectivo valor pago e faturado em favor do Tomador <strong>${dados.pagador.nomeRazaoSocial}</strong> (${dados.pagador.tipo === 'cnpj' ? 'CNPJ' : 'CPF'}: ${formatarCnpjCpf(dados.pagador.documento)}), conferindo-se plena e irrevogável quitação sobre a importância recebida.`
+          : `<strong>DECLARAÇÃO:</strong> Declaro para os devidos fins de direito, em especial perante a Secretaria da Receita Federal do Brasil (RFB) e para emissão da respectiva Nota Fiscal de Serviços Eletrônica (NFS-e), que os procedimentos odontológicos acima discriminados foram executados para o(a) paciente qualificado(a), tendo sido recebido o montante especificado, conferindo-lhe quitação irrevogável e formal sobre o valor pago.`
+      }
     </div>
 
     <!-- DATAÇÃO -->
@@ -503,7 +587,31 @@ export const gerarHtmlDeclaracaoFiscalPaciente = (
     </div>
 
     <!-- ASSINATURAS FORMAIS -->
-    <div class="grid-assinaturas">
+    ${
+      temPagadorDiferente && dados.pagador
+        ? `<div class="grid-assinaturas tres-colunas">
+      <div class="bloco-assinatura">
+        <div class="linha-assinatura"></div>
+        <div class="assinatura-nome">${clinica.dentistaResponsavel}</div>
+        <div class="assinatura-cargo">${clinica.cro} • Cirurgiã-Dentista</div>
+        <div style="font-size: 7.5pt; color: #64748b;">Prestador dos Serviços</div>
+      </div>
+
+      <div class="bloco-assinatura">
+        <div class="linha-assinatura"></div>
+        <div class="assinatura-nome">${dados.pagador.nomeRazaoSocial}</div>
+        <div class="assinatura-cargo">${dados.pagador.tipo === 'cnpj' ? 'CNPJ' : 'CPF'}: ${formatarCnpjCpf(dados.pagador.documento)}</div>
+        <div style="font-size: 7.5pt; color: #64748b;">Tomador / Pagador (${dados.pagador.tipo === 'cnpj' ? 'Empresa' : 'Responsável'})</div>
+      </div>
+
+      <div class="bloco-assinatura">
+        <div class="linha-assinatura"></div>
+        <div class="assinatura-nome">${dados.pacienteNome}</div>
+        <div class="assinatura-cargo">CPF: ${dados.cpf ? formatarCpf(dados.cpf) : 'Beneficiário'}</div>
+        <div style="font-size: 7.5pt; color: #64748b;">Favorecido / Paciente</div>
+      </div>
+    </div>`
+        : `<div class="grid-assinaturas">
       <div class="bloco-assinatura">
         <div class="linha-assinatura"></div>
         <div class="assinatura-nome">${clinica.dentistaResponsavel}</div>
@@ -517,7 +625,8 @@ export const gerarHtmlDeclaracaoFiscalPaciente = (
         <div class="assinatura-cargo">CPF: ${dados.cpf ? formatarCpf(dados.cpf) : 'Doc. Tomador'}</div>
         <div style="font-size: 7.5pt; color: #64748b;">Tomador dos Serviços (Paciente)</div>
       </div>
-    </div>
+    </div>`
+    }
 
     <!-- RODAPÉ -->
     <div class="rodape-oficial">
@@ -547,7 +656,16 @@ export const gerarHtmlRelatorioFiscalMensal = (
       (item, idx) => `
     <tr>
       <td style="text-align: center; width: 30px;">${idx + 1}</td>
-      <td style="font-weight: bold; width: 180px;">${item.pacienteNome}</td>
+      <td style="font-weight: bold; width: 180px;">
+        ${item.pacienteNome}
+        ${
+          item.pagador?.diferenteDoPaciente && item.pagador.nomeRazaoSocial
+            ? `<div style="font-size: 7.5pt; color: #1d4ed8; font-weight: normal; margin-top: 2px;">
+                🏢 Tomador: <strong>${item.pagador.nomeRazaoSocial}</strong> (${item.pagador.tipo === 'cnpj' ? 'CNPJ' : 'CPF'}: ${formatarCnpjCpf(item.pagador.documento)})
+              </div>`
+            : ''
+        }
+      </td>
       <td style="font-family: monospace; font-size: 8.5pt; width: 110px;">
         ${item.cpf ? formatarCpf(item.cpf) : '<span style="color: #b91c1c; font-weight: bold;">SEM CPF</span>'}
       </td>
@@ -765,8 +883,8 @@ export const gerarHtmlRelatorioFiscalMensal = (
         <div class="kpi-valor">${resumo.totalPacientes}</div>
       </div>
       <div class="card-kpi">
-        <div class="kpi-rotulo">Com CPF Válido</div>
-        <div class="kpi-valor" style="color: #047857;">${resumo.totalComCpf}</div>
+        <div class="kpi-rotulo">${resumo.totalComPagadorEmpresa > 0 ? 'Tomador Empresa (PJ)' : 'Com CPF Válido'}</div>
+        <div class="kpi-valor" style="color: ${resumo.totalComPagadorEmpresa > 0 ? '#1d4ed8' : '#047857'};">${resumo.totalComPagadorEmpresa > 0 ? resumo.totalComPagadorEmpresa : resumo.totalComCpf}</div>
       </div>
       <div class="card-kpi">
         <div class="kpi-rotulo">Sem CPF (Atenção)</div>

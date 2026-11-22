@@ -68,12 +68,13 @@ export const ModalExportarNotaFiscalMensal: React.FC<ModalExportarNotaFiscalMens
   configuracoes,
 }) => {
   const [busca, setBusca] = useState('');
-  const [filtroCpf, setFiltroCpf] = useState<'todos' | 'com_cpf' | 'sem_cpf'>('todos');
+  const [filtroCpf, setFiltroCpf] = useState<'todos' | 'com_cpf' | 'sem_cpf' | 'empresa_pj'>('todos');
   const [pacienteSelecionadoNF, setPacienteSelecionadoNF] = useState<DadosNotaFiscalPaciente | null>(null);
   const [modalPacienteOpen, setModalPacienteOpen] = useState(false);
   const [copiadoLote, setCopiadoLote] = useState(false);
   const [imprimindoMensal, setImprimindoMensal] = useState(false);
   const [baixandoPdfMensal, setBaixandoPdfMensal] = useState(false);
+  const [versaoPagadores, setVersaoPagadores] = useState(0);
 
   // Agregação dos dados fiscais do mês
   const resumoMes = useMemo(() => {
@@ -83,13 +84,14 @@ export const ModalExportarNotaFiscalMensal: React.FC<ModalExportarNotaFiscalMens
       pacientes,
       selectedMonth,
     });
-  }, [transacoes, orcamentos, pacientes, selectedMonth]);
+  }, [transacoes, orcamentos, pacientes, selectedMonth, versaoPagadores]);
 
   // Filtragem na tabela
   const itensFiltrados = useMemo(() => {
     return resumoMes.itens.filter((item) => {
       if (filtroCpf === 'com_cpf' && !item.possuiCpf) return false;
       if (filtroCpf === 'sem_cpf' && item.possuiCpf) return false;
+      if (filtroCpf === 'empresa_pj' && (!item.pagador?.diferenteDoPaciente || !item.pagador.nomeRazaoSocial)) return false;
 
       if (busca.trim()) {
         const query = busca.toLowerCase();
@@ -97,7 +99,8 @@ export const ModalExportarNotaFiscalMensal: React.FC<ModalExportarNotaFiscalMens
         const cpfMatch = (item.cpf || '').includes(query);
         const tratMatch = item.tratamentoDescricao.toLowerCase().includes(query);
         const procMatch = item.procedimentos.some((p) => p.nome.toLowerCase().includes(query));
-        return nomeMatch || cpfMatch || tratMatch || procMatch;
+        const pagadorMatch = item.pagador?.nomeRazaoSocial?.toLowerCase().includes(query) || (item.pagador?.documento || '').includes(query);
+        return nomeMatch || cpfMatch || tratMatch || procMatch || Boolean(pagadorMatch);
       }
 
       return true;
@@ -304,6 +307,18 @@ Relatório gerado em ${new Date().toLocaleDateString('pt-BR')}`;
                 {resumoMes.totalSemCpf > 0 ? 'Requer atenção p/ nota' : 'Nenhum pendente'}
               </p>
             </div>
+
+            {resumoMes.totalComPagadorEmpresa > 0 && (
+              <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl space-y-0.5 col-span-2 sm:col-span-4 lg:col-span-1">
+                <span className="text-[10px] uppercase font-bold text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                  <Building2 className="h-3.5 w-3.5 text-blue-600" /> Tomador Empresa (PJ)
+                </span>
+                <p className="text-xl font-black text-blue-600 dark:text-blue-400">
+                  {resumoMes.totalComPagadorEmpresa}
+                </p>
+                <p className="text-[10px] text-muted-foreground">Faturamento no CNPJ</p>
+              </div>
+            )}
           </div>
 
           {/* Filtros e Busca */}
@@ -313,12 +328,12 @@ Relatório gerado em ${new Date().toLocaleDateString('pt-BR')}`;
               <Input
                 value={busca}
                 onChange={(e) => setBusca(e.target.value)}
-                placeholder="Buscar por paciente ou procedimento..."
+                placeholder="Buscar por paciente, empresa ou procedimento..."
                 className="h-8 pl-8 text-xs"
               />
             </div>
 
-            <div className="flex items-center gap-1.5 w-full sm:w-auto">
+            <div className="flex items-center gap-1.5 w-full sm:w-auto flex-wrap">
               <Button
                 variant={filtroCpf === 'todos' ? 'default' : 'outline'}
                 size="sm"
@@ -335,6 +350,17 @@ Relatório gerado em ${new Date().toLocaleDateString('pt-BR')}`;
               >
                 Com CPF ({resumoMes.totalComCpf})
               </Button>
+              {resumoMes.totalComPagadorEmpresa > 0 && (
+                <Button
+                  variant={filtroCpf === 'empresa_pj' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setFiltroCpf('empresa_pj')}
+                  className="h-7 text-xs px-2.5 gap-1 border-blue-500/40 text-blue-700 dark:text-blue-300 font-semibold"
+                >
+                  <Building2 className="h-3 w-3" />
+                  Empresa / PJ ({resumoMes.totalComPagadorEmpresa})
+                </Button>
+              )}
               {resumoMes.totalSemCpf > 0 && (
                 <Button
                   variant={filtroCpf === 'sem_cpf' ? 'destructive' : 'outline'}
@@ -373,7 +399,7 @@ Relatório gerado em ${new Date().toLocaleDateString('pt-BR')}`;
                       {/* Paciente e CPF */}
                       <td className="py-2.5 px-3">
                         <p className="font-bold text-foreground text-sm leading-tight">{item.pacienteNome}</p>
-                        <div className="flex items-center gap-1.5 mt-0.5">
+                        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                           {item.possuiCpf ? (
                             <span className="font-mono text-[11px] text-muted-foreground">
                               {formatarCpf(item.cpf)}
@@ -381,6 +407,15 @@ Relatório gerado em ${new Date().toLocaleDateString('pt-BR')}`;
                           ) : (
                             <Badge variant="outline" className="text-[9px] px-1.5 py-0 bg-amber-500/10 text-amber-600 border-amber-500/30 font-semibold">
                               ⚠️ Sem CPF
+                            </Badge>
+                          )}
+                          {item.pagador?.diferenteDoPaciente && item.pagador.nomeRazaoSocial && (
+                            <Badge
+                              variant="outline"
+                              className="text-[9px] px-1.5 py-0 bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/30 font-semibold flex items-center gap-0.5"
+                              title={`Tomador da NFS-e: ${item.pagador.nomeRazaoSocial}`}
+                            >
+                              <Building2 className="h-2.5 w-2.5" /> PJ: {item.pagador.nomeRazaoSocial.slice(0, 16)}...
                             </Badge>
                           )}
                         </div>
@@ -527,9 +562,20 @@ Relatório gerado em ${new Date().toLocaleDateString('pt-BR')}`;
       {/* Modal Individual do Paciente */}
       <ModalExportarNotaFiscalPaciente
         open={modalPacienteOpen}
-        onOpenChange={setModalPacienteOpen}
+        onOpenChange={(isOpen) => {
+          setModalPacienteOpen(isOpen);
+          if (!isOpen) {
+            setVersaoPagadores((v) => v + 1);
+          }
+        }}
         dados={pacienteSelecionadoNF}
         configuracoes={configuracoes}
+        onPagadorAtualizado={(_pacienteId, novoPagador) => {
+          if (pacienteSelecionadoNF) {
+            setPacienteSelecionadoNF((prev) => (prev ? { ...prev, pagador: novoPagador } : null));
+          }
+          setVersaoPagadores((v) => v + 1);
+        }}
       />
     </>
   );

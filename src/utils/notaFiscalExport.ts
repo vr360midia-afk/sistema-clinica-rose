@@ -1,6 +1,7 @@
 /**
  * Utilitários para extração, agregação e exportação de dados para Nota Fiscal (NFS-e)
  * e Contabilidade Odontológica (de cada paciente e do fechamento mensal).
+ * Suporta Pagador (Empresa CNPJ / Responsável) e Favorecido (Paciente Beneficiário).
  */
 
 import { Transacao, Paciente } from '@/types/shared';
@@ -15,6 +16,16 @@ export interface ProcedimentoItemNF {
   valorTotal: number;
 }
 
+export interface PagadorNotaFiscal {
+  diferenteDoPaciente: boolean;
+  tipo: 'cnpj' | 'cpf';
+  nomeRazaoSocial: string;
+  documento: string; // CNPJ ou CPF
+  endereco?: string;
+  telefone?: string;
+  email?: string;
+}
+
 export interface DadosNotaFiscalPaciente {
   pacienteId: string;
   pacienteNome: string;
@@ -23,6 +34,8 @@ export interface DadosNotaFiscalPaciente {
   endereco?: string;
   telefone?: string;
   email?: string;
+  // Dados do Pagador (Pessoa Jurídica / CNPJ ou Terceiro pagador)
+  pagador?: PagadorNotaFiscal;
   orcamentoId?: string;
   orcamentoTitulo: string;
   procedimentos: ProcedimentoItemNF[];
@@ -47,6 +60,7 @@ export interface ResumoNotaFiscalMes {
   totalPacientes: number;
   totalComCpf: number;
   totalSemCpf: number;
+  totalComPagadorEmpresa: number;
   itens: DadosNotaFiscalPaciente[];
 }
 
@@ -63,7 +77,48 @@ export const formatarCpf = (cpf?: string): string => {
 };
 
 /**
+ * Formata CPF ou CNPJ de acordo com a quantidade de dígitos
+ */
+export const formatarCnpjCpf = (value?: string): string => {
+  if (!value) return '';
+  const digits = value.replace(/\D/g, '');
+  if (digits.length <= 11) {
+    return digits
+      .replace(/^(\d{3})(\d)/, '$1.$2')
+      .replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3')
+      .replace(/\.(\d{3})(\d{1,2})$/, '.$1-$2');
+  }
+  return digits
+    .replace(/^(\d{2})(\d)/, '$1.$2')
+    .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+    .replace(/\.(\d{3})(\d)/, '.$1/$2')
+    .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
+};
+
+/**
+ * Carrega dados do pagador salvos no localStorage para este paciente
+ */
+export const carregarPagadorSalvo = (pacienteId: string): PagadorNotaFiscal | null => {
+  try {
+    const raw = localStorage.getItem(`sistema_clinica_pagador_nf_${pacienteId}`);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Salva dados do pagador no localStorage para este paciente
+ */
+export const salvarPagadorSalvo = (pacienteId: string, pagador: PagadorNotaFiscal) => {
+  try {
+    localStorage.setItem(`sistema_clinica_pagador_nf_${pacienteId}`, JSON.stringify(pagador));
+  } catch {}
+};
+
+/**
  * Gera texto formatado para o campo "Discriminação dos Serviços" da Nota Fiscal de Serviço (NFS-e)
+ * destacando Tomador / Pagador (Empresa ou Terceiro) e Beneficiário (Paciente).
  */
 export const gerarTextoDiscriminacaoNF = (
   dados: DadosNotaFiscalPaciente,
@@ -82,17 +137,38 @@ export const gerarTextoDiscriminacaoNF = (
   const formas = dados.metodosPagamento.length > 0 ? dados.metodosPagamento.join(', ') : 'PIX / Dinheiro';
   const datas = dados.datasPagamentoMes.length > 0 ? dados.datasPagamentoMes.join(', ') : 'No mês';
 
-  return `PRESTAÇÃO DE SERVIÇOS ODONTOLÓGICOS
-Paciente / Tomador: ${dados.pacienteNome}
+  const temPagadorDiferente = Boolean(
+    dados.pagador?.diferenteDoPaciente && dados.pagador.nomeRazaoSocial?.trim()
+  );
+
+  let blocoPartes = '';
+  if (temPagadorDiferente && dados.pagador) {
+    const labelDoc = dados.pagador.tipo === 'cnpj' ? 'CNPJ' : 'CPF';
+    blocoPartes = `TOMADOR / PAGADOR (DADOS DE FATURAMENTO DA NFS-e):
+Razão Social / Nome: ${dados.pagador.nomeRazaoSocial}
+${labelDoc}: ${formatarCnpjCpf(dados.pagador.documento)}
+${dados.pagador.endereco ? `Endereço Pagador: ${dados.pagador.endereco}\n` : ''}${dados.pagador.telefone ? `Telefone: ${dados.pagador.telefone}\n` : ''}
+BENEFICIÁRIO / FAVORECIDO (QUEM RECEBEU O TRATAMENTO):
+Paciente: ${dados.pacienteNome}
+CPF do Paciente: ${dados.cpf ? formatarCpf(dados.cpf) : 'Não informado'}
+${dados.endereco ? `Endereço Paciente: ${dados.endereco}\n` : ''}`;
+  } else {
+    blocoPartes = `TOMADOR E BENEFICIÁRIO DO TRATAMENTO:
+Paciente: ${dados.pacienteNome}
 CPF: ${dados.cpf ? formatarCpf(dados.cpf) : 'Não informado'}
-${dados.endereco ? `Endereço: ${dados.endereco}\n` : ''}${dados.telefone ? `Telefone: ${dados.telefone}\n` : ''}
-DISCRIMINAÇÃO DOS PROCEDIMENTOS:
+${dados.endereco ? `Endereço: ${dados.endereco}\n` : ''}${dados.telefone ? `Telefone: ${dados.telefone}\n` : ''}`;
+  }
+
+  return `PRESTAÇÃO DE SERVIÇOS ODONTOLÓGICOS
+
+${blocoPartes}
+DISCRIMINAÇÃO DOS PROCEDIMENTOS ODONTOLÓGICOS:
 ${procsTexto}
 
 VALORES FISCAIS:
-- Valor Recebido (Base da NFS-e): ${formatMoney(dados.valorRecebidoNoMes)}
-- Valor Total do Tratamento: ${formatMoney(dados.valorTotalTratamento)}
-${dados.saldoRestante > 0 ? `- Saldo a Pagar Futuro: ${formatMoney(dados.saldoRestante)}\n` : ''}- Forma(s) de Pagamento: ${formas}
+- Valor Recebido no Período (Base da NFS-e): ${formatMoney(dados.valorRecebidoNoMes)}
+- Valor Total Contratado: ${formatMoney(dados.valorTotalTratamento)}
+${dados.saldoRestante > 0 ? `- Saldo Vincendo: ${formatMoney(dados.saldoRestante)}\n` : ''}- Forma(s) de Pagamento: ${formas}
 - Data(s) de Quitação: ${datas}
 ${dados.orcamentoId ? `- Ref. Orçamento/Contrato: #${dados.orcamentoId.slice(0, 8).toUpperCase()}` : ''}`;
 };
@@ -158,6 +234,7 @@ export const gerarDadosNotaFiscalMes = ({
   let totalRecebidoMes = 0;
   let totalComCpf = 0;
   let totalSemCpf = 0;
+  let totalComPagadorEmpresa = 0;
 
   gruposMap.forEach((grupo) => {
     const paciente = pacientesMap.get(grupo.pacienteId);
@@ -230,6 +307,12 @@ export const gerarDadosNotaFiscalMes = ({
       totalSemCpf++;
     }
 
+    // Recupera dados salvos do Pagador (Empresa / Terceiro) se houver
+    const pagadorSalvo = grupo.pacienteId ? carregarPagadorSalvo(grupo.pacienteId) : null;
+    if (pagadorSalvo?.diferenteDoPaciente && pagadorSalvo.tipo === 'cnpj') {
+      totalComPagadorEmpresa++;
+    }
+
     const pacienteNome =
       paciente?.nome ||
       grupo.transacoes[0]?.pacienteNome ||
@@ -244,6 +327,7 @@ export const gerarDadosNotaFiscalMes = ({
       endereco: paciente?.endereco,
       telefone: paciente?.telefone,
       email: paciente?.email,
+      pagador: pagadorSalvo || undefined,
       orcamentoId: grupo.orcamentoId,
       orcamentoTitulo: tratamentoDescricao,
       procedimentos,
@@ -279,22 +363,28 @@ export const gerarDadosNotaFiscalMes = ({
     totalPacientes: itens.length,
     totalComCpf,
     totalSemCpf,
+    totalComPagadorEmpresa,
     itens,
   };
 };
 
 /**
  * Exporta a planilha em CSV compatível com Excel para a contabilidade
+ * com colunas de Tomador/Pagador e Favorecido/Paciente.
  */
 export const exportarPlanilhaNotaFiscalCSV = (
   itens: DadosNotaFiscalPaciente[],
   nomeArquivo: string
 ) => {
   const headers = [
-    'Nome do Paciente',
-    'CPF',
-    'RG',
-    'Endereço',
+    'Beneficiário / Paciente (Favorecido)',
+    'CPF do Paciente',
+    'Pagador da NFS-e (Tomador)',
+    'Tipo do Pagador',
+    'CNPJ / CPF do Pagador',
+    'Endereço do Pagador',
+    'RG do Paciente',
+    'Endereço do Paciente',
     'Telefone',
     'E-mail',
     'Tratamento / Procedimentos',
@@ -307,7 +397,7 @@ export const exportarPlanilhaNotaFiscalCSV = (
     'Conta(s) de Entrada',
     'Data(s) de Recebimento',
     'Nº Orçamento',
-    'Status CPF',
+    'Status CPF Paciente',
   ];
 
   const rows = itens.map((item) => {
@@ -315,9 +405,26 @@ export const exportarPlanilhaNotaFiscalCSV = (
       .map((p) => `${p.nome} (${p.quantidade}x R$ ${p.valorUnitario.toFixed(2)})`)
       .join('; ');
 
+    const temPagador = Boolean(item.pagador?.diferenteDoPaciente && item.pagador.nomeRazaoSocial);
+    const nomePagador = temPagador ? item.pagador!.nomeRazaoSocial : item.pacienteNome;
+    const tipoPagador = temPagador
+      ? item.pagador!.tipo === 'cnpj'
+        ? 'Pessoa Jurídica (Empresa/CNPJ)'
+        : 'Pessoa Física (Terceiro/CPF)'
+      : 'Próprio Paciente';
+    const docPagador = temPagador
+      ? formatarCnpjCpf(item.pagador!.documento)
+      : item.cpf
+      ? formatarCpf(item.cpf)
+      : 'SEM CPF';
+
     return [
       item.pacienteNome,
       item.cpf ? formatarCpf(item.cpf) : 'SEM CPF CADASTRADO',
+      nomePagador,
+      tipoPagador,
+      docPagador,
+      item.pagador?.endereco || '',
       item.rg || '',
       item.endereco || '',
       item.telefone || '',
