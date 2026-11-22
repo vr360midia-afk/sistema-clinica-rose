@@ -108,6 +108,13 @@ export interface Transacao extends BaseEntity {
   orcamentoId?: string;
   contaBancaria?: string;
   contaBancariaNome?: string;
+  comprovantes?: string[];
+  comprovanteUrl?: string;
+  pagadorDiferente?: boolean;
+  pagadorTipo?: 'cnpj' | 'cpf';
+  pagadorNome?: string;
+  pagadorDocumento?: string;
+  pagadorEndereco?: string;
 }
 
 export type TipoTransacao = 'receita' | 'despesa';

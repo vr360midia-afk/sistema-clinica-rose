@@ -228,6 +228,40 @@ class SupabaseService {
         }
         return undefined;
       })(),
+      pagadorDiferente: (() => {
+        if (typeof data.observacoes === 'string') {
+          return data.observacoes.includes('[pagador:');
+        }
+        return false;
+      })(),
+      pagadorTipo: (() => {
+        if (typeof data.observacoes === 'string') {
+          const match = data.observacoes.match(/\[pagador:([^|\]]*)\|([^|\]]*)\|([^|\]]*)\|?([^\]]*)\]/);
+          if (match && match[1]) return match[1] as 'cnpj' | 'cpf';
+        }
+        return undefined;
+      })(),
+      pagadorNome: (() => {
+        if (typeof data.observacoes === 'string') {
+          const match = data.observacoes.match(/\[pagador:([^|\]]*)\|([^|\]]*)\|([^|\]]*)\|?([^\]]*)\]/);
+          if (match && match[2]) return match[2];
+        }
+        return undefined;
+      })(),
+      pagadorDocumento: (() => {
+        if (typeof data.observacoes === 'string') {
+          const match = data.observacoes.match(/\[pagador:([^|\]]*)\|([^|\]]*)\|([^|\]]*)\|?([^\]]*)\]/);
+          if (match && match[3]) return match[3];
+        }
+        return undefined;
+      })(),
+      pagadorEndereco: (() => {
+        if (typeof data.observacoes === 'string') {
+          const match = data.observacoes.match(/\[pagador:([^|\]]*)\|([^|\]]*)\|([^|\]]*)\|?([^\]]*)\]/);
+          if (match && match[4]) return match[4];
+        }
+        return undefined;
+      })(),
       restauracoesPreexistentes: (() => {
         if (data.restauracoes_preexistentes) return data.restauracoes_preexistentes;
         if (typeof data.odontograma === 'string') {
@@ -364,6 +398,16 @@ class SupabaseService {
         let obs = typeof clonedData.observacoes === 'string' ? clonedData.observacoes : '';
         obs = obs.replace(/\[conta:[^\]]*\]/g, '').trim();
         clonedData.observacoes = obs ? `${obs} ${contaTag}` : contaTag;
+      }
+      if (clonedData.pagadorDiferente && clonedData.pagadorNome) {
+        const pagadorTag = `[pagador:${clonedData.pagadorTipo || 'cnpj'}|${clonedData.pagadorNome || ''}|${clonedData.pagadorDocumento || ''}|${clonedData.pagadorEndereco || ''}]`;
+        let obs = typeof clonedData.observacoes === 'string' ? clonedData.observacoes : '';
+        obs = obs.replace(/\[pagador:[^\]]*\]/g, '').trim();
+        clonedData.observacoes = obs ? `${obs} ${pagadorTag}` : pagadorTag;
+      } else if (clonedData.pagadorDiferente === false) {
+        let obs = typeof clonedData.observacoes === 'string' ? clonedData.observacoes : '';
+        obs = obs.replace(/\[pagador:[^\]]*\]/g, '').trim();
+        clonedData.observacoes = obs;
       }
     }
     if (table === 'prontuarios' && clonedData.restauracoesPreexistentes) {

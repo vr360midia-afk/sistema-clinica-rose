@@ -30,6 +30,7 @@ import QuickPatientModal from '@/components/agenda/QuickPatientModal';
 import { useContasBancarias } from '@/hooks/useContasBancarias';
 import { ModalContasBancarias } from './ModalContasBancarias';
 import { Building2 } from 'lucide-react';
+import { carregarPagadorSalvo, salvarPagadorSalvo } from '@/utils/notaFiscalExport';
 
 interface TransactionFormProps {
   isOpen: boolean;
@@ -73,7 +74,12 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId, tipoI
     parceiroId: '',
     valorParceiro: '',
     orcamentoId: '',
-    comprovantes: [] as string[]
+    comprovantes: [] as string[],
+    pagadorDiferente: false,
+    pagadorTipo: 'cnpj' as 'cnpj' | 'cpf',
+    pagadorNome: '',
+    pagadorDocumento: '',
+    pagadorEndereco: '',
   });
 
   // Múltiplas Formas de Pagamento (Split / Entrada + Restante)
@@ -146,7 +152,12 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId, tipoI
     parceiroId: '',
     valorParceiro: '',
     orcamentoId: '',
-    comprovantes: [] as string[]
+    comprovantes: [] as string[],
+    pagadorDiferente: false,
+    pagadorTipo: 'cnpj' as 'cnpj' | 'cpf',
+    pagadorNome: '',
+    pagadorDocumento: '',
+    pagadorEndereco: '',
   };
 
   const prevIsOpenRef = useRef(false);
@@ -165,6 +176,19 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId, tipoI
         const tipoIni = (transacao.tipo || 'receita') as TipoTransacao;
         // Para uma receita em pix ou dinheiro, ou se vier explicitamente pago, define como pago
         const statusIni = (transacao.status || (tipoIni === 'receita' && (metodoIni === 'pix' || metodoIni === 'dinheiro') ? 'pago' : 'pago')) as StatusTransacao;
+
+        const pidParaPagador = transacao.pacienteId || pacienteId || '';
+        const pagadorSalvo = pidParaPagador ? carregarPagadorSalvo(pidParaPagador) : null;
+        const temPagadorNaTransacao = Boolean(
+          transacao.pagadorDiferente ||
+          transacao.pagadorNome ||
+          (typeof transacao.observacoes === 'string' && transacao.observacoes.includes('[pagador:'))
+        );
+        const pagadorDiferente = temPagadorNaTransacao || Boolean(pagadorSalvo?.diferenteDoPaciente);
+        const pagadorTipo = (transacao.pagadorTipo || pagadorSalvo?.tipo || 'cnpj') as 'cnpj' | 'cpf';
+        const pagadorNome = transacao.pagadorNome || pagadorSalvo?.nomeRazaoSocial || '';
+        const pagadorDocumento = transacao.pagadorDocumento || pagadorSalvo?.documento || '';
+        const pagadorEndereco = transacao.pagadorEndereco || pagadorSalvo?.endereco || '';
 
         setFormData({
           pacienteId: transacao.pacienteId || pacienteId || '',
@@ -185,7 +209,12 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId, tipoI
           orcamentoId: transacao.orcamentoId || '',
           comprovantes: Array.isArray(transacao.comprovantes)
             ? transacao.comprovantes
-            : (transacao.comprovanteUrl ? [transacao.comprovanteUrl] : [])
+            : (transacao.comprovanteUrl ? [transacao.comprovanteUrl] : []),
+          pagadorDiferente,
+          pagadorTipo,
+          pagadorNome,
+          pagadorDocumento,
+          pagadorEndereco,
         });
         if (transacao.taxaCartaoValor !== undefined && transacao.taxaCartaoValor !== null) {
           setTaxaCartaoValorManual(String(transacao.taxaCartaoValor));
@@ -195,6 +224,8 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId, tipoI
       } else {
         const tipoDefinido = tipoInicial || 'receita';
         const contaSug = obterContaSugeridaParaMetodo('pix', tipoDefinido);
+        const pagadorSalvoNovo = pacienteId ? carregarPagadorSalvo(pacienteId) : null;
+
         setFormData({
           ...emptyForm,
           tipo: tipoDefinido,
@@ -203,6 +234,11 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId, tipoI
           contaBancaria: contaSug?.id || '',
           contaBancariaNome: contaSug?.nome || '',
           pacienteId: pacienteId || '',
+          pagadorDiferente: Boolean(pagadorSalvoNovo?.diferenteDoPaciente),
+          pagadorTipo: pagadorSalvoNovo?.tipo || 'cnpj',
+          pagadorNome: pagadorSalvoNovo?.nomeRazaoSocial || '',
+          pagadorDocumento: pagadorSalvoNovo?.documento || '',
+          pagadorEndereco: pagadorSalvoNovo?.endereco || '',
         });
         setTaxaCartaoValorManual('');
         setModoMultiplasFormas(false);
@@ -411,6 +447,11 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId, tipoI
                 contaBancaria: forma.contaBancaria || undefined,
                 contaBancariaNome: forma.contaBancariaNome || (forma.contaBancaria ? getContaById(forma.contaBancaria)?.nome : undefined),
                 comprovantes: formData.comprovantes?.length ? formData.comprovantes : undefined,
+                pagadorDiferente: formData.pagadorDiferente,
+                pagadorTipo: formData.pagadorTipo,
+                pagadorNome: formData.pagadorNome?.trim() || undefined,
+                pagadorDocumento: formData.pagadorDocumento?.trim() || undefined,
+                pagadorEndereco: formData.pagadorEndereco?.trim() || undefined,
               });
               totalLancamentos++;
             }
@@ -435,6 +476,11 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId, tipoI
               contaBancaria: forma.contaBancaria || undefined,
               contaBancariaNome: forma.contaBancariaNome || (forma.contaBancaria ? getContaById(forma.contaBancaria)?.nome : undefined),
               comprovantes: formData.comprovantes?.length ? formData.comprovantes : undefined,
+              pagadorDiferente: formData.pagadorDiferente,
+              pagadorTipo: formData.pagadorTipo,
+              pagadorNome: formData.pagadorNome?.trim() || undefined,
+              pagadorDocumento: formData.pagadorDocumento?.trim() || undefined,
+              pagadorEndereco: formData.pagadorEndereco?.trim() || undefined,
             });
             totalLancamentos++;
           }
@@ -501,7 +547,7 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId, tipoI
       const transactionData = {
         ...rest,
         pacienteId: pid,
-        pacienteNome: pacienteNome || rest.pacienteNome,
+        pacienteNome: pacienteNome || (rest as any).pacienteNome,
         valor: valorBruto,
         categoria: formData.tipo === 'despesa' && parceiro ? 'parceria' : (rest as any).categoria,
         taxaCartaoPercentual: taxaPerc,
@@ -516,7 +562,24 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId, tipoI
         contaBancaria: formData.contaBancaria || undefined,
         contaBancariaNome: formData.contaBancariaNome || (formData.contaBancaria ? getContaById(formData.contaBancaria)?.nome : undefined),
         comprovantes: formData.comprovantes?.length ? formData.comprovantes : undefined,
+        pagadorDiferente: formData.pagadorDiferente,
+        pagadorTipo: formData.pagadorTipo,
+        pagadorNome: formData.pagadorNome?.trim() || undefined,
+        pagadorDocumento: formData.pagadorDocumento?.trim() || undefined,
+        pagadorEndereco: formData.pagadorEndereco?.trim() || undefined,
       };
+
+      if (formData.tipo === 'receita' && pid) {
+        if (formData.pagadorDiferente && formData.pagadorNome?.trim()) {
+          salvarPagadorSalvo(pid, {
+            diferenteDoPaciente: true,
+            tipo: formData.pagadorTipo,
+            nomeRazaoSocial: formData.pagadorNome.trim(),
+            documento: formData.pagadorDocumento?.trim() || '',
+            endereco: formData.pagadorEndereco?.trim() || '',
+          });
+        }
+      }
 
       if (isEdit) {
         await updateTransacao(transacao.id, transactionData);
@@ -569,7 +632,7 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId, tipoI
             const opNome = operadoras.find(o => o.id === selectedOperadoraId)?.nome || 'Cartão';
             const taxaData = {
               pacienteId: pid,
-              pacienteNome: pacienteNome || rest.pacienteNome,
+              pacienteNome: pacienteNome || (rest as any).pacienteNome,
               tipo: 'despesa' as TipoTransacao,
               status: formData.status,
               categoria: catDespesa,
@@ -636,7 +699,7 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId, tipoI
           const opNome = operadoras.find(o => o.id === selectedOperadoraId)?.nome || 'Cartão';
           await addTransacao({
             pacienteId: pid,
-            pacienteNome: pacienteNome || rest.pacienteNome,
+            pacienteNome: pacienteNome || (rest as any).pacienteNome,
             tipo: 'despesa',
             status: formData.status,
             categoria: catDespesa,
@@ -694,11 +757,168 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId, tipoI
               pacientes={pacientes}
               value={formData.pacienteId}
               fallbackNome={(transacao as any)?.pacienteNome}
-              onChange={(value) => setFormData((prev) => ({ ...prev, pacienteId: value }))}
+              onChange={(value) => {
+                const salvo = value ? carregarPagadorSalvo(value) : null;
+                setFormData((prev) => ({
+                  ...prev,
+                  pacienteId: value,
+                  ...(salvo?.diferenteDoPaciente && !prev.pagadorNome
+                    ? {
+                        pagadorDiferente: true,
+                        pagadorTipo: salvo.tipo || 'cnpj',
+                        pagadorNome: salvo.nomeRazaoSocial || '',
+                        pagadorDocumento: salvo.documento || '',
+                        pagadorEndereco: salvo.endereco || '',
+                      }
+                    : {})
+                }));
+              }}
               onAddNew={() => setIsQuickPatientModalOpen(true)}
               placeholder={formData.tipo === 'despesa' ? 'Vincular a um paciente (opcional)...' : 'Digite o nome para buscar ou selecione...'}
             />
           </div>
+
+          {/* Opção de Pagador (Empresa CNPJ ou Terceiro) */}
+          {formData.tipo === 'receita' && (
+            <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-3 space-y-2.5">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-1.5">
+                    <Building2 className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                    <Label htmlFor="toggle-pagador" className="text-xs font-bold text-foreground cursor-pointer">
+                      Pagador diferente do paciente? (Empresa CNPJ / Terceiro)
+                    </Label>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Ative quando uma Empresa (CNPJ) pagar pelo paciente (favorecido do tratamento).
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                  <span className="text-[11px] font-medium text-muted-foreground">
+                    {formData.pagadorDiferente ? 'Empresa / Terceiro' : 'Próprio Paciente'}
+                  </span>
+                  <Switch
+                    id="toggle-pagador"
+                    checked={formData.pagadorDiferente}
+                    onCheckedChange={(checked) => {
+                      let nome = formData.pagadorNome;
+                      let doc = formData.pagadorDocumento;
+                      let tipo = formData.pagadorTipo;
+                      let end = formData.pagadorEndereco;
+                      if (checked && !nome && formData.pacienteId) {
+                        const salvo = carregarPagadorSalvo(formData.pacienteId);
+                        if (salvo) {
+                          nome = salvo.nomeRazaoSocial || '';
+                          doc = salvo.documento || '';
+                          tipo = salvo.tipo || 'cnpj';
+                          end = salvo.endereco || '';
+                        }
+                      }
+                      setFormData((prev) => ({
+                        ...prev,
+                        pagadorDiferente: checked,
+                        pagadorNome: nome,
+                        pagadorDocumento: doc,
+                        pagadorTipo: tipo,
+                        pagadorEndereco: end,
+                      }));
+                    }}
+                  />
+                </div>
+              </div>
+
+              {formData.pagadorDiferente && (
+                <div className="pt-2.5 border-t border-blue-500/20 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-blue-700 dark:text-blue-300">
+                      Dados do Pagador (Tomador da Nota Fiscal):
+                    </span>
+                    <div className="flex items-center bg-background/80 border p-0.5 rounded-md text-[11px]">
+                      <button
+                        type="button"
+                        onClick={() => setFormData((prev) => ({ ...prev, pagadorTipo: 'cnpj' }))}
+                        className={`px-2 py-0.5 rounded text-[11px] transition-colors font-medium ${
+                          formData.pagadorTipo === 'cnpj'
+                            ? 'bg-blue-600 text-white shadow-xs font-bold'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        🏢 Empresa (CNPJ)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormData((prev) => ({ ...prev, pagadorTipo: 'cpf' }))}
+                        className={`px-2 py-0.5 rounded text-[11px] transition-colors font-medium ${
+                          formData.pagadorTipo === 'cpf'
+                            ? 'bg-blue-600 text-white shadow-xs font-bold'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        👤 Terceiro (CPF)
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <Label className="text-[11px] font-semibold text-muted-foreground mb-1 block">
+                        {formData.pagadorTipo === 'cnpj' ? 'Razão Social / Nome da Empresa *' : 'Nome Completo do Pagador *'}
+                      </Label>
+                      <Input
+                        value={formData.pagadorNome}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, pagadorNome: e.target.value }))}
+                        placeholder={formData.pagadorTipo === 'cnpj' ? 'Ex: Tech Soluções Odonto Ltda' : 'Ex: Nome de quem pagou'}
+                        className="h-8 text-xs bg-background"
+                      />
+                    </div>
+
+                    <div>
+                      <Label className="text-[11px] font-semibold text-muted-foreground mb-1 block">
+                        {formData.pagadorTipo === 'cnpj' ? 'CNPJ da Empresa *' : 'CPF do Pagador *'}
+                      </Label>
+                      <Input
+                        value={formData.pagadorDocumento}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, pagadorDocumento: e.target.value }))}
+                        placeholder={formData.pagadorTipo === 'cnpj' ? '00.000.000/0001-00' : '000.000.000-00'}
+                        className="h-8 text-xs font-mono bg-background"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <Label className="text-[11px] font-semibold text-muted-foreground mb-1 block">
+                        Endereço Fiscal do Pagador (Opcional)
+                      </Label>
+                      <Input
+                        value={formData.pagadorEndereco}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, pagadorEndereco: e.target.value }))}
+                        placeholder="Ex: Av. Paulista, 1000 - São Paulo/SP"
+                        className="h-8 text-xs bg-background"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Resumo visual: Favorecido vs Pagador */}
+                  <div className="p-2 bg-background/90 rounded-md border border-border/60 text-[11px] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-muted-foreground">
+                    <div>
+                      👤 <strong>Favorecido (Paciente):</strong>{' '}
+                      <span className="text-foreground font-semibold">
+                        {pacientes.find(p => p.id === formData.pacienteId)?.nome || (transacao as any)?.pacienteNome || 'Paciente selecionado'}
+                      </span>
+                    </div>
+                    {formData.pagadorNome && (
+                      <div>
+                        🏢 <strong>Pagador (NFS-e):</strong>{' '}
+                        <span className="text-blue-600 dark:text-blue-400 font-semibold">
+                          {formData.pagadorNome}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {formData.tipo === 'receita' && orcamentosDisponiveis.length > 0 && (
             <div>
