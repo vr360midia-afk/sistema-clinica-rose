@@ -103,6 +103,8 @@ export interface Transacao extends BaseEntity {
   parceiroNome?: string;
   valorParceiro?: number;
   orcamentoId?: string;
+  contaBancaria?: string;
+  contaBancariaNome?: string;
 }
 
 export type TipoTransacao = 'receita' | 'despesa';

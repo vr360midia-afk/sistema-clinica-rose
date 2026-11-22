@@ -25,6 +25,9 @@ import { useConfiguracoesContrato } from '@/hooks/useConfiguracoesContrato';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { useOrcamentos } from '@/hooks/useOrcamentos';
 import { useMaquinasCartao, calcularTaxaCartao } from '@/hooks/useMaquinasCartao';
+import { useContasBancarias } from '@/hooks/useContasBancarias';
+import { ModalContasBancarias } from './ModalContasBancarias';
+import { Building2 } from 'lucide-react';
 import { calcularSaldosOrcamentos } from '@/utils/orcamentoSaldo';
 import { formatMoney } from '@/utils/exportCsv';
 import { gerarRecibo } from '@/utils/recibo';
@@ -59,6 +62,11 @@ export const ModalReceberPagamento = ({
   const { configuracoes } = useConfiguracoes();
   const { orcamentos, reload: reloadOrcamentos } = useOrcamentos();
   const { operadoras, operadoraPadrao, config: configMaquinas } = useMaquinasCartao();
+  const { contas, contasAtivas, obterContaSugeridaParaMetodo, getContaById } = useContasBancarias();
+  const [modalContasOpen, setModalContasOpen] = useState(false);
+  const [contaId, setContaId] = useState<string>('inter');
+  const [mistoPixContaId, setMistoPixContaId] = useState<string>('inter');
+  const [mistoCartaoContaId, setMistoCartaoContaId] = useState<string>('infinitepay');
 
   const [pacienteId, setPacienteId] = useState('');
   const [orcamentoId, setOrcamentoId] = useState<string>('nenhum');
@@ -102,6 +110,12 @@ export const ModalReceberPagamento = ({
           setMetodo(m as any);
         } else {
           setMetodo('pix');
+        }
+        if (transacaoPendente.contaBancaria) {
+          setContaId(transacaoPendente.contaBancaria);
+        } else {
+          const sug = obterContaSugeridaParaMetodo(m || 'pix', 'receita');
+          setContaId(sug?.id || 'inter');
         }
 
         // Auto-detecta operadora do cartão da transação ou descrição
@@ -414,6 +428,8 @@ export const ModalReceberPagamento = ({
 
   const handleMetodoChange = (novoMetodo: any) => {
     setMetodo(novoMetodo);
+    const sug = obterContaSugeridaParaMetodo(novoMetodo === 'misto' ? 'pix' : novoMetodo, 'receita');
+    if (sug) setContaId(sug.id);
     if (novoMetodo === 'misto' && valNum > 0) {
       if (!mistoPixValor && !mistoCartaoValor) {
         const metade = Number((valNum / 2).toFixed(2));
@@ -464,6 +480,8 @@ export const ModalReceberPagamento = ({
             data: dataObj,
             descricao: `${descricao.trim() || 'Recebimento'} (PIX)`,
             orcamentoId: orcIdFinal,
+            contaBancaria: mistoPixContaId,
+            contaBancariaNome: getContaById(mistoPixContaId)?.nome,
           });
         }
 
@@ -479,6 +497,8 @@ export const ModalReceberPagamento = ({
             data: dataObj,
             descricao: `${descricao.trim() || 'Recebimento'} (Cartão ${mistoParcelasCartao}x ${mistoCalculoCartao?.operadora?.nome || ''})`,
             orcamentoId: orcIdFinal,
+            contaBancaria: mistoCartaoContaId,
+            contaBancariaNome: getContaById(mistoCartaoContaId)?.nome,
           };
           if (mistoCalculoCartao) {
             dadosCartao.taxaCartaoPercentual = mistoCalculoCartao.taxaPerc;
@@ -561,6 +581,8 @@ export const ModalReceberPagamento = ({
           metodoPagamento: metodo,
           valor: valNum,
           descricao: descricao.trim() || transacaoPendente.descricao,
+          contaBancaria: contaId,
+          contaBancariaNome: getContaById(contaId)?.nome,
         };
         if (orcIdFinal) {
           updates.orcamentoId = orcIdFinal;
@@ -1023,6 +1045,24 @@ export const ModalReceberPagamento = ({
                       className="h-7 text-xs font-bold text-emerald-600 dark:text-emerald-400"
                     />
                   </div>
+                  <div className="space-y-0.5 pt-0.5">
+                    <Label className="text-[10px] text-muted-foreground">Banco / Conta do PIX</Label>
+                    <Select value={mistoPixContaId} onValueChange={setMistoPixContaId}>
+                      <SelectTrigger className="h-6 text-[10px] font-semibold px-1.5">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {contasAtivas.map((c) => (
+                          <SelectItem key={c.id} value={c.id} className="text-xs">
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: c.cor }} />
+                              <span>{c.nome}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
 
                 {/* Parte 2: Cartão */}
@@ -1046,6 +1086,24 @@ export const ModalReceberPagamento = ({
                       onChange={(e) => setMistoCartaoValor(e.target.value)}
                       className="h-7 text-xs font-bold text-teal-600 dark:text-teal-400"
                     />
+                  </div>
+                  <div className="space-y-0.5 pt-0.5">
+                    <Label className="text-[10px] text-muted-foreground">Conta / Adquirente do Cartão</Label>
+                    <Select value={mistoCartaoContaId} onValueChange={setMistoCartaoContaId}>
+                      <SelectTrigger className="h-6 text-[10px] font-semibold px-1.5">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {contasAtivas.map((c) => (
+                          <SelectItem key={c.id} value={c.id} className="text-xs">
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: c.cor }} />
+                              <span>{c.nome}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   <div className="grid grid-cols-2 sm:grid-cols-5 gap-1 pt-0.5">

@@ -27,6 +27,9 @@ import { somarMesesSeguro } from '@/utils/documentoFormat';
 import { useMaquinasCartao, calcularTaxaCartao } from '@/hooks/useMaquinasCartao';
 import { PacienteCombobox } from '@/components/pacientes/PacienteCombobox';
 import QuickPatientModal from '@/components/agenda/QuickPatientModal';
+import { useContasBancarias } from '@/hooks/useContasBancarias';
+import { ModalContasBancarias } from './ModalContasBancarias';
+import { Building2 } from 'lucide-react';
 
 interface TransactionFormProps {
   isOpen: boolean;
@@ -46,6 +49,8 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId, tipoI
   const { parceiros } = useParceiros();
   const { orcamentos } = useOrcamentos();
   const { operadoras, operadoraPadrao, config: configMaquinas } = useMaquinasCartao();
+  const { contas, contasAtivas, obterContaSugeridaParaMetodo, getContaById } = useContasBancarias();
+  const [modalContasOpen, setModalContasOpen] = useState(false);
   const [selectedOperadoraId, setSelectedOperadoraId] = useState<string>('infinitepay');
   const [isQuickPatientModalOpen, setIsQuickPatientModalOpen] = useState(false);
   const isEdit = !!transacao?.id;
@@ -57,6 +62,8 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId, tipoI
     tipo: 'receita' as TipoTransacao,
     status: 'pendente' as StatusTransacao,
     metodoPagamento: 'dinheiro' as MetodoPagamento,
+    contaBancaria: '',
+    contaBancariaNome: '',
     taxaCartaoPercentual: '',
     parcelas: '1',
     data: new Date(),
@@ -81,6 +88,8 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId, tipoI
       taxaCartaoPercentual: string;
       taxaCartaoValor?: string;
       operadoraCartaoId?: string;
+      contaBancaria?: string;
+      contaBancariaNome?: string;
       status: StatusTransacao;
       data: Date;
       vencimento: Date | null;
@@ -95,6 +104,8 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId, tipoI
       taxaCartaoPercentual: '',
       taxaCartaoValor: '',
       operadoraCartaoId: 'infinitepay',
+      contaBancaria: 'inter',
+      contaBancariaNome: 'Banco Inter',
       status: 'pago',
       data: new Date(),
       vencimento: null,
@@ -108,6 +119,8 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId, tipoI
       taxaCartaoPercentual: '',
       taxaCartaoValor: '',
       operadoraCartaoId: 'infinitepay',
+      contaBancaria: 'infinitepay',
+      contaBancariaNome: 'Conta InfinitePay',
       status: 'pendente',
       data: new Date(),
       vencimento: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
@@ -122,6 +135,8 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId, tipoI
     tipo: 'receita' as TipoTransacao,
     status: 'pendente' as StatusTransacao,
     metodoPagamento: 'dinheiro' as MetodoPagamento,
+    contaBancaria: '',
+    contaBancariaNome: '',
     taxaCartaoPercentual: '',
     parcelas: '1',
     data: new Date(),
@@ -157,6 +172,8 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId, tipoI
           tipo: tipoIni,
           status: statusIni,
           metodoPagamento: metodoIni,
+          contaBancaria: transacao.contaBancaria || '',
+          contaBancariaNome: transacao.contaBancariaNome || (transacao.contaBancaria ? getContaById(transacao.contaBancaria)?.nome : ''),
           taxaCartaoPercentual: transacao.taxaCartaoPercentual ? String(transacao.taxaCartaoPercentual) : '',
           parcelas: String(transacao.parcelas || 1),
           data: transacao.data ? new Date(transacao.data) : new Date(),
@@ -177,11 +194,14 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId, tipoI
         }
       } else {
         const tipoDefinido = tipoInicial || 'receita';
+        const contaSug = obterContaSugeridaParaMetodo('pix', tipoDefinido);
         setFormData({
           ...emptyForm,
           tipo: tipoDefinido,
           status: 'pago',
           metodoPagamento: 'pix',
+          contaBancaria: contaSug?.id || '',
+          contaBancariaNome: contaSug?.nome || '',
           pacienteId: pacienteId || '',
         });
         setTaxaCartaoValorManual('');
@@ -388,6 +408,8 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId, tipoI
                 parcelas: 1,
                 valorParcela: fValorParcela,
                 orcamentoId: formData.orcamentoId || undefined,
+                contaBancaria: forma.contaBancaria || undefined,
+                contaBancariaNome: forma.contaBancariaNome || (forma.contaBancaria ? getContaById(forma.contaBancaria)?.nome : undefined),
                 comprovantes: formData.comprovantes?.length ? formData.comprovantes : undefined,
               });
               totalLancamentos++;
@@ -410,6 +432,8 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId, tipoI
               parcelas: 1,
               valorParcela: valBrutoForma,
               orcamentoId: formData.orcamentoId || undefined,
+              contaBancaria: forma.contaBancaria || undefined,
+              contaBancariaNome: forma.contaBancariaNome || (forma.contaBancaria ? getContaById(forma.contaBancaria)?.nome : undefined),
               comprovantes: formData.comprovantes?.length ? formData.comprovantes : undefined,
             });
             totalLancamentos++;
@@ -489,6 +513,8 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId, tipoI
         parceiroNome: parceiro?.nome,
         valorParceiro: parceiro ? valorParceiro : undefined,
         orcamentoId: formData.orcamentoId || undefined,
+        contaBancaria: formData.contaBancaria || undefined,
+        contaBancariaNome: formData.contaBancariaNome || (formData.contaBancaria ? getContaById(formData.contaBancaria)?.nome : undefined),
         comprovantes: formData.comprovantes?.length ? formData.comprovantes : undefined,
       };
 
@@ -1276,30 +1302,83 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId, tipoI
             </div>
           ) : (
             <div className="space-y-3">
-              <div className="space-y-1">
-                <Label htmlFor="metodo" className="text-xs font-semibold">Método de Pagamento *</Label>
-                <Select
-                  value={formData.metodoPagamento}
-                  onValueChange={(value: MetodoPagamento) => {
-                    setFormData((prev) => {
-                      const ehAVista = value === 'pix' || value === 'dinheiro';
-                      const novoStatus = ehAVista && prev.status === 'pendente' && !prev.vencimento ? 'pago' : prev.status;
-                      return { ...prev, metodoPagamento: value, status: novoStatus };
-                    });
-                  }}
-                >
-                  <SelectTrigger className="font-medium h-10 w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pix">💎 PIX (Imediato / Baixa na hora)</SelectItem>
-                    <SelectItem value="cartao">💳 Cartão de Crédito / Débito</SelectItem>
-                    <SelectItem value="dinheiro">💵 Dinheiro em Espécie</SelectItem>
-                    <SelectItem value="pix_parcelado">📅 PIX Parcelado (Recorrente)</SelectItem>
-                    <SelectItem value="boleto">📄 Boleto Bancário</SelectItem>
-                    <SelectItem value="transferencia">🏦 Transferência / TED</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="metodo" className="text-xs font-semibold">Método de Pagamento *</Label>
+                  <Select
+                    value={formData.metodoPagamento}
+                    onValueChange={(value: MetodoPagamento) => {
+                      setFormData((prev) => {
+                        const ehAVista = value === 'pix' || value === 'dinheiro';
+                        const novoStatus = ehAVista && prev.status === 'pendente' && !prev.vencimento ? 'pago' : prev.status;
+                        const contaSug = obterContaSugeridaParaMetodo(value, prev.tipo);
+                        return {
+                          ...prev,
+                          metodoPagamento: value,
+                          status: novoStatus,
+                          contaBancaria: contaSug?.id || prev.contaBancaria,
+                          contaBancariaNome: contaSug?.nome || prev.contaBancariaNome,
+                        };
+                      });
+                    }}
+                  >
+                    <SelectTrigger className="font-medium h-10 w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pix">💎 PIX (Imediato / Baixa na hora)</SelectItem>
+                      <SelectItem value="cartao">💳 Cartão de Crédito / Débito</SelectItem>
+                      <SelectItem value="dinheiro">💵 Dinheiro em Espécie</SelectItem>
+                      <SelectItem value="pix_parcelado">📅 PIX Parcelado (Recorrente)</SelectItem>
+                      <SelectItem value="boleto">📄 Boleto Bancário</SelectItem>
+                      <SelectItem value="transferencia">🏦 Transferência / TED</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="contaBancaria" className="text-xs font-semibold flex items-center gap-1">
+                      <Building2 className="h-3.5 w-3.5 text-primary" />
+                      {formData.tipo === 'receita' ? 'Conta de Destino (Banco)' : 'Conta de Origem (Banco)'}
+                    </Label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setModalContasOpen(true)}
+                      className="h-5 text-[10px] text-primary hover:underline px-1 py-0 font-medium"
+                    >
+                      + Gerenciar
+                    </Button>
+                  </div>
+                  <Select
+                    value={formData.contaBancaria}
+                    onValueChange={(val) => {
+                      const c = getContaById(val);
+                      setFormData((prev) => ({
+                        ...prev,
+                        contaBancaria: val,
+                        contaBancariaNome: c?.nome || val,
+                      }));
+                    }}
+                  >
+                    <SelectTrigger id="contaBancaria" className="h-10 text-xs">
+                      <SelectValue placeholder="Selecione o banco / conta..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {contasAtivas.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          <div className="flex items-center gap-2">
+                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: c.cor }} />
+                            <span className="font-medium">{c.nome}</span>
+                            <span className="text-[10px] text-muted-foreground">({c.banco})</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               <div className="space-y-1.5">
@@ -1582,6 +1661,18 @@ const TransactionForm = ({ isOpen, onClose, onSave, transacao, pacienteId, tipoI
         setFormData((prev) => ({ ...prev, pacienteId: newPatientId }));
         setIsQuickPatientModalOpen(false);
         toast.success('Novo paciente cadastrado e selecionado!');
+      }}
+    />
+
+    <ModalContasBancarias
+      isOpen={modalContasOpen}
+      onClose={() => setModalContasOpen(false)}
+      onSelecionarConta={(c) => {
+        setFormData((prev) => ({
+          ...prev,
+          contaBancaria: c.id,
+          contaBancariaNome: c.nome,
+        }));
       }}
     />
   </>

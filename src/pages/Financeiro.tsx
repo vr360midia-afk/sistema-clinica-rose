@@ -10,12 +10,14 @@ import {
   DollarSign, TrendingUp, TrendingDown, Plus, CreditCard, Receipt, 
   Pencil, Trash2, Handshake, Target, CheckCircle2, QrCode, Search, 
   Filter, Clock, Check, AlertCircle, ArrowUpRight, ArrowDownRight, Wallet,
-  ArrowRightLeft, ChevronRight, ChevronLeft, Calendar, FileSpreadsheet, FileText
+  ArrowRightLeft, ChevronRight, ChevronLeft, Calendar, FileSpreadsheet, FileText, Building2
 } from 'lucide-react';
 import TransactionForm from '@/components/financeiro/TransactionForm';
 import { ModalReceberPagamento } from '@/components/financeiro/ModalReceberPagamento';
 import { ModalResumoVendasFechadas } from '@/components/financeiro/ModalResumoVendasFechadas';
 import { ModalRelatorioFechamento } from '@/components/financeiro/ModalRelatorioFechamento';
+import { ModalContasBancarias } from '@/components/financeiro/ModalContasBancarias';
+import { useContasBancarias } from '@/hooks/useContasBancarias';
 import ModalApresentarOrcamento from '@/components/orcamentos/ModalApresentarOrcamento';
 import { registrarAuditoria } from '@/hooks/useAuditLog';
 import { useSecurityGate } from '@/context/SecurityContext';
@@ -74,6 +76,9 @@ const Financeiro = () => {
 
   const [filtroTipo, setFiltroTipo] = useState<'todos' | 'receita' | 'despesa' | 'pix' | 'cartao' | 'pago' | 'pendente'>('todos');
   const [buscaTexto, setBuscaTexto] = useState('');
+  const { contas, contasAtivas, getContaById, calcularSaldosContas } = useContasBancarias();
+  const [modalContasOpen, setModalContasOpen] = useState(false);
+  const [filtroConta, setFiltroConta] = useState<string>('todas');
 
   const handleMudarParaMesAtual = () => {
     const dataAtual = new Date();
@@ -356,9 +361,20 @@ const Financeiro = () => {
       if (filtroTipo === 'pago') return ehTransacaoPaga(t);
       if (filtroTipo === 'pendente') return ehTransacaoPendente(t);
 
+      // Filtro por Conta Bancária
+      if (filtroConta !== 'todas') {
+        const cId = t.contaBancaria || (
+          t.tipo === 'despesa' ? 'itau' :
+          (t.metodoPagamento === 'pix' || t.metodoPagamento === 'pix_parcelado') ? 'inter' :
+          t.metodoPagamento === 'cartao' ? 'infinitepay' :
+          t.metodoPagamento === 'dinheiro' ? 'caixa_fisico' : 'inter'
+        );
+        if (cId !== filtroConta) return false;
+      }
+
       return true;
     }).sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
-  }, [filteredTransacoes, buscaTexto, filtroTipo, pacientes]);
+  }, [filteredTransacoes, buscaTexto, filtroTipo, filtroConta, pacientes]);
 
   const renderMetodoIcon = (metodo?: string) => {
     switch (metodo) {
@@ -727,6 +743,80 @@ const Financeiro = () => {
 
           {/* ABA 1: EXTRATO & FLUXO DE CAIXA */}
           <TabsContent value="fluxo" className="space-y-4">
+            {/* Widget de Saldos por Conta Bancária */}
+            <div className="p-3.5 bg-muted/20 border rounded-xl space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold flex items-center gap-1.5 text-foreground">
+                  <Building2 className="h-4 w-4 text-primary" />
+                  Saldos por Conta Financeira no Mês ({selectedMonth})
+                </span>
+                <div className="flex items-center gap-2">
+                  {filtroConta !== 'todas' && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setFiltroConta('todas')}
+                      className="h-6 text-[11px] text-muted-foreground hover:text-foreground px-2"
+                    >
+                      ✕ Limpar filtro de conta
+                    </Button>
+                  )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setModalContasOpen(true)}
+                    className="h-6 text-[11px] px-2.5 font-semibold text-primary border-primary/30 hover:bg-primary/10 gap-1"
+                  >
+                    <Plus className="h-3 w-3" /> Gerenciar Contas
+                  </Button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                {saldosContasMes.map(({ conta, totalEntradas, totalSaidas, saldoAtual }) => {
+                  const isSelected = filtroConta === conta.id;
+                  return (
+                    <div
+                      key={conta.id}
+                      onClick={() => setFiltroConta(isSelected ? 'todas' : conta.id)}
+                      className={`p-2.5 rounded-lg border cursor-pointer transition-all select-none ${
+                        isSelected
+                          ? 'bg-primary/15 border-primary shadow-sm ring-1 ring-primary'
+                          : 'bg-card hover:bg-muted/40 hover:border-primary/40'
+                      }`}
+                      title={`Clique para filtrar lançamentos de ${conta.nome}`}
+                    >
+                      <div className="flex items-center justify-between gap-1 mb-1">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span
+                            className="w-2.5 h-2.5 rounded-full shrink-0 shadow-xs"
+                            style={{ backgroundColor: conta.cor || '#3b82f6' }}
+                          />
+                          <span className="text-[11px] font-bold text-foreground truncate">
+                            {conta.nome}
+                          </span>
+                        </div>
+                        {conta.padraoPara?.[0] && (
+                          <span className="text-[9px] uppercase px-1 py-0 rounded bg-muted font-bold text-muted-foreground shrink-0">
+                            {conta.padraoPara[0]}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-sm font-black text-foreground">
+                        {formatMoney(saldoAtual)}
+                      </div>
+                      <div className="flex items-center justify-between text-[9px] text-muted-foreground mt-0.5">
+                        <span className="text-emerald-500 font-semibold">+{formatMoney(totalEntradas)}</span>
+                        {totalSaidas > 0 && <span className="text-rose-500">-{formatMoney(totalSaidas)}</span>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
             <Card>
               <CardHeader className="p-4 pb-3">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -853,6 +943,36 @@ const Financeiro = () => {
                                     : (pacNome || transacao.descricao || 'Receita')}
                                 </span>
                                 {renderMetodoIcon(transacao.metodoPagamento)}
+                                {(() => {
+                                  const cId = transacao.contaBancaria || (
+                                    transacao.tipo === 'despesa' ? 'itau' :
+                                    (transacao.metodoPagamento === 'pix' || transacao.metodoPagamento === 'pix_parcelado') ? 'inter' :
+                                    transacao.metodoPagamento === 'cartao' ? 'infinitepay' :
+                                    transacao.metodoPagamento === 'dinheiro' ? 'caixa_fisico' : 'inter'
+                                  );
+                                  const cObj = getContaById(cId);
+                                  const cNome = transacao.contaBancariaNome || cObj?.nome || cId;
+                                  const cCor = cObj?.cor || '#64748B';
+                                  return (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-[10px] gap-1 px-1.5 py-0 font-medium cursor-pointer hover:opacity-80 transition-opacity"
+                                      style={{
+                                        borderColor: `${cCor}40`,
+                                        backgroundColor: `${cCor}12`,
+                                        color: cCor,
+                                      }}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setFiltroConta(filtroConta === cId ? 'todas' : cId);
+                                      }}
+                                      title={`Filtrar por ${cNome}`}
+                                    >
+                                      <Building2 className="h-2.5 w-2.5 shrink-0" />
+                                      {cNome}
+                                    </Badge>
+                                  );
+                                })()}
                                 {transacao.orcamentoId && (
                                   <Badge variant="outline" className="text-[10px] text-muted-foreground border-dashed">
                                     Orçamento vinculado
@@ -1115,6 +1235,12 @@ const Financeiro = () => {
             }}
           />
         )}
+
+        {/* Modal de Gestão de Contas Bancárias e Financeiras */}
+        <ModalContasBancarias
+          isOpen={modalContasOpen}
+          onClose={() => setModalContasOpen(false)}
+        />
       </div>
     </Layout>
   );

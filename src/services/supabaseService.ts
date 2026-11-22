@@ -212,6 +212,22 @@ class SupabaseService {
         }
         return data.odontograma;
       })(),
+      contaBancaria: (() => {
+        if (data.conta_bancaria) return data.conta_bancaria;
+        if (typeof data.observacoes === 'string') {
+          const match = data.observacoes.match(/\[conta:([^|\]]*)\|?([^\]]*)\]/);
+          if (match && match[1]) return match[1].trim();
+        }
+        return undefined;
+      })(),
+      contaBancariaNome: (() => {
+        if (data.conta_bancaria_nome) return data.conta_bancaria_nome;
+        if (typeof data.observacoes === 'string') {
+          const match = data.observacoes.match(/\[conta:([^|\]]*)\|?([^\]]*)\]/);
+          if (match && match[2]) return match[2].trim();
+        }
+        return undefined;
+      })(),
       restauracoesPreexistentes: (() => {
         if (data.restauracoes_preexistentes) return data.restauracoes_preexistentes;
         if (typeof data.odontograma === 'string') {
@@ -340,6 +356,14 @@ class SupabaseService {
           ...extraPayload,
           __isExtraPayload: true,
         });
+      }
+    }
+    if (table === 'transacoes') {
+      if (clonedData.contaBancaria || clonedData.contaBancariaNome) {
+        const contaTag = `[conta:${clonedData.contaBancaria || ''}|${clonedData.contaBancariaNome || ''}]`;
+        let obs = typeof clonedData.observacoes === 'string' ? clonedData.observacoes : '';
+        obs = obs.replace(/\[conta:[^\]]*\]/g, '').trim();
+        clonedData.observacoes = obs ? `${obs} ${contaTag}` : contaTag;
       }
     }
     if (table === 'prontuarios' && clonedData.restauracoesPreexistentes) {
