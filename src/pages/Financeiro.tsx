@@ -502,6 +502,16 @@ const Financeiro = () => {
             </Button>
 
             <Button
+              onClick={() => setModalContasOpen(true)}
+              variant="outline"
+              className="border-primary/40 text-primary hover:bg-primary/10 font-semibold text-xs h-9 gap-1.5 shadow-sm"
+              title="Cadastrar e gerenciar contas bancárias, caixas e saldos iniciais"
+            >
+              <Building2 className="h-4 w-4 text-primary" />
+              <span>Contas Bancárias</span>
+            </Button>
+
+            <Button
               onClick={() => {
                 setTransacaoParaReceber(null);
                 setShowModalReceber(true);

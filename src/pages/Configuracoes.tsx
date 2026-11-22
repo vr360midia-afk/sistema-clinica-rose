@@ -20,6 +20,8 @@ import ConfiguracoesAgenda from '@/components/configuracoes/ConfiguracoesAgenda'
 import ConfiguracaoContratoManager from '@/components/configuracoes/ConfiguracaoContratoManager';
 import MaquinasCartaoManager from '@/components/configuracoes/MaquinasCartaoManager';
 import OrigensLeadManager from '@/components/configuracoes/OrigensLeadManager';
+import ContasBancariasManager from '@/components/configuracoes/ContasBancariasManager';
+import { Building2 } from 'lucide-react';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { Loader2 } from 'lucide-react';
 import { downloadBackupCompleto, lerArquivoBackup, restaurarBackup, type ProgressoBackup } from '@/utils/backup';
@@ -251,6 +253,10 @@ const Configuracoes = () => {
               <CreditCard className="h-4 w-4 mr-1 text-emerald-500" />
               Máquinas de Cartão
             </TabsTrigger>
+            <TabsTrigger value="contas">
+              <Building2 className="h-4 w-4 mr-1 text-primary" />
+              Contas Bancárias
+            </TabsTrigger>
             <TabsTrigger value="origens">
               <Megaphone className="h-4 w-4 mr-1 text-indigo-400" />
               Origens do Lead
@@ -273,6 +279,10 @@ const Configuracoes = () => {
 
           <TabsContent value="maquinas">
             <MaquinasCartaoManager />
+          </TabsContent>
+
+          <TabsContent value="contas">
+            <ContasBancariasManager />
           </TabsContent>
 
           <TabsContent value="origens">
