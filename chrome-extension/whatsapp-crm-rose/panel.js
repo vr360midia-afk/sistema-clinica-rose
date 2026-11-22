@@ -4,18 +4,18 @@
 // ==============================================================================
 
 const CONFIG = {
-  // Ambiente padrão: 'homolog' durante desenvolvimento e homologação; 'production' para produção.
-  DEFAULT_ENV: 'homolog',
+  // Ambiente padrão: 'production' para produção oficial da clínica
+  DEFAULT_ENV: 'production',
   environments: {
-    homolog: {
-      url: 'https://fsroaymkuopapwlnknhl.supabase.co',
-      anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZzcm9heW1rdW9wYXB3bG5rbmhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1MDA0NzMsImV4cCI6MjEwNzA3NjQ3M30.QV06zSi8oKTBz2s4x6oyHCWf_i0o8Gdu-obiE7SBOWA',
-      name: 'Homologação'
-    },
     production: {
       url: 'https://skonxcdojbkbfnfemayz.supabase.co',
       anonKey: 'sb_publishable_aldVR3R-4sj0Fs-l1-mFSA_9gPUF9YZ',
       name: 'Produção Oficial'
+    },
+    homolog: {
+      url: 'https://fsroaymkuopapwlnknhl.supabase.co',
+      anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZzcm9heW1rdW9wYXB3bG5rbmhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1MDA0NzMsImV4cCI6MjEwNzA3NjQ3M30.QV06zSi8oKTBz2s4x6oyHCWf_i0o8Gdu-obiE7SBOWA',
+      name: 'Homologação'
     }
   }
 };

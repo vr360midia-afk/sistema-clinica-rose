@@ -9,10 +9,12 @@ async function main() {
   const stageDir = 'packages/stage-extensao-prod-v2.1';
   const outDir = 'packages';
   const zipPath = path.join(outDir, 'Extensao_Clinica_Rosangela_PRODUCAO_V2.1.zip');
-  const artifactDir = 'C:\\Users\\Jhonatha\\.gemini\\antigravity\\brain\\8ac008e1-76b8-4719-a5d3-0358eeb69521';
+  const rootZip = 'Extensao_Clinica_Rosangela_PRODUCAO_V2.1.zip';
+  const artifactDir = 'C:\\Users\\Jhonatha\\.gemini\\antigravity\\brain\\e4fa5fc2-ce17-428d-9cae-4375cfbddb7d';
   const artifactZip = path.join(artifactDir, 'Extensao_Clinica_Rosangela_PRODUCAO_V2.1.zip');
 
   fs.mkdirSync(outDir, { recursive: true });
+  fs.mkdirSync(artifactDir, { recursive: true });
   if (fs.existsSync(stageDir)) {
     fs.rmSync(stageDir, { recursive: true, force: true });
   }
@@ -20,13 +22,13 @@ async function main() {
   // Copia arquivos para o staging
   fs.cpSync(srcDir, stageDir, { recursive: true });
 
-  // Ajusta DEFAULT_ENV para 'production' em panel.js
+  // Garante DEFAULT_ENV para 'production' em panel.js
   const panelPath = path.join(stageDir, 'panel.js');
   let panelCode = fs.readFileSync(panelPath, 'utf-8');
   panelCode = panelCode.replace("DEFAULT_ENV: 'homolog'", "DEFAULT_ENV: 'production'");
   fs.writeFileSync(panelPath, panelCode);
 
-  // Validação estrita: confirma que o bundle de produção aponta para сконxcd...
+  // Validação estrita: confirma que o bundle de produção aponta para skonxcd...
   if (!panelCode.includes("DEFAULT_ENV: 'production'")) {
     throw new Error('Falha ao alternar DEFAULT_ENV para production.');
   }
@@ -36,8 +38,16 @@ async function main() {
   const cmd = `powershell -Command "Compress-Archive -Path '${stageDir}/*' -DestinationPath '${zipPath}' -Force"`;
   execSync(cmd);
 
-  // Copia também para a pasta de artefatos da conversa para acesso direto
+  // Copia para a raiz do projeto e para os artefatos
+  fs.copyFileSync(zipPath, rootZip);
   fs.copyFileSync(zipPath, artifactZip);
+
+  // Remove zip antigo e obsoleto da raiz para evitar confusão
+  const oldRootZip = 'Extensao_Clinica_Rosangela_Login_V2.zip';
+  if (fs.existsSync(oldRootZip)) {
+    fs.unlinkSync(oldRootZip);
+    console.log(`🗑️ Pacote legado ${oldRootZip} removido da raiz para evitar ambiguidade.`);
+  }
 
   // Limpa staging
   fs.rmSync(stageDir, { recursive: true, force: true });
