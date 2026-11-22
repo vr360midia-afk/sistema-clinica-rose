@@ -72,8 +72,9 @@ export const PatientEtapasTratamento: React.FC<Props> = ({ patient, onTabChange 
   // Estado da Dentição
   const [denticao, setDenticao] = useState<DenticaoTipo>('permanente');
 
-  // Dente selecionado no odontograma (filtro adicional)
-  const [selectedDente, setSelectedDente] = useState<string | null>(null);
+  // Dentes selecionados no odontograma (seleção múltipla e individual)
+  const [selectedDentes, setSelectedDentes] = useState<string[]>([]);
+  const [presetTipoModal, setPresetTipoModal] = useState<'lentes' | 'carie' | null>(null);
 
   // Filtro de estado (Pills)
   const [filtroAtivo, setFiltroAtivo] = useState<FiltroPill>('ficha_geral');
@@ -228,24 +229,37 @@ export const PatientEtapasTratamento: React.FC<Props> = ({ patient, onTabChange 
     return Array.from(mapa.values());
   }, [procedimentosTratamento, procedimentosLocais]);
 
+  // Extrai lista de dentes envolvidos no procedimento
+  const extrairDentesProcedimento = (p: ProcedimentoItemData): string[] => {
+    if (Array.isArray(p.dentes) && p.dentes.length > 0) {
+      return p.dentes;
+    }
+    if (!p.dente || p.dente === 'Geral / Arcada') return [];
+    const matches = p.dente.match(/\b(1[1-8]|2[1-8]|3[1-8]|4[1-8]|5[1-5]|6[1-5]|7[1-5]|8[1-5])\b/g);
+    if (matches && matches.length > 0) {
+      return matches;
+    }
+    const numDente = p.dente.replace(/\D/g, '');
+    return numDente ? [numDente] : [];
+  };
+
   // Mapa de status por dente para colorir o Odontograma anatômico
   const dentesStatus = useMemo(() => {
     const statusMap: Record<string, EstadoProcedimentoVisual> = {};
 
     procedimentosUnificados.forEach((p) => {
-      if (!p.dente || p.dente === 'Geral / Arcada') return;
-      const numDente = p.dente.replace(/\D/g, '');
-      if (!numDente) return;
-
-      // Prioridade visual: a_realizar (amarelo) > iniciado (azul) > realizado (verde) > pre_existente
-      const estadoAtual = statusMap[numDente];
-      if (!estadoAtual) {
-        statusMap[numDente] = p.estado;
-      } else if (p.estado === 'a_realizar') {
-        statusMap[numDente] = 'a_realizar';
-      } else if (p.estado === 'iniciado' && estadoAtual !== 'a_realizar') {
-        statusMap[numDente] = 'iniciado';
-      }
+      const dentes = extrairDentesProcedimento(p);
+      dentes.forEach((numDente) => {
+        // Prioridade visual: a_realizar (amarelo) > iniciado (azul) > realizado (verde) > pre_existente
+        const estadoAtual = statusMap[numDente];
+        if (!estadoAtual) {
+          statusMap[numDente] = p.estado;
+        } else if (p.estado === 'a_realizar') {
+          statusMap[numDente] = 'a_realizar';
+        } else if (p.estado === 'iniciado' && estadoAtual !== 'a_realizar') {
+          statusMap[numDente] = 'iniciado';
+        }
+      });
     });
 
     return statusMap;
@@ -270,10 +284,11 @@ export const PatientEtapasTratamento: React.FC<Props> = ({ patient, onTabChange 
       if (filtroAtivo === 'realizado' && p.estado !== 'realizado') return false;
       if (filtroAtivo === 'pre_existente' && p.estado !== 'pre_existente') return false;
 
-      // Filtro por Dente Selecionado no Odontograma
-      if (selectedDente) {
-        const numP = p.dente.replace(/\D/g, '');
-        if (numP && numP !== selectedDente) return false;
+      // Filtro por Dentes Selecionados no Odontograma (se houver dentes selecionados)
+      if (selectedDentes.length > 0) {
+        const pDentes = extrairDentesProcedimento(p);
+        const temIntersecao = selectedDentes.some((d) => pDentes.includes(d));
+        if (!temIntersecao) return false;
       }
 
       // Filtro por Tipo / Categoria
@@ -283,7 +298,7 @@ export const PatientEtapasTratamento: React.FC<Props> = ({ patient, onTabChange 
 
       return true;
     });
-  }, [procedimentosUnificados, filtroAtivo, selectedDente, tipoFiltro]);
+  }, [procedimentosUnificados, filtroAtivo, selectedDentes, tipoFiltro]);
 
   // Contagem por filtro para exibir nos botões
   const contagens = useMemo(() => {
@@ -382,24 +397,49 @@ export const PatientEtapasTratamento: React.FC<Props> = ({ patient, onTabChange 
     toast.success('Anotação removida.');
   };
 
-  // Alterna seleção de dente no Odontograma
-  const handleSelectDente = (numeroDente: string) => {
-    if (selectedDente === numeroDente) {
-      setSelectedDente(null); // Desmarca se já estava selecionado
-    } else {
-      setSelectedDente(numeroDente);
-    }
+  // Alterna seleção de dente no Odontograma (individual ou múltiplo)
+  const handleToggleSelectDente = (numeroDente: string) => {
+    setSelectedDentes((prev) =>
+      prev.includes(numeroDente) ? prev.filter((d) => d !== numeroDente) : [...prev, numeroDente]
+    );
+  };
+
+  const handleSelectMultiplosDentes = (dentes: string[]) => {
+    setSelectedDentes(dentes);
+  };
+
+  const handleLimparSelecaoDentes = () => {
+    setSelectedDentes([]);
+  };
+
+  // Ação rápida: Lentes em Resina
+  const handleColocarLentes = (dentes: string[]) => {
+    setProcEmEdicao(null);
+    setPresetTipoModal('lentes');
+    setSelectedDentes(dentes);
+    setIsModalNovoProcOpen(true);
+  };
+
+  // Ação rápida: Cáries / Restaurações
+  const handleColocarCaries = (dentes: string[]) => {
+    setProcEmEdicao(null);
+    setPresetTipoModal('carie');
+    setSelectedDentes(dentes);
+    setIsModalNovoProcOpen(true);
   };
 
   // Título da tabela
   const tituloFicha = useMemo(() => {
     const f = FILTROS_PILL.find((item) => item.id === filtroAtivo);
     const base = f ? f.label : 'Ficha Geral';
-    if (selectedDente) {
-      return `${base} — Dente ${selectedDente}`;
+    if (selectedDentes.length === 1) {
+      return `${base} — Dente ${selectedDentes[0]}`;
+    }
+    if (selectedDentes.length > 1) {
+      return `${base} — ${selectedDentes.length} dentes selecionados (${selectedDentes.join(', ')})`;
     }
     return base;
-  }, [filtroAtivo, selectedDente]);
+  }, [filtroAtivo, selectedDentes]);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -409,18 +449,25 @@ export const PatientEtapasTratamento: React.FC<Props> = ({ patient, onTabChange 
         {/* COLUNA ESQUERDA: Odontograma, Filtros e Tabela de Procedimentos           */}
         {/* ========================================================================= */}
         <div className="lg:col-span-8 xl:col-span-9 space-y-4">
-          {/* Odontograma Visual Anatômico */}
+          {/* Odontograma Visual Anatômico com suporte a seleção múltipla */}
           <OdontogramaVisual
             denticao={denticao}
             onToggleDenticao={handleToggleDenticao}
-            selectedDente={selectedDente}
-            onSelectDente={handleSelectDente}
+            selectedDentes={selectedDentes}
+            onToggleSelectDente={handleToggleSelectDente}
+            onSelectMultiplosDentes={handleSelectMultiplosDentes}
+            onLimparSelecao={handleLimparSelecaoDentes}
             dentesStatus={dentesStatus}
-            onNovoProcedimento={(dentePre) => {
+            onNovoProcedimento={(dentesPre) => {
               setProcEmEdicao(null);
-              setSelectedDente(dentePre || null);
+              setPresetTipoModal(null);
+              if (dentesPre && dentesPre.length > 0) {
+                setSelectedDentes(dentesPre);
+              }
               setIsModalNovoProcOpen(true);
             }}
+            onColocarLentes={handleColocarLentes}
+            onColocarCaries={handleColocarCaries}
           />
 
           {/* Filtros em formato de Radio Pills (Ficha geral, A realizar, Iniciado, Realizado, Pré-existente) */}
@@ -464,15 +511,19 @@ export const PatientEtapasTratamento: React.FC<Props> = ({ patient, onTabChange 
                 );
               })}
 
-              {selectedDente && (
+              {selectedDentes.length > 0 && (
                 <button
                   type="button"
-                  onClick={() => setSelectedDente(null)}
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-destructive/40 text-destructive hover:bg-destructive/10 shrink-0 ml-auto"
-                  title="Limpar filtro de dente"
+                  onClick={handleLimparSelecaoDentes}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-destructive/40 text-destructive hover:bg-destructive/10 shrink-0 ml-auto cursor-pointer"
+                  title="Limpar seleção de dentes"
                 >
                   <X className="h-3 w-3" />
-                  <span>Dente {selectedDente}</span>
+                  <span>
+                    {selectedDentes.length === 1
+                      ? `Dente ${selectedDentes[0]}`
+                      : `${selectedDentes.length} dentes`}
+                  </span>
                 </button>
               )}
             </div>
@@ -574,8 +625,22 @@ export const PatientEtapasTratamento: React.FC<Props> = ({ patient, onTabChange 
                           </td>
 
                           {/* Coluna Dente */}
-                          <td className="py-3 px-3 text-center font-bold text-foreground">
-                            {proc.dente}
+                          <td className="py-3 px-3 text-center">
+                            {proc.dentes && proc.dentes.length > 1 ? (
+                              <div className="flex flex-col items-center">
+                                <span className="font-bold text-foreground text-xs">
+                                  {proc.dentes.length} dentes
+                                </span>
+                                <span
+                                  className="text-[10px] text-purple-700 dark:text-purple-300 font-medium max-w-[130px] truncate"
+                                  title={proc.dentes.join(', ')}
+                                >
+                                  {proc.dentes.join(', ')}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="font-bold text-foreground text-xs">{proc.dente}</span>
+                            )}
                           </td>
 
                           {/* Coluna Estado (Badges interativos) */}
@@ -776,11 +841,13 @@ export const PatientEtapasTratamento: React.FC<Props> = ({ patient, onTabChange 
         onClose={() => {
           setIsModalNovoProcOpen(false);
           setProcEmEdicao(null);
+          setPresetTipoModal(null);
         }}
         onSave={handleSaveProcedimento}
         pacienteId={patient?.id}
-        denteInicial={selectedDente}
+        dentesIniciais={selectedDentes}
         procedimentoEmEdicao={procEmEdicao}
+        presetTipo={presetTipoModal}
       />
 
       <ModalMarcarRealizado
