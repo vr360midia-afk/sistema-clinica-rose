@@ -1,9 +1,15 @@
 import React, { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ProcedimentoItemData } from './ModalNovoProcedimento';
-import { DollarSign, FileText, Calendar, CheckCircle2, Clock, Activity, ShieldCheck, Camera, Image as ImageIcon } from 'lucide-react';
+import { DollarSign, FileText, CheckCircle2, Camera } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface ModalDetalhesProcedimentoProps {
@@ -47,180 +53,179 @@ export const ModalDetalhesProcedimento: React.FC<ModalDetalhesProcedimentoProps>
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md sm:max-w-lg p-5 rounded-2xl">
-        <DialogHeader className="pb-2 text-left">
-          <DialogTitle className="text-base sm:text-lg font-bold text-foreground flex items-center gap-2">
+    <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <SheetContent
+        side="right"
+        className="w-full sm:max-w-md md:max-w-lg lg:max-w-xl p-0 h-full flex flex-col bg-background border-l border-border shadow-2xl z-50 overflow-hidden"
+      >
+        {/* Header do Drawer Lateral */}
+        <div className="p-4 sm:p-5 border-b border-border/70 flex items-center justify-between shrink-0 bg-background">
+          <SheetTitle className="text-base sm:text-lg font-bold text-foreground flex items-center gap-2">
             {modo === 'debito' ? (
               <>
                 <DollarSign className="h-5 w-5 text-purple-700 dark:text-purple-400" />
-                Débito do Procedimento
+                <span>Débito do Procedimento</span>
               </>
             ) : (
               <>
                 <FileText className="h-5 w-5 text-purple-700 dark:text-purple-400" />
-                Detalhes do Procedimento
+                <span>Detalhes do Procedimento</span>
               </>
             )}
-          </DialogTitle>
-        </DialogHeader>
+          </SheetTitle>
+        </div>
 
-        {modo === 'debito' ? (
-          <div className="space-y-4 pt-1">
-            <div className="bg-purple-50/60 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-900 rounded-xl p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground font-medium">Procedimento</span>
-                <span className="text-sm font-bold text-foreground">{procedimento.nome}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground font-medium">Elemento Dental</span>
-                <span className="text-xs font-bold text-foreground">Dente {procedimento.dente}</span>
-              </div>
-              <div className="flex items-center justify-between pt-2 border-t border-purple-200/60 dark:border-purple-900/60">
-                <span className="text-xs text-muted-foreground font-semibold">Valor Contratado</span>
-                <span className="text-base font-bold text-purple-700 dark:text-purple-300">
-                  {procedimento.valor !== undefined
-                    ? `R$ ${Number(procedimento.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
-                    : 'Incluso no Pacote / Orçamento'}
-                </span>
-              </div>
-            </div>
-
-            <div className="bg-card border border-border rounded-xl p-3.5 space-y-2 text-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Orçamento de Origem:</span>
-                {procedimento.orcamentoId ? (
-                  <button
-                    type="button"
-                    onClick={() => onAbrirOrcamento && onAbrirOrcamento(procedimento.orcamentoId!)}
-                    className="text-purple-700 dark:text-purple-400 font-semibold hover:underline"
-                  >
-                    {procedimento.orcamentoTitulo || 'Visualizar Orçamento'}
-                  </button>
-                ) : (
-                  <span className="text-muted-foreground">Lançamento Direto</span>
-                )}
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Estado Clínico:</span>
-                <div>{renderBadge(procedimento.estado)}</div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end pt-2">
-              <Button
-                type="button"
-                onClick={onClose}
-                className="h-9 px-5 text-xs font-semibold bg-purple-700 hover:bg-purple-800 text-white rounded-lg shadow-2xs"
-              >
-                Fechar
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-4 pt-1">
-            <div className="bg-card border border-border rounded-xl p-4 space-y-3 text-xs sm:text-sm">
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <h4 className="font-bold text-base text-foreground">{procedimento.nome}</h4>
-                  <p className="text-xs text-muted-foreground mt-0.5">Dente {procedimento.dente}</p>
+        {/* Conteúdo com Rolagem Lateral */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 no-scrollbar">
+          {modo === 'debito' ? (
+            <div className="space-y-4">
+              <div className="bg-purple-50/60 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-900 rounded-2xl p-4.5 space-y-3 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground font-medium">Procedimento</span>
+                  <span className="text-sm font-bold text-foreground">{procedimento.nome}</span>
                 </div>
-                <div>{renderBadge(procedimento.estado)}</div>
-              </div>
-
-              {procedimento.faces && procedimento.faces.length > 0 && (
-                <div className="flex items-center gap-1.5 flex-wrap pt-1">
-                  <span className="text-xs text-muted-foreground font-medium">Faces:</span>
-                  {procedimento.faces.map((f) => (
-                    <Badge key={f} variant="outline" className="text-[11px] border-purple-400/40 text-purple-700 dark:text-purple-300">
-                      {f}
-                    </Badge>
-                  ))}
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground font-medium">Elemento Dental</span>
+                  <span className="text-xs font-bold text-foreground">Dente {procedimento.dente}</span>
                 </div>
-              )}
-
-              {procedimento.observacoes && (
-                <div className="pt-2 border-t border-border/60">
-                  <span className="text-xs text-muted-foreground font-semibold block mb-1">Observações Clínicas:</span>
-                  <p className="text-xs text-foreground bg-muted/40 p-2.5 rounded-lg whitespace-pre-line leading-relaxed">
-                    {procedimento.observacoes}
-                  </p>
-                </div>
-              )}
-
-              {/* FOTOS E IMAGENS ANEXADAS */}
-              {procedimento.fotos && procedimento.fotos.length > 0 && (
-                <div className="pt-2 border-t border-border/60 space-y-1.5">
-                  <span className="text-xs text-muted-foreground font-semibold flex items-center gap-1.5">
-                    <Camera className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
-                    <span>Fotos Anexadas ({procedimento.fotos.length}):</span>
+                <div className="flex items-center justify-between pt-2 border-t border-purple-200/60 dark:border-purple-900/60">
+                  <span className="text-xs text-muted-foreground font-semibold">Valor Contratado</span>
+                  <span className="text-base font-bold text-purple-700 dark:text-purple-300">
+                    {procedimento.valor !== undefined
+                      ? `R$ ${Number(procedimento.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+                      : 'Incluso no Pacote / Orçamento'}
                   </span>
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    {procedimento.fotos.map((f) => (
-                      <div
-                        key={f.id}
-                        className="relative h-18 w-20 rounded-lg overflow-hidden border border-border group bg-black/5 shadow-2xs cursor-pointer hover:ring-2 hover:ring-purple-600 transition-all"
-                        onClick={() => setPreviewFoto(f.url)}
-                        title={f.nome || 'Clique para ampliar'}
-                      >
-                        <img
-                          src={f.url}
-                          alt={f.nome || 'Foto do procedimento'}
-                          className="h-full w-full object-cover group-hover:scale-105 transition-transform"
-                        />
-                      </div>
+                </div>
+              </div>
+
+              <div className="bg-card border border-border rounded-xl p-4 space-y-2.5 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Orçamento de Origem:</span>
+                  {procedimento.orcamentoId ? (
+                    <button
+                      type="button"
+                      onClick={() => onAbrirOrcamento && onAbrirOrcamento(procedimento.orcamentoId!)}
+                      className="text-purple-700 dark:text-purple-400 font-semibold hover:underline cursor-pointer"
+                    >
+                      {procedimento.orcamentoTitulo || 'Visualizar Orçamento'}
+                    </button>
+                  ) : (
+                    <span className="text-muted-foreground">Lançamento Direto</span>
+                  )}
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Estado Clínico:</span>
+                  <div>{renderBadge(procedimento.estado)}</div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="bg-card border border-border rounded-xl p-4.5 space-y-3.5 text-xs sm:text-sm shadow-2xs">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <h4 className="font-bold text-base text-foreground">{procedimento.nome}</h4>
+                    <p className="text-xs text-muted-foreground mt-0.5">Dente {procedimento.dente}</p>
+                  </div>
+                  <div>{renderBadge(procedimento.estado)}</div>
+                </div>
+
+                {procedimento.faces && procedimento.faces.length > 0 && (
+                  <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                    <span className="text-xs text-muted-foreground font-medium">Faces:</span>
+                    {procedimento.faces.map((f) => (
+                      <Badge key={f} variant="outline" className="text-[11px] border-purple-400/40 text-purple-700 dark:text-purple-300">
+                        {f}
+                      </Badge>
                     ))}
                   </div>
-                </div>
-              )}
+                )}
 
-              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/60 text-xs">
-                <div>
-                  <span className="text-muted-foreground block">Data de Criação:</span>
-                  <span className="font-medium text-foreground">
-                    {procedimento.criadoEm ? format(new Date(procedimento.criadoEm), 'dd/MM/yyyy') : '—'}
-                  </span>
-                </div>
-                {procedimento.dataRealizado && (
-                  <div>
-                    <span className="text-muted-foreground block">Data de Realização:</span>
-                    <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                      {format(new Date(procedimento.dataRealizado), 'dd/MM/yyyy')}
-                    </span>
+                {procedimento.observacoes && (
+                  <div className="pt-2 border-t border-border/60">
+                    <span className="text-xs text-muted-foreground font-semibold block mb-1">Observações Clínicas:</span>
+                    <p className="text-xs text-foreground bg-muted/40 p-3 rounded-lg whitespace-pre-line leading-relaxed">
+                      {procedimento.observacoes}
+                    </p>
                   </div>
                 )}
+
+                {/* FOTOS E IMAGENS ANEXADAS */}
+                {procedimento.fotos && procedimento.fotos.length > 0 && (
+                  <div className="pt-2 border-t border-border/60 space-y-2">
+                    <span className="text-xs text-muted-foreground font-semibold flex items-center gap-1.5">
+                      <Camera className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
+                      <span>Fotos Anexadas ({procedimento.fotos.length}):</span>
+                    </span>
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {procedimento.fotos.map((f) => (
+                        <div
+                          key={f.id}
+                          className="relative h-20 w-24 rounded-lg overflow-hidden border border-border group bg-black/5 shadow-2xs cursor-pointer hover:ring-2 hover:ring-purple-600 transition-all"
+                          onClick={() => setPreviewFoto(f.url)}
+                          title={f.nome || 'Clique para ampliar'}
+                        >
+                          <img
+                            src={f.url}
+                            alt={f.nome || 'Foto do procedimento'}
+                            className="h-full w-full object-cover group-hover:scale-105 transition-transform"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/60 text-xs">
+                  <div>
+                    <span className="text-muted-foreground block">Data de Criação:</span>
+                    <span className="font-medium text-foreground">
+                      {procedimento.criadoEm ? format(new Date(procedimento.criadoEm), 'dd/MM/yyyy') : '—'}
+                    </span>
+                  </div>
+                  {procedimento.dataRealizado && (
+                    <div>
+                      <span className="text-muted-foreground block">Data de Realização:</span>
+                      <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                        {format(new Date(procedimento.dataRealizado), 'dd/MM/yyyy')}
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
+          )}
+        </div>
 
-            <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/50">
-              {procedimento.estado !== 'realizado' && onMarcarRealizado ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    onClose();
-                    onMarcarRealizado(procedimento);
-                  }}
-                  className="h-9 px-4 text-xs font-semibold border-emerald-600 text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 rounded-lg gap-1.5"
-                >
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                  Marcar como realizado
-                </Button>
-              ) : (
-                <div />
-              )}
+        {/* Rodapé Fixo */}
+        <div className="p-4 sm:p-5 border-t border-border/70 bg-card/95 backdrop-blur-xs flex items-center justify-between gap-3 shrink-0">
+          {modo === 'detalhes' && procedimento.estado !== 'realizado' && onMarcarRealizado ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                onClose();
+                onMarcarRealizado(procedimento);
+              }}
+              className="h-10 px-4 text-xs font-semibold border-emerald-600 text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 rounded-xl gap-1.5"
+            >
+              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+              Marcar como realizado
+            </Button>
+          ) : (
+            <div />
+          )}
 
-              <Button
-                type="button"
-                onClick={onClose}
-                className="h-9 px-5 text-xs font-semibold bg-purple-700 hover:bg-purple-800 text-white rounded-lg shadow-2xs"
-              >
-                Fechar
-              </Button>
-            </div>
-          </div>
-        )}
+          <Button
+            type="button"
+            onClick={onClose}
+            className="h-10 px-8 text-xs sm:text-sm font-bold bg-purple-700 hover:bg-purple-800 text-white rounded-xl shadow-xs cursor-pointer"
+          >
+            Fechar
+          </Button>
+        </div>
 
+        {/* Zoom da Imagem */}
         {previewFoto && (
           <Dialog open={Boolean(previewFoto)} onOpenChange={() => setPreviewFoto(null)}>
             <DialogContent className="max-w-2xl p-2 bg-black/95 border-none">
@@ -230,8 +235,8 @@ export const ModalDetalhesProcedimento: React.FC<ModalDetalhesProcedimentoProps>
             </DialogContent>
           </Dialog>
         )}
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 };
 

@@ -1,15 +1,36 @@
 import React, { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { useProcedimentos } from '@/hooks/useProcedimentos';
 import { useOrcamentos } from '@/hooks/useOrcamentos';
+import { useDentistas } from '@/hooks/useDentistas';
 import { EstadoProcedimentoVisual } from './OdontogramaVisual';
-import { Sparkles, AlertCircle, X, Plus, Calculator, Layers, FileText, Camera, UploadCloud, Loader2, Eye, Image as ImageIcon } from 'lucide-react';
+import {
+  Sparkles,
+  AlertCircle,
+  X,
+  Plus,
+  Calculator,
+  Layers,
+  FileText,
+  Camera,
+  UploadCloud,
+  Loader2,
+  DollarSign,
+  User,
+  Check,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -31,6 +52,7 @@ export interface ProcedimentoItemData {
   estado: EstadoProcedimentoVisual;
   valor?: number;
   valorUnitario?: number;
+  profissional?: string;
   orcamentoId?: string;
   orcamentoTitulo?: string;
   dataRealizado?: string;
@@ -53,11 +75,12 @@ interface ModalNovoProcedimentoProps {
 }
 
 const FACES_OPCOES = [
-  { id: 'O', label: 'Oclusal / Incisal' },
-  { id: 'V', label: 'Vestibular' },
-  { id: 'L', label: 'Lingual / Palatina' },
-  { id: 'M', label: 'Mesial' },
+  { id: 'C', label: 'Cervical' },
   { id: 'D', label: 'Distal' },
+  { id: 'I', label: 'Incisal / Oclusal' },
+  { id: 'M', label: 'Mesial' },
+  { id: 'P', label: 'Palatina / Lingual' },
+  { id: 'V', label: 'Vestibular' },
   { id: 'Geral', label: 'Toda a Coroa' },
 ];
 
@@ -79,14 +102,17 @@ export const ModalNovoProcedimento: React.FC<ModalNovoProcedimentoProps> = ({
 }) => {
   const { procedimentos: catalogoProcedimentos } = useProcedimentos();
   const { orcamentos, saveOrcamento } = useOrcamentos(pacienteId);
+  const { dentistas } = useDentistas();
 
   const [nome, setNome] = useState('');
   const [categoria, setCategoria] = useState('Geral');
   const [dentesSelecionados, setDentesSelecionados] = useState<string[]>([]);
   const [faces, setFaces] = useState<string[]>([]);
   const [estado, setEstado] = useState<EstadoProcedimentoVisual>('a_realizar');
+  const [gerarLancamentoFinanceiro, setGerarLancamentoFinanceiro] = useState(true);
   const [valorUnitario, setValorUnitario] = useState<string>('');
   const [valorTotal, setValorTotal] = useState<string>('');
+  const [profissional, setProfissional] = useState('Dra. Roseane');
   const [orcamentoId, setOrcamentoId] = useState<string>('nenhum');
   const [dataPrevista, setDataPrevista] = useState<string>('');
   const [observacoes, setObservacoes] = useState('');
@@ -100,16 +126,19 @@ export const ModalNovoProcedimento: React.FC<ModalNovoProcedimentoProps> = ({
     if (procedimentoEmEdicao) {
       setNome(procedimentoEmEdicao.nome || '');
       setCategoria(procedimentoEmEdicao.categoria || 'Geral');
-      const dArray = procedimentoEmEdicao.dentes && procedimentoEmEdicao.dentes.length > 0
-        ? procedimentoEmEdicao.dentes
-        : procedimentoEmEdicao.dente
-        ? procedimentoEmEdicao.dente.split(',').map((s) => s.trim()).filter(Boolean)
-        : ['16'];
+      const dArray =
+        procedimentoEmEdicao.dentes && procedimentoEmEdicao.dentes.length > 0
+          ? procedimentoEmEdicao.dentes
+          : procedimentoEmEdicao.dente
+          ? procedimentoEmEdicao.dente.split(',').map((s) => s.trim()).filter(Boolean)
+          : ['16'];
       setDentesSelecionados(dArray);
       setFaces(procedimentoEmEdicao.faces || []);
       setEstado(procedimentoEmEdicao.estado || 'a_realizar');
       setValorTotal(procedimentoEmEdicao.valor ? String(procedimentoEmEdicao.valor) : '');
       setValorUnitario(procedimentoEmEdicao.valorUnitario ? String(procedimentoEmEdicao.valorUnitario) : '');
+      setProfissional(procedimentoEmEdicao.profissional || 'Dra. Roseane');
+      setGerarLancamentoFinanceiro(Boolean(procedimentoEmEdicao.valor || procedimentoEmEdicao.orcamentoId));
       setOrcamentoId(procedimentoEmEdicao.orcamentoId || 'nenhum');
       setDataPrevista(procedimentoEmEdicao.dataPrevista || '');
       setObservacoes(procedimentoEmEdicao.observacoes || '');
@@ -125,21 +154,27 @@ export const ModalNovoProcedimento: React.FC<ModalNovoProcedimentoProps> = ({
       }
       setDentesSelecionados(dPadrao);
       setFotos([]);
+      setProfissional('Dra. Roseane');
+      setGerarLancamentoFinanceiro(true);
 
       if (presetTipo === 'lentes') {
         const qtd = dPadrao.length;
         setNome(`Lentes em Resina Composta (${qtd} dentes)`);
         setCategoria('Estético / Lentes');
-        setFaces(['V', 'O']);
+        setFaces(['V', 'I']);
         setEstado('a_realizar');
         setValorUnitario('800');
         setValorTotal(String(800 * qtd));
         setObservacoes(`Planejamento de Lentes/Facetas em Resina nos dentes ${dPadrao.join(', ')}.`);
       } else if (presetTipo === 'carie') {
         const qtd = dPadrao.length;
-        setNome(qtd > 1 ? `Tratamento de Cáries / Restaurações (${qtd} dentes)` : `Restauração em Resina (Cárie) - Dente ${dPadrao[0] || '16'}`);
+        setNome(
+          qtd > 1
+            ? `Tratamento de Cáries / Restaurações (${qtd} dentes)`
+            : `Restauração em Resina (Cárie) - Dente ${dPadrao[0] || '16'}`
+        );
         setCategoria('Restaurador');
-        setFaces(['O']);
+        setFaces(['I']);
         setEstado('a_realizar');
         setValorUnitario('250');
         setValorTotal(String(250 * qtd));
@@ -179,7 +214,6 @@ export const ModalNovoProcedimento: React.FC<ModalNovoProcedimentoProps> = ({
     }
     setDentesSelecionados(novos);
 
-    // Ajusta o valor total se houver valor unitário
     const unit = parseFloat(valorUnitario);
     if (!isNaN(unit) && unit > 0) {
       setValorTotal((unit * novos.length).toFixed(2).replace(/\.00$/, ''));
@@ -199,14 +233,14 @@ export const ModalNovoProcedimento: React.FC<ModalNovoProcedimentoProps> = ({
     if (tipo === 'lentes') {
       setNome(`Lentes em Resina Composta (${qtd} dentes)`);
       setCategoria('Estético / Lentes');
-      setFaces(['V', 'O']);
+      setFaces(['V', 'I']);
       setValorUnitario('800');
       setValorTotal(String(800 * qtd));
       setObservacoes(`Planejamento de Lentes/Facetas em Resina nos dentes ${dentesSelecionados.join(', ')}.`);
     } else {
       setNome(`Tratamento de Cáries / Restaurações (${qtd} dentes)`);
       setCategoria('Restaurador');
-      setFaces(['O']);
+      setFaces(['I']);
       setValorUnitario('250');
       setValorTotal(String(250 * qtd));
       setObservacoes(`Remoção de tecido cariado e restauração nos dentes ${dentesSelecionados.join(', ')}.`);
@@ -305,7 +339,10 @@ export const ModalNovoProcedimento: React.FC<ModalNovoProcedimentoProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nome.trim()) return;
+    if (!nome.trim()) {
+      toast.error('Informe o nome do procedimento.');
+      return;
+    }
 
     const orc = orcamentos.find((o) => o.id === orcamentoId);
     const dentesOrdenados = [...dentesSelecionados].sort((a, b) => parseInt(a) - parseInt(b));
@@ -322,9 +359,10 @@ export const ModalNovoProcedimento: React.FC<ModalNovoProcedimentoProps> = ({
       dentes: dentesOrdenados,
       faces,
       estado,
-      valor: valorTotal ? parseFloat(valorTotal) : undefined,
-      valorUnitario: valorUnitario ? parseFloat(valorUnitario) : undefined,
-      orcamentoId: orcamentoId !== 'nenhum' ? orcamentoId : undefined,
+      valor: gerarLancamentoFinanceiro && valorTotal ? parseFloat(valorTotal) : undefined,
+      valorUnitario: gerarLancamentoFinanceiro && valorUnitario ? parseFloat(valorUnitario) : undefined,
+      profissional,
+      orcamentoId: gerarLancamentoFinanceiro && orcamentoId !== 'nenhum' ? orcamentoId : undefined,
       orcamentoTitulo: orc ? orc.titulo : undefined,
       dataRealizado:
         estado === 'realizado'
@@ -342,85 +380,212 @@ export const ModalNovoProcedimento: React.FC<ModalNovoProcedimentoProps> = ({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md sm:max-w-xl p-5 rounded-2xl max-h-[92vh] overflow-y-auto no-scrollbar">
-        <DialogHeader className="pb-1 text-left">
-          <DialogTitle className="text-base sm:text-lg font-bold text-foreground flex items-center justify-between">
-            <span>{procedimentoEmEdicao ? 'Editar Procedimento' : 'Novo Procedimento'}</span>
-            {dentesSelecionados.length > 1 && (
-              <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 font-bold text-xs border-purple-300">
-                {dentesSelecionados.length} dentes selecionados
-              </Badge>
-            )}
-          </DialogTitle>
-        </DialogHeader>
-
-        {/* Botões Rápidos de Preset */}
-        <div className="flex items-center gap-2 pt-1 pb-1">
-          <button
-            type="button"
-            onClick={() => aplicarPresetRapido('lentes')}
-            className="flex-1 py-1.5 px-2.5 rounded-lg border border-purple-500/40 bg-purple-500/10 hover:bg-purple-500/20 text-purple-800 dark:text-purple-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
-          >
-            <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-            Configurar Lentes em Resina
-          </button>
-          <button
-            type="button"
-            onClick={() => aplicarPresetRapido('carie')}
-            className="flex-1 py-1.5 px-2.5 rounded-lg border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-800 dark:text-amber-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
-          >
-            <AlertCircle className="h-3.5 w-3.5 text-amber-600" />
-            Configurar Cáries / Restauração
-          </button>
+    <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <SheetContent
+        side="right"
+        className="w-full sm:max-w-md md:max-w-lg lg:max-w-xl p-0 h-full flex flex-col bg-background border-l border-border shadow-2xl z-50 overflow-hidden"
+      >
+        {/* Header do Drawer Lateral */}
+        <div className="p-4 sm:p-5 border-b border-border/70 flex items-center justify-between shrink-0 bg-card/60">
+          <SheetTitle className="text-base sm:text-lg font-bold text-foreground">
+            {procedimentoEmEdicao ? 'Editar procedimento' : 'Adicionar procedimento'}
+          </SheetTitle>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-3.5 pt-1">
-          {/* SELEÇÃO EM LOTE DOS DENTES */}
-          <div className="space-y-1.5 p-3 rounded-xl border border-purple-500/20 bg-purple-500/5">
-            <div className="flex items-center justify-between">
-              <Label className="text-xs font-bold text-purple-950 dark:text-purple-200">
-                Dentes Envolvidos ({dentesSelecionados.length}) *
-              </Label>
-              <div className="flex items-center gap-1 text-[11px]">
+        {/* Corpo com Rolagem Lateral Completa */}
+        <form
+          id="form-procedimento-lateral"
+          onSubmit={handleSubmit}
+          className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 no-scrollbar"
+        >
+          {/* 1. ABAS DE ESTADO (Conforme Imagem 2 de Referência) */}
+          <div className="grid grid-cols-4 p-1 bg-muted/70 rounded-xl border border-border/80 gap-1 text-center">
+            {(
+              [
+                { id: 'a_realizar', label: 'A realizar' },
+                { id: 'iniciado', label: 'Iniciado' },
+                { id: 'realizado', label: 'Realizado' },
+                { id: 'pre_existente', label: 'Pré-existente' },
+              ] as const
+            ).map((est) => {
+              const isActive = estado === est.id;
+              return (
                 <button
+                  key={est.id}
                   type="button"
-                  onClick={() => setDentesSelecionados(PRESETS_LENTES_SUPERIOR)}
-                  className="text-purple-700 dark:text-purple-400 font-semibold hover:underline"
+                  onClick={() => setEstado(est.id)}
+                  className={`py-2 px-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    isActive
+                      ? 'bg-purple-700 text-white shadow-xs'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                  }`}
                 >
-                  10 Sup (15-25)
+                  {est.label}
                 </button>
-                <span>•</span>
-                <button
-                  type="button"
-                  onClick={() => setDentesSelecionados(PRESETS_LENTES_INFERIOR)}
-                  className="text-purple-700 dark:text-purple-400 font-semibold hover:underline"
-                >
-                  10 Inf (45-35)
-                </button>
-                <span>•</span>
-                <button
-                  type="button"
-                  onClick={() => setDentesSelecionados(DENTES_SUPERIORES)}
-                  className="text-purple-700 dark:text-purple-400 font-semibold hover:underline"
-                >
-                  Toda Sup
-                </button>
+              );
+            })}
+          </div>
+
+          {/* 2. CARD: GERAR LANÇAMENTO FINANCEIRO (Conforme Imagem 2) */}
+          <div
+            onClick={() => setGerarLancamentoFinanceiro(!gerarLancamentoFinanceiro)}
+            className="border border-border/80 rounded-xl p-3 sm:p-3.5 bg-card hover:bg-muted/30 cursor-pointer transition-colors flex items-center justify-between gap-3 shadow-2xs"
+          >
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 rounded-lg bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 flex items-center justify-center shrink-0">
+                <DollarSign className="h-5 w-5" />
               </div>
+              <div>
+                <span className="text-xs sm:text-sm font-bold text-foreground block">
+                  Gerar lançamento financeiro
+                </span>
+                <span className="text-[11px] text-muted-foreground block">
+                  Adicione meios de pagamento e faça a gestão dos valores desse paciente.
+                </span>
+              </div>
+            </div>
+            <input
+              type="checkbox"
+              checked={gerarLancamentoFinanceiro}
+              onChange={(e) => setGerarLancamentoFinanceiro(e.target.checked)}
+              className="h-4.5 w-4.5 rounded border-purple-500 text-purple-600 focus:ring-purple-500 cursor-pointer"
+            />
+          </div>
+
+          {/* 3. CAMPO PROCEDIMENTO */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold">Procedimento *</Label>
+            <Input
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              placeholder="Ex: Lentes em Resina, Exodontia Siso, Restauração..."
+              className="h-9.5 text-xs sm:text-sm font-medium"
+              required
+            />
+
+            {/* Presets Rápidos de Procedimentos Populares */}
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              {[
+                { rotulo: '+ Exodontia Siso Inferior', nome: 'Exodontia Siso Inferior', cat: 'Cirurgia' },
+                { rotulo: '+ Exodontia Siso Superior', nome: 'Exodontia Siso Superior', cat: 'Cirurgia' },
+                { rotulo: '+ Lentes em Resina Inferior', nome: 'Lentes em Resina Inferior', cat: 'Estético / Lentes' },
+                { rotulo: '+ Lentes em Resina Superior', nome: 'Lentes em Resina Superior', cat: 'Estético / Lentes' },
+                { rotulo: '+ Tratamento de Cáries', nome: 'Tratamento de Cáries / Restauração', cat: 'Restaurador' },
+              ].map((p) => (
+                <button
+                  key={p.rotulo}
+                  type="button"
+                  onClick={() => {
+                    setNome(p.nome);
+                    setCategoria(p.cat);
+                  }}
+                  className="px-2 py-1 rounded-md text-[11px] font-semibold bg-purple-50 dark:bg-purple-950/40 text-purple-800 dark:text-purple-300 border border-purple-300/60 hover:bg-purple-100 transition-colors cursor-pointer"
+                >
+                  {p.rotulo}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 4. CAMPO VALOR (OPCIONAL) */}
+          {gerarLancamentoFinanceiro && (
+            <div className="p-3 rounded-xl bg-muted/40 border border-border/70 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-semibold">Valor Unitário (R$)</Label>
+                    <span className="text-[11px] text-muted-foreground">Opcional</span>
+                  </div>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={valorUnitario}
+                    onChange={(e) => handleValorUnitarioChange(e.target.value)}
+                    placeholder="Ex: 800,00"
+                    className="h-9 text-xs"
+                  />
+                  {dentesSelecionados.length > 1 && (
+                    <span className="text-[10px] text-purple-700 dark:text-purple-300 font-bold block">
+                      × {dentesSelecionados.length} dentes selecionados
+                    </span>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-semibold text-purple-700 dark:text-purple-300">
+                      Valor Total (R$)
+                    </Label>
+                    <span className="text-[11px] text-muted-foreground">Opcional</span>
+                  </div>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={valorTotal}
+                    onChange={(e) => setValorTotal(e.target.value)}
+                    placeholder="0,00"
+                    className="h-9 text-xs font-bold text-foreground"
+                  />
+                </div>
+              </div>
+
+              {/* Vínculo de Orçamento */}
+              <div className="space-y-1 pt-1 border-t border-border/50">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-semibold">Orçamento Vinculado</Label>
+                  <span className="text-[11px] text-purple-700 dark:text-purple-300 font-medium">
+                    {orcamentos.length} orçamento(s)
+                  </span>
+                </div>
+                <Select value={orcamentoId} onValueChange={setOrcamentoId}>
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue placeholder="Selecione o orçamento" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="nenhum">Nenhum orçamento (Lançamento Clínico)</SelectItem>
+                    {orcamentos.map((o) => (
+                      <SelectItem key={o.id} value={o.id}>
+                        {o.titulo} — R$ {Number(o.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} ({o.status})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <div className="flex items-center justify-between pt-1">
+                  <button
+                    type="button"
+                    disabled={isCriandoOrcamento || dentesSelecionados.length === 0}
+                    onClick={handleGerarNovoOrcamento}
+                    className="text-[11px] text-purple-700 dark:text-purple-400 hover:text-purple-900 font-semibold inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    <FileText className="h-3 w-3" />
+                    <span>{isCriandoOrcamento ? 'Gerando...' : '+ Gerar novo orçamento com estes dentes'}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 5. CAMPO DENTES (OPCIONAL) */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-semibold">Dentes</Label>
+              <span className="text-[11px] text-muted-foreground">Opcional</span>
             </div>
 
             {/* Chips de Dentes Selecionados */}
-            <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto no-scrollbar pt-1">
+            <div className="p-2.5 rounded-xl border border-border/80 bg-background flex flex-wrap gap-1.5 min-h-[42px] items-center">
               {dentesSelecionados.map((d) => (
                 <span
                   key={d}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-bold bg-purple-700 text-white shadow-2xs"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-200 border border-purple-300 shadow-2xs"
                 >
-                  Dente {d}
+                  <span>{d}</span>
                   <button
                     type="button"
                     onClick={() => toggleDente(d)}
-                    className="hover:text-red-300 focus:outline-hidden"
+                    className="hover:bg-purple-300 dark:hover:bg-purple-800 rounded p-0.5"
+                    title="Remover dente"
                   >
                     <X className="h-3 w-3" />
                   </button>
@@ -428,80 +593,48 @@ export const ModalNovoProcedimento: React.FC<ModalNovoProcedimentoProps> = ({
               ))}
             </div>
 
-            {/* Adicionar mais dentes facilmente */}
-            <div className="pt-1 flex items-center gap-2">
-              <span className="text-[11px] text-muted-foreground font-medium">Adicionar dente:</span>
-              <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
-                {[...DENTES_SUPERIORES, ...DENTES_INFERIORES]
-                  .filter((num) => !dentesSelecionados.includes(num))
-                  .slice(0, 10)
-                  .map((num) => (
-                    <button
-                      key={num}
-                      type="button"
-                      onClick={() => toggleDente(num)}
-                      className="text-[11px] px-1.5 py-0.5 rounded border border-border bg-background hover:bg-muted text-foreground font-medium"
-                    >
-                      +{num}
-                    </button>
-                  ))}
-              </div>
+            {/* Botões Rápidos de Lote para Dentes */}
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              <button
+                type="button"
+                onClick={() => setDentesSelecionados(PRESETS_LENTES_SUPERIOR)}
+                className="px-2 py-1 rounded-md text-[11px] font-semibold bg-muted hover:bg-purple-100 hover:text-purple-800 border border-border transition-colors cursor-pointer"
+              >
+                💎 10 Sup (15 ao 25)
+              </button>
+              <button
+                type="button"
+                onClick={() => setDentesSelecionados(PRESETS_LENTES_INFERIOR)}
+                className="px-2 py-1 rounded-md text-[11px] font-semibold bg-muted hover:bg-purple-100 hover:text-purple-800 border border-border transition-colors cursor-pointer"
+              >
+                💎 10 Inf (45 ao 35)
+              </button>
+              <button
+                type="button"
+                onClick={() => setDentesSelecionados(DENTES_SUPERIORES)}
+                className="px-2 py-1 rounded-md text-[11px] font-semibold bg-muted hover:bg-purple-100 border border-border transition-colors cursor-pointer"
+              >
+                Arcada Superior
+              </button>
+              <button
+                type="button"
+                onClick={() => setDentesSelecionados(DENTES_INFERIORES)}
+                className="px-2 py-1 rounded-md text-[11px] font-semibold bg-muted hover:bg-purple-100 border border-border transition-colors cursor-pointer"
+              >
+                Arcada Inferior
+              </button>
             </div>
           </div>
 
-          {/* Nome do Procedimento */}
+          {/* 6. FACES DO DENTE (OPCIONAL) */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold">Nome do Procedimento *</Label>
-            <Input
-              value={nome}
-              onChange={(e) => setNome(e.target.value)}
-              placeholder="Ex: Lentes em Resina Composta, Restauração em Resina..."
-              className="h-9 text-xs"
-              required
-            />
-          </div>
-
-          {/* Categoria e Estado */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">Categoria</Label>
-              <Select value={categoria} onValueChange={setCategoria}>
-                <SelectTrigger className="h-9 text-xs">
-                  <SelectValue placeholder="Categoria" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Estético / Lentes">Estético / Lentes em Resina</SelectItem>
-                  <SelectItem value="Restaurador">Restaurador / Cáries</SelectItem>
-                  <SelectItem value="Endodôntico">Endodôntico (Canal)</SelectItem>
-                  <SelectItem value="Periodôntico">Periodôntico (Gengiva)</SelectItem>
-                  <SelectItem value="Ortodôntico">Ortodôntico</SelectItem>
-                  <SelectItem value="Cirúrgico">Cirúrgico</SelectItem>
-                  <SelectItem value="Prótese">Prótese</SelectItem>
-                  <SelectItem value="Geral">Geral</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-semibold">
+                Faces do dente {dentesSelecionados.length > 0 ? `(${dentesSelecionados.join(', ')})` : ''}
+              </Label>
+              <span className="text-[11px] text-muted-foreground">Opcional</span>
             </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">Estado do Procedimento *</Label>
-              <Select value={estado} onValueChange={(val: EstadoProcedimentoVisual) => setEstado(val)}>
-                <SelectTrigger className="h-9 text-xs">
-                  <SelectValue placeholder="Estado" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="a_realizar">A realizar (Amarelo)</SelectItem>
-                  <SelectItem value="iniciado">Iniciado (Azul)</SelectItem>
-                  <SelectItem value="realizado">Realizado (Verde)</SelectItem>
-                  <SelectItem value="pre_existente">Pré-existente (Roxo)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Faces do Dente */}
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold">Faces do Dente</Label>
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap gap-2 pt-0.5">
               {FACES_OPCOES.map((f) => {
                 const active = faces.includes(f.id);
                 return (
@@ -509,107 +642,64 @@ export const ModalNovoProcedimento: React.FC<ModalNovoProcedimentoProps> = ({
                     key={f.id}
                     type="button"
                     onClick={() => toggleFace(f.id)}
-                    className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-colors ${
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
                       active
-                        ? 'bg-purple-700 text-white border-purple-700'
-                        : 'border-border text-muted-foreground hover:bg-muted'
+                        ? 'bg-purple-700 text-white border-purple-700 shadow-2xs'
+                        : 'border-border bg-background hover:bg-muted text-muted-foreground'
                     }`}
                   >
-                    {f.id} ({f.label})
+                    <span
+                      className={`h-3.5 w-3.5 rounded border flex items-center justify-center ${
+                        active ? 'border-white bg-purple-700' : 'border-muted-foreground/50'
+                      }`}
+                    >
+                      {active && <Check className="h-2.5 w-2.5 text-white" />}
+                    </span>
+                    <span>
+                      {f.id} {f.label !== f.id ? `(${f.label})` : ''}
+                    </span>
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* VALORES E CÁLCULO AUTOMÁTICO EM LOTE */}
-          <div className="grid grid-cols-2 gap-3 p-3 rounded-xl bg-muted/40 border border-border/60">
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold flex items-center justify-between">
-                <span>Valor por Dente (R$)</span>
-                {dentesSelecionados.length > 1 && (
-                  <span className="text-[10px] text-purple-700 font-bold">
-                    × {dentesSelecionados.length} dentes
-                  </span>
-                )}
-              </Label>
-              <Input
-                type="number"
-                step="0.01"
-                value={valorUnitario}
-                onChange={(e) => handleValorUnitarioChange(e.target.value)}
-                placeholder="Ex: 800,00"
-                className="h-9 text-xs"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-purple-700 dark:text-purple-300">
-                Valor Total do Tratamento (R$)
-              </Label>
-              <Input
-                type="number"
-                step="0.01"
-                value={valorTotal}
-                onChange={(e) => setValorTotal(e.target.value)}
-                placeholder="0,00"
-                className="h-9 text-xs font-bold text-foreground"
-              />
-            </div>
-          </div>
-
-          {/* VÍNCULO COM ORÇAMENTO */}
+          {/* 7. PROFISSIONAL (OPCIONAL) */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold flex items-center justify-between">
-              <span>Vincular ao Orçamento do Paciente</span>
-              <span className="text-[11px] text-purple-700 font-medium">
-                {orcamentos.length} orçamento(s) cadastrado(s)
-              </span>
-            </Label>
-            <Select value={orcamentoId} onValueChange={setOrcamentoId}>
-              <SelectTrigger className="h-9 text-xs">
-                <SelectValue placeholder="Selecione o orçamento" />
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-semibold">Profissional</Label>
+              <span className="text-[11px] text-muted-foreground">Opcional</span>
+            </div>
+            <Select value={profissional} onValueChange={setProfissional}>
+              <SelectTrigger className="h-9.5 text-xs">
+                <SelectValue placeholder="Selecione um profissional" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="nenhum">Nenhum orçamento (Lançamento Clínico Direto)</SelectItem>
-                {orcamentos.map((o) => (
-                  <SelectItem key={o.id} value={o.id}>
-                    {o.titulo} — R$ {Number(o.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} ({o.status})
+                <SelectItem value="Dra. Roseane">Dra. Roseane (Responsável Técnica)</SelectItem>
+                {dentistas.map((d) => (
+                  <SelectItem key={d.id} value={d.nome}>
+                    {d.nome} {d.cro ? `(CRO ${d.cro})` : ''}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-
-            {/* Ação rápida para gerar orçamento com estes dentes */}
-            <div className="flex items-center justify-between pt-1">
-              <button
-                type="button"
-                disabled={isCriandoOrcamento || dentesSelecionados.length === 0}
-                onClick={handleGerarNovoOrcamento}
-                className="text-[11px] text-purple-700 dark:text-purple-400 hover:text-purple-900 dark:hover:text-purple-200 font-semibold inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-colors"
-              >
-                <FileText className="h-3.5 w-3.5 text-purple-600" />
-                <span>
-                  {isCriandoOrcamento
-                    ? 'Gerando orçamento...'
-                    : `+ Gerar novo orçamento oficial para estes ${dentesSelecionados.length} dente(s)`}
-                </span>
-              </button>
-            </div>
           </div>
 
-          {/* Observações */}
+          {/* 8. OBSERVAÇÕES (OPCIONAL) */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold">Observações Clínicas</Label>
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-semibold">Observações</Label>
+              <span className="text-[11px] text-muted-foreground">Opcional</span>
+            </div>
             <Textarea
               value={observacoes}
               onChange={(e) => setObservacoes(e.target.value)}
-              placeholder="Ex: Cor de resina BL2, protocolo adesivo, cuidados pós-procedimento..."
-              className="text-xs min-h-[55px]"
+              placeholder="Digite aqui sua observação clínica..."
+              className="text-xs min-h-[75px]"
             />
           </div>
 
-          {/* FOTOS E IMAGENS CLÍNICAS */}
+          {/* 9. FOTOS E IMAGENS CLÍNICAS */}
           <div className="space-y-1.5 pt-1">
             <div className="flex items-center justify-between">
               <Label className="text-xs font-semibold flex items-center gap-1.5">
@@ -626,13 +716,13 @@ export const ModalNovoProcedimento: React.FC<ModalNovoProcedimentoProps> = ({
             <div className="p-3 rounded-xl border border-border/80 bg-muted/20 space-y-2">
               <div className="flex flex-wrap gap-2.5 items-center">
                 <label
-                  htmlFor="proc-modal-upload"
+                  htmlFor="proc-lateral-upload"
                   className={`h-20 w-24 rounded-lg border-2 border-dashed border-purple-400/50 hover:border-purple-600 dark:border-purple-800/80 dark:hover:border-purple-500 bg-purple-50/40 dark:bg-purple-950/20 hover:bg-purple-50/70 flex flex-col items-center justify-center gap-1 cursor-pointer transition-all ${
                     uploadingFoto ? 'opacity-50 pointer-events-none' : ''
                   }`}
                 >
                   <input
-                    id="proc-modal-upload"
+                    id="proc-lateral-upload"
                     type="file"
                     accept="image/*"
                     multiple
@@ -680,31 +770,34 @@ export const ModalNovoProcedimento: React.FC<ModalNovoProcedimentoProps> = ({
 
                 {fotos.length === 0 && !uploadingFoto && (
                   <span className="text-[11px] text-muted-foreground ml-2">
-                    Anexe fotos do planejamento, antes/depois ou exames.
+                    Adicione fotos do planejamento, antes/depois ou exames.
                   </span>
                 )}
               </div>
             </div>
           </div>
-
-          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-border/50">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onClose}
-              className="h-9 px-4 text-xs font-semibold border-purple-600 text-purple-700 hover:bg-purple-50 dark:hover:bg-purple-950/30 rounded-lg"
-            >
-              Cancelar
-            </Button>
-            <Button
-              type="submit"
-              className="h-9 px-5 text-xs font-semibold bg-purple-700 hover:bg-purple-800 text-white rounded-lg shadow-2xs"
-            >
-              Salvar Procedimento
-            </Button>
-          </div>
         </form>
 
+        {/* Rodapé Fixo com Botão Salvar (Conforme Imagem 2) */}
+        <div className="p-4 sm:p-5 border-t border-border/70 bg-card/95 backdrop-blur-xs flex items-center justify-end gap-3 shrink-0">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onClose}
+            className="h-10 px-4 text-xs font-semibold border-purple-600 text-purple-700 hover:bg-purple-50 dark:hover:bg-purple-950/30 rounded-xl"
+          >
+            Cancelar
+          </Button>
+          <Button
+            type="submit"
+            form="form-procedimento-lateral"
+            className="h-10 px-8 text-xs sm:text-sm font-bold bg-purple-700 hover:bg-purple-800 text-white rounded-xl shadow-xs cursor-pointer"
+          >
+            Salvar
+          </Button>
+        </div>
+
+        {/* Modal de Zoom da Imagem */}
         {previewFoto && (
           <Dialog open={Boolean(previewFoto)} onOpenChange={() => setPreviewFoto(null)}>
             <DialogContent className="max-w-2xl p-2 bg-black/95 border-none">
@@ -714,8 +807,8 @@ export const ModalNovoProcedimento: React.FC<ModalNovoProcedimentoProps> = ({
             </DialogContent>
           </Dialog>
         )}
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 };
 

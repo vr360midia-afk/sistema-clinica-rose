@@ -1,10 +1,16 @@
 import React, { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { CalendarIcon, Camera, UploadCloud, Loader2, X, CheckCircle2, Sparkles } from 'lucide-react';
+import { CalendarIcon, Camera, UploadCloud, Loader2, X, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { FotoProcedimento } from './ModalNovoProcedimento';
@@ -110,18 +116,27 @@ export const ModalMarcarRealizado: React.FC<ModalMarcarRealizadoProps> = ({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md sm:max-w-lg p-5 rounded-2xl max-h-[92vh] overflow-y-auto no-scrollbar">
-        <DialogHeader className="pb-1 text-left">
-          <DialogTitle className="text-base sm:text-lg font-bold text-foreground flex items-center gap-2">
+    <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <SheetContent
+        side="right"
+        className="w-full sm:max-w-md md:max-w-lg lg:max-w-xl p-0 h-full flex flex-col bg-background border-l border-border shadow-2xl z-50 overflow-hidden"
+      >
+        {/* Header do Drawer Lateral */}
+        <div className="p-4 sm:p-5 border-b border-border/70 flex items-center justify-between shrink-0 bg-background">
+          <SheetTitle className="text-base sm:text-lg font-bold text-foreground flex items-center gap-2">
             <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
             <span>Marcar como realizado</span>
-          </DialogTitle>
-        </DialogHeader>
+          </SheetTitle>
+        </div>
 
-        <form onSubmit={handleSalvar} className="space-y-4 pt-1">
+        {/* Corpo com Rolagem Lateral */}
+        <form
+          id="form-marcar-realizado-lateral"
+          onSubmit={handleSalvar}
+          className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 no-scrollbar"
+        >
           {/* Resumo do Procedimento */}
-          <div className="bg-muted/40 border border-border/70 rounded-xl p-3 flex items-center justify-between">
+          <div className="bg-muted/40 border border-border/70 rounded-xl p-3.5 flex items-center justify-between shadow-2xs">
             <div className="min-w-0">
               <span className="text-[11px] text-muted-foreground font-semibold block">Procedimento</span>
               <span className="text-xs sm:text-sm font-bold text-foreground truncate block">
@@ -137,13 +152,15 @@ export const ModalMarcarRealizado: React.FC<ModalMarcarRealizadoProps> = ({
 
           {/* Campo Data de Conclusão */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold">Data da Conclusão / Realização *</Label>
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-semibold">Data da Conclusão / Realização *</Label>
+            </div>
             <div className="relative">
               <Input
                 type="date"
                 value={dataSelecionada}
                 onChange={(e) => setDataSelecionada(e.target.value)}
-                className="h-9.5 text-xs sm:text-sm pr-9 rounded-lg border-purple-500/40 focus:border-purple-600 focus:ring-purple-500"
+                className="h-10 text-xs sm:text-sm pr-9 rounded-lg border-purple-500/40 focus:border-purple-600 focus:ring-purple-500"
                 required
               />
               <CalendarIcon className="h-4 w-4 text-purple-600 dark:text-purple-400 absolute right-3 top-3 pointer-events-none" />
@@ -152,12 +169,15 @@ export const ModalMarcarRealizado: React.FC<ModalMarcarRealizadoProps> = ({
 
           {/* Campo Observações da Conclusão */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold">Observações Clínicas / Evolução da Conclusão</Label>
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-semibold">Observações Clínicas / Evolução da Conclusão</Label>
+              <span className="text-[11px] text-muted-foreground">Opcional</span>
+            </div>
             <Textarea
               value={observacoes}
               onChange={(e) => setObservacoes(e.target.value)}
               placeholder="Ex: Procedimento concluído sem intercorrências, anestesia infiltrativa, resina polida, oclusão checada e orientações pós-operatórias passadas ao paciente..."
-              className="text-xs min-h-[75px]"
+              className="text-xs min-h-[90px] rounded-lg"
             />
           </div>
 
@@ -166,12 +186,14 @@ export const ModalMarcarRealizado: React.FC<ModalMarcarRealizadoProps> = ({
             <div className="flex items-center justify-between">
               <Label className="text-xs font-semibold flex items-center gap-1.5">
                 <Camera className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                <span>Fotos do Resultado / Pós-Procedimento (Opcional)</span>
+                <span>Fotos do Resultado / Pós-Procedimento</span>
               </Label>
-              {fotos.length > 0 && (
+              {fotos.length > 0 ? (
                 <span className="text-[11px] text-emerald-700 dark:text-emerald-300 font-semibold">
                   {fotos.length} foto(s)
                 </span>
+              ) : (
+                <span className="text-[11px] text-muted-foreground">Opcional</span>
               )}
             </div>
 
@@ -238,26 +260,29 @@ export const ModalMarcarRealizado: React.FC<ModalMarcarRealizadoProps> = ({
               </div>
             </div>
           </div>
-
-          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-border/50">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onClose}
-              className="h-9 px-4 text-xs font-semibold border-purple-600 text-purple-700 hover:bg-purple-50 dark:hover:bg-purple-950/30 rounded-lg"
-            >
-              Cancelar
-            </Button>
-            <Button
-              type="submit"
-              className="h-9 px-5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-2xs gap-1.5"
-            >
-              <CheckCircle2 className="h-4 w-4" />
-              Salvar como Realizado
-            </Button>
-          </div>
         </form>
 
+        {/* Rodapé Fixo */}
+        <div className="p-4 sm:p-5 border-t border-border/70 bg-card/95 backdrop-blur-xs flex items-center justify-end gap-3 shrink-0">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onClose}
+            className="h-10 px-4 text-xs font-semibold border-purple-600 text-purple-700 hover:bg-purple-50 dark:hover:bg-purple-950/30 rounded-xl"
+          >
+            Cancelar
+          </Button>
+          <Button
+            type="submit"
+            form="form-marcar-realizado-lateral"
+            className="h-10 px-6 text-xs sm:text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs gap-1.5 cursor-pointer"
+          >
+            <CheckCircle2 className="h-4 w-4" />
+            Salvar como Realizado
+          </Button>
+        </div>
+
+        {/* Visualização da Foto em Zoom */}
         {previewFoto && (
           <Dialog open={Boolean(previewFoto)} onOpenChange={() => setPreviewFoto(null)}>
             <DialogContent className="max-w-2xl p-2 bg-black/95 border-none">
@@ -267,8 +292,8 @@ export const ModalMarcarRealizado: React.FC<ModalMarcarRealizadoProps> = ({
             </DialogContent>
           </Dialog>
         )}
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 };
 
