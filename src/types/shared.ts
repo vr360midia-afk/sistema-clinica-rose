@@ -84,6 +84,9 @@ export type StatusConsulta = 'agendado' | 'confirmado' | 'realizado' | 'cancelad
 
 export interface Transacao extends BaseEntity {
   pacienteId: string;
+  pacienteNome?: string;
+  operadoraCartao?: string;
+  dataPagamento?: Date | string;
   consultaId?: string;
   valor: number;
   tipo: TipoTransacao;

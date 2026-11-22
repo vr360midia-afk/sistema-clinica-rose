@@ -117,16 +117,17 @@ const Financeiro = () => {
   };
 
   const handleAbrirPicker = () => {
-    if (inputMonthRef.current) {
-      if ('showPicker' in inputMonthRef.current) {
+    const el = inputMonthRef.current as any;
+    if (el) {
+      if (typeof el.showPicker === 'function') {
         try {
-          inputMonthRef.current.showPicker();
+          el.showPicker();
+          return;
         } catch {
-          inputMonthRef.current.focus();
+          // fallback to focus
         }
-      } else {
-        inputMonthRef.current.focus();
       }
+      el.focus?.();
     }
   };
 
@@ -209,6 +210,16 @@ const Financeiro = () => {
 
   // Alias seguro para evitar ReferenceError em qualquer contexto de renderização
   const transacoesMes = filteredTransacoes;
+
+  // Saldos por Conta Bancária no Mês
+  const saldosContasMes = useMemo(() => {
+    return calcularSaldosContas(filteredTransacoes);
+  }, [calcularSaldosContas, filteredTransacoes]);
+
+  // Mapa de Saldo Progressivo (Running Balance): cada receita soma (+) e cada despesa desconta (-)
+  const mapaSaldoProgressivo = useMemo(() => {
+    return calcularSaldoProgressivoTransacoes(transacoes || []);
+  }, [calcularSaldoProgressivoTransacoes, transacoes]);
 
   // Extração do ano e mês 0-indexed a partir de selectedMonth ("YYYY-MM")
   const { selectedAno, selectedMes0 } = useMemo(() => {
@@ -296,8 +307,8 @@ const Financeiro = () => {
       if (!o || String(o.status || '').toLowerCase() !== 'aprovado') return false;
       const snap = (o as any).assinatura_paciente || (o as any).assinaturaPaciente || {};
       if (
-        o.statusFinanceiro === 'cancelado' ||
-        o.statusFinanceiro === 'arquivado' ||
+        (o as any).statusFinanceiro === 'cancelado' ||
+        (o as any).statusFinanceiro === 'arquivado' ||
         snap.statusFinanceiro === 'cancelado' ||
         snap.statusFinanceiro === 'arquivado'
       ) {
@@ -347,6 +358,15 @@ const Financeiro = () => {
       valorParcela: transacao.valorParcela,
     });
     setReciboModalOpen(true);
+  };
+
+  const handleGerarRecibo = (transacao: any) => {
+    emitirRecibo(transacao);
+  };
+
+  const handleEdit = (transacao: any) => {
+    setEditingTransacao(transacao);
+    setShowTransactionForm(true);
   };
 
   // Filtragem avançada para a tabela de fluxo de caixa
@@ -1430,14 +1450,10 @@ const Financeiro = () => {
         {/* Modal Apresentar / Imprimir Orçamento & Contrato */}
         {apresentarOrcamento && (
           <ModalApresentarOrcamento
-            open={!!apresentarOrcamento}
-            onOpenChange={(v) => !v && setApresentarOrcamento(null)}
+            isOpen={!!apresentarOrcamento}
+            onClose={() => setApresentarOrcamento(null)}
             orcamento={apresentarOrcamento}
-            paciente={pacientes.find((p) => p.id === apresentarOrcamento.pacienteId)}
-            onSalvar={() => {
-              reloadOrcamentos?.();
-              reloadTransacoes?.();
-            }}
+            patient={pacientes.find((p) => p.id === apresentarOrcamento.pacienteId)}
           />
         )}
 
