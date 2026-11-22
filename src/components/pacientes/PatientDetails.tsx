@@ -165,8 +165,8 @@ const PatientDetails = ({ patient, onClose, onEdit, onSchedule, onAddProcediment
             <span>Dados Pessoais</span>
           </TabsTrigger>
           <TabsTrigger value="tratamentos" className="flex items-center gap-1.5 shrink-0 text-xs py-2 font-medium">
-            <Activity className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-            <span>Etapas do Tratamento</span>
+            <Activity className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+            <span>Ficha do Paciente</span>
           </TabsTrigger>
           <TabsTrigger value="records" className="flex items-center gap-1.5 shrink-0 text-xs py-2">
             <FileText className="h-4 w-4" />
@@ -204,7 +204,7 @@ const PatientDetails = ({ patient, onClose, onEdit, onSchedule, onAddProcediment
         </TabsContent>
 
         <TabsContent value="tratamentos" className="space-y-6">
-          <PatientEtapasTratamento patient={patient} />
+          <PatientEtapasTratamento patient={patient} onTabChange={handleTabChange} />
         </TabsContent>
 
         <TabsContent value="records" className="space-y-6">
