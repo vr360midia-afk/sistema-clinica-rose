@@ -21,8 +21,9 @@ import ConfiguracaoContratoManager from '@/components/configuracoes/Configuracao
 import MaquinasCartaoManager from '@/components/configuracoes/MaquinasCartaoManager';
 import OrigensLeadManager from '@/components/configuracoes/OrigensLeadManager';
 import ContasBancariasManager from '@/components/configuracoes/ContasBancariasManager';
-import { Building2 } from 'lucide-react';
+import { Building2, Sun, Moon } from 'lucide-react';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
+import { useTheme } from '@/context/ThemeContext';
 import { Loader2 } from 'lucide-react';
 import { downloadBackupCompleto, lerArquivoBackup, restaurarBackup, type ProgressoBackup } from '@/utils/backup';
 import BackupProgress from '@/components/common/BackupProgress';
@@ -51,6 +52,7 @@ const Configuracoes = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'geral';
   const { toast } = useToast();
+  const { theme, setTheme } = useTheme();
   const { configuracoes, setConfiguracoes, loading, saving, saveConfiguracoes } = useConfiguracoes();
   const [tokens, setTokens] = useState({ whatsappToken: '', instagramToken: '', asaasToken: '' });
   const [mostrarOpenAiKey, setMostrarOpenAiKey] = useState(false);
@@ -313,7 +315,67 @@ const Configuracoes = () => {
             <ConfiguracoesAgenda />
           </TabsContent>
 
-          <TabsContent value="geral">
+          <TabsContent value="geral" className="space-y-6">
+            {/* Aparência e Tema do Sistema */}
+            <Card className="border-border shadow-xs">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base font-bold">
+                  {theme === 'dark' ? <Moon className="h-5 w-5 text-indigo-400" /> : <Sun className="h-5 w-5 text-amber-500" />}
+                  <span>Aparência e Tema do Sistema</span>
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Alterne entre a versão escura e a versão clara de todo o software conforme sua preferência.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div
+                    onClick={() => setTheme('light')}
+                    className={`p-4 rounded-xl border-2 transition-all cursor-pointer flex items-start gap-3.5 ${
+                      theme === 'light'
+                        ? 'border-purple-600 bg-purple-50/50 dark:bg-purple-950/20 shadow-xs'
+                        : 'border-border/80 hover:border-border hover:bg-muted/40'
+                    }`}
+                  >
+                    <div className="p-2.5 rounded-lg bg-amber-100 text-amber-600 shrink-0">
+                      <Sun className="h-5 w-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-sm text-foreground">Versão Clara (Light Mode)</span>
+                        {theme === 'light' && <CheckCircle2 className="h-4 w-4 text-purple-600 shrink-0" />}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Fundo branco nítido, alto contraste e visual leve para ambientes iluminados.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div
+                    onClick={() => setTheme('dark')}
+                    className={`p-4 rounded-xl border-2 transition-all cursor-pointer flex items-start gap-3.5 ${
+                      theme === 'dark'
+                        ? 'border-purple-600 bg-purple-50/50 dark:bg-purple-950/20 shadow-xs'
+                        : 'border-border/80 hover:border-border hover:bg-muted/40'
+                    }`}
+                  >
+                    <div className="p-2.5 rounded-lg bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 shrink-0">
+                      <Moon className="h-5 w-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-sm text-foreground">Versão Escura (Dark Mode)</span>
+                        {theme === 'dark' && <CheckCircle2 className="h-4 w-4 text-purple-600 shrink-0" />}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Tons escuros confortáveis para a visão, menor cansaço visual em longos turnos.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             <Card>
               <CardHeader>
                 <CardTitle>Informações da Clínica</CardTitle>

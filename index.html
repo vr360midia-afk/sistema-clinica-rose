@@ -28,6 +28,23 @@
     <meta name="twitter:image" content="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/de3e7a9d-f3f8-4d27-aed0-fe599497ca71/id-preview-09ce9fcf--6220783b-4d9b-4a8c-b49e-4dcf96139176.lovable.app-1776644270789.png">
     <meta name="twitter:card" content="summary_large_image">
     <script>
+      // Inicialização imediata do tema (Modo Claro vs Modo Escuro) sem FOUC
+      (function() {
+        try {
+          var saved = localStorage.getItem('app-theme') || 'dark';
+          if (saved === 'light') {
+            document.documentElement.classList.remove('dark');
+            document.documentElement.classList.add('light');
+            document.documentElement.style.colorScheme = 'light';
+          } else {
+            document.documentElement.classList.add('dark');
+            document.documentElement.classList.remove('light');
+            document.documentElement.style.colorScheme = 'dark';
+          }
+        } catch (e) {}
+      })();
+    </script>
+    <script>
       // Restaura rota SPA após redirecionamento de 404 estático (compatível com aba anônima e mobile)
       (function() {
         try {

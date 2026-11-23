@@ -534,11 +534,10 @@ export const ModalNovoProcedimento: React.FC<ModalNovoProcedimentoProps> = ({
                     key={est.id}
                     type="button"
                     onClick={() => setEstado(est.id)}
-                    className={`py-2 px-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      isActive
-                        ? 'bg-purple-700 text-white shadow-xs'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
-                    }`}
+                    className={`py-2 px-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${isActive
+                      ? 'bg-purple-700 text-white shadow-xs'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
+                      }`}
                   >
                     {est.label}
                   </button>
@@ -703,15 +702,13 @@ export const ModalNovoProcedimento: React.FC<ModalNovoProcedimentoProps> = ({
                               type="button"
                               onMouseEnter={() => setSelectedProcedimentoIndex(index)}
                               onClick={() => handleSelectProcedimento(p)}
-                              className={`w-full text-left px-3.5 py-2.5 transition-colors flex items-center justify-between gap-3 group focus:outline-none cursor-pointer ${
-                                isSelected ? 'bg-accent/90 text-accent-foreground' : 'hover:bg-accent/60'
-                              }`}
+                              className={`w-full text-left px-3.5 py-2.5 transition-colors flex items-center justify-between gap-3 group focus:outline-none cursor-pointer ${isSelected ? 'bg-accent/90 text-accent-foreground' : 'hover:bg-accent/60'
+                                }`}
                             >
                               <div className="flex-1 min-w-0">
                                 <div
-                                  className={`text-xs sm:text-sm font-semibold truncate ${
-                                    isSelected ? 'text-purple-700 dark:text-purple-300' : 'text-foreground'
-                                  }`}
+                                  className={`text-xs sm:text-sm font-semibold truncate ${isSelected ? 'text-purple-700 dark:text-purple-300' : 'text-foreground'
+                                    }`}
                                 >
                                   {p.nome}
                                 </div>
@@ -901,7 +898,7 @@ export const ModalNovoProcedimento: React.FC<ModalNovoProcedimentoProps> = ({
                       <SelectValue placeholder="+ Dente" />
                     </SelectTrigger>
                     <SelectContent className="max-h-56">
-                      {['18','17','16','15','14','13','12','11','21','22','23','24','25','26','27','28','48','47','46','45','44','43','42','41','31','32','33','34','35','36','37','38'].map((num) => (
+                      {['18', '17', '16', '15', '14', '13', '12', '11', '21', '22', '23', '24', '25', '26', '27', '28', '48', '47', '46', '45', '44', '43', '42', '41', '31', '32', '33', '34', '35', '36', '37', '38'].map((num) => (
                         <SelectItem key={num} value={num}>
                           Dente {num} {dentesSelecionados.includes(num) ? '(já selecionado)' : ''}
                         </SelectItem>
@@ -964,7 +961,7 @@ export const ModalNovoProcedimento: React.FC<ModalNovoProcedimentoProps> = ({
                       <input
                         type="checkbox"
                         checked={active}
-                        onChange={() => {}}
+                        onChange={() => { }}
                         className="h-4.5 w-4.5 rounded border-border text-purple-600 focus:ring-purple-500 cursor-pointer"
                       />
                       <span className="font-semibold">{f.label}</span>
@@ -1027,9 +1024,8 @@ export const ModalNovoProcedimento: React.FC<ModalNovoProcedimentoProps> = ({
                 <div className="flex flex-wrap gap-2.5 items-center">
                   <label
                     htmlFor="proc-lateral-upload"
-                    className={`h-20 w-24 rounded-lg border-2 border-dashed border-purple-400/50 hover:border-purple-600 dark:border-purple-800/80 dark:hover:border-purple-500 bg-purple-50/40 dark:bg-purple-950/20 hover:bg-purple-50/70 flex flex-col items-center justify-center gap-1 cursor-pointer transition-all ${
-                      uploadingFoto ? 'opacity-50 pointer-events-none' : ''
-                    }`}
+                    className={`h-20 w-24 rounded-lg border-2 border-dashed border-purple-400/50 hover:border-purple-600 dark:border-purple-800/80 dark:hover:border-purple-500 bg-purple-50/40 dark:bg-purple-950/20 hover:bg-purple-50/70 flex flex-col items-center justify-center gap-1 cursor-pointer transition-all ${uploadingFoto ? 'opacity-50 pointer-events-none' : ''
+                      }`}
                   >
                     <input
                       id="proc-lateral-upload"

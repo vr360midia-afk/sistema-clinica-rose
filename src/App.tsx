@@ -5,6 +5,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { DentalSystemProvider } from '@/context/DentalSystemContext';
 import { AuthProvider } from '@/context/AuthContext';
 import { SecurityProvider } from '@/context/SecurityContext';
+import { ThemeProvider } from '@/context/ThemeContext';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import RoleRoute from '@/components/auth/RoleRoute';
 import PermissionRoute from '@/components/auth/PermissionRoute';
@@ -130,11 +131,12 @@ function App() {
   return (
     <AuthProvider>
       <SecurityProvider>
-      <DentalSystemProvider>
-        <Router>
-          <SpaRedirectHandler />
-          <div className="App">
-            <Routes>
+        <ThemeProvider>
+          <DentalSystemProvider>
+            <Router>
+              <SpaRedirectHandler />
+              <div className="App min-h-screen bg-background text-foreground transition-colors duration-200">
+                <Routes>
               {/* Rotas Públicas */}
               <Route path="/auth" element={<Auth />} />
               <Route path="/agendar" element={<AgendamentoPublico />} />
@@ -214,6 +216,7 @@ function App() {
           </div>
         </Router>
       </DentalSystemProvider>
+      </ThemeProvider>
       </SecurityProvider>
     </AuthProvider>
   );

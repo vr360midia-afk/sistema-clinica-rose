@@ -3,6 +3,7 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useUserRoles, AppRole } from '@/hooks/useUserRoles';
+import { useTheme } from '@/context/ThemeContext';
 import {
   Target,
   Home,
@@ -23,6 +24,8 @@ import {
   Handshake,
   CalendarCheck2,
   Sparkles,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { useNovosLeadsBadgeCount } from '@/hooks/useNovosLeadsBadgeCount';
 
@@ -63,6 +66,7 @@ const navigation: NavItem[] = [
 const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
   const location = useLocation();
   const unreviewedLeadsCount = useNovosLeadsBadgeCount();
+  const { theme, toggleTheme } = useTheme();
 
   const { roles } = useUserRoles();
   const semPerfil = roles.length === 0;
@@ -114,14 +118,14 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
                     className={cn(
                       'flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors w-full active:scale-[0.99]',
                       isActive
-                        ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700'
+                        ? 'bg-purple-100/90 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 border-r-2 border-purple-700 font-semibold'
                         : 'text-foreground hover:bg-muted hover:text-foreground'
                     )}
                   >
                     <item.icon className="h-5 w-5 flex-shrink-0" />
                     <span className="truncate flex-1 text-left">{item.name}</span>
                     {item.badge && unreviewedLeadsCount > 0 && (
-                      <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[11px] font-bold text-white bg-blue-600 rounded-full shadow-sm animate-pulse">
+                      <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[11px] font-bold text-white bg-purple-600 rounded-full shadow-sm animate-pulse">
                         {unreviewedLeadsCount > 99 ? '99+' : unreviewedLeadsCount}
                       </span>
                     )}
@@ -131,6 +135,27 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
             })}
           </ul>
         </nav>
+
+        {/* Alternador de Tema Claro / Escuro no rodapé da Sidebar */}
+        <div className="p-3 border-t border-border bg-card/60 shrink-0">
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-foreground hover:bg-muted border border-border/60 transition-colors shadow-2xs cursor-pointer"
+          >
+            <div className="flex items-center gap-2">
+              {theme === 'dark' ? (
+                <Sun className="h-4 w-4 text-amber-400" />
+              ) : (
+                <Moon className="h-4 w-4 text-indigo-600" />
+              )}
+              <span>{theme === 'dark' ? 'Modo Claro' : 'Modo Escuro'}</span>
+            </div>
+            <span className="text-[10px] font-bold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/50 px-2 py-0.5 rounded border border-purple-300/40">
+              {theme === 'dark' ? 'Ativar Claro' : 'Ativar Escuro'}
+            </span>
+          </button>
+        </div>
       </div>
     </>
   );
