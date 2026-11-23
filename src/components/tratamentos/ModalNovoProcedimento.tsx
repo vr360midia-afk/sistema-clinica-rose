@@ -168,8 +168,8 @@ export const ModalNovoProcedimento: React.FC<ModalNovoProcedimentoProps> = ({
         procedimentoEmEdicao.dentes && procedimentoEmEdicao.dentes.length > 0
           ? procedimentoEmEdicao.dentes
           : procedimentoEmEdicao.dente
-          ? procedimentoEmEdicao.dente.split(',').map((s) => s.trim()).filter(Boolean)
-          : ['16'];
+            ? procedimentoEmEdicao.dente.split(',').map((s) => s.trim()).filter(Boolean)
+            : ['16'];
       setDentesSelecionados(dArray);
       setFaces(procedimentoEmEdicao.faces || []);
       setEstado(procedimentoEmEdicao.estado || 'a_realizar');
@@ -1110,7 +1110,7 @@ export const ModalNovoProcedimento: React.FC<ModalNovoProcedimentoProps> = ({
           {/* Modal de Zoom da Imagem */}
           {previewFoto && (
             <Dialog open={Boolean(previewFoto)} onOpenChange={() => setPreviewFoto(null)}>
-              <DialogContent className="max-w-2xl p-2 bg-black/95 border-none">
+              <DialogContent position="center" className="max-w-2xl p-2 bg-black/95 border-none">
                 <div className="relative flex items-center justify-center p-2">
                   <img src={previewFoto} alt="Pré-visualização" className="max-h-[80vh] w-auto rounded-lg object-contain" />
                 </div>

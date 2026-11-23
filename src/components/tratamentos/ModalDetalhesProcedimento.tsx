@@ -228,7 +228,7 @@ export const ModalDetalhesProcedimento: React.FC<ModalDetalhesProcedimentoProps>
         {/* Zoom da Imagem */}
         {previewFoto && (
           <Dialog open={Boolean(previewFoto)} onOpenChange={() => setPreviewFoto(null)}>
-            <DialogContent className="max-w-2xl p-2 bg-black/95 border-none">
+            <DialogContent position="center" className="max-w-2xl p-2 bg-black/95 border-none">
               <div className="relative flex items-center justify-center p-2">
                 <img src={previewFoto} alt="Pré-visualização da Foto" className="max-h-[80vh] w-auto rounded-lg object-contain" />
               </div>
