@@ -3239,14 +3239,6 @@ const PatientOrcamentos = ({ patient }: Props) => {
               <Input value={titulo} onChange={(e) => setTitulo(e.target.value)} maxLength={120} />
             </div>
 
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <Label>Adicionar procedimento</Label>
-                <span className="text-[11px] text-muted-foreground font-normal">
-                  {procedimentosAtivos.length} pré-cadastrado{procedimentosAtivos.length === 1 ? '' : 's'}
-                </span>
-              </div>
-
             {/* Combobox Pesquisável com Busca em Tempo Real e Rolagem Nativa (sem conflito com Dialog) */}
             <div className="space-y-1.5 relative" ref={comboboxProcedimentoRef}>
               <div className="flex items-center justify-between">
@@ -3450,7 +3442,6 @@ const PatientOrcamentos = ({ patient }: Props) => {
               <Button type="button" variant="outline" size="sm" className="w-full" onClick={addItemManual}>
                 <Plus className="h-4 w-4 mr-1" /> Adicionar item manual
               </Button>
-            </div>
 
             <div className="space-y-2">
               {itens.map((i, idx) => (

@@ -26,6 +26,7 @@ interface ModalSincronizarCalendarioProps {
   onDownloadICS: () => void;
   totalConsultas: number;
   totalBloqueios: number;
+  totalAniversariantes?: number;
 }
 
 export const ModalSincronizarCalendario: React.FC<ModalSincronizarCalendarioProps> = ({
@@ -34,6 +35,7 @@ export const ModalSincronizarCalendario: React.FC<ModalSincronizarCalendarioProp
   onDownloadICS,
   totalConsultas,
   totalBloqueios,
+  totalAniversariantes = 0,
 }) => {
   const { clinicaId, user } = useAuth();
   const effectiveId = clinicaId || user?.id || '';
@@ -90,7 +92,7 @@ export const ModalSincronizarCalendario: React.FC<ModalSincronizarCalendarioProp
                 </Badge>
               </DialogTitle>
               <DialogDescription className="text-emerald-100 text-xs mt-0.5">
-                Suas consultas e bloqueios aparecem direto nos aplicativos de calendário do celular.
+                Suas consultas, bloqueios e aniversários de pacientes (🎂) aparecem direto no aplicativo Calendário do iPhone.
               </DialogDescription>
             </div>
           </div>
@@ -98,12 +100,12 @@ export const ModalSincronizarCalendario: React.FC<ModalSincronizarCalendarioProp
 
         <div className="p-4 space-y-3.5 max-h-[82vh] overflow-y-auto">
           {/* Resumo do que será sincronizado */}
-          <div className="rounded-lg border border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/20 p-2.5 flex items-center justify-between text-xs">
+          <div className="rounded-lg border border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/20 p-2.5 flex items-center justify-between text-xs flex-wrap gap-2">
             <div className="flex items-center gap-2 text-foreground font-medium">
               <Sparkles className="h-4 w-4 text-emerald-600 shrink-0" />
               <span>Sincronizando no Calendário:</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 flex-wrap">
               <Badge variant="secondary" className="text-[11px] gap-1 font-semibold">
                 🦷 {totalConsultas} {totalConsultas === 1 ? 'consulta' : 'consultas'}
               </Badge>
@@ -111,6 +113,11 @@ export const ModalSincronizarCalendario: React.FC<ModalSincronizarCalendarioProp
                 <Lock className="h-3 w-3" />
                 {totalBloqueios} {totalBloqueios === 1 ? 'bloqueio' : 'bloqueios'}
               </Badge>
+              {totalAniversariantes > 0 && (
+                <Badge variant="outline" className="text-[11px] gap-1 border-pink-500/40 text-pink-700 dark:text-pink-400 font-semibold bg-pink-50/50 dark:bg-pink-950/30">
+                  🎂 {totalAniversariantes} {totalAniversariantes === 1 ? 'aniversário' : 'aniversários'}
+                </Badge>
+              )}
             </div>
           </div>
 
@@ -130,7 +137,7 @@ export const ModalSincronizarCalendario: React.FC<ModalSincronizarCalendarioProp
             <TabsContent value="iphone" className="space-y-3">
               <div className="rounded-xl border p-3 bg-card shadow-xs space-y-3">
                 <p className="text-[11px] text-muted-foreground leading-relaxed">
-                  Ao assinar no iPhone, novas consultas e <strong>bloqueios de horário</strong> (almoço, reuniões, férias) sincronizam automaticamente a cada 15 minutos.
+                  Ao assinar no iPhone, novas consultas, bloqueios de horário e <strong>aniversários de pacientes com destaque de bolo (🎂)</strong> sincronizam automaticamente a cada 15 minutos.
                 </p>
 
                 <div className="flex flex-col sm:flex-row items-center gap-3 pt-1">

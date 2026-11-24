@@ -37,6 +37,34 @@ const normalizeTime = (timeStr?: string | null, fallback = '08:00:00'): string =
   return `${hh}:${mm}:${ss}`;
 };
 
+// Helper para extrair dia, mês e ano de nascimento
+const parseNascimento = (rawDate: string): { dia: number; mes: number; anoNasc: number | null } | null => {
+  if (!rawDate) return null;
+  const clean = rawDate.split('T')[0].trim();
+  if (clean.includes('-')) {
+    const parts = clean.split('-');
+    if (parts.length === 3) {
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      const d = parseInt(parts[2], 10);
+      if (!isNaN(d) && !isNaN(m) && d >= 1 && d <= 31 && m >= 1 && m <= 12) {
+        return { dia: d, mes: m, anoNasc: !isNaN(y) && y > 1900 && y < 2100 ? y : null };
+      }
+    }
+  } else if (clean.includes('/')) {
+    const parts = clean.split('/');
+    if (parts.length >= 2) {
+      const d = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      const y = parts[2] ? parseInt(parts[2], 10) : null;
+      if (!isNaN(d) && !isNaN(m) && d >= 1 && d <= 31 && m >= 1 && m <= 12) {
+        return { dia: d, mes: m, anoNasc: y && !isNaN(y) && y > 1900 && y < 2100 ? y : null };
+      }
+    }
+  }
+  return null;
+};
+
 // Criar objeto Date seguro com fuso horário de Brasília (-03:00)
 const buildSafeDate = (dateStr: string, timeStr?: string | null, fallbackTime = '08:00:00'): Date | null => {
   try {
@@ -151,6 +179,30 @@ serve(async (req) => {
       if (!b.user_id) return true; // Bloqueio global da clínica
       return userIds.includes(b.user_id);
     });
+
+    // 3. Buscar pacientes com data de nascimento cadastrada (Aniversários)
+    let pacientes: any[] = [];
+    try {
+      let queryPacientes = supabaseAdmin
+        .from('pacientes')
+        .select('id, nome, telefone, data_nascimento, status, user_id')
+        .not('data_nascimento', 'is', null);
+
+      if (userIds && userIds.length > 0) {
+        queryPacientes = queryPacientes.or(`user_id.in.(${userIds.join(',')}),user_id.is.null`);
+      }
+
+      const { data: pacientesData, error: pacientesError } = await queryPacientes;
+      if (pacientesError) {
+        console.warn('Erro ao buscar pacientes para aniversários:', pacientesError);
+      } else {
+        pacientes = (pacientesData || []).filter(
+          (p: any) => p && p.data_nascimento && p.status?.toLowerCase() !== 'arquivado'
+        );
+      }
+    } catch (ePac) {
+      console.warn('Exceção ao buscar aniversários de pacientes:', ePac);
+    }
 
     const icalContent: string[] = [
       'BEGIN:VCALENDAR',
@@ -267,6 +319,75 @@ serve(async (req) => {
         }
       } catch (errBloq) {
         console.warn('Erro ao processar bloqueio para iCal:', b.id, errBloq);
+      }
+    }
+
+    // 3. Inserir Aniversários dos Pacientes (com bolinho 🎂 em destaque nas agendas de iPhone / Apple Calendar)
+    const currentYear = new Date().getFullYear();
+    const anosAlvo = [currentYear - 1, currentYear, currentYear + 1, currentYear + 2];
+
+    for (const p of pacientes) {
+      try {
+        const infoNasc = parseNascimento(p.data_nascimento);
+        if (!infoNasc) continue;
+
+        const { dia, mes, anoNasc } = infoNasc;
+        const pacienteNome = p.nome || 'Paciente';
+        const telefoneRaw = (p.telefone || '').replace(/\D/g, '');
+        const dataNascFormatada = `${String(dia).padStart(2, '0')}/${String(mes).padStart(2, '0')}${anoNasc ? `/${anoNasc}` : ''}`;
+
+        for (const ano of anosAlvo) {
+          // Tratar 29 de fevereiro em anos não-bissextos (passar para dia 28)
+          let diaAjustado = dia;
+          if (mes === 2 && dia === 29) {
+            const isBissexto = (ano % 4 === 0 && ano % 100 !== 0) || (ano % 400 === 0);
+            if (!isBissexto) diaAjustado = 28;
+          }
+
+          const mesStr = String(mes).padStart(2, '0');
+          const diaStr = String(diaAjustado).padStart(2, '0');
+          const dataEventoStr = `${ano}-${mesStr}-${diaStr}`;
+          const dtStartOnly = `${ano}${mesStr}${diaStr}`;
+          const dtEndOnly = getNextDayDateOnly(dataEventoStr);
+
+          // Calcular idade que o paciente comemora naquele ano
+          let idadeTexto = '';
+          let idadeInfo = '';
+          if (anoNasc && ano >= anoNasc) {
+            const idade = ano - anoNasc;
+            if (idade > 0) {
+              idadeTexto = ` (${idade} anos)`;
+              idadeInfo = `\\n🎉 Idade: ${idade} anos`;
+            }
+          }
+
+          const summary = `🎂 Aniversário: ${escapeICalText(pacienteNome)}${escapeICalText(idadeTexto)}`;
+          
+          const descParts = [
+            `🎂 Aniversário de ${escapeICalText(pacienteNome)}`,
+            idadeInfo,
+            `📅 Data de Nascimento: ${dataNascFormatada}`,
+            p.telefone ? `📱 Telefone: ${escapeICalText(p.telefone)}` : '',
+            telefoneRaw ? `💬 WhatsApp: https://wa.me/55${telefoneRaw}` : '',
+            `✨ Lembrete sincronizado Dental IA / Clínica Roseane`
+          ].filter(Boolean);
+
+          icalContent.push(
+            'BEGIN:VEVENT',
+            `UID:aniversario-${p.id}-${ano}@sistemaclinica.com`,
+            `DTSTAMP:${nowFormatted}`,
+            `DTSTART;VALUE=DATE:${dtStartOnly}`,
+            `DTEND;VALUE=DATE:${dtEndOnly}`,
+            `SUMMARY:${summary}`,
+            `DESCRIPTION:${descParts.join('\\n')}`,
+            'STATUS:CONFIRMED',
+            'TRANSP:TRANSPARENT',
+            'CATEGORIES:BIRTHDAY,ANNIVERSARY',
+            'END:VEVENT'
+          );
+        }
+      } catch (errNasc) {
+        console.warn('Erro ao processar aniversário para iCal:', p.id, errNasc);
       }
     }
 

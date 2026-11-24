@@ -180,8 +180,97 @@ const Agenda = () => {
       }
     });
 
+    // 3. Aniversários dos Pacientes (com bolinho 🎂 em destaque nas agendas de iPhone / Mac / Google)
+    const currentYear = new Date().getFullYear();
+    const anosAlvo = [currentYear - 1, currentYear, currentYear + 1];
+
+    (pacientes || []).forEach((p: any) => {
+      try {
+        if (!p || p.status?.toLowerCase() === 'arquivado') return;
+        const rawDate = p.dataNascimento || p.data_nascimento;
+        if (!rawDate) return;
+
+        let dia = 0;
+        let mes = -1;
+        let anoNasc: number | null = null;
+
+        if (typeof rawDate === 'string' && rawDate.includes('-')) {
+          const parts = rawDate.split('T')[0].split('-');
+          if (parts.length === 3) {
+            dia = parseInt(parts[2], 10);
+            mes = parseInt(parts[1], 10) - 1;
+            const y = parseInt(parts[0], 10);
+            if (!isNaN(y) && y > 1900 && y < 2100) anoNasc = y;
+          }
+        } else if (typeof rawDate === 'string' && rawDate.includes('/')) {
+          const parts = rawDate.split('/');
+          if (parts.length >= 2) {
+            dia = parseInt(parts[0], 10);
+            mes = parseInt(parts[1], 10) - 1;
+            const y = parts[2] ? parseInt(parts[2], 10) : null;
+            if (y && !isNaN(y) && y > 1900 && y < 2100) anoNasc = y;
+          }
+        } else {
+          const d = new Date(rawDate);
+          if (!isNaN(d.getTime())) {
+            dia = d.getDate();
+            mes = d.getMonth();
+            const y = d.getFullYear();
+            if (y > 1900 && y < 2100) anoNasc = y;
+          }
+        }
+
+        if (dia < 1 || dia > 31 || mes < 0 || mes > 11) return;
+
+        anosAlvo.forEach((ano) => {
+          let diaAjustado = dia;
+          if (mes === 1 && dia === 29) {
+            const isBissexto = (ano % 4 === 0 && ano % 100 !== 0) || (ano % 400 === 0);
+            if (!isBissexto) diaAjustado = 28;
+          }
+
+          const dtInicio = new Date(ano, mes, diaAjustado, 0, 0, 0);
+          const dtFim = new Date(ano, mes, diaAjustado, 23, 59, 59);
+
+          let idadeTexto = '';
+          if (anoNasc && ano >= anoNasc) {
+            const idade = ano - anoNasc;
+            if (idade > 0) idadeTexto = ` (${idade} anos)`;
+          }
+
+          const titulo = `🎂 Aniversário: ${p.nome || 'Paciente'}${idadeTexto}`;
+          const telefoneRaw = (p.telefone || '').replace(/\D/g, '');
+          const desc = [
+            `🎂 Aniversário de ${p.nome || 'Paciente'}`,
+            idadeTexto ? `🎉 Comemora: ${idadeTexto.replace(/[()]/g, '')}` : '',
+            p.telefone ? `📱 Telefone: ${p.telefone}` : '',
+            telefoneRaw ? `💬 WhatsApp: https://wa.me/55${telefoneRaw}` : '',
+            '✨ Lembrete sincronizado Dental IA / Clínica'
+          ].filter(Boolean).join('\n');
+
+          eventos.push({
+            id: `aniversario-${p.id || p.nome}-${ano}`,
+            titulo,
+            descricao: desc,
+            inicio: dtInicio,
+            fim: dtFim,
+            allDay: true,
+          });
+        });
+      } catch (errNasc) {
+        console.warn('Erro ao processar aniversário de paciente para ICS:', errNasc);
+      }
+    });
+
     downloadICS(eventos, 'agenda-clinica.ics');
   };
+
+  const totalAniversariantes = useMemo(() => {
+    return (pacientes || []).filter((p: any) => {
+      const raw = p?.dataNascimento || p?.data_nascimento;
+      return Boolean(raw && p?.status?.toLowerCase() !== 'arquivado');
+    }).length;
+  }, [pacientes]);
 
   const handleAppointmentClick = (appointmentOrResource: any) => {
     if (appointmentOrResource?.isBloqueio) {
@@ -644,6 +733,7 @@ const Agenda = () => {
           onDownloadICS={handleDownloadICS}
           totalConsultas={transformedConsultas.length}
           totalBloqueios={(bloqueios || []).length}
+          totalAniversariantes={totalAniversariantes}
         />
         <PendentesModal
           isOpen={isPendentesModalOpen}
