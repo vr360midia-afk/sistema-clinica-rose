@@ -3963,7 +3963,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     <div className="space-y-1">
                       <Label className="text-[11px]">Parcelas do Saldo:</Label>
                       <select
@@ -3982,7 +3982,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                         }}
                         className="w-full h-8 px-2 text-xs font-semibold rounded bg-background border border-border"
                       >
-                        {[1, 2, 3, 4, 5, 6, 8, 10, 12, 18].map((n) => (
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18, 24].map((n) => (
                           <option key={n} value={n}>
                             {n}x mensais
                           </option>
@@ -4004,6 +4004,25 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                         <option value="pix_parcelado">PIX Parcelado</option>
                         <option value="boleto">Boleto Bancário</option>
                         <option value="conclusao">Na Conclusão</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[11px]">Dia de Vencimento:</Label>
+                      <select
+                        value={condicaoFlexibilizarContrato.diaVencimento || 10}
+                        onChange={(e) => {
+                          const d = Number(e.target.value) || 10;
+                          const upd = { ...condicaoFlexibilizarContrato, diaVencimento: d };
+                          upd.descricao = calcularDescricaoCondicao(upd, orcamentoAtual.total);
+                          setCondicaoFlexibilizarContrato(upd);
+                        }}
+                        className="w-full h-8 px-2 text-xs font-semibold rounded bg-background border border-border"
+                      >
+                        {[1, 5, 10, 15, 20, 25, 26, 28, 30].map((d) => (
+                          <option key={d} value={d}>
+                            Todo dia {d}
+                          </option>
+                        ))}
                       </select>
                     </div>
                   </div>

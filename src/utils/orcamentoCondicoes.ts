@@ -190,13 +190,28 @@ export function calcularDescricaoCondicao(
       // Caso padrão com parcelas
       const parcSaldo = Math.max(1, cond.saldoParcelas || 1);
       const valParcSaldo = saldo / parcSaldo;
+
+      let tagVencSaldo = tagDataSaldo;
+      const diaVencDetectado = cond.diaVencimento || (cond.dataPrimeiroVencimento ? (() => {
+        try {
+          const s = String(cond.dataPrimeiroVencimento);
+          if (s.includes('-')) return Number(s.split('-')[2]);
+          if (s.includes('/')) return Number(s.split('/')[0]);
+        } catch (_) {}
+        return undefined;
+      })() : undefined);
+
+      if (diaVencDetectado && parcSaldo > 1) {
+        tagVencSaldo = ` (Vencimento todo dia ${diaVencDetectado}${cond.dataPrimeiroVencimento ? `, 1º em ${formatarDataBr(cond.dataPrimeiroVencimento)}` : ''})`;
+      }
+
       if (ent > 0) {
         if (parcSaldo === 1) {
-          return `Entrada de ${formatMoney(ent)}${strPercEnt} ${metEntrada}${tagDataEnt}${tagSitEnt} + Saldo de ${formatMoney(saldo)}${strPercSaldo} em 1x ${metSaldo}${tagDataSaldo}${tagSitSaldo}`;
+          return `Entrada de ${formatMoney(ent)}${strPercEnt} ${metEntrada}${tagDataEnt}${tagSitEnt} + Saldo de ${formatMoney(saldo)}${strPercSaldo} em 1x ${metSaldo}${tagVencSaldo}${tagSitSaldo}`;
         }
-        return `Entrada de ${formatMoney(ent)}${strPercEnt} ${metEntrada}${tagDataEnt}${tagSitEnt} + Saldo de ${formatMoney(saldo)}${strPercSaldo} em ${parcSaldo}x de ${formatMoney(valParcSaldo)} ${metSaldo}${tagDataSaldo}${tagSitSaldo}`;
+        return `Entrada de ${formatMoney(ent)}${strPercEnt} ${metEntrada}${tagDataEnt}${tagSitEnt} + Saldo de ${formatMoney(saldo)}${strPercSaldo} em ${parcSaldo}x de ${formatMoney(valParcSaldo)} ${metSaldo}${tagVencSaldo}${tagSitSaldo}`;
       }
-      return `Saldo de ${formatMoney(total)} em ${parcSaldo}x de ${formatMoney(valParcSaldo)} ${metSaldo}${tagDataSaldo}${tagSitSaldo}`;
+      return `Saldo de ${formatMoney(total)} em ${parcSaldo}x de ${formatMoney(valParcSaldo)} ${metSaldo}${tagVencSaldo}${tagSitSaldo}`;
     }
 
     case 'pix_parcelado': {
@@ -726,6 +741,7 @@ export function extrairDetalhesCondicaoDeTexto(
   let situacaoEntrada: 'Quitada' | 'Pendente' | undefined = undefined;
   let diaVencimento: number | undefined = undefined;
   let situacaoSaldo: 'Quitado' | 'Pendente' | undefined = undefined;
+  let dataPrimeiroVencimento: string | undefined = undefined;
 
   if (isEntradaSaldo) {
     tipo = 'entrada_saldo';
@@ -768,7 +784,10 @@ export function extrairDetalhesCondicaoDeTexto(
     else saldoMetodo = 'cartao';
 
     const matchDia = parteSaldo.match(/(?:vencimento|dia)\s*(?:todo\s*dia)?\s*(\d{1,2})/i);
-    if (matchDia) diaVencimento = Math.min(28, Math.max(1, parseInt(matchDia[1], 10)));
+    if (matchDia) diaVencimento = Math.min(31, Math.max(1, parseInt(matchDia[1], 10)));
+
+    const matchPrimVenc = parteSaldo.match(/(?:1[º°ªa]\s*em|iniciando\s*em|primeir[oa]\s*em|vencimento:)\s*(\d{1,2}\/\d{1,2}\/\d{4}|\d{4}-\d{2}-\d{2})/i);
+    if (matchPrimVenc) dataPrimeiroVencimento = matchPrimVenc[1];
 
     if (/quitad|pago|paga/i.test(parteSaldo)) situacaoSaldo = 'Quitado';
     else if (/pendente|a vencer/i.test(parteSaldo)) situacaoSaldo = 'Pendente';
@@ -905,6 +924,7 @@ export function extrairDetalhesCondicaoDeTexto(
     saldoMetodo,
     saldoParcelas: tipo === 'entrada_saldo' ? (parcelas || 1) : undefined,
     saldoValorParcela: tipo === 'entrada_saldo' ? valorParcela : undefined,
+    dataPrimeiroVencimento: tipo === 'entrada_saldo' ? dataPrimeiroVencimento : undefined,
     diaVencimento,
     situacaoSaldo,
     descontoValor,

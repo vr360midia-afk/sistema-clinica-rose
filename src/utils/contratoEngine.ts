@@ -269,10 +269,26 @@ export interface ContratoSnapshot {
   } | null;
 }
 
+const parseDataIsoOuBr = (d: Date | string | undefined | null): Date | null => {
+  if (!d) return null;
+  if (d instanceof Date) return isNaN(d.getTime()) ? null : d;
+  const s = String(d).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+    const [y, m, dia] = s.split('T')[0].split('-').map(Number);
+    return new Date(y, m - 1, dia, 12, 0, 0);
+  }
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}/.test(s)) {
+    const [dia, m, y] = s.split('/').map(Number);
+    return new Date(y, m - 1, dia, 12, 0, 0);
+  }
+  const dt = new Date(s);
+  return isNaN(dt.getTime()) ? null : dt;
+};
+
 const formatarData = (d: Date | string | undefined | null): string => {
   if (!d) return 'Não informada';
-  const data = d instanceof Date ? d : new Date(String(d));
-  if (isNaN(data.getTime())) return String(d);
+  const data = parseDataIsoOuBr(d);
+  if (!data) return String(d);
   return data.toLocaleDateString('pt-BR');
 };
 
@@ -1120,8 +1136,9 @@ export function gerarParcelasCronogramaFinanceiro(params: ParamsGerarParcelasCro
   metodoParcelamento: string;
 } {
   const { condicao, total, hoje = new Date(), dataAprovacao, clinica, contratoId = '' } = params;
-  const diaVencPadrao = Math.min(28, Math.max(1, condicao.diaVencimento || 10));
-  const dataBaseVenc = condicao.dataPrimeiroVencimento ? new Date(condicao.dataPrimeiroVencimento) : hoje;
+  const primDataVenc = condicao.dataPrimeiroVencimento ? parseDataIsoOuBr(condicao.dataPrimeiroVencimento) : null;
+  const diaVencPadrao = Math.min(31, Math.max(1, condicao.diaVencimento || (primDataVenc ? primDataVenc.getDate() : 10)));
+  const dataBaseVenc = primDataVenc || hoje;
 
   let parcelas: ContratoParcela[] = [];
   let entrada = 0;
@@ -1340,8 +1357,11 @@ export function gerarParcelasCronogramaFinanceiro(params: ParamsGerarParcelasCro
           venc = 'Fatura do Cartão';
         } else if (mSaldo.toLowerCase().includes('conclus')) {
           venc = 'Na Conclusão do Tratamento';
+        } else if (primDataVenc) {
+          const d = i === 0 ? primDataVenc : somarMesesSeguro(primDataVenc, i, diaVencPadrao);
+          venc = formatarData(d);
         } else {
-          venc = formatarData(somarMesesSeguro(dataBaseVenc, i + 1, diaVencPadrao));
+          venc = formatarData(somarMesesSeguro(hoje, i + 1, diaVencPadrao));
         }
 
         const descSaldo = qtdSaldo === 1
@@ -1428,9 +1448,13 @@ export function gerarParcelasCronogramaFinanceiro(params: ParamsGerarParcelasCro
       const offsetNumero = entVal > 0 ? 1 : 0;
       for (let i = 0; i < qtd; i++) {
         const valParc = Number((valBase + (i < centavos ? 0.01 : 0)).toFixed(2));
-        const venc = condicao.dataPrimeiroVencimento && i === 0
-          ? formatarData(condicao.dataPrimeiroVencimento)
-          : formatarData(somarMesesSeguro(dataBaseVenc, i + 1, diaVencPadrao));
+        let venc = '';
+        if (primDataVenc) {
+          const d = i === 0 ? primDataVenc : somarMesesSeguro(primDataVenc, i, diaVencPadrao);
+          venc = formatarData(d);
+        } else {
+          venc = formatarData(somarMesesSeguro(hoje, i + 1, diaVencPadrao));
+        }
 
         const numParc = i + 1 + offsetNumero;
         const pItem: ContratoParcela = {
@@ -1888,7 +1912,7 @@ export const mapearDadosContrato = ({
   const condicoesParsed = parseCondicoesPagamento(formasRaw, totalAprovadoBase);
   const condicaoAtiva: CondicaoPagamento | null =
     extrairCondicaoEscolhida(orcamento) ||
-    ('condicaoEscolhida' in orcamento && orcamento.condicaoEscolhida) ||
+    (orcamento && typeof orcamento === 'object' && 'condicaoEscolhida' in orcamento && (orcamento as any).condicaoEscolhida) ||
     obterCondicaoAtiva(condicoesParsed);
 
   const descontoCondicao = Number((condicaoAtiva as any)?.descontoValor ?? (condicaoAtiva as any)?.valorDesconto ?? 0);
@@ -2136,7 +2160,10 @@ export const mapearDadosContrato = ({
 
         if (qtdParc > 1) {
           const diaMatch = conteudo.match(/(?:vencimento|dia)\s*(?:todo\s*dia)?\s*(\d{1,2})/i);
-          const diaVenc = diaMatch ? Math.min(28, Math.max(1, parseInt(diaMatch[1], 10))) : 10;
+          const matchPrim = conteudo.match(/(?:1[º°ªa]\s*em|iniciando\s*em|primeir[oa]\s*em|vencimento\s*em)\s*(\d{1,2}\/\d{1,2}\/\d{4}|\d{4}-\d{2}-\d{2})/i);
+          const primDataMulti = matchPrim ? (matchPrim[1].includes('-') ? formatarData(matchPrim[1]) : matchPrim[1]) : (datasParte[0] || undefined);
+          const primDt = primDataMulti ? parseDataIsoOuBr(primDataMulti) : null;
+          const diaVenc = diaMatch ? Math.min(31, Math.max(1, parseInt(diaMatch[1], 10))) : (primDt ? primDt.getDate() : 10);
 
           for (let i = 0; i < qtdParc; i++) {
             let venc = '';
@@ -2145,8 +2172,12 @@ export const mapearDadosContrato = ({
             } else {
               venc = datasParte[i];
               if (!venc) {
-                const dataVenc = somarMesesSeguro(hoje, i + 1, diaVenc);
-                venc = formatarData(dataVenc);
+                if (primDt) {
+                  venc = formatarData(i === 0 ? primDt : somarMesesSeguro(primDt, i, diaVenc));
+                } else {
+                  const dataVenc = somarMesesSeguro(hoje, i + 1, diaVenc);
+                  venc = formatarData(dataVenc);
+                }
               }
             }
             const sitFinal = situacoesIndividuais[i] || situacaoDetectada || 'Pendente';
@@ -2214,6 +2245,14 @@ export const mapearDadosContrato = ({
         }
       }
 
+      // Detecta se há "1º em DD/MM/AAAA" ou "iniciando em DD/MM/AAAA"
+      if (datasDetectadas.length === 0) {
+        const matchPrim = formas.match(/(?:1[º°ªa]\s*em|iniciando\s*em|primeir[oa]\s*em|vencimento\s*em)\s*(\d{1,2}\/\d{1,2}\/\d{4}|\d{4}-\d{2}-\d{2})/i);
+        if (matchPrim) {
+          datasDetectadas.push(matchPrim[1].includes('-') ? formatarData(matchPrim[1]) : matchPrim[1]);
+        }
+      }
+
       // Detecta se há data específica para a entrada:
       const dataEntradaMatch = formas.match(/entrada[^\+]*?(?:em|\:)?\s*\(?em\s*(\d{1,2}\/\d{1,2}\/\d{4}|\d{4}-\d{2}-\d{2})\)?/i);
       const dataEntradaFormatada = dataEntradaMatch
@@ -2222,7 +2261,9 @@ export const mapearDadosContrato = ({
 
       // 3. Detecta Dia do Vencimento:
       const diaMatch = formas.match(/(?:vencimento|dia)\s*(?:todo\s*dia)?\s*(\d{1,2})/i);
-      const diaVencimento = diaMatch ? Math.min(28, Math.max(1, parseInt(diaMatch[1], 10))) : 10;
+      const diaVencimento = diaMatch
+        ? Math.min(31, Math.max(1, parseInt(diaMatch[1], 10)))
+        : (datasDetectadas[0] ? (parseDataIsoOuBr(datasDetectadas[0])?.getDate() || 10) : 10);
 
       // Detecta método do restante/parcelas
       const parteRestante = formas.includes('+') ? formas.split('+').slice(1).join('+') : formas;
@@ -2280,6 +2321,9 @@ export const mapearDadosContrato = ({
           vencimentoFormatado = 'Fatura do Cartão';
         } else if (datasDetectadas[idx]) {
           vencimentoFormatado = datasDetectadas[idx];
+        } else if (datasDetectadas[0]) {
+          const primD = parseDataIsoOuBr(datasDetectadas[0]);
+          vencimentoFormatado = primD ? formatarData(somarMesesSeguro(primD, idx, diaVencimento)) : formatarData(somarMesesSeguro(hoje, idx + 1, diaVencimento));
         } else {
           const dataVenc = somarMesesSeguro(hoje, idx + 1, diaVencimento);
           vencimentoFormatado = formatarData(dataVenc);
