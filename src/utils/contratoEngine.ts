@@ -327,6 +327,15 @@ export const isMetodoPix = (metodo?: string | null, descricao?: string | null): 
 };
 
 /**
+ * Verifica se o método de pagamento ou a descrição corresponde a Boleto Bancário
+ */
+export const isMetodoBoleto = (metodo?: string | null, descricao?: string | null): boolean => {
+  const m = (metodo || '').toLowerCase();
+  const d = (descricao || '').toLowerCase();
+  return m.includes('boleto') || d.includes('boleto');
+};
+
+/**
  * Verifica se o contrato abrange tratamento com lentes em resina composta,
  * facetas em resina, laminados em resina ou restaurações estéticas similares.
  */
@@ -531,6 +540,10 @@ export const obterCardsResumoPagamento = (snapshot?: Partial<ContratoSnapshot> |
     partesTexto = formasTexto.split('+').map((p) => p.trim()).filter(Boolean);
     const parteEntrada = partesTexto.find((p) => /entrada|sinal/i.test(p));
     if (parteEntrada) {
+      const entMatch = parteEntrada.match(/entrada[^\d]*?(?:r\$)?\s*([\d.,]+)/i);
+      if (entMatch && !entradaValor) {
+        entradaValor = parseBrMoney(entMatch[1]);
+      }
       if (/cart[aã]o/i.test(parteEntrada)) metodoEntrada = 'Cartão';
       else if (/dinheiro/i.test(parteEntrada)) metodoEntrada = 'Dinheiro';
       else if (/pix/i.test(parteEntrada)) metodoEntrada = 'PIX';
@@ -546,6 +559,10 @@ export const obterCardsResumoPagamento = (snapshot?: Partial<ContratoSnapshot> |
       entradaValor = parseBrMoney(entMatch[1]);
     }
     if (/cart[aã]o/i.test(formasTexto.split(/,|e|\+/)[0])) metodoEntrada = 'Cartão';
+  }
+
+  if (!entradaValor && temEntradaNumerica) {
+    entradaValor = financeiro.entrada;
   }
 
   if (entradaValor > 0) {
@@ -1211,9 +1228,39 @@ export function gerarParcelasCronogramaFinanceiro(params: ParamsGerarParcelasCro
     }
 
     case 'entrada_saldo': {
-      const entVal = parseBrMoney(condicao.valorEntrada);
-      const saldoTotal = Math.max(0, Number((total - entVal).toFixed(2)));
+      let entVal = parseBrMoney(condicao.valorEntrada);
+
+      // Defensivo 1: se entVal for 0, tenta extrair da descrição, título ou formaPagamento
+      if (entVal === 0 && (condicao.descricao || condicao.titulo || (condicao as any).formaPagamento)) {
+        const txt = `${condicao.descricao || ''} ${condicao.titulo || ''} ${(condicao as any).formaPagamento || ''}`;
+        const matchEnt = txt.match(/entrada[^\d\n\r]*?(?:de|:)?\s*(?:r\$)?\s*([\d.,]+)/i);
+        if (matchEnt) {
+          entVal = parseBrMoney(matchEnt[1]);
+        }
+      }
+
       const qtdSaldo = Math.max(1, condicao.saldoParcelas || condicao.parcelas || 1);
+      const valParcExpl = Number(condicao.saldoValorParcela || condicao.valorParcela || 0);
+
+      // Defensivo 2: se entVal ainda for 0, mas houver parcelas explícitas do saldo cuja soma é menor que o total
+      if (entVal === 0 && valParcExpl > 0 && (valParcExpl * qtdSaldo) < total) {
+        entVal = Number((total - (valParcExpl * qtdSaldo)).toFixed(2));
+      }
+
+      // Defensivo 3: se houver saldo explicitado na descrição (ex: "Saldo: R$ 4.000,00") e entVal for 0:
+      if (entVal === 0 && (condicao.descricao || condicao.titulo || (condicao as any).formaPagamento)) {
+        const txt = `${condicao.descricao || ''} ${condicao.titulo || ''} ${(condicao as any).formaPagamento || ''}`;
+        const matchSaldoTxt = txt.match(/saldo(?:\s+restante|\s+total)?[^\d\n\r]*?(?:de|:)\s*(?:r\$)?\s*([\d.,]+)(?!\s*x\b)/i) ||
+          txt.match(/saldo(?:\s+restante|\s+total)?\s*(?:de|:)?\s*r\$\s*([\d.,]+)(?!\s*x\b)/i);
+        if (matchSaldoTxt) {
+          const saldoExpl = parseBrMoney(matchSaldoTxt[1]);
+          if (saldoExpl > 0 && saldoExpl < total) {
+            entVal = Number((total - saldoExpl).toFixed(2));
+          }
+        }
+      }
+
+      const saldoTotal = Math.max(0, Number((total - entVal).toFixed(2)));
 
       let mEntrada = 'PIX';
       if (condicao.metodoEntrada === 'dinheiro') mEntrada = 'Dinheiro';
@@ -1231,7 +1278,14 @@ export function gerarParcelasCronogramaFinanceiro(params: ParamsGerarParcelasCro
       const isPixSaldo = isMetodoPix(mSaldo);
       const dataEntradaFmt = isCartaoEntrada ? 'Fatura do Cartão' : (condicao.dataEntrada ? formatarData(condicao.dataEntrada) : formatarData(hoje));
       // Situações refletindo pagamentos efetivamente registrados
-      const entComprovada = Boolean(condicao.entradaConfirmada || condicao.pagamentoConfirmado || condicao.pago || (condicao.situacaoEntrada === 'Quitada' && condicao.comprovado));
+      const entComprovada = Boolean(
+        condicao.entradaConfirmada ||
+        condicao.pagamentoConfirmado ||
+        condicao.pago ||
+        condicao.situacaoEntrada === 'Quitada' ||
+        (condicao.descricao && /\[quitada\]|entrada[^[\]\n\r]*\[quitada\]/i.test(condicao.descricao)) ||
+        (condicao.situacaoEntrada === 'Quitada' && condicao.comprovado)
+      );
       const sitEntrada = entComprovada ? 'Quitada' : 'Pendente';
 
       const cartaoSaldoAut = isCartaoSaldo && Boolean(condicao.cartaoAutorizado || condicao.autorizacaoConfirmada || condicao.nsu || condicao.codigoAutorizacao);
@@ -1271,8 +1325,13 @@ export function gerarParcelasCronogramaFinanceiro(params: ParamsGerarParcelasCro
       }
 
       // Linhas do Saldo com arredondamento monetário seguro
-      const valBaseSaldo = Math.floor((saldoTotal / qtdSaldo) * 100) / 100;
-      const centavosSaldo = Math.round((saldoTotal - (valBaseSaldo * qtdSaldo)) * 100);
+      let valBaseSaldo = Math.floor((saldoTotal / qtdSaldo) * 100) / 100;
+      let centavosSaldo = Math.round((saldoTotal - (valBaseSaldo * qtdSaldo)) * 100);
+
+      if (valParcExpl > 0 && Math.abs((valParcExpl * qtdSaldo) - saldoTotal) <= 0.05) {
+        valBaseSaldo = valParcExpl;
+        centavosSaldo = 0;
+      }
 
       for (let i = 0; i < qtdSaldo; i++) {
         const valParc = Number((valBaseSaldo + (i < centavosSaldo ? 0.01 : 0)).toFixed(2));

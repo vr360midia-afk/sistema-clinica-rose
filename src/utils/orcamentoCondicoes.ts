@@ -720,10 +720,58 @@ export function extrairDetalhesCondicaoDeTexto(
   const isBoleto = /boleto/i.test(str);
   const isAVista = !isEntradaSaldo && !isPixParcelado && (/[aà]\s*vista|pix|dinheiro|transfer[eê]ncia/i.test(str) || (!isCartao && /desconto/i.test(str)));
 
+  let parteEntrada = '';
+  let parteSaldo = '';
+  let dataEntrada: string | undefined = undefined;
+  let situacaoEntrada: 'Quitada' | 'Pendente' | undefined = undefined;
+  let diaVencimento: number | undefined = undefined;
+  let situacaoSaldo: 'Quitado' | 'Pendente' | undefined = undefined;
+
   if (isEntradaSaldo) {
     tipo = 'entrada_saldo';
-    metodoEntrada = /pix/i.test(str) ? 'pix' : (/dinheiro/i.test(str) ? 'dinheiro' : (/d[eé]bito/i.test(str) ? 'cartao_debito' : 'cartao_credito'));
-    saldoMetodo = /pix\s*parcelado/i.test(str) ? 'pix_parcelado' : (/boleto/i.test(str) ? 'boleto' : 'cartao');
+    if (str.includes('+')) {
+      const idxMais = str.indexOf('+');
+      parteEntrada = str.slice(0, idxMais).trim();
+      parteSaldo = str.slice(idxMais + 1).trim();
+    } else {
+      const matchSaldo = str.match(/saldo/i);
+      if (matchSaldo && matchSaldo.index !== undefined) {
+        parteEntrada = str.slice(0, matchSaldo.index).trim();
+        parteSaldo = str.slice(matchSaldo.index).trim();
+      } else {
+        parteEntrada = str;
+        parteSaldo = str;
+      }
+    }
+
+    // Método e metadados da Entrada
+    if (/pix/i.test(parteEntrada)) metodoEntrada = 'pix';
+    else if (/dinheiro/i.test(parteEntrada)) metodoEntrada = 'dinheiro';
+    else if (/d[eé]bito/i.test(parteEntrada)) metodoEntrada = 'cartao_debito';
+    else if (/cr[eé]dito|cart[aã]o/i.test(parteEntrada)) metodoEntrada = 'cartao_credito';
+    else if (/transfer[eê]ncia/i.test(parteEntrada)) metodoEntrada = 'transferencia';
+    else metodoEntrada = 'pix';
+
+    const mDataEnt = parteEntrada.match(/(?:em\s*)?(\d{1,2}\/\d{1,2}\/\d{4}|\d{4}-\d{2}-\d{2})/);
+    if (mDataEnt) dataEntrada = mDataEnt[1];
+
+    if (/quitad|pago|paga/i.test(parteEntrada)) situacaoEntrada = 'Quitada';
+    else if (/pendente|a vencer/i.test(parteEntrada)) situacaoEntrada = 'Pendente';
+
+    // Método e metadados do Saldo
+    if (/pix\s*parcelado/i.test(parteSaldo)) saldoMetodo = 'pix_parcelado';
+    else if (/boleto/i.test(parteSaldo)) saldoMetodo = 'boleto';
+    else if (/conclus[aã]o/i.test(parteSaldo)) saldoMetodo = 'conclusao';
+    else if (/dinheiro/i.test(parteSaldo)) saldoMetodo = 'dinheiro';
+    else if (/transfer[eê]ncia/i.test(parteSaldo)) saldoMetodo = 'transferencia';
+    else if (/cart[aã]o|cr[eé]dito/i.test(parteSaldo)) saldoMetodo = 'cartao';
+    else saldoMetodo = 'cartao';
+
+    const matchDia = parteSaldo.match(/(?:vencimento|dia)\s*(?:todo\s*dia)?\s*(\d{1,2})/i);
+    if (matchDia) diaVencimento = Math.min(28, Math.max(1, parseInt(matchDia[1], 10)));
+
+    if (/quitad|pago|paga/i.test(parteSaldo)) situacaoSaldo = 'Quitado';
+    else if (/pendente|a vencer/i.test(parteSaldo)) situacaoSaldo = 'Pendente';
   } else if (isPixParcelado) {
     tipo = 'pix_parcelado';
   } else if (isCartao) {
@@ -752,12 +800,21 @@ export function extrairDetalhesCondicaoDeTexto(
     if (limpo > 0) valorParcela = limpo;
   }
 
-  // 4. Extrair entrada
+  // 4. Extrair entrada (suporta tanto "Entrada de R$ X", "Entrada: R$ X" quanto "Entrada R$ X")
   let valorEntrada: number | undefined = undefined;
-  const matchEntrada = str.match(/entrada(?:\s+de)?\s*(?:R\$\s*)?([\d.,]+)/i);
+  const matchEntrada = str.match(/entrada[^\d\n\r]*?(?:de|:)?\s*(?:r\$)?\s*([\d.,]+)/i);
   if (matchEntrada) {
     const limpo = parseMoedaTexto(matchEntrada[1]);
     if (limpo > 0) valorEntrada = limpo;
+  }
+
+  // 4b. Extrair saldo total se explicitado (ex: "Saldo: R$ 4.000,00", "Saldo restante de R$ 3.000,00")
+  let valorSaldoTotal: number | undefined = undefined;
+  const matchSaldoTotal = str.match(/saldo(?:\s+restante|\s+total)?[^\d\n\r]*?(?:de|:)\s*(?:r\$)?\s*([\d.,]+)(?!\s*x\b)/i) ||
+    str.match(/saldo(?:\s+restante|\s+total)?\s*(?:de|:)?\s*r\$\s*([\d.,]+)(?!\s*x\b)/i);
+  if (matchSaldoTotal) {
+    const limpo = parseMoedaTexto(matchSaldoTotal[1]);
+    if (limpo > 0) valorSaldoTotal = limpo;
   }
 
   // 5. Extrair desconto
@@ -775,7 +832,23 @@ export function extrairDetalhesCondicaoDeTexto(
 
   // 6. Determinar valorTotal da condição com tratamento de arredondamento
   let valorTotal = totalBase;
-  if (tipo === 'cartao' && parcelas && valorParcela) {
+  if (tipo === 'entrada_saldo') {
+    if (valorEntrada && valorSaldoTotal) {
+      const soma = Number((valorEntrada + valorSaldoTotal).toFixed(2));
+      if (totalBase <= 0 || Math.abs(soma - totalBase) <= 1.00) {
+        valorTotal = totalBase > 0 ? totalBase : soma;
+      } else {
+        valorTotal = soma;
+      }
+    } else if (valorEntrada && parcelas && valorParcela) {
+      const soma = Number((valorEntrada + (parcelas * valorParcela)).toFixed(2));
+      if (totalBase <= 0 || Math.abs(soma - totalBase) <= 1.00) {
+        valorTotal = totalBase > 0 ? totalBase : soma;
+      } else {
+        valorTotal = soma;
+      }
+    }
+  } else if (tipo === 'cartao' && parcelas && valorParcela) {
     const calc = Number((parcelas * valorParcela).toFixed(2));
     if (totalBase > 0) {
       if (Math.abs(calc - totalBase) <= 1.00) {
@@ -827,9 +900,13 @@ export function extrairDetalhesCondicaoDeTexto(
     valorParcela,
     valorEntrada,
     metodoEntrada,
+    dataEntrada,
+    situacaoEntrada,
     saldoMetodo,
     saldoParcelas: tipo === 'entrada_saldo' ? (parcelas || 1) : undefined,
     saldoValorParcela: tipo === 'entrada_saldo' ? valorParcela : undefined,
+    diaVencimento,
+    situacaoSaldo,
     descontoValor,
     descontoPercentual,
     valorTotal,

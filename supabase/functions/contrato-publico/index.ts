@@ -75,9 +75,21 @@ function gerarParcelasServidorContrato(cond: any, total: number, dataIso = new D
       });
     }
   } else if (tipo === 'entrada_saldo') {
-    const entVal = Number(cond.valorEntrada || 0);
-    const saldoTotal = Math.max(0, Number((total - entVal).toFixed(2)));
+    let entVal = Number(cond.valorEntrada || 0);
+    const descTexto = String(cond.descricao || cond.titulo || cond.formas_pagamento || cond.formaPagamento || '');
+    if (entVal === 0 && descTexto) {
+      const matchEnt = descTexto.match(/entrada[^\d\n\r]*?(?:de|:)?\s*(?:r\$)?\s*([\d.,]+)/i);
+      if (matchEnt) {
+        const limpo = matchEnt[1].replace(/\./g, '').replace(',', '.');
+        entVal = Number(limpo) || 0;
+      }
+    }
     const qtdSaldo = Math.max(1, cond.saldoParcelas || 1);
+    const valParcExpl = Number(cond.saldoValorParcela || cond.valorParcela || 0);
+    if (entVal === 0 && valParcExpl > 0 && (valParcExpl * qtdSaldo) < total) {
+      entVal = Number((total - (valParcExpl * qtdSaldo)).toFixed(2));
+    }
+    const saldoTotal = Math.max(0, Number((total - entVal).toFixed(2)));
     let mEnt = 'PIX';
     if (cond.metodoEntrada === 'cartao_credito') mEnt = 'Cartão de Crédito';
     else if (cond.metodoEntrada === 'cartao_debito') mEnt = 'Cartão de Débito';
@@ -91,7 +103,14 @@ function gerarParcelasServidorContrato(cond: any, total: number, dataIso = new D
 
     const isCartaoSaldo = /cart[aã]o/i.test(mSal);
     const isCartaoEnt = /cart[aã]o/i.test(mEnt);
-    const entComprovada = Boolean(cond.entradaConfirmada || cond.pagamentoConfirmado || cond.pago || (cond.situacaoEntrada === 'Quitada' && cond.comprovado));
+    const entComprovada = Boolean(
+      cond.entradaConfirmada ||
+      cond.pagamentoConfirmado ||
+      cond.pago ||
+      cond.situacaoEntrada === 'Quitada' ||
+      /\[quitada\]|entrada[^[\]\n\r]*\[quitada\]/i.test(descTexto) ||
+      (cond.situacaoEntrada === 'Quitada' && cond.comprovado)
+    );
     const sitEntrada = isCartaoEnt
       ? (Boolean(cond.cartaoAutorizado || cond.autorizacaoConfirmada || cond.nsu) ? 'Autorizado' : (entComprovada ? 'Quitada' : 'Pendente'))
       : (entComprovada ? 'Quitada' : 'Pendente');
@@ -113,8 +132,12 @@ function gerarParcelasServidorContrato(cond: any, total: number, dataIso = new D
       });
     }
 
-    const valBase = Math.floor((saldoTotal / qtdSaldo) * 100) / 100;
-    const centavos = Math.round((saldoTotal - (valBase * qtdSaldo)) * 100);
+    let valBase = Math.floor((saldoTotal / qtdSaldo) * 100) / 100;
+    let centavos = Math.round((saldoTotal - (valBase * qtdSaldo)) * 100);
+    if (valParcExpl > 0 && Math.abs((valParcExpl * qtdSaldo) - saldoTotal) <= 0.05) {
+      valBase = valParcExpl;
+      centavos = 0;
+    }
 
     for (let i = 0; i < qtdSaldo; i++) {
       const v = Number((valBase + (i < centavos ? 0.01 : 0)).toFixed(2));

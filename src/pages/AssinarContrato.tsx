@@ -57,6 +57,7 @@ import {
   obterCardsResumoPagamento,
   isMetodoPix,
   isMetodoCartao,
+  isMetodoBoleto,
   limparFormaPagamentoParaContrato,
   mapearDadosContrato,
   gerarSnapshotDemonstracao,
@@ -1319,6 +1320,10 @@ export default function AssinarContrato() {
   // Identifica se a entrada do contrato já está quitada / paga
   const isEntradaPaga = useMemo(() => {
     if (!snapshot?.financeiro) return false;
+    const formaPag = (snapshot.financeiro.formaPagamento || '').toLowerCase();
+    if (formaPag.includes('entrada') && (formaPag.includes('[quitada]') || /entrada[^[\]+]*\[quitada\]/i.test(formaPag))) {
+      return true;
+    }
     const entradaCard = cardsPagamento.find((c) => c.tipo === 'entrada');
     if (entradaCard) {
       return Boolean(entradaCard.pago || /paga|pago|quitad/i.test(entradaCard.statusBadge || ''));
@@ -1344,15 +1349,40 @@ export default function AssinarContrato() {
   // Se a entrada já está paga/quitada, NÃO deve cobrar a entrada novamente no link de assinatura
   const valorPixContrato = useMemo(() => {
     if (!snapshot?.financeiro) return 0;
-    if (snapshot.financeiro.entrada && snapshot.financeiro.entrada > 0) {
-      if (isEntradaPaga) {
-        return 0; // Entrada já quitada! Não gera cobrança PIX da entrada
+    if (isContratoQuitado) return 0;
+
+    // Se a entrada está quitada/paga:
+    if (isEntradaPaga) {
+      // Verifica se há parcelas restantes que sejam exclusivamente PIX não pagas
+      const parcelasPixNaoPagas = (snapshot.financeiro.parcelas || []).filter((p) => {
+        const isCartao = isMetodoCartao(p.metodo, p.descricao);
+        const isBoleto = isMetodoBoleto(p.metodo, p.descricao);
+        const isDinheiro = /dinheiro/i.test(p.metodo || '') || /dinheiro/i.test(p.descricao || '');
+        const isParcPix = !isCartao && !isBoleto && !isDinheiro && isMetodoPix(p.metodo, p.descricao);
+        const isPaga = Boolean(p.status && /paga|pago|quitad/i.test(p.status));
+        return isParcPix && !isPaga;
+      });
+
+      if (parcelasPixNaoPagas.length === 1) {
+        return parcelasPixNaoPagas[0].valor;
       }
+      return 0; // Saldo em Boleto/Cartão não gera cobrança PIX global no topo
+    }
+
+    if (snapshot.financeiro.entrada && snapshot.financeiro.entrada > 0) {
       return snapshot.financeiro.entrada;
     }
-    if (isContratoQuitado) return 0;
-    return totalContrato || 0;
-  }, [snapshot, isEntradaPaga, isContratoQuitado]);
+
+    // Se todo o contrato for via PIX (ex: à vista ou parcelado exclusivamente no PIX) sem boleto ou cartão
+    const formaPag = (snapshot.financeiro.formaPagamento || '').toLowerCase();
+    const ePix = isMetodoPix(snapshot.financeiro.metodoParcelamento) || formaPag.includes('pix');
+    const temBoletoOuCartao = formaPag.includes('boleto') || formaPag.includes('cartão') || formaPag.includes('cartao');
+    if (ePix && !temBoletoOuCartao) {
+      return totalContrato || 0;
+    }
+
+    return 0;
+  }, [snapshot, isEntradaPaga, isContratoQuitado, totalContrato]);
 
   const payloadPixContrato = useMemo(() => {
     if (!snapshot?.clinica?.chavePix || valorPixContrato <= 0) return '';
@@ -1888,7 +1918,12 @@ export default function AssinarContrato() {
                 <div className="divide-y divide-border/60">
                   {snapshot.financeiro.parcelas.map((parc) => {
                     const isCartao = isMetodoCartao(parc.metodo, parc.descricao);
-                    const isPix = !isCartao && (isMetodoPix(parc.metodo, parc.descricao) || (snapshot?.financeiro?.formaPagamento || '').toLowerCase().includes('pix'));
+                    const isBoleto = isMetodoBoleto(parc.metodo, parc.descricao);
+                    const isDinheiro = /dinheiro/i.test(parc.metodo || '') || /dinheiro/i.test(parc.descricao || '');
+                    const isPix = !isCartao && !isBoleto && !isDinheiro && (
+                      isMetodoPix(parc.metodo, parc.descricao) ||
+                      ((!parc.metodo || parc.metodo === 'A combinar') && (snapshot?.financeiro?.formaPagamento || '').toLowerCase().includes('pix'))
+                    );
 
                     const isPaga = Boolean(parc.status && /paga|pago|quitad/i.test(parc.status));
 

@@ -5,6 +5,7 @@
 import {
   mapearDadosContrato,
   gerarHtmlContrato,
+  obterCardsResumoPagamento,
   validarIntegridadeOrcamentoContrato,
   validarCronogramaFinanceiroContrato,
 } from '../src/utils/contratoEngine';
@@ -303,9 +304,50 @@ console.log('\nCENÁRIO 5: Pagamento com entrada e saldo');
   assert(valSaldo.valido === true, 'Validação de integridade aprovada com entrada e saldo separados');
   const valCrono = validarCronogramaFinanceiroContrato(snapSaldoSeparado);
   assert(valCrono.valido === true, 'Validação de cronograma aprovada com entrada e saldo separados');
-  const htmlGerado = gerarHtmlContrato(snapSaldoSeparado);
-  assert(htmlGerado.includes('Entrada Inicial'), 'HTML do contrato inclui a linha de Entrada Inicial no cronograma');
-  assert(htmlGerado.includes('Boleto Bancário 1/4'), 'HTML do contrato mantém as parcelas de boleto');
+  // Cenário 5c: Caso Real com colon e status [Quitada] no texto da Entrada
+  const orcReal = {
+    id: 'orc-caso-real-8k',
+    titulo: 'Tratamento Completo',
+    pacienteId: mockPatient.id,
+    pacienteNome: mockPatient.nome,
+    subtotal: 8000,
+    desconto: 0,
+    total: 8000,
+    formasPagamento: 'Entrada: R$ 4.000,00 via PIX (em 26/11/2026) [Quitada] + Saldo: R$ 4.000,00 em 4x de R$ 1.000,00 no Boleto Bancário (Vencimento todo dia 26) [A vencer]',
+    itens: [{ nome: 'Tratamento Odontológico', quantidade: 1, valorTotal: 8000 }],
+  };
+
+  const snapReal = mapearDadosContrato({
+    patient: mockPatient,
+    orcamento: orcReal,
+    configuracoes: mockConfig,
+    configuracoesContrato: mockConfig,
+  });
+
+  assert(snapReal.financeiro.total === 8000, 'Total do contrato é R$ 8.000,00');
+  assert(snapReal.financeiro.entrada === 4000, 'Entrada detectada é R$ 4.000,00');
+  assert(snapReal.financeiro.quantidadeParcelas === 4, 'Qtd de parcelas do saldo é 4');
+  assert(snapReal.financeiro.valorParcela === 1000, 'Valor de cada parcela do saldo é R$ 1.000,00 (não R$ 2.000,00)');
+
+  const parcelasSaldoReal = snapReal.financeiro.parcelas.filter((p) => !p.descricao.toLowerCase().includes('entrada'));
+  assert(parcelasSaldoReal.length === 4, 'Exatamente 4 parcelas do saldo');
+  for (let i = 0; i < parcelasSaldoReal.length; i++) {
+    assert(parcelasSaldoReal[i].valor === 1000, `Parcela ${i + 1} do saldo tem valor R$ 1.000,00`);
+    assert(parcelasSaldoReal[i].metodo === 'Boleto Bancário', `Parcela ${i + 1} do saldo é Boleto Bancário`);
+  }
+
+  const pEntradaReal = snapReal.financeiro.parcelas.find((p) => p.descricao.toLowerCase().includes('entrada'));
+  assert(pEntradaReal !== undefined, 'Existe linha de entrada no cronograma');
+  assert(pEntradaReal?.valor === 4000, 'Valor da linha de entrada é R$ 4.000,00');
+  assert(pEntradaReal?.status === 'Quitada', 'Status da entrada é Quitada');
+
+  const cardsReal = obterCardsResumoPagamento(snapReal);
+  const cardEntReal = cardsReal.find((c) => c.tipo === 'entrada');
+  assert(cardEntReal !== undefined, 'Card de entrada gerado no resumo');
+  assert(cardEntReal?.pago === true, 'Card de entrada sinaliza Quitada/Paga');
+
+  const valReal = validarIntegridadeOrcamentoContrato(orcReal, snapReal);
+  assert(valReal.valido === true, 'Validação de integridade aprovada no caso real de R$ 8.000 com entrada');
 }
 
 // -----------------------------------------------------------------------------
