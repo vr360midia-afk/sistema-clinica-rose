@@ -1,4 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
+import { gerarHtmlContrato } from './contratoEngine';
+import { generateHtmlPdfBlob } from './pdfDownload';
 
 export interface RespostaPdfOficial {
   blob: Blob | null;
@@ -92,9 +94,71 @@ export async function calcularSha256Binario(data: Blob | ArrayBuffer | Uint8Arra
 }
 
 /**
+ * Gera e cura o PDF oficial de 5 páginas (padrão Contrato_Assinado_CTR-...)
+ * a partir do snapshot formalizado, persistindo no Supabase Storage caso
+ * o arquivo no Storage seja o resumo antigo de 2 páginas ou inexista.
+ */
+export async function curarEGerarPdfOficial5Paginas(
+  identificador: string,
+  snapshot: any,
+  targetPath?: string
+): Promise<RespostaPdfOficial | null> {
+  try {
+    if (!snapshot || typeof window === 'undefined') return null;
+    const cleanId = String(snapshot.contratoId || identificador || '').trim().replace(/^contratos\//, '').replace(/\.pdf$/i, '');
+    const pathAlvo = targetPath || `contratos/${cleanId}/Contrato_Assinado_${cleanId}.pdf`;
+
+    const html = gerarHtmlContrato(snapshot);
+    const freshBlob = await generateHtmlPdfBlob(html);
+    if (!freshBlob || freshBlob.size < 500_000) return null;
+
+    // Persiste no Supabase Storage para garantir que futuros downloads e visualizadores recebam os 5 páginas
+    try {
+      await supabase.storage
+        .from('documentos-pacientes')
+        .upload(pathAlvo, freshBlob, {
+          contentType: 'application/pdf',
+          upsert: true,
+        });
+
+      await supabase.storage
+        .from('documentos-pacientes')
+        .upload(`contratos/${cleanId}/contrato_formalizado.pdf`, freshBlob, {
+          contentType: 'application/pdf',
+          upsert: true,
+        });
+    } catch (_) {}
+
+    let signedUrl: string | null = null;
+    try {
+      const { data: sData } = await supabase.storage
+        .from('documentos-pacientes')
+        .createSignedUrl(pathAlvo, 3600);
+      if (sData?.signedUrl) signedUrl = sData.signedUrl;
+    } catch (_) {}
+
+    const sha256 = await calcularSha256Binario(freshBlob).catch(() => undefined);
+
+    return {
+      blob: freshBlob,
+      blobUrl: URL.createObjectURL(freshBlob),
+      signedUrl,
+      path: pathAlvo,
+      sha256,
+      tamanho: freshBlob.size,
+    };
+  } catch (err) {
+    console.warn('[contratoPdfOficial] Erro ao curar PDF oficial padrão 5 páginas:', err);
+    return null;
+  }
+}
+
+/**
  * Obtém o PDF oficial definitivo arquivado no Storage (documentos-pacientes).
- * Se o usuário estiver deslogado (fluxo público do paciente), utiliza a Edge Function
- * ou signedUrl fornecida para recuperar o binário com integridade estrita.
+ * Se o arquivo existente for o resumo antigo condensado de 2 páginas (< 1.2MB),
+ * ou se ainda não tiver sido persistido, cura automaticamente para o padrão oficial
+ * de 5 páginas (com preâmbulo, cláusulas 1ª a 8ª, PIX Box, cronograma oficial,
+ * assinaturas e Anexo I LGPD).
  */
 export async function obterPdfContratoOficialDefinitivo(
   identificador: string,
@@ -103,6 +167,7 @@ export async function obterPdfContratoOficialDefinitivo(
   signedUrlPrevia?: string | null
 ): Promise<RespostaPdfOficial | null> {
   const candidatePaths = obterCaminhosCandidatosStorage(identificador, docOuSnap);
+  const rawSnap = docOuSnap?.itens || docOuSnap?.snapshot || (docOuSnap?.contratoId ? docOuSnap : null);
 
   // 1. Tenta recuperar via Storage autenticado (sessão do consultório / dentista)
   for (const p of candidatePaths) {
@@ -112,6 +177,15 @@ export async function obterPdfContratoOficialDefinitivo(
         .download(p);
 
       if (!dlErr && blob && blob.size > 1000) {
+        // Se o arquivo for o resumo de 2 páginas (< 1.2MB) e temos os dados do contrato,
+        // promove para o padrão oficial formal de 5 páginas idêntico ao modelo de referência
+        if (blob.size < 1_200_000 && rawSnap && (rawSnap.contratoId || identificador)) {
+          const promovido = await curarEGerarPdfOficial5Paginas(identificador, rawSnap, p);
+          if (promovido && promovido.tamanho >= 1_200_000) {
+            return promovido;
+          }
+        }
+
         let signedUrl: string | null = null;
         try {
           const { data: sData } = await supabase.storage
@@ -158,6 +232,14 @@ export async function obterPdfContratoOficialDefinitivo(
       if (res.ok) {
         const blob = await res.blob();
         if (blob && blob.size > 1000) {
+          // Validação de fidelidade do padrão de 5 páginas
+          if (blob.size < 1_200_000 && rawSnap && (rawSnap.contratoId || identificador)) {
+            const promovido = await curarEGerarPdfOficial5Paginas(identificador, rawSnap, candidatePaths[0]);
+            if (promovido && promovido.tamanho >= 1_200_000) {
+              return promovido;
+            }
+          }
+
           const sha256 = await calcularSha256Binario(blob).catch(() => undefined);
           return {
             blob,
@@ -185,6 +267,13 @@ export async function obterPdfContratoOficialDefinitivo(
           if (res.ok) {
             const blob = await res.blob();
             if (blob && blob.size > 1000) {
+              if (blob.size < 1_200_000 && rawSnap && (rawSnap.contratoId || identificador)) {
+                const promovido = await curarEGerarPdfOficial5Paginas(identificador, rawSnap, p);
+                if (promovido && promovido.tamanho >= 1_200_000) {
+                  return promovido;
+                }
+              }
+
               const sha256 = await calcularSha256Binario(blob).catch(() => undefined);
               return {
                 blob,
@@ -207,6 +296,15 @@ export async function obterPdfContratoOficialDefinitivo(
         };
       }
     } catch (_) {}
+  }
+
+  // 4. Se não existe PDF arquivado no Storage mas possuímos o snapshot estruturado,
+  // gera o padrão canônico oficial de 5 páginas e salva no Storage imediatamente
+  if (rawSnap && (rawSnap.contratoId || identificador)) {
+    const gerado = await curarEGerarPdfOficial5Paginas(identificador, rawSnap, candidatePaths[0]);
+    if (gerado) {
+      return gerado;
+    }
   }
 
   return null;

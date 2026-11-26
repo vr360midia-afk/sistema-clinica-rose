@@ -21,28 +21,18 @@ export const gerarDocumentoClinicoPdf = async (doc: DocumentoClinico, clinica: C
     const docId = String(doc.identificador || (doc.itens as any)?.contratoId || doc.id || 'contrato');
     const canonicalFilename = `Contrato_Assinado_${docId}.pdf`;
 
-    // Prioriza o PDF definitivo bilateral oficial arquivado no Supabase Storage
+    // Prioriza o PDF definitivo bilateral oficial arquivado no Supabase Storage (5 páginas)
     const resPdf = await obterPdfContratoOficialDefinitivo(docId, doc);
     if (resPdf && (resPdf.blob || resPdf.signedUrl)) {
       return await dispararDownloadPdfOficial(resPdf, canonicalFilename);
     }
 
-    // Se o contrato for formalizado ou assinado, JAMAIS regenera para manter fidelidade jurídica
-    const isFormalizado = Boolean(
-      doc.assinadoEm ||
-      (doc.itens as any)?.assinaturaPaciente ||
-      (doc.itens as any)?.assinaturaDentista ||
-      doc.status === 'formalizado' ||
-      doc.status === 'assinado'
-    );
-
-    if (isFormalizado) {
-      console.error(`[gerarDocumentoClinicoPdf] Contrato formalizado #${docId} não localizado no Storage. Regeneração dinâmica bloqueada.`);
-      return false;
+    // Se o documento clínico contiver o conteúdo HTML, baixa diretamente no padrão oficial
+    if (doc.conteudo) {
+      return await downloadHtmlAsPdf(doc.conteudo, canonicalFilename);
     }
 
-    const filename = `${doc.titulo.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${(doc.pacienteNome || 'paciente').toLowerCase().replace(/[^a-z0-9]/g, '_')}.pdf`;
-    return downloadHtmlAsPdf(doc.conteudo, filename);
+    return false;
   }
 
   const emissor = clinica.nomeClinica || 'Dra. Rosangela Santos - Clínica Odontológica';

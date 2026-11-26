@@ -402,14 +402,14 @@ const PatientOrcamentos = ({ patient }: Props) => {
         f.metodo === 'pix'
           ? 'PIX'
           : f.metodo === 'cartao'
-          ? (isDeb ? `Cartão de Débito (${opNome})` : `Cartão de Crédito (${opNome})`)
-          : f.metodo === 'dinheiro'
-          ? 'Dinheiro'
-          : f.metodo === 'boleto'
-          ? 'Boleto Bancário'
-          : f.metodo === 'pix_parcelado'
-          ? 'PIX Parcelado'
-          : 'Transferência';
+            ? (isDeb ? `Cartão de Débito (${opNome})` : `Cartão de Crédito (${opNome})`)
+            : f.metodo === 'dinheiro'
+              ? 'Dinheiro'
+              : f.metodo === 'boleto'
+                ? 'Boleto Bancário'
+                : f.metodo === 'pix_parcelado'
+                  ? 'PIX Parcelado'
+                  : 'Transferência';
 
       const sitPadrao = f.situacao || (f.metodo === 'cartao' ? 'Autorizado' : 'A vencer');
       const temSitsDiferentes =
@@ -1165,15 +1165,15 @@ const PatientOrcamentos = ({ patient }: Props) => {
           } else {
             isQuitada = !isACombinar && isExplicitamenteQuitada && (condicaoEscolhidaObj?.situacaoSaldo === 'Quitado' || condicaoEscolhidaObj?.situacaoSaldo === 'Autorizado');
           }
-          
+
           if (isQuitada) {
             totalQuitadasAgora++;
           } else {
             totalPendentesAgora++;
           }
-          
+
           // Se já existe transação paga para este orçamento correspondente à entrada ou parcela, preserva
-          const jaExistePaga = jaPagas.some((jp: any) => 
+          const jaExistePaga = jaPagas.some((jp: any) =>
             jp.descricao === `${o.titulo}: ${p.descricao}` ||
             (isEntrada && (jp.descricao || '').toLowerCase().includes('entrada'))
           );
@@ -1255,7 +1255,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
             taxaPercItem = (p as any).taxaCartaoPercentual ?? infoCartao.taxaPercentual ?? calc.taxaPercentual;
             taxaValorItem = (p as any).taxaCartaoValor ?? infoCartao.taxaValor ?? calc.taxaValor;
             liquidoItem = Math.max(0, Number((Number(p.valor || 0) - (taxaValorItem || 0)).toFixed(2)));
-            
+
             // Só acumula taxa para lançamento de despesa se a parcela do cartão foi EFETIVAMENTE quitada agora!
             if (isQuitada && (taxaValorItem || 0) > 0) {
               totalTaxasCartaoQuitadas += (taxaValorItem || 0);
@@ -2003,7 +2003,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
           abrirEdicao(target);
         }
       }
-    } catch (_) {}
+    } catch (_) { }
   }, [orcamentos]);
 
   const handleSave = async () => {
@@ -2254,7 +2254,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
 
     try {
       baixarPdf(o);
-    } catch (_) {}
+    } catch (_) { }
 
     openWhatsApp(tel, linhas.filter(Boolean).join('\n'));
     updateStatus(o.id, 'enviado');
@@ -2354,7 +2354,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
     // Baixa o PDF do orçamento automaticamente para facilitar o anexo se desejar
     try {
       baixarPdf(o);
-    } catch (_) {}
+    } catch (_) { }
 
     openWhatsApp(tel, linhas.filter(Boolean).join('\n'));
     updateStatus(o.id, 'enviado');
@@ -2627,666 +2627,666 @@ const PatientOrcamentos = ({ patient }: Props) => {
                   </div>
                 </div>
 
-              {o.status === 'ajuste_solicitado' && (() => {
-                const ultAjuste = Array.isArray(o.solicitacoesAjuste) && o.solicitacoesAjuste.length > 0
-                  ? o.solicitacoesAjuste[o.solicitacoesAjuste.length - 1]
-                  : null;
+                {o.status === 'ajuste_solicitado' && (() => {
+                  const ultAjuste = Array.isArray(o.solicitacoesAjuste) && o.solicitacoesAjuste.length > 0
+                    ? o.solicitacoesAjuste[o.solicitacoesAjuste.length - 1]
+                    : null;
 
-                return (
-                  <div className="p-3.5 rounded-xl bg-amber-500/10 border-2 border-amber-500/30 text-amber-950 dark:text-amber-200 space-y-2.5 my-2">
-                    <div className="flex items-start justify-between gap-2 flex-wrap">
-                      <div className="flex items-center gap-2">
-                        <div className="h-7 w-7 rounded-lg bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
-                          <AlertCircle className="h-4 w-4" />
+                  return (
+                    <div className="p-3.5 rounded-xl bg-amber-500/10 border-2 border-amber-500/30 text-amber-950 dark:text-amber-200 space-y-2.5 my-2">
+                      <div className="flex items-start justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2">
+                          <div className="h-7 w-7 rounded-lg bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+                            <AlertCircle className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-xs sm:text-sm text-amber-900 dark:text-amber-200">
+                              Paciente solicitou ajuste no orçamento
+                            </h4>
+                            <span className="text-[10px] text-amber-800/80 dark:text-amber-300/80 block">
+                              {ultAjuste?.solicitadaEm ? `Recebido em ${new Date(ultAjuste.solicitadaEm).toLocaleString('pt-BR')}` : 'Solicitação recente'} • Versão {ultAjuste?.versaoOrcamento || o.versao || 1}
+                            </span>
+                          </div>
                         </div>
+                        <Badge className="bg-amber-600 text-white text-[9px] px-2 py-0.5 font-bold">
+                          Ação Comercial Necessária
+                        </Badge>
+                      </div>
+
+                      <div className="p-2.5 rounded-lg bg-background/90 border border-amber-500/20 text-xs space-y-1">
                         <div>
-                          <h4 className="font-bold text-xs sm:text-sm text-amber-900 dark:text-amber-200">
-                            Paciente solicitou ajuste no orçamento
-                          </h4>
-                          <span className="text-[10px] text-amber-800/80 dark:text-amber-300/80 block">
-                            {ultAjuste?.solicitadaEm ? `Recebido em ${new Date(ultAjuste.solicitadaEm).toLocaleString('pt-BR')}` : 'Solicitação recente'} • Versão {ultAjuste?.versaoOrcamento || o.versao || 1}
-                          </span>
+                          <span className="text-muted-foreground">Motivo selecionado:</span>{' '}
+                          <strong className="text-foreground">{ultAjuste?.motivo || 'Ajuste solicitado pelo paciente'}</strong>
                         </div>
+                        {ultAjuste?.mensagem && (
+                          <div className="pt-1 border-t border-border/50">
+                            <span className="text-muted-foreground">Mensagem:</span>{' '}
+                            <span className="text-foreground italic">"{ultAjuste.mensagem}"</span>
+                          </div>
+                        )}
                       </div>
-                      <Badge className="bg-amber-600 text-white text-[9px] px-2 py-0.5 font-bold">
-                        Ação Comercial Necessária
-                      </Badge>
-                    </div>
 
-                    <div className="p-2.5 rounded-lg bg-background/90 border border-amber-500/20 text-xs space-y-1">
-                      <div>
-                        <span className="text-muted-foreground">Motivo selecionado:</span>{' '}
-                        <strong className="text-foreground">{ultAjuste?.motivo || 'Ajuste solicitado pelo paciente'}</strong>
+                      {/* 4 Botões Administrativos */}
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs border-amber-400 text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-950/40"
+                          onClick={() => {
+                            setOrcamentoVisualizandoAjuste(o);
+                            setModalDetalhesAjusteOpen(true);
+                          }}
+                        >
+                          <Eye className="h-3.5 w-3.5 mr-1 text-amber-600" /> Visualizar solicitação
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs border-amber-400 text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-950/40"
+                          onClick={() => {
+                            updateStatus(o.id, 'em_revisao');
+                            abrirEdicao(o);
+                          }}
+                        >
+                          <Pencil className="h-3.5 w-3.5 mr-1 text-primary" /> Revisar orçamento
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          className="h-7 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-semibold gap-1 shadow-xs"
+                          onClick={() => {
+                            setOrcamentoParaNovaProposta(o);
+                            setModalEnviarNovaPropostaOpen(true);
+                          }}
+                        >
+                          <Sparkles className="h-3.5 w-3.5" /> Enviar nova proposta
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs border-emerald-400 text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 font-semibold gap-1"
+                          onClick={() => {
+                            const tel = patient?.telefone || patient?.whatsapp || '';
+                            const primNome = patient?.nome ? patient.nome.split(' ')[0] : 'Olá';
+                            const ref = o.identificador || `ORC-${o.id.slice(0, 8).toUpperCase()}`;
+                            const mot = ultAjuste?.motivo || 'sua proposta';
+                            const msg = `Olá, ${primNome}! Recebemos seu pedido de ajuste sobre "${mot}" referente ao orçamento ${ref}. Nossa equipe está avaliando as melhores condições e em breve enviaremos a nova proposta!`;
+                            openWhatsApp(tel, msg);
+                          }}
+                        >
+                          <MessageCircle className="h-3.5 w-3.5 text-emerald-600" /> Responder ao paciente
+                        </Button>
                       </div>
-                      {ultAjuste?.mensagem && (
-                        <div className="pt-1 border-t border-border/50">
-                          <span className="text-muted-foreground">Mensagem:</span>{' '}
-                          <span className="text-foreground italic">"{ultAjuste.mensagem}"</span>
-                        </div>
-                      )}
                     </div>
+                  );
+                })()}
+                {o.parceiroNome && (
+                  <p className="text-xs text-muted-foreground">
+                    Parceiro: <span className="text-foreground">{o.parceiroNome}</span>
+                    {o.parceiroTipoRepasse === 'percentual'
+                      ? ` — ${o.parceiroValorRepasse}%`
+                      : o.parceiroValorRepasse
+                        ? ` — ${formatMoney(o.parceiroValorRepasse)}`
+                        : ''}
+                  </p>
+                )}
+                <ul className="text-xs text-muted-foreground space-y-0.5">
+                  {(o.itens || []).map((i, idx) => (
+                    <li key={idx}>
+                      {i.nome} {i.quantidade > 1 ? `(${i.quantidade}x)` : ''} — {formatMoney(i.valor * i.quantidade)}
+                    </li>
+                  ))}
+                </ul>
 
-                    {/* 4 Botões Administrativos */}
-                    <div className="flex flex-wrap gap-2 pt-1">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs border-amber-400 text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-950/40"
-                        onClick={() => {
-                          setOrcamentoVisualizandoAjuste(o);
-                          setModalDetalhesAjusteOpen(true);
-                        }}
-                      >
-                        <Eye className="h-3.5 w-3.5 mr-1 text-amber-600" /> Visualizar solicitação
-                      </Button>
-
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs border-amber-400 text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-950/40"
-                        onClick={() => {
-                          updateStatus(o.id, 'em_revisao');
-                          abrirEdicao(o);
-                        }}
-                      >
-                        <Pencil className="h-3.5 w-3.5 mr-1 text-primary" /> Revisar orçamento
-                      </Button>
-
-                      <Button
-                        size="sm"
-                        className="h-7 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-semibold gap-1 shadow-xs"
-                        onClick={() => {
-                          setOrcamentoParaNovaProposta(o);
-                          setModalEnviarNovaPropostaOpen(true);
-                        }}
-                      >
-                        <Sparkles className="h-3.5 w-3.5" /> Enviar nova proposta
-                      </Button>
-
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs border-emerald-400 text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 font-semibold gap-1"
-                        onClick={() => {
-                          const tel = patient?.telefone || patient?.whatsapp || '';
-                          const primNome = patient?.nome ? patient.nome.split(' ')[0] : 'Olá';
-                          const ref = o.identificador || `ORC-${o.id.slice(0, 8).toUpperCase()}`;
-                          const mot = ultAjuste?.motivo || 'sua proposta';
-                          const msg = `Olá, ${primNome}! Recebemos seu pedido de ajuste sobre "${mot}" referente ao orçamento ${ref}. Nossa equipe está avaliando as melhores condições e em breve enviaremos a nova proposta!`;
-                          openWhatsApp(tel, msg);
-                        }}
-                      >
-                        <MessageCircle className="h-3.5 w-3.5 text-emerald-600" /> Responder ao paciente
-                      </Button>
-                    </div>
+                <div className="rounded-md bg-muted/40 p-2 space-y-1 text-xs">
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Subtotal</span>
+                    <span>{formatMoney((o.itens || []).reduce((s, i) => s + (i.valor || 0) * (i.quantidade || 1), 0))}</span>
                   </div>
-                );
-              })()}
-              {o.parceiroNome && (
-                <p className="text-xs text-muted-foreground">
-                  Parceiro: <span className="text-foreground">{o.parceiroNome}</span>
-                  {o.parceiroTipoRepasse === 'percentual'
-                    ? ` — ${o.parceiroValorRepasse}%`
-                    : o.parceiroValorRepasse
-                      ? ` — ${formatMoney(o.parceiroValorRepasse)}`
-                      : ''}
-                </p>
-              )}
-              <ul className="text-xs text-muted-foreground space-y-0.5">
-                {(o.itens || []).map((i, idx) => (
-                  <li key={idx}>
-                    {i.nome} {i.quantidade > 1 ? `(${i.quantidade}x)` : ''} — {formatMoney(i.valor * i.quantidade)}
-                  </li>
-                ))}
-              </ul>
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Desconto</span>
+                    <span>- {formatMoney(o.desconto || 0)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm font-semibold text-foreground border-t border-border pt-1">
+                    <span>Total</span>
+                    <span>{formatMoney(o.total || 0)}</span>
+                  </div>
+                  {o.formasPagamento && (() => {
+                    const conds = parseCondicoesPagamento(o.formasPagamento, o.total);
+                    const isAprovado = o.status === 'aprovado' || o.status === 'concluido';
 
-              <div className="rounded-md bg-muted/40 p-2 space-y-1 text-xs">
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Subtotal</span>
-                  <span>{formatMoney((o.itens || []).reduce((s, i) => s + (i.valor || 0) * (i.quantidade || 1), 0))}</span>
-                </div>
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Desconto</span>
-                  <span>- {formatMoney(o.desconto || 0)}</span>
-                </div>
-                <div className="flex justify-between text-sm font-semibold text-foreground border-t border-border pt-1">
-                  <span>Total</span>
-                  <span>{formatMoney(o.total || 0)}</span>
-                </div>
-                {o.formasPagamento && (() => {
-                  const conds = parseCondicoesPagamento(o.formasPagamento, o.total);
-                  const isAprovado = o.status === 'aprovado' || o.status === 'concluido';
+                    // Orçamento Aprovado: exibe EXCLUSIVAMENTE a condição aprovada pelo paciente
+                    if (isAprovado) {
+                      const snapAprov = (o.snapshotAprovacao || (o as any).snapshot_aprovacao || {}) as any;
+                      const snapAssinatura = (o.assinaturaPaciente || (o as any).assinatura_paciente || {}) as any;
 
-                  // Orçamento Aprovado: exibe EXCLUSIVAMENTE a condição aprovada pelo paciente
-                  if (isAprovado) {
-                    const snapAprov = (o.snapshotAprovacao || (o as any).snapshot_aprovacao || {}) as any;
-                    const snapAssinatura = (o.assinaturaPaciente || (o as any).assinatura_paciente || {}) as any;
-
-                    // Busca condição aprovada persistida de forma confiável
-                    let condEscolhida: CondicaoPagamento | null = null;
-                    if (o.condicaoEscolhida && typeof o.condicaoEscolhida === 'object' && o.condicaoEscolhida.titulo) {
-                      condEscolhida = o.condicaoEscolhida;
-                    } else if (snapAprov?.condicaoEscolhida && typeof snapAprov.condicaoEscolhida === 'object' && snapAprov.condicaoEscolhida.titulo) {
-                      condEscolhida = snapAprov.condicaoEscolhida;
-                    } else if (snapAssinatura?.condicaoEscolhida && typeof snapAssinatura.condicaoEscolhida === 'object' && snapAssinatura.condicaoEscolhida.titulo) {
-                      condEscolhida = snapAssinatura.condicaoEscolhida;
-                    } else {
-                      const encontrada = conds.find((c) => c.selecionada);
-                      if (encontrada) {
-                        condEscolhida = encontrada;
-                      } else if (snapAprov?.condicaoEscolhidaId) {
-                        const matchId = conds.find((c) => String(c.id) === String(snapAprov.condicaoEscolhidaId));
-                        if (matchId) condEscolhida = matchId;
-                      } else if (snapAssinatura?.condicaoEscolhidaId) {
-                        const matchId = conds.find((c) => String(c.id) === String(snapAssinatura.condicaoEscolhidaId));
-                        if (matchId) condEscolhida = matchId;
-                      } else if (conds.length === 1 && !o.formasPagamento.includes('Opção 2') && !o.formasPagamento.includes('"id":"2"')) {
-                        // Se o orçamento só possui uma única condição configurada desde a criação, ela é a acordada
-                        condEscolhida = conds[0];
+                      // Busca condição aprovada persistida de forma confiável
+                      let condEscolhida: CondicaoPagamento | null = null;
+                      if (o.condicaoEscolhida && typeof o.condicaoEscolhida === 'object' && o.condicaoEscolhida.titulo) {
+                        condEscolhida = o.condicaoEscolhida;
+                      } else if (snapAprov?.condicaoEscolhida && typeof snapAprov.condicaoEscolhida === 'object' && snapAprov.condicaoEscolhida.titulo) {
+                        condEscolhida = snapAprov.condicaoEscolhida;
+                      } else if (snapAssinatura?.condicaoEscolhida && typeof snapAssinatura.condicaoEscolhida === 'object' && snapAssinatura.condicaoEscolhida.titulo) {
+                        condEscolhida = snapAssinatura.condicaoEscolhida;
+                      } else {
+                        const encontrada = conds.find((c) => c.selecionada);
+                        if (encontrada) {
+                          condEscolhida = encontrada;
+                        } else if (snapAprov?.condicaoEscolhidaId) {
+                          const matchId = conds.find((c) => String(c.id) === String(snapAprov.condicaoEscolhidaId));
+                          if (matchId) condEscolhida = matchId;
+                        } else if (snapAssinatura?.condicaoEscolhidaId) {
+                          const matchId = conds.find((c) => String(c.id) === String(snapAssinatura.condicaoEscolhidaId));
+                          if (matchId) condEscolhida = matchId;
+                        } else if (conds.length === 1 && !o.formasPagamento.includes('Opção 2') && !o.formasPagamento.includes('"id":"2"')) {
+                          // Se o orçamento só possui uma única condição configurada desde a criação, ela é a acordada
+                          condEscolhida = conds[0];
+                        }
                       }
-                    }
 
-                    // Se não existir identificação confiável da condição aprovada, exibe mensagem clara sem escolher automaticamente a primeira
-                    if (!condEscolhida) {
-                      return (
-                        <div className="pt-2 border-t border-border/60 space-y-1.5">
-                          <span className="text-[11px] font-bold text-foreground flex items-center gap-1.5">
-                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                            Condição de Pagamento Aprovada:
-                          </span>
-                          <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-50/50 dark:bg-amber-950/20 text-xs space-y-1">
-                            <p className="font-semibold text-amber-700 dark:text-amber-400">Condição aprovada não identificada</p>
-                            <p className="text-[11px] text-muted-foreground leading-relaxed">
-                              O orçamento foi marcado como aprovado, mas a opção específica não foi registrada nos metadados deste documento histórico.
-                            </p>
-                            {o.formasPagamento && !o.formasPagamento.includes('{') && (
-                              <p className="text-[11px] text-foreground font-medium pt-1">
-                                Registro original: {o.formasPagamento}
+                      // Se não existir identificação confiável da condição aprovada, exibe mensagem clara sem escolher automaticamente a primeira
+                      if (!condEscolhida) {
+                        return (
+                          <div className="pt-2 border-t border-border/60 space-y-1.5">
+                            <span className="text-[11px] font-bold text-foreground flex items-center gap-1.5">
+                              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                              Condição de Pagamento Aprovada:
+                            </span>
+                            <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-50/50 dark:bg-amber-950/20 text-xs space-y-1">
+                              <p className="font-semibold text-amber-700 dark:text-amber-400">Condição aprovada não identificada</p>
+                              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                                O orçamento foi marcado como aprovado, mas a opção específica não foi registrada nos metadados deste documento histórico.
                               </p>
-                            )}
+                              {o.formasPagamento && !o.formasPagamento.includes('{') && (
+                                <p className="text-[11px] text-foreground font-medium pt-1">
+                                  Registro original: {o.formasPagamento}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      // Detalhamento financeiro da condição contratada
+                      const valFinal = typeof condEscolhida.valorTotal === 'number' && condEscolhida.valorTotal > 0
+                        ? condEscolhida.valorTotal
+                        : o.total;
+                      const descVal = condEscolhida.descontoValor ?? (condEscolhida as any).valorDesconto ?? 0;
+                      const descPct = condEscolhida.descontoPercentual ?? (condEscolhida as any).percentualDesconto ?? 0;
+                      const temDesc = Boolean(descVal > 0 || descPct > 0);
+                      const valOriginal = temDesc && descVal > 0 ? valFinal + descVal : (o.total > valFinal ? o.total : null);
+
+                      return (
+                        <div className="pt-2 border-t border-border/60 space-y-2">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <span className="text-[11px] font-bold text-foreground flex items-center gap-1.5">
+                              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                              Condição de Pagamento Aprovada:
+                            </span>
+                            <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] px-2 py-0.5 font-semibold flex items-center gap-1 shadow-xs">
+                              <Check className="h-3 w-3 stroke-[3]" /> Opção Contratada pelo Paciente
+                            </Badge>
+                          </div>
+
+                          {/* Card Responsivo da Condição Aprovada */}
+                          <div className="p-3.5 rounded-xl border border-emerald-500/40 bg-emerald-500/5 dark:bg-emerald-950/30 text-xs space-y-2.5">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 pb-2 border-b border-emerald-500/20">
+                              <div className="flex items-center gap-2">
+                                {condEscolhida.tipo === 'a_vista' && <Wallet className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />}
+                                {condEscolhida.tipo === 'cartao' && <CreditCard className="h-4 w-4 text-primary shrink-0" />}
+                                {condEscolhida.tipo === 'entrada_saldo' && <Layers className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />}
+                                <span className="font-bold text-sm text-foreground">{condEscolhida.titulo}</span>
+                              </div>
+
+                              <span className="text-xs font-mono font-extrabold text-emerald-700 dark:text-emerald-300">
+                                Valor Aprovado: {formatMoney(valFinal)}
+                              </span>
+                            </div>
+
+                            {/* Detalhamento Financeiro (Original, Desconto, Entrada / Parcelas) */}
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                              {valOriginal && valOriginal > valFinal && (
+                                <div className="p-2 rounded-lg bg-card/60 border border-border/60">
+                                  <span className="text-[10px] text-muted-foreground block">Valor Original</span>
+                                  <span className="line-through text-muted-foreground font-medium">{formatMoney(valOriginal)}</span>
+                                </div>
+                              )}
+
+                              {temDesc && (
+                                <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
+                                  <span className="text-[10px] text-emerald-700 dark:text-emerald-400 block font-medium">Desconto Aplicado</span>
+                                  <span className="font-bold text-emerald-700 dark:text-emerald-300">
+                                    {descVal > 0 ? `- ${formatMoney(descVal)}` : ''} {descPct ? `(${descPct}% OFF)` : ''}
+                                  </span>
+                                </div>
+                              )}
+
+                              {condEscolhida.tipo === 'entrada_saldo' && (
+                                <>
+                                  <div className="p-2 rounded-lg bg-card/60 border border-border/60">
+                                    <span className="text-[10px] text-muted-foreground block">Entrada</span>
+                                    <span className="font-semibold text-foreground">
+                                      {formatMoney(condEscolhida.valorEntrada || valFinal * 0.5)}
+                                    </span>
+                                  </div>
+                                  <div className="p-2 rounded-lg bg-card/60 border border-border/60">
+                                    <span className="text-[10px] text-muted-foreground block">Saldo Restante</span>
+                                    <span className="font-semibold text-foreground">
+                                      {formatMoney(valFinal - (condEscolhida.valorEntrada || valFinal * 0.5))}
+                                    </span>
+                                  </div>
+                                </>
+                              )}
+
+                              {condEscolhida.tipo === 'cartao' && condEscolhida.parcelas && condEscolhida.parcelas > 1 && (
+                                <div className="p-2 rounded-lg bg-card/60 border border-border/60 col-span-2 sm:col-span-1">
+                                  <span className="text-[10px] text-muted-foreground block">Parcelamento</span>
+                                  <span className="font-semibold text-foreground">
+                                    {condEscolhida.parcelas}x de {formatMoney(condEscolhida.valorParcela || valFinal / condEscolhida.parcelas)}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Descrição Completa Registrada */}
+                            <p className="text-[11px] text-muted-foreground leading-relaxed pt-1.5 border-t border-emerald-500/15">
+                              {condEscolhida.descricao}
+                            </p>
                           </div>
                         </div>
                       );
                     }
 
-                    // Detalhamento financeiro da condição contratada
-                    const valFinal = typeof condEscolhida.valorTotal === 'number' && condEscolhida.valorTotal > 0
-                      ? condEscolhida.valorTotal
-                      : o.total;
-                    const descVal = condEscolhida.descontoValor ?? (condEscolhida as any).valorDesconto ?? 0;
-                    const descPct = condEscolhida.descontoPercentual ?? (condEscolhida as any).percentualDesconto ?? 0;
-                    const temDesc = Boolean(descVal > 0 || descPct > 0);
-                    const valOriginal = temDesc && descVal > 0 ? valFinal + descVal : (o.total > valFinal ? o.total : null);
-
-                    return (
-                      <div className="pt-2 border-t border-border/60 space-y-2">
-                        <div className="flex items-center justify-between gap-2 flex-wrap">
-                          <span className="text-[11px] font-bold text-foreground flex items-center gap-1.5">
-                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                            Condição de Pagamento Aprovada:
+                    // Fluxo para orçamento NÃO aprovado (pendente, rascunho, enviado): exibe todas as opções
+                    if (conds.length > 1) {
+                      return (
+                        <div className="pt-2 border-t border-border/60 space-y-1.5">
+                          <span className="text-[11px] font-semibold text-foreground flex items-center gap-1">
+                            <Wallet className="h-3 w-3 text-primary" />
+                            {conds.length} Condições de Pagamento Disponíveis:
                           </span>
-                          <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] px-2 py-0.5 font-semibold flex items-center gap-1 shadow-xs">
-                            <Check className="h-3 w-3 stroke-[3]" /> Opção Contratada pelo Paciente
-                          </Badge>
-                        </div>
-
-                        {/* Card Responsivo da Condição Aprovada */}
-                        <div className="p-3.5 rounded-xl border border-emerald-500/40 bg-emerald-500/5 dark:bg-emerald-950/30 text-xs space-y-2.5">
-                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 pb-2 border-b border-emerald-500/20">
-                            <div className="flex items-center gap-2">
-                              {condEscolhida.tipo === 'a_vista' && <Wallet className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />}
-                              {condEscolhida.tipo === 'cartao' && <CreditCard className="h-4 w-4 text-primary shrink-0" />}
-                              {condEscolhida.tipo === 'entrada_saldo' && <Layers className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />}
-                              <span className="font-bold text-sm text-foreground">{condEscolhida.titulo}</span>
-                            </div>
-
-                            <span className="text-xs font-mono font-extrabold text-emerald-700 dark:text-emerald-300">
-                              Valor Aprovado: {formatMoney(valFinal)}
-                            </span>
-                          </div>
-
-                          {/* Detalhamento Financeiro (Original, Desconto, Entrada / Parcelas) */}
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
-                            {valOriginal && valOriginal > valFinal && (
-                              <div className="p-2 rounded-lg bg-card/60 border border-border/60">
-                                <span className="text-[10px] text-muted-foreground block">Valor Original</span>
-                                <span className="line-through text-muted-foreground font-medium">{formatMoney(valOriginal)}</span>
-                              </div>
-                            )}
-
-                            {temDesc && (
-                              <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
-                                <span className="text-[10px] text-emerald-700 dark:text-emerald-400 block font-medium">Desconto Aplicado</span>
-                                <span className="font-bold text-emerald-700 dark:text-emerald-300">
-                                  {descVal > 0 ? `- ${formatMoney(descVal)}` : ''} {descPct ? `(${descPct}% OFF)` : ''}
-                                </span>
-                              </div>
-                            )}
-
-                            {condEscolhida.tipo === 'entrada_saldo' && (
-                              <>
-                                <div className="p-2 rounded-lg bg-card/60 border border-border/60">
-                                  <span className="text-[10px] text-muted-foreground block">Entrada</span>
-                                  <span className="font-semibold text-foreground">
-                                    {formatMoney(condEscolhida.valorEntrada || valFinal * 0.5)}
-                                  </span>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                            {conds.map((c, i) => (
+                              <div
+                                key={c.id || i}
+                                className="p-2.5 rounded-xl border border-border/70 bg-card/60 text-foreground text-[11px] space-y-1.5 flex flex-col justify-between transition-all"
+                              >
+                                <div className="space-y-1">
+                                  <div className="flex justify-between items-center gap-1">
+                                    <span className="font-bold text-foreground truncate">{c.titulo}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400">
+                                    <span>Total: {formatMoney(c.valorTotal || o.total)}</span>
+                                  </div>
+                                  <p className="line-clamp-2 text-[10px] text-muted-foreground leading-tight">{c.descricao}</p>
                                 </div>
-                                <div className="p-2 rounded-lg bg-card/60 border border-border/60">
-                                  <span className="text-[10px] text-muted-foreground block">Saldo Restante</span>
-                                  <span className="font-semibold text-foreground">
-                                    {formatMoney(valFinal - (condEscolhida.valorEntrada || valFinal * 0.5))}
-                                  </span>
-                                </div>
-                              </>
-                            )}
 
-                            {condEscolhida.tipo === 'cartao' && condEscolhida.parcelas && condEscolhida.parcelas > 1 && (
-                              <div className="p-2 rounded-lg bg-card/60 border border-border/60 col-span-2 sm:col-span-1">
-                                <span className="text-[10px] text-muted-foreground block">Parcelamento</span>
-                                <span className="font-semibold text-foreground">
-                                  {condEscolhida.parcelas}x de {formatMoney(condEscolhida.valorParcela || valFinal / condEscolhida.parcelas)}
-                                </span>
+                                {o.status !== 'recusado' && (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    onClick={() => handleIniciarAprovacao(o, c.id)}
+                                    className="w-full h-6 text-[10px] font-bold gap-1 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs mt-1"
+                                    title={`Aprovar este orçamento escolhendo a ${c.titulo}`}
+                                  >
+                                    <Check className="h-3 w-3" /> Aprovar esta opção
+                                  </Button>
+                                )}
                               </div>
-                            )}
+                            ))}
                           </div>
-
-                          {/* Descrição Completa Registrada */}
-                          <p className="text-[11px] text-muted-foreground leading-relaxed pt-1.5 border-t border-emerald-500/15">
-                            {condEscolhida.descricao}
-                          </p>
                         </div>
-                      </div>
-                    );
-                  }
-
-                  // Fluxo para orçamento NÃO aprovado (pendente, rascunho, enviado): exibe todas as opções
-                  if (conds.length > 1) {
+                      );
+                    }
                     return (
-                      <div className="pt-2 border-t border-border/60 space-y-1.5">
-                        <span className="text-[11px] font-semibold text-foreground flex items-center gap-1">
-                          <Wallet className="h-3 w-3 text-primary" />
-                          {conds.length} Condições de Pagamento Disponíveis:
-                        </span>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                          {conds.map((c, i) => (
-                            <div
-                              key={c.id || i}
-                              className="p-2.5 rounded-xl border border-border/70 bg-card/60 text-foreground text-[11px] space-y-1.5 flex flex-col justify-between transition-all"
-                            >
-                              <div className="space-y-1">
-                                <div className="flex justify-between items-center gap-1">
-                                  <span className="font-bold text-foreground truncate">{c.titulo}</span>
-                                </div>
-                                <div className="flex items-center justify-between text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400">
-                                  <span>Total: {formatMoney(c.valorTotal || o.total)}</span>
-                                </div>
-                                <p className="line-clamp-2 text-[10px] text-muted-foreground leading-tight">{c.descricao}</p>
-                              </div>
-
-                              {o.status !== 'recusado' && (
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  onClick={() => handleIniciarAprovacao(o, c.id)}
-                                  className="w-full h-6 text-[10px] font-bold gap-1 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs mt-1"
-                                  title={`Aprovar este orçamento escolhendo a ${c.titulo}`}
-                                >
-                                  <Check className="h-3 w-3" /> Aprovar esta opção
-                                </Button>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
+                      <p className="text-muted-foreground pt-1 text-xs">
+                        Pagamento: <span className="text-foreground">{conds[0]?.descricao || o.formasPagamento}</span>
+                      </p>
                     );
-                  }
-                  return (
-                    <p className="text-muted-foreground pt-1 text-xs">
-                      Pagamento: <span className="text-foreground">{conds[0]?.descricao || o.formasPagamento}</span>
-                    </p>
-                  );
-                })()}
-              </div>
+                  })()}
+                </div>
 
-              {/* Painel Administrativo de Status Pós-Aprovação e Contrato */}
-              {o.status === 'aprovado' && (
-                <div className="p-3 rounded-xl border border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/20 space-y-2.5 my-2">
-                  <div className="flex items-center justify-between gap-2 flex-wrap pb-1.5 border-b border-emerald-500/20">
-                    <div className="flex items-center gap-2">
-                      <div className="h-6 w-6 rounded-md bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                      </div>
-                      <span className="font-bold text-xs text-emerald-950 dark:text-emerald-100">
-                        Fluxo de Contrato & Assinatura Digital
-                      </span>
-                    </div>
-                    <Badge className={`${isContratoTotalmenteAssinado ? 'bg-emerald-600' : 'bg-amber-600'} text-white text-[9px] px-2.5 py-0.5 font-bold flex items-center gap-1`}>
-                      {isContratoTotalmenteAssinado ? (
-                        <>
-                          <CheckCircle2 className="h-3 w-3" /> ASSINATURAS REALIZADAS
-                        </>
-                      ) : (
-                        <>
-                          <Clock className="h-3 w-3" /> Aguardando assinatura do paciente
-                        </>
-                      )}
-                    </Badge>
-                  </div>
-
-                  {/* Os 4 Status Administrativos Exigidos */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                    {/* 1. Status do orçamento: Aprovado */}
-                    <div className="p-2 rounded-lg bg-background/90 border border-emerald-500/30 space-y-0.5">
-                      <span className="text-[10px] uppercase font-bold text-muted-foreground block">
-                        Status do orçamento
-                      </span>
-                      <div className="flex items-center gap-1 font-bold text-emerald-700 dark:text-emerald-400">
-                        <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                        <span>Aprovado</span>
-                      </div>
-                    </div>
-
-                    {/* 2. Status do contrato: Assinaturas realizadas / Emitido */}
-                    <div className="p-2 rounded-lg bg-background/90 border border-emerald-500/30 space-y-0.5">
-                      <span className="text-[10px] uppercase font-bold text-muted-foreground block">
-                        Status do contrato
-                      </span>
-                      <div className="flex items-center gap-1 font-bold text-emerald-700 dark:text-emerald-400 truncate">
-                        <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                        <span className="truncate">
-                          {isContratoTotalmenteAssinado ? 'Assinaturas realizadas' : (temContratoEmitido ? `Emitido (${idContratoExibicao})` : 'Pendente de emissão')}
+                {/* Painel Administrativo de Status Pós-Aprovação e Contrato */}
+                {o.status === 'aprovado' && (
+                  <div className="p-3 rounded-xl border border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/20 space-y-2.5 my-2">
+                    <div className="flex items-center justify-between gap-2 flex-wrap pb-1.5 border-b border-emerald-500/20">
+                      <div className="flex items-center gap-2">
+                        <div className="h-6 w-6 rounded-md bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                        </div>
+                        <span className="font-bold text-xs text-emerald-950 dark:text-emerald-100">
+                          Fluxo de Contrato & Assinatura Digital
                         </span>
                       </div>
+                      <Badge className={`${isContratoTotalmenteAssinado ? 'bg-emerald-600' : 'bg-amber-600'} text-white text-[9px] px-2.5 py-0.5 font-bold flex items-center gap-1`}>
+                        {isContratoTotalmenteAssinado ? (
+                          <>
+                            <CheckCircle2 className="h-3 w-3" /> ASSINATURAS REALIZADAS
+                          </>
+                        ) : (
+                          <>
+                            <Clock className="h-3 w-3" /> Aguardando assinatura do paciente
+                          </>
+                        )}
+                      </Badge>
                     </div>
 
-                    {/* 3. Assinatura da profissional: Concluída (ou Pendente) */}
-                    <div className="p-2 rounded-lg bg-background/90 border border-border space-y-0.5">
-                      <span className="text-[10px] uppercase font-bold text-muted-foreground block">
-                        Assinatura profissional
-                      </span>
-                      {temAssinaturaDra ? (
+                    {/* Os 4 Status Administrativos Exigidos */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                      {/* 1. Status do orçamento: Aprovado */}
+                      <div className="p-2 rounded-lg bg-background/90 border border-emerald-500/30 space-y-0.5">
+                        <span className="text-[10px] uppercase font-bold text-muted-foreground block">
+                          Status do orçamento
+                        </span>
                         <div className="flex items-center gap-1 font-bold text-emerald-700 dark:text-emerald-400">
                           <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                          <span>Concluída</span>
+                          <span>Aprovado</span>
                         </div>
-                      ) : (
-                        <div className="flex items-center gap-1 font-bold text-amber-600 dark:text-amber-400">
-                          <Clock className="h-3.5 w-3.5 shrink-0" />
-                          <span>Pendente</span>
+                      </div>
+
+                      {/* 2. Status do contrato: Assinaturas realizadas / Emitido */}
+                      <div className="p-2 rounded-lg bg-background/90 border border-emerald-500/30 space-y-0.5">
+                        <span className="text-[10px] uppercase font-bold text-muted-foreground block">
+                          Status do contrato
+                        </span>
+                        <div className="flex items-center gap-1 font-bold text-emerald-700 dark:text-emerald-400 truncate">
+                          <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate">
+                            {isContratoTotalmenteAssinado ? 'Assinaturas realizadas' : (temContratoEmitido ? `Emitido (${idContratoExibicao})` : 'Pendente de emissão')}
+                          </span>
                         </div>
+                      </div>
+
+                      {/* 3. Assinatura da profissional: Concluída (ou Pendente) */}
+                      <div className="p-2 rounded-lg bg-background/90 border border-border space-y-0.5">
+                        <span className="text-[10px] uppercase font-bold text-muted-foreground block">
+                          Assinatura profissional
+                        </span>
+                        {temAssinaturaDra ? (
+                          <div className="flex items-center gap-1 font-bold text-emerald-700 dark:text-emerald-400">
+                            <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                            <span>Concluída</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1 font-bold text-amber-600 dark:text-amber-400">
+                            <Clock className="h-3.5 w-3.5 shrink-0" />
+                            <span>Pendente</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 4. Assinatura do paciente: Concluída (ou Pendente) */}
+                      <div className="p-2 rounded-lg bg-background/90 border border-border space-y-0.5">
+                        <span className="text-[10px] uppercase font-bold text-muted-foreground block">
+                          Assinatura paciente
+                        </span>
+                        {temAssinaturaPaciente ? (
+                          <div className="flex items-center gap-1 font-bold text-emerald-700 dark:text-emerald-400">
+                            <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                            <span>Concluída</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1 font-bold text-amber-600 dark:text-amber-400">
+                            <Clock className="h-3.5 w-3.5 shrink-0" />
+                            <span>Pendente</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Data de Formalização */}
+                    {isContratoTotalmenteAssinado && dataFormalizacao && (
+                      <div className="text-[11px] text-emerald-800 dark:text-emerald-200 bg-emerald-100/60 dark:bg-emerald-950/40 px-2.5 py-1.5 rounded-lg flex items-center justify-between flex-wrap gap-1">
+                        <span><strong>Data de formalização:</strong> {new Date(dataFormalizacao).toLocaleString('pt-BR')}</span>
+                        <span className="text-[10px] text-emerald-700/80 dark:text-emerald-400/80">Contrato formalizado e válido juridicamente</span>
+                      </div>
+                    )}
+
+                    {/* Ações Rápidas do Contrato */}
+                    <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-emerald-500/20">
+                      {linkContratoPublico && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs border-emerald-400 text-emerald-800 dark:text-emerald-200 hover:bg-emerald-100/50 gap-1"
+                          onClick={() => {
+                            navigator.clipboard.writeText(linkContratoPublico);
+                            toast.success('Link do contrato copiado para a área de transferência!');
+                          }}
+                        >
+                          <LinkIcon className="h-3.5 w-3.5" />
+                          Copiar Link do Contrato
+                        </Button>
                       )}
-                    </div>
 
-                    {/* 4. Assinatura do paciente: Concluída (ou Pendente) */}
-                    <div className="p-2 rounded-lg bg-background/90 border border-border space-y-0.5">
-                      <span className="text-[10px] uppercase font-bold text-muted-foreground block">
-                        Assinatura paciente
-                      </span>
-                      {temAssinaturaPaciente ? (
-                        <div className="flex items-center gap-1 font-bold text-emerald-700 dark:text-emerald-400">
-                          <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                          <span>Concluída</span>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1 font-bold text-amber-600 dark:text-amber-400">
-                          <Clock className="h-3.5 w-3.5 shrink-0" />
-                          <span>Pendente</span>
-                        </div>
+                      {linkContratoPublico && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs border-emerald-400 text-emerald-800 dark:text-emerald-200 hover:bg-emerald-100/50 gap-1"
+                          onClick={() => {
+                            window.open(linkContratoPublico, '_blank');
+                          }}
+                        >
+                          <Eye className="h-3.5 w-3.5 text-primary" />
+                          Abrir Contrato como Paciente
+                        </Button>
+                      )}
+
+                      {!temAssinaturaDra && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white font-semibold gap-1 shadow-xs"
+                          onClick={() => {
+                            setContratoOrcamento(o);
+                            setContratoModalOpen(true);
+                          }}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          Assinar como Dra. Responsável
+                        </Button>
                       )}
                     </div>
                   </div>
+                )}
 
-                  {/* Data de Formalização */}
-                  {isContratoTotalmenteAssinado && dataFormalizacao && (
-                    <div className="text-[11px] text-emerald-800 dark:text-emerald-200 bg-emerald-100/60 dark:bg-emerald-950/40 px-2.5 py-1.5 rounded-lg flex items-center justify-between flex-wrap gap-1">
-                      <span><strong>Data de formalização:</strong> {new Date(dataFormalizacao).toLocaleString('pt-BR')}</span>
-                      <span className="text-[10px] text-emerald-700/80 dark:text-emerald-400/80">Contrato formalizado e válido juridicamente</span>
-                    </div>
-                  )}
-
-                  {/* Ações Rápidas do Contrato */}
-                  <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-emerald-500/20">
-                    {linkContratoPublico && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs border-emerald-400 text-emerald-800 dark:text-emerald-200 hover:bg-emerald-100/50 gap-1"
-                        onClick={() => {
-                          navigator.clipboard.writeText(linkContratoPublico);
-                          toast.success('Link do contrato copiado para a área de transferência!');
-                        }}
-                      >
-                        <LinkIcon className="h-3.5 w-3.5" />
-                        Copiar Link do Contrato
-                      </Button>
-                    )}
-
-                    {linkContratoPublico && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs border-emerald-400 text-emerald-800 dark:text-emerald-200 hover:bg-emerald-100/50 gap-1"
-                        onClick={() => {
-                          window.open(linkContratoPublico, '_blank');
-                        }}
-                      >
-                        <Eye className="h-3.5 w-3.5 text-primary" />
-                        Abrir Contrato como Paciente
-                      </Button>
-                    )}
-
-                    {!temAssinaturaDra && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        className="h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white font-semibold gap-1 shadow-xs"
-                        onClick={() => {
-                          setContratoOrcamento(o);
-                          setContratoModalOpen(true);
-                        }}
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                        Assinar como Dra. Responsável
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  size="sm"
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-xs gap-1.5"
-                  onClick={() => setApresentarOrcamento(o)}
-                  title="Apresentar este plano de tratamento na frente do paciente no consultório"
-                >
-                  <Eye className="h-4 w-4" /> Apresentar ao Paciente
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => abrirEdicao(o)}>
-                  <Pencil className="h-4 w-4 mr-1" /> Editar
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => baixarPdf(o)}>
-                  <FileText className="h-4 w-4 mr-1" /> PDF
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => enviarWhatsApp(o)}
-                  className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
-                  title="Enviar orçamento com condições e link de assinatura digital via WhatsApp"
-                >
-                  <MessageCircle className="h-4 w-4 mr-1" /> WhatsApp
-                </Button>
-
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30"
-                  onClick={() => copiarLinkOrcamento(o)}
-                  title="Copiar link seguro do orçamento para envio ao paciente"
-                >
-                  <LinkIcon className="h-4 w-4 mr-1" /> Link Orçamento
-                </Button>
-
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => visualizarComoPaciente(o)}
-                  title="Visualizar a página pública exatamente como o paciente vê"
-                >
-                  <Eye className="h-4 w-4 mr-1 text-primary" /> Como Paciente
-                </Button>
-
-                {/* Botão Dinâmico de Contrato conforme Estado Real */}
-                {temAmbiguidadeContrato ? (
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-xs gap-1.5"
+                    onClick={() => setApresentarOrcamento(o)}
+                    title="Apresentar este plano de tratamento na frente do paciente no consultório"
+                  >
+                    <Eye className="h-4 w-4" /> Apresentar ao Paciente
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => abrirEdicao(o)}>
+                    <Pencil className="h-4 w-4 mr-1" /> Editar
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => baixarPdf(o)}>
+                    <FileText className="h-4 w-4 mr-1" /> PDF
+                  </Button>
                   <Button
                     size="sm"
                     variant="outline"
-                    className="border-amber-500 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-700 font-semibold gap-1.5"
-                    onClick={() => {
-                      toast.warning('Ambiguidade de contratos detectada para este orçamento', {
-                        description: `Existem múltiplos contratos distintos vinculados (${idsDistintosContratos.join(', ')}). Por segurança jurídica, acesse e baixe o contrato correto diretamente na aba Documentos do Paciente.`,
-                        duration: 8000,
-                      });
-                    }}
-                    title="Ambiguidade detectada: múltiplos contratos distintos associados a este orçamento. Clique para orientações."
+                    onClick={() => enviarWhatsApp(o)}
+                    className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                    title="Enviar orçamento com condições e link de assinatura digital via WhatsApp"
                   >
-                    <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" /> Ambiguidade de Contratos
+                    <MessageCircle className="h-4 w-4 mr-1" /> WhatsApp
                   </Button>
-                ) : isContratoTotalmenteAssinado ? (
-                  <>
-                    <Button
-                      size="sm"
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs gap-1.5"
-                      onClick={() => handleAbrirVisualizadorPdfAssinado(o, contObj, idContratoExibicao)}
-                      title="Ver o PDF oficial bilateral definitivo arquivado no Storage com ambas as assinaturas"
-                    >
-                      <CheckCircle2 className="h-4 w-4 text-white" /> Ver Contrato Assinado
-                    </Button>
+
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30"
+                    onClick={() => copiarLinkOrcamento(o)}
+                    title="Copiar link seguro do orçamento para envio ao paciente"
+                  >
+                    <LinkIcon className="h-4 w-4 mr-1" /> Link Orçamento
+                  </Button>
+
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => visualizarComoPaciente(o)}
+                    title="Visualizar a página pública exatamente como o paciente vê"
+                  >
+                    <Eye className="h-4 w-4 mr-1 text-primary" /> Como Paciente
+                  </Button>
+
+                  {/* Botão Dinâmico de Contrato conforme Estado Real */}
+                  {temAmbiguidadeContrato ? (
                     <Button
                       size="sm"
                       variant="outline"
-                      className="border-emerald-500/50 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 gap-1"
-                      onClick={async () => {
-                        const t = toast.loading('Localizando PDF assinado oficial...');
-                        try {
-                          const res = await obterPdfContratoOficial(o, contObj, idContratoExibicao);
-                          if (res?.blob) {
-                            const url = URL.createObjectURL(res.blob);
-                            const a = document.createElement('a');
-                            a.href = url;
-                            a.download = `Contrato_Assinado_${idContratoExibicao}.pdf`;
-                            document.body.appendChild(a);
-                            a.click();
-                            document.body.removeChild(a);
-                            URL.revokeObjectURL(url);
-                            toast.dismiss(t);
-                            toast.success('PDF oficial assinado baixado com sucesso!');
-                            return;
-                          }
-
-                          if (res?.signedUrl) {
-                            window.open(res.signedUrl, '_blank');
-                            toast.dismiss(t);
-                            toast.success('PDF oficial assinado aberto para download!');
-                            return;
-                          }
-
-                          // Se não foi localizado no Storage, nunca gera um documento sem assinaturas sob o nome 'PDF Assinado'
-                          toast.dismiss(t);
-                          toast.error('O PDF definitivo com as assinaturas arquivadas não foi localizado no Storage.', {
-                            description: 'Abra o contrato formalizado pelo botão "Ver Contrato Assinado" para verificar o status.',
-                          });
-                        } catch (err) {
-                          toast.dismiss(t);
-                          toast.error('Erro ao baixar o PDF assinado oficial.');
-                        }
+                      className="border-amber-500 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-700 font-semibold gap-1.5"
+                      onClick={() => {
+                        toast.warning('Ambiguidade de contratos detectada para este orçamento', {
+                          description: `Existem múltiplos contratos distintos vinculados (${idsDistintosContratos.join(', ')}). Por segurança jurídica, acesse e baixe o contrato correto diretamente na aba Documentos do Paciente.`,
+                          duration: 8000,
+                        });
                       }}
-                      title="Baixar PDF oficial do contrato formalizado"
+                      title="Ambiguidade detectada: múltiplos contratos distintos associados a este orçamento. Clique para orientações."
                     >
-                      <Download className="h-4 w-4" /> Baixar PDF Assinado
+                      <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" /> Ambiguidade de Contratos
                     </Button>
-                  </>
-                ) : temContratoEmitido ? (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-amber-400 text-amber-700 hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-950/30 gap-1.5"
-                    onClick={() => {
-                      setContratoOrcamento(o);
-                      setContratoModalOpen(true);
-                    }}
-                    title={
-                      temAssinaturaDra && !temAssinaturaPaciente
-                        ? "Ver contrato emitido com assinatura profissional - aguardando paciente"
+                  ) : isContratoTotalmenteAssinado ? (
+                    <>
+                      <Button
+                        size="sm"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs gap-1.5"
+                        onClick={() => handleAbrirVisualizadorPdfAssinado(o, contObj, idContratoExibicao)}
+                        title="Ver o PDF oficial bilateral definitivo arquivado no Storage com ambas as assinaturas"
+                      >
+                        <CheckCircle2 className="h-4 w-4 text-white" /> Ver Contrato Assinado
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-emerald-500/50 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 gap-1"
+                        onClick={async () => {
+                          const t = toast.loading('Localizando PDF assinado oficial...');
+                          try {
+                            const res = await obterPdfContratoOficial(o, contObj, idContratoExibicao);
+                            if (res?.blob) {
+                              const url = URL.createObjectURL(res.blob);
+                              const a = document.createElement('a');
+                              a.href = url;
+                              a.download = `Contrato_Assinado_${idContratoExibicao}.pdf`;
+                              document.body.appendChild(a);
+                              a.click();
+                              document.body.removeChild(a);
+                              URL.revokeObjectURL(url);
+                              toast.dismiss(t);
+                              toast.success('PDF oficial assinado baixado com sucesso!');
+                              return;
+                            }
+
+                            if (res?.signedUrl) {
+                              window.open(res.signedUrl, '_blank');
+                              toast.dismiss(t);
+                              toast.success('PDF oficial assinado aberto para download!');
+                              return;
+                            }
+
+                            // Se não foi localizado no Storage, nunca gera um documento sem assinaturas sob o nome 'PDF Assinado'
+                            toast.dismiss(t);
+                            toast.error('O PDF definitivo com as assinaturas arquivadas não foi localizado no Storage.', {
+                              description: 'Abra o contrato formalizado pelo botão "Ver Contrato Assinado" para verificar o status.',
+                            });
+                          } catch (err) {
+                            toast.dismiss(t);
+                            toast.error('Erro ao baixar o PDF assinado oficial.');
+                          }
+                        }}
+                        title="Baixar PDF oficial do contrato formalizado"
+                      >
+                        <Download className="h-4 w-4" /> Baixar PDF Assinado
+                      </Button>
+                    </>
+                  ) : temContratoEmitido ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-amber-400 text-amber-700 hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-950/30 gap-1.5"
+                      onClick={() => {
+                        setContratoOrcamento(o);
+                        setContratoModalOpen(true);
+                      }}
+                      title={
+                        temAssinaturaDra && !temAssinaturaPaciente
+                          ? "Ver contrato emitido com assinatura profissional - aguardando paciente"
+                          : temAssinaturaPaciente && !temAssinaturaDra
+                            ? "Ver contrato emitido com assinatura do paciente - aguardando profissional"
+                            : "Ver contrato emitido gravado - aguardando assinaturas"
+                      }
+                    >
+                      <Clock className="h-4 w-4 text-amber-600" />
+                      {temAssinaturaDra && !temAssinaturaPaciente
+                        ? "Ver Contrato — Aguardando Paciente"
                         : temAssinaturaPaciente && !temAssinaturaDra
-                          ? "Ver contrato emitido com assinatura do paciente - aguardando profissional"
-                          : "Ver contrato emitido gravado - aguardando assinaturas"
+                          ? "Ver Contrato — Aguardando Profissional"
+                          : "Ver Contrato — Aguardando Assinaturas"}
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant={o?.status === 'aprovado' ? 'default' : 'outline'}
+                      className={o?.status === 'aprovado' ? 'bg-primary text-primary-foreground hover:bg-primary/90 gap-1.5' : 'gap-1.5'}
+                      onClick={() => {
+                        setContratoOrcamento(o);
+                        setContratoModalOpen(true);
+                      }}
+                      title="Gerar contrato formal com base neste orçamento"
+                    >
+                      <FileSignature className="h-4 w-4" /> Gerar Contrato
+                    </Button>
+                  )}
+
+                  {o?.status === 'aprovado' && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                      onClick={() => handleIniciarAprovacao(o)}
+                      title="Sincronizar ou relançar parcelas no Contas a Receber"
+                    >
+                      <RefreshCw className="h-4 w-4 mr-1" /> Financeiro
+                    </Button>
+                  )}
+
+                  {o?.status !== 'aprovado' && o?.status !== 'recusado' && o?.status !== 'cancelado' && (
+                    <>
+                      <Button size="sm" variant="outline" onClick={() => handleIniciarAprovacao(o)}>
+                        <Check className="h-4 w-4 mr-1 text-emerald-600" /> Aprovar
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => updateStatus(o.id, 'recusado')}>
+                        <X className="h-4 w-4 mr-1" /> Recusar
+                      </Button>
+                    </>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => handleSolicitarExclusaoOrcamento(o)}
+                    title={
+                      o?.status === 'aprovado' || isContratoTotalmenteAssinado
+                        ? "Cancelar ou arquivar tratamento formalizado (Preserva contrato e histórico)"
+                        : "Excluir orçamento"
                     }
+                    className="text-muted-foreground hover:text-destructive"
                   >
-                    <Clock className="h-4 w-4 text-amber-600" />
-                    {temAssinaturaDra && !temAssinaturaPaciente
-                      ? "Ver Contrato — Aguardando Paciente"
-                      : temAssinaturaPaciente && !temAssinaturaDra
-                        ? "Ver Contrato — Aguardando Profissional"
-                        : "Ver Contrato — Aguardando Assinaturas"}
+                    <Trash2 className="h-4 w-4" />
                   </Button>
-                ) : (
-                  <Button
-                    size="sm"
-                    variant={o?.status === 'aprovado' ? 'default' : 'outline'}
-                    className={o?.status === 'aprovado' ? 'bg-primary text-primary-foreground hover:bg-primary/90 gap-1.5' : 'gap-1.5'}
-                    onClick={() => {
-                      setContratoOrcamento(o);
-                      setContratoModalOpen(true);
-                    }}
-                    title="Gerar contrato formal com base neste orçamento"
-                  >
-                    <FileSignature className="h-4 w-4" /> Gerar Contrato
-                  </Button>
-                )}
-
-                {o?.status === 'aprovado' && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
-                    onClick={() => handleIniciarAprovacao(o)}
-                    title="Sincronizar ou relançar parcelas no Contas a Receber"
-                  >
-                    <RefreshCw className="h-4 w-4 mr-1" /> Financeiro
-                  </Button>
-                )}
-
-                {o?.status !== 'aprovado' && o?.status !== 'recusado' && o?.status !== 'cancelado' && (
-                  <>
-                    <Button size="sm" variant="outline" onClick={() => handleIniciarAprovacao(o)}>
-                      <Check className="h-4 w-4 mr-1 text-emerald-600" /> Aprovar
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => updateStatus(o.id, 'recusado')}>
-                      <X className="h-4 w-4 mr-1" /> Recusar
-                    </Button>
-                  </>
-                )}
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => handleSolicitarExclusaoOrcamento(o)}
-                  title={
-                    o?.status === 'aprovado' || isContratoTotalmenteAssinado
-                      ? "Cancelar ou arquivar tratamento formalizado (Preserva contrato e histórico)"
-                      : "Excluir orçamento"
-                  }
-                  className="text-muted-foreground hover:text-destructive"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                </div>
               </div>
-            </div>
-          );
-        })
+            );
+          })
         )}
       </CardContent>
 
@@ -3474,17 +3474,15 @@ const PatientOrcamentos = ({ patient }: Props) => {
                               setOpenBuscaProcedimento(false);
                               toast.success(`Procedimento "${p.nome}" adicionado!`);
                             }}
-                            className={`w-full text-left px-3.5 py-2.5 transition-colors flex items-center justify-between gap-3 group focus:outline-none ${
-                              isSelected
-                                ? 'bg-accent/90 text-accent-foreground'
-                                : 'hover:bg-accent/60'
-                            }`}
+                            className={`w-full text-left px-3.5 py-2.5 transition-colors flex items-center justify-between gap-3 group focus:outline-none ${isSelected
+                              ? 'bg-accent/90 text-accent-foreground'
+                              : 'hover:bg-accent/60'
+                              }`}
                           >
                             <div className="flex-1 min-w-0">
                               <div
-                                className={`text-xs sm:text-sm font-medium truncate ${
-                                  isSelected ? 'text-primary' : 'text-foreground'
-                                }`}
+                                className={`text-xs sm:text-sm font-medium truncate ${isSelected ? 'text-primary' : 'text-foreground'
+                                  }`}
                               >
                                 {p.nome}
                               </div>
@@ -3515,9 +3513,9 @@ const PatientOrcamentos = ({ patient }: Props) => {
               )}
             </div>
 
-              <Button type="button" variant="outline" size="sm" className="w-full" onClick={addItemManual}>
-                <Plus className="h-4 w-4 mr-1" /> Adicionar item manual
-              </Button>
+            <Button type="button" variant="outline" size="sm" className="w-full" onClick={addItemManual}>
+              <Plus className="h-4 w-4 mr-1" /> Adicionar item manual
+            </Button>
 
             <div className="space-y-2">
               {itens.map((i, idx) => (
@@ -3578,11 +3576,10 @@ const PatientOrcamentos = ({ patient }: Props) => {
                     onClick={() => {
                       setModoCalculoValor('desconto');
                     }}
-                    className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
-                      modoCalculoValor === 'desconto'
-                        ? 'bg-primary text-primary-foreground shadow-xs'
-                        : 'text-muted-foreground hover:text-foreground'
-                    }`}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${modoCalculoValor === 'desconto'
+                      ? 'bg-primary text-primary-foreground shadow-xs'
+                      : 'text-muted-foreground hover:text-foreground'
+                      }`}
                   >
                     🏷️ Por Desconto
                   </button>
@@ -3594,11 +3591,10 @@ const PatientOrcamentos = ({ patient }: Props) => {
                         setInputValorFinal(total > 0 ? String(total) : String(subtotal));
                       }
                     }}
-                    className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
-                      modoCalculoValor === 'valor_final'
-                        ? 'bg-primary text-primary-foreground shadow-xs'
-                        : 'text-muted-foreground hover:text-foreground'
-                    }`}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${modoCalculoValor === 'valor_final'
+                      ? 'bg-primary text-primary-foreground shadow-xs'
+                      : 'text-muted-foreground hover:text-foreground'
+                      }`}
                   >
                     💰 Ajustar Valor Final
                   </button>
@@ -3811,11 +3807,10 @@ const PatientOrcamentos = ({ patient }: Props) => {
                     type="button"
                     size="sm"
                     variant={modoFormaPagamento === 'propostas' ? 'default' : 'outline'}
-                    className={`h-7 text-xs font-semibold ${
-                      modoFormaPagamento === 'propostas'
-                        ? 'bg-primary text-primary-foreground shadow-xs'
-                        : 'text-muted-foreground hover:text-foreground'
-                    }`}
+                    className={`h-7 text-xs font-semibold ${modoFormaPagamento === 'propostas'
+                      ? 'bg-primary text-primary-foreground shadow-xs'
+                      : 'text-muted-foreground hover:text-foreground'
+                      }`}
                     onClick={() => {
                       setModoFormaPagamento('propostas');
                       if (condicoesNegociacao.length === 0) {
@@ -3832,11 +3827,10 @@ const PatientOrcamentos = ({ patient }: Props) => {
                     type="button"
                     size="sm"
                     variant={modoFormaPagamento === 'livre' ? 'default' : 'outline'}
-                    className={`h-7 text-xs font-semibold ${
-                      modoFormaPagamento === 'livre'
-                        ? 'bg-primary text-primary-foreground shadow-xs'
-                        : 'text-muted-foreground hover:text-foreground'
-                    }`}
+                    className={`h-7 text-xs font-semibold ${modoFormaPagamento === 'livre'
+                      ? 'bg-primary text-primary-foreground shadow-xs'
+                      : 'text-muted-foreground hover:text-foreground'
+                      }`}
                     onClick={() => setModoFormaPagamento('livre')}
                   >
                     Texto Livre / Clássico
@@ -3896,19 +3890,17 @@ const PatientOrcamentos = ({ patient }: Props) => {
                         return (
                           <div
                             key={c.id || idx}
-                            className={`p-3 rounded-xl border text-xs flex flex-col justify-between gap-2 transition-all ${
-                              isAtiva
-                                ? 'border-emerald-500/80 bg-emerald-500/10 shadow-xs ring-1 ring-emerald-500/30'
-                                : 'border-border/80 bg-background/80 hover:border-primary/40'
-                            }`}
+                            className={`p-3 rounded-xl border text-xs flex flex-col justify-between gap-2 transition-all ${isAtiva
+                              ? 'border-emerald-500/80 bg-emerald-500/10 shadow-xs ring-1 ring-emerald-500/30'
+                              : 'border-border/80 bg-background/80 hover:border-primary/40'
+                              }`}
                           >
                             <div className="space-y-1.5">
                               <div className="flex items-center justify-between gap-1">
                                 <div className="flex items-center gap-1.5 flex-wrap">
                                   <span
-                                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                                      isAtiva ? 'bg-emerald-600 text-white' : 'bg-muted text-muted-foreground'
-                                    }`}
+                                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${isAtiva ? 'bg-emerald-600 text-white' : 'bg-muted text-muted-foreground'
+                                      }`}
                                   >
                                     Opção {idx + 1}
                                   </span>
@@ -3996,8 +3988,8 @@ const PatientOrcamentos = ({ patient }: Props) => {
                                           {c.saldoTipoPrazo === 'parcelas' && c.saldoParcelas && c.saldoParcelas > 1
                                             ? ` (${c.saldoParcelas}x de ${formatMoney(saldo / c.saldoParcelas)})`
                                             : c.saldoTipoPrazo === 'dias' || (!c.saldoTipoPrazo && c.saldoPrazoDias)
-                                            ? ` (em ${c.saldoPrazoDias || 30} dias)`
-                                            : ''}
+                                              ? ` (em ${c.saldoPrazoDias || 30} dias)`
+                                              : ''}
                                         </span>
                                       )}
                                       {c.tipo === 'pix_parcelado' && (
@@ -4038,11 +4030,10 @@ const PatientOrcamentos = ({ patient }: Props) => {
                                 type="button"
                                 size="sm"
                                 variant={isAtiva ? 'default' : 'outline'}
-                                className={`h-6 text-[11px] w-full ${
-                                  isAtiva
-                                    ? 'bg-emerald-600 text-white font-semibold'
-                                    : 'border-border text-muted-foreground hover:text-foreground'
-                                }`}
+                                className={`h-6 text-[11px] w-full ${isAtiva
+                                  ? 'bg-emerald-600 text-white font-semibold'
+                                  : 'border-border text-muted-foreground hover:text-foreground'
+                                  }`}
                                 onClick={() => setCondicaoAtivaId(isAtiva ? '' : c.id)}
                               >
                                 {isAtiva ? '✓ Opção Padrão / Escolhida' : 'Definir como Padrão'}
@@ -4070,11 +4061,10 @@ const PatientOrcamentos = ({ patient }: Props) => {
                         type="button"
                         size="sm"
                         variant={entradaAssistenteAtivo ? 'default' : 'outline'}
-                        className={`h-7 text-xs gap-1.5 ${
-                          entradaAssistenteAtivo
-                            ? 'bg-purple-600 text-white font-semibold shadow-xs'
-                            : 'border-purple-500/40 text-purple-600 dark:text-purple-400'
-                        }`}
+                        className={`h-7 text-xs gap-1.5 ${entradaAssistenteAtivo
+                          ? 'bg-purple-600 text-white font-semibold shadow-xs'
+                          : 'border-purple-500/40 text-purple-600 dark:text-purple-400'
+                          }`}
                         onClick={handleToggleEntradaAssistente}
                       >
                         <Wallet className="h-3.5 w-3.5" />
@@ -4084,11 +4074,10 @@ const PatientOrcamentos = ({ patient }: Props) => {
                         type="button"
                         size="sm"
                         variant={cartaoAssistenteAtivo ? 'default' : 'outline'}
-                        className={`h-7 text-xs gap-1.5 ${
-                          cartaoAssistenteAtivo
-                            ? 'bg-blue-600 text-white font-semibold shadow-xs'
-                            : 'border-blue-500/40 text-blue-600 dark:text-blue-400'
-                        }`}
+                        className={`h-7 text-xs gap-1.5 ${cartaoAssistenteAtivo
+                          ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                          : 'border-blue-500/40 text-blue-600 dark:text-blue-400'
+                          }`}
                         onClick={() => {
                           const novo = !cartaoAssistenteAtivo;
                           setCartaoAssistenteAtivo(novo);
@@ -4106,11 +4095,10 @@ const PatientOrcamentos = ({ patient }: Props) => {
                         type="button"
                         size="sm"
                         variant={multiplasFormasAtivo ? 'default' : 'outline'}
-                        className={`h-7 text-xs gap-1.5 ${
-                          multiplasFormasAtivo
-                            ? 'bg-emerald-600 text-white font-semibold shadow-xs'
-                            : 'border-emerald-500/40 text-emerald-600 dark:text-emerald-400'
-                        }`}
+                        className={`h-7 text-xs gap-1.5 ${multiplasFormasAtivo
+                          ? 'bg-emerald-600 text-white font-semibold shadow-xs'
+                          : 'border-emerald-500/40 text-emerald-600 dark:text-emerald-400'
+                          }`}
                         onClick={handleToggleMultiplasFormas}
                       >
                         <Layers className="h-3.5 w-3.5" />
@@ -4160,889 +4148,372 @@ const PatientOrcamentos = ({ patient }: Props) => {
                     })}
                   </div>
 
-              {/* Assistente de Entrada + Saldo */}
-              {entradaAssistenteAtivo && (
-                <div className="rounded-lg border border-purple-500/40 bg-purple-950/20 p-3.5 space-y-3.5 animate-in fade-in duration-200">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 text-xs font-semibold text-purple-400">
-                      <Wallet className="h-4 w-4" />
-                      Definir Entrada e Pagamento do Saldo
-                    </div>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      className="h-6 px-1.5 text-xs text-muted-foreground hover:text-foreground"
-                      onClick={() => setEntradaAssistenteAtivo(false)}
-                    >
-                      <X className="h-3.5 w-3.5 mr-1" /> Fechar
-                    </Button>
-                  </div>
-
-                  {/* Passo 1: Configurar a Entrada */}
-                  <div className="space-y-2.5 p-3 rounded-lg bg-background/90 border border-purple-500/30">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-                      <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                        <span className="px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400 font-bold text-[10px]">
-                          1º Passo
-                        </span>
-                        Valor e Condições da Entrada
-                      </Label>
-                      <div className="flex items-center gap-1">
-                        <span className="text-[10px] text-muted-foreground mr-1">Atalhos:</span>
-                        {[
-                          { label: '10%', val: Math.round(total * 0.1) },
-                          { label: '20%', val: Math.round(total * 0.2) },
-                          { label: '30%', val: Math.round(total * 0.3) },
-                          { label: '50%', val: Math.round(total * 0.5) },
-                        ].map((perc) => (
-                          <Button
-                            key={perc.label}
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-5 px-1.5 text-[10px] border-purple-500/40 hover:bg-purple-500/10 font-medium"
-                            onClick={() => setValorEntrada(perc.val)}
-                          >
-                            {perc.label}
-                          </Button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
-                      <div className="space-y-1">
-                        <Label className="text-[11px] text-muted-foreground">Valor Entrada (R$)</Label>
-                        <Input
-                          type="number"
-                          min={0}
-                          max={total}
-                          step="0.01"
-                          placeholder="0,00"
-                          value={valorEntrada || ''}
-                          onChange={(e) => setValorEntrada(Math.min(total, Math.max(0, Number(e.target.value) || 0)))}
-                          className="h-8 text-xs font-bold text-foreground"
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <Label className="text-[11px] text-muted-foreground">Método da Entrada</Label>
-                        <Select
-                          value={metodoEntrada}
-                          onValueChange={(v: any) => setMetodoEntrada(v)}
-                        >
-                          <SelectTrigger className="h-8 text-xs font-medium">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="pix">PIX</SelectItem>
-                            <SelectItem value="dinheiro">Dinheiro</SelectItem>
-                            <SelectItem value="cartao_debito">Cartão de Débito</SelectItem>
-                            <SelectItem value="cartao_credito">Cartão de Crédito</SelectItem>
-                            <SelectItem value="transferencia">Transferência Bancária</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-1">
-                        <Label className="text-[11px] text-muted-foreground flex items-center gap-1">
-                          <CalendarDays className="h-3 w-3 text-purple-400" /> Data Entrada
-                        </Label>
-                        <Input
-                          type="date"
-                          value={dataEntrada}
-                          onChange={(e) => setDataEntrada(e.target.value)}
-                          className="h-8 text-xs font-semibold bg-background"
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <Label className="text-[11px] text-muted-foreground">Situação</Label>
-                        <Select
-                          value={situacaoEntrada}
-                          onValueChange={(v: any) => setSituacaoEntrada(v)}
-                        >
-                          <SelectTrigger className="h-8 text-xs font-semibold">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Quitada">
-                              <span className="text-emerald-500 font-medium">● Quitada (Já paga)</span>
-                            </SelectItem>
-                            <SelectItem value="A vencer">
-                              <span className="text-amber-500 font-medium">● A vencer (A pagar)</span>
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    {/* Resumo Visual em Cards: Total, Entrada, Saldo */}
-                    {(() => {
-                      const saldo = Math.max(0, total - valorEntrada);
-                      return (
-                        <div className="grid grid-cols-3 gap-2 pt-1 text-xs">
-                          <div className="p-2 rounded bg-muted/40 border border-border/50">
-                            <span className="text-[10px] text-muted-foreground block">Total Orçamento:</span>
-                            <span className="font-semibold text-foreground text-xs">{formatMoney(total)}</span>
-                          </div>
-                          <div className="p-2 rounded bg-purple-500/10 border border-purple-500/30">
-                            <span className="text-[10px] text-purple-400 block font-medium">(-) Entrada Definida:</span>
-                            <span className="font-bold text-purple-400 text-xs">{formatMoney(valorEntrada)}</span>
-                          </div>
-                          <div className={`p-2 rounded ${saldo > 0 ? 'bg-amber-500/10 border border-amber-500/30' : 'bg-emerald-500/10 border border-emerald-500/30'}`}>
-                            <span className={`text-[10px] block font-medium ${saldo > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
-                              (=) Saldo Restante:
-                            </span>
-                            <span className={`font-bold text-xs ${saldo > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
-                              {formatMoney(saldo)}
-                            </span>
-                          </div>
+                  {/* Assistente de Entrada + Saldo */}
+                  {entradaAssistenteAtivo && (
+                    <div className="rounded-lg border border-purple-500/40 bg-purple-950/20 p-3.5 space-y-3.5 animate-in fade-in duration-200">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-xs font-semibold text-purple-400">
+                          <Wallet className="h-4 w-4" />
+                          Definir Entrada e Pagamento do Saldo
                         </div>
-                      );
-                    })()}
-
-                    {/* Opção Rápida: Salvar Apenas Entrada */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1.5 border-t border-border/50">
-                      <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-                        <Sparkles className="h-3 w-3 text-purple-400 shrink-0" />
-                        Quer registrar só a entrada agora e combinar o restante depois?
-                      </span>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => aplicarEntradaApenas()}
-                        disabled={valorEntrada <= 0}
-                        className="h-7 text-xs border-purple-500/50 text-purple-400 hover:bg-purple-950/40 shrink-0 font-semibold"
-                      >
-                        <Check className="h-3 w-3 mr-1" /> Registrar apenas a Entrada (Saldo a combinar)
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Passo 2: Preencher Opções de Pagamento do Saldo */}
-                  {total - valorEntrada > 0 && (
-                    <div className="space-y-3 p-3 rounded-lg bg-background/90 border border-border">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                        <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                          <span className="px-1.5 py-0.5 rounded bg-blue-600/20 text-blue-400 font-bold text-[10px]">
-                            2º Passo
-                          </span>
-                          Preencher Forma de Pagamento do Saldo ({formatMoney(total - valorEntrada)})
-                        </Label>
-                        <span className="text-[10px] text-muted-foreground">
-                          Selecione como o saldo restante será pago
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
-                        {[
-                          { id: 'combinar', label: 'A combinar' },
-                          { id: 'cartao', label: 'Cartão de Crédito' },
-                          { id: 'pix_parcelado', label: 'PIX Parcelado' },
-                          { id: 'boleto', label: 'Boleto' },
-                          { id: 'conclusao', label: 'Na Conclusão' },
-                        ].map((opc) => (
-                          <Button
-                            key={opc.id}
-                            type="button"
-                            variant={modalidadeSaldo === opc.id ? 'default' : 'outline'}
-                            size="sm"
-                            className={`h-7 text-xs font-medium ${
-                              modalidadeSaldo === opc.id
-                                ? 'bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-xs'
-                                : 'border-border text-muted-foreground hover:text-foreground'
-                            }`}
-                            onClick={() => setModalidadeSaldo(opc.id as any)}
-                          >
-                            {opc.label}
-                          </Button>
-                        ))}
-                      </div>
-
-                      {/* Conteúdo de acordo com modalidade do saldo */}
-                      {modalidadeSaldo === 'combinar' && (
-                        <div className="p-2.5 rounded bg-muted/30 border border-border/50 text-xs text-muted-foreground space-y-1">
-                          <p className="font-semibold text-foreground">
-                            Saldo Restante de {formatMoney(total - valorEntrada)} a combinar
-                          </p>
-                          <p className="text-[11px]">
-                            O saldo restante ficará em aberto como conta a receber pendente, podendo ser quitado ou parcelado posteriormente de acordo com as consultas do paciente.
-                          </p>
-                        </div>
-                      )}
-
-                      {modalidadeSaldo === 'cartao' && (() => {
-                        const saldo = Math.max(0, total - valorEntrada);
-                        const op = operadoras.find((o) => o.id === saldoCartaoOperadoraId) || operadoraPadrao;
-                        const calc = calcularTaxaCartao(op, saldoCartaoParcelas, saldo, false);
-                        const taxaPercFinal =
-                          saldoCartaoTaxaPercentualManual !== '' && !isNaN(parseFloat(saldoCartaoTaxaPercentualManual))
-                            ? parseFloat(saldoCartaoTaxaPercentualManual)
-                            : calc.taxaPercentual;
-                        const taxaValorFinal =
-                          saldoCartaoTaxaValorManual !== '' && !isNaN(parseFloat(saldoCartaoTaxaValorManual))
-                            ? parseFloat(saldoCartaoTaxaValorManual)
-                            : Number(((saldo * taxaPercFinal) / 100).toFixed(2));
-                        const valorLiquidoFinal = Math.max(0, Number((saldo - taxaValorFinal).toFixed(2)));
-
-                        return (
-                          <div className="space-y-2.5 p-2.5 rounded bg-blue-950/20 border border-blue-500/30">
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                              <div className="space-y-1">
-                                <Label className="text-[11px] text-muted-foreground">Operadora</Label>
-                                <Select
-                                  value={saldoCartaoOperadoraId}
-                                  onValueChange={setSaldoCartaoOperadoraId}
-                                >
-                                  <SelectTrigger className="h-8 text-xs font-bold bg-background">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {operadoras.filter((o) => o.ativa !== false).map((operadora) => (
-                                      <SelectItem key={operadora.id} value={operadora.id}>
-                                        <div className="flex items-center gap-1.5">
-                                          <span
-                                            className="w-2 h-2 rounded-full"
-                                            style={{ backgroundColor: operadora.cor || '#3b82f6' }}
-                                          />
-                                          <span className="font-semibold">{operadora.nome}</span>
-                                        </div>
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-
-                              <div className="space-y-1">
-                                <Label className="text-[11px] text-muted-foreground">Parcelas</Label>
-                                <Select
-                                  value={String(saldoCartaoParcelas)}
-                                  onValueChange={(v) => setSaldoCartaoParcelas(Number(v) || 1)}
-                                >
-                                  <SelectTrigger className="h-8 text-xs font-semibold bg-background">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18].map((n) => (
-                                      <SelectItem key={n} value={String(n)}>
-                                        {n === 1 ? '1x à vista' : `${n}x (${formatMoney(saldo / n)})`}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-
-                              <div className="space-y-1">
-                                <Label className="text-[11px] text-muted-foreground">Taxa (R$)</Label>
-                                <Input
-                                  type="number"
-                                  step="0.01"
-                                  min="0"
-                                  placeholder="0,00"
-                                  value={saldoCartaoTaxaValorManual}
-                                  onChange={(e) => {
-                                    const v = e.target.value;
-                                    setSaldoCartaoTaxaValorManual(v);
-                                    const num = parseFloat(v);
-                                    if (!isNaN(num) && saldo > 0) {
-                                      setSaldoCartaoTaxaPercentualManual(String(Number(((num / saldo) * 100).toFixed(2))));
-                                    }
-                                  }}
-                                  className="h-8 text-xs font-semibold bg-background"
-                                />
-                              </div>
-
-                              <div className="space-y-1">
-                                <Label className="text-[11px] text-muted-foreground">Taxa (%)</Label>
-                                <Input
-                                  type="number"
-                                  step="0.01"
-                                  min="0"
-                                  placeholder="0.00"
-                                  value={saldoCartaoTaxaPercentualManual}
-                                  onChange={(e) => {
-                                    const p = e.target.value;
-                                    setSaldoCartaoTaxaPercentualManual(p);
-                                    const numP = parseFloat(p);
-                                    if (!isNaN(numP) && saldo > 0) {
-                                      setSaldoCartaoTaxaValorManual(String(Number(((saldo * numP) / 100).toFixed(2))));
-                                    }
-                                  }}
-                                  className="h-8 text-xs font-semibold bg-background"
-                                />
-                              </div>
-                            </div>
-
-                            <div className="flex flex-wrap items-center justify-between gap-2 p-2 rounded bg-background/90 border border-blue-500/20 text-xs">
-                              <span className="text-foreground font-medium">
-                                Cobrado: <strong>{saldoCartaoParcelas}x de {formatMoney(saldo / saldoCartaoParcelas)}</strong> ({op?.nome || 'Cartão'})
-                              </span>
-                              <div className="flex items-center gap-3">
-                                <span className="text-destructive font-semibold text-[11px]">
-                                  Desconto taxa: -{formatMoney(taxaValorFinal)} ({taxaPercFinal}%)
-                                </span>
-                                <span className="text-emerald-500 font-bold text-xs">
-                                  Líquido Saldo: {formatMoney(valorLiquidoFinal)}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })()}
-
-                      {modalidadeSaldo === 'pix_parcelado' && (() => {
-                        const saldo = Math.max(0, total - valorEntrada);
-                        return (
-                          <div className="space-y-2 p-2.5 rounded bg-emerald-950/20 border border-emerald-500/30">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                              <div className="space-y-1">
-                                <Label className="text-[11px] text-muted-foreground">Parcelas no PIX</Label>
-                                <Select
-                                  value={String(saldoPixParcelas)}
-                                  onValueChange={(v) => setSaldoPixParcelas(Number(v) || 1)}
-                                >
-                                  <SelectTrigger className="h-8 text-xs font-semibold bg-background">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18, 24].map((n) => (
-                                      <SelectItem key={n} value={String(n)}>
-                                        {n === 1 ? '1x à vista' : `${n}x mensais de ${formatMoney(saldo / n)}`}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-
-                              <div className="space-y-1">
-                                <Label className="text-[11px] text-muted-foreground">Dia do Vencimento Padrão</Label>
-                                <Select
-                                  value={String(saldoPixDiaVencimento)}
-                                  onValueChange={(v) => setSaldoPixDiaVencimento(Number(v) || 10)}
-                                >
-                                  <SelectTrigger className="h-8 text-xs font-semibold bg-background">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {[1, 5, 10, 15, 20, 25, 28, 30].map((d) => (
-                                      <SelectItem key={d} value={String(d)}>
-                                        Todo dia {d}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                            </div>
-                            <p className="text-[11px] text-muted-foreground">
-                              Saldo será dividido em <strong>{saldoPixParcelas}x de {formatMoney(saldo / saldoPixParcelas)}</strong> no PIX com vencimento todo dia {saldoPixDiaVencimento}.
-                            </p>
-                          </div>
-                        );
-                      })()}
-
-                      {modalidadeSaldo === 'boleto' && (() => {
-                        const saldo = Math.max(0, total - valorEntrada);
-                        return (
-                          <div className="space-y-2 p-2.5 rounded bg-amber-950/20 border border-amber-500/30">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                              <div className="space-y-1">
-                                <Label className="text-[11px] text-muted-foreground">Parcelas no Boleto</Label>
-                                <Select
-                                  value={String(saldoBoletoParcelas)}
-                                  onValueChange={(v) => setSaldoBoletoParcelas(Number(v) || 1)}
-                                >
-                                  <SelectTrigger className="h-8 text-xs font-semibold bg-background">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18, 24].map((n) => (
-                                      <SelectItem key={n} value={String(n)}>
-                                        {n === 1 ? '1x à vista' : `${n}x mensais de ${formatMoney(saldo / n)}`}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-
-                              <div className="space-y-1">
-                                <Label className="text-[11px] text-muted-foreground">Dia do Vencimento Padrão</Label>
-                                <Select
-                                  value={String(saldoBoletoDiaVencimento)}
-                                  onValueChange={(v) => setSaldoBoletoDiaVencimento(Number(v) || 10)}
-                                >
-                                  <SelectTrigger className="h-8 text-xs font-semibold bg-background">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {[1, 5, 10, 15, 20, 25, 28, 30].map((d) => (
-                                      <SelectItem key={d} value={String(d)}>
-                                        Todo dia {d}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                            </div>
-                            <p className="text-[11px] text-muted-foreground">
-                              Saldo será emitido em <strong>{saldoBoletoParcelas}x de {formatMoney(saldo / saldoBoletoParcelas)}</strong> no boleto bancário.
-                            </p>
-                          </div>
-                        );
-                      })()}
-
-                      {modalidadeSaldo === 'conclusao' && (
-                        <div className="p-2.5 rounded bg-muted/30 border border-border/50 text-xs text-muted-foreground space-y-1">
-                          <p className="font-semibold text-foreground">
-                            Saldo de {formatMoney(total - valorEntrada)} a ser pago na conclusão do tratamento
-                          </p>
-                          <p className="text-[11px]">
-                            O paciente pagará o restante na última consulta ou entrega final do procedimento.
-                          </p>
-                        </div>
-                      )}
-
-                      <div className="flex justify-end pt-2 border-t border-border/50">
                         <Button
                           type="button"
                           size="sm"
-                          onClick={aplicarEntradaComSaldo}
-                          disabled={valorEntrada <= 0}
-                          className="h-8 text-xs bg-purple-600 hover:bg-purple-700 text-white font-semibold gap-1.5"
+                          variant="ghost"
+                          className="h-6 px-1.5 text-xs text-muted-foreground hover:text-foreground"
+                          onClick={() => setEntradaAssistenteAtivo(false)}
                         >
-                          <Check className="h-3.5 w-3.5" /> Aplicar Entrada + Saldo ao Orçamento
+                          <X className="h-3.5 w-3.5 mr-1" /> Fechar
                         </Button>
                       </div>
-                    </div>
-                  )}
-                </div>
-              )}
 
-              {/* Assistente de Cartão (PagBank / InfinitePay) */}
-              {cartaoAssistenteAtivo && (
-                <div className="rounded-lg border border-blue-500/40 bg-blue-950/20 p-3.5 space-y-3 animate-in fade-in duration-200">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 text-xs font-semibold text-blue-400">
-                      <CreditCard className="h-4 w-4" />
-                      Configuração da Máquina de Cartão (PagBank / InfinitePay)
-                    </div>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      className="h-6 px-1.5 text-xs text-muted-foreground hover:text-foreground"
-                      onClick={() => setCartaoAssistenteAtivo(false)}
-                    >
-                      <X className="h-3.5 w-3.5 mr-1" /> Fechar
-                    </Button>
-                  </div>
+                      {/* Passo 1: Configurar a Entrada */}
+                      <div className="space-y-2.5 p-3 rounded-lg bg-background/90 border border-purple-500/30">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                          <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                            <span className="px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400 font-bold text-[10px]">
+                              1º Passo
+                            </span>
+                            Valor e Condições da Entrada
+                          </Label>
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] text-muted-foreground mr-1">Atalhos:</span>
+                            {[
+                              { label: '10%', val: Math.round(total * 0.1) },
+                              { label: '20%', val: Math.round(total * 0.2) },
+                              { label: '30%', val: Math.round(total * 0.3) },
+                              { label: '50%', val: Math.round(total * 0.5) },
+                            ].map((perc) => (
+                              <Button
+                                key={perc.label}
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-5 px-1.5 text-[10px] border-purple-500/40 hover:bg-purple-500/10 font-medium"
+                                onClick={() => setValorEntrada(perc.val)}
+                              >
+                                {perc.label}
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="space-y-1">
-                      <Label className="text-xs font-medium">Operadora da Máquina</Label>
-                      <Select
-                        value={cartaoOperadoraId}
-                        onValueChange={setCartaoOperadoraId}
-                      >
-                        <SelectTrigger className="h-9 text-xs font-bold bg-background">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {operadoras.filter((o) => o.ativa !== false).map((op) => (
-                            <SelectItem key={op.id} value={op.id}>
-                              <div className="flex items-center gap-1.5">
-                                <span
-                                  className="w-2 h-2 rounded-full"
-                                  style={{ backgroundColor: op.cor || '#3b82f6' }}
-                                />
-                                <span className="font-semibold">{op.nome}</span>
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-1">
-                      <Label className="text-xs font-medium">Modalidade</Label>
-                      <Select
-                        value={cartaoTipo}
-                        onValueChange={(v: 'credito' | 'debito') => {
-                          setCartaoTipo(v);
-                          if (v === 'debito') setCartaoParcelas(1);
-                        }}
-                      >
-                        <SelectTrigger className="h-9 text-xs font-medium bg-background">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="credito">Crédito</SelectItem>
-                          <SelectItem value="debito">Débito</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-1">
-                      <Label className="text-xs font-medium">Quantidade de Parcelas</Label>
-                      <Select
-                        value={String(cartaoParcelas)}
-                        onValueChange={(v) => setCartaoParcelas(Number(v) || 1)}
-                        disabled={cartaoTipo === 'debito'}
-                      >
-                        <SelectTrigger className="h-9 text-xs font-medium bg-background">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18].map((n) => (
-                            <SelectItem key={n} value={String(n)}>
-                              {n === 1 ? '1x (À vista)' : `${n}x ${total > 0 ? `(${formatMoney(total / n)})` : ''}`}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  {(() => {
-                    const op = operadoras.find((o) => o.id === cartaoOperadoraId) || operadoraPadrao;
-                    const isDeb = cartaoTipo === 'debito';
-                    const calc = calcularTaxaCartao(op, cartaoParcelas, total, isDeb);
-                    const taxaPercFinal =
-                      cartaoTaxaPercentualManual !== '' && !isNaN(parseFloat(cartaoTaxaPercentualManual))
-                        ? parseFloat(cartaoTaxaPercentualManual)
-                        : calc.taxaPercentual;
-                    const taxaValorFinal =
-                      cartaoTaxaValorManual !== '' && !isNaN(parseFloat(cartaoTaxaValorManual))
-                        ? parseFloat(cartaoTaxaValorManual)
-                        : Number(((total * taxaPercFinal) / 100).toFixed(2));
-                    const valorLiquidoFinal = Math.max(0, Number((total - taxaValorFinal).toFixed(2)));
-                    const opNome = op?.nome || 'Cartão';
-
-                    const aplicarAoOrcamento = () => {
-                      let textoFinal = '';
-                      const taxaStr = taxaValorFinal > 0 ? ` [taxa: ${formatMoney(taxaValorFinal)} / ${taxaPercFinal}%]` : '';
-                      if (isDeb) {
-                        textoFinal = `Cartão de Débito (${opNome})${taxaStr}`;
-                      } else if (cartaoParcelas === 1) {
-                        textoFinal = `Cartão de Crédito à vista 1x (${opNome})${taxaStr}`;
-                      } else {
-                        textoFinal = `Cartão de Crédito em ${cartaoParcelas}x de ${formatMoney(calc.valorParcelaBruto)} (${opNome})${taxaStr}`;
-                      }
-                      setFormasPagamento(textoFinal);
-                      toast.success(`Plano de cartão (${opNome}) aplicado ao orçamento!`);
-                    };
-
-                    return (
-                      <div className="rounded-lg bg-background/90 border border-blue-500/30 p-3 space-y-2.5">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pb-2 border-b border-border/40">
-                          <div>
-                            <Label className="text-[10px] text-muted-foreground">Valor da Taxa (R$)</Label>
+                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
+                          <div className="space-y-1">
+                            <Label className="text-[11px] text-muted-foreground">Valor Entrada (R$)</Label>
                             <Input
                               type="number"
+                              min={0}
+                              max={total}
                               step="0.01"
-                              min="0"
                               placeholder="0,00"
-                              value={cartaoTaxaValorManual}
-                              onChange={(e) => {
-                                const v = e.target.value;
-                                setCartaoTaxaValorManual(v);
-                                const num = parseFloat(v);
-                                if (!isNaN(num) && total > 0) {
-                                  setCartaoTaxaPercentualManual(String(Number(((num / total) * 100).toFixed(2))));
-                                }
-                              }}
-                              className="h-7 text-xs font-semibold"
+                              value={valorEntrada || ''}
+                              onChange={(e) => setValorEntrada(Math.min(total, Math.max(0, Number(e.target.value) || 0)))}
+                              className="h-8 text-xs font-bold text-foreground"
                             />
                           </div>
-                          <div>
-                            <Label className="text-[10px] text-muted-foreground">Taxa da Máquina (%)</Label>
+
+                          <div className="space-y-1">
+                            <Label className="text-[11px] text-muted-foreground">Método da Entrada</Label>
+                            <Select
+                              value={metodoEntrada}
+                              onValueChange={(v: any) => setMetodoEntrada(v)}
+                            >
+                              <SelectTrigger className="h-8 text-xs font-medium">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="pix">PIX</SelectItem>
+                                <SelectItem value="dinheiro">Dinheiro</SelectItem>
+                                <SelectItem value="cartao_debito">Cartão de Débito</SelectItem>
+                                <SelectItem value="cartao_credito">Cartão de Crédito</SelectItem>
+                                <SelectItem value="transferencia">Transferência Bancária</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="space-y-1">
+                            <Label className="text-[11px] text-muted-foreground flex items-center gap-1">
+                              <CalendarDays className="h-3 w-3 text-purple-400" /> Data Entrada
+                            </Label>
                             <Input
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              placeholder="0.00"
-                              value={cartaoTaxaPercentualManual}
-                              onChange={(e) => {
-                                const p = e.target.value;
-                                setCartaoTaxaPercentualManual(p);
-                                const numP = parseFloat(p);
-                                if (!isNaN(numP) && total > 0) {
-                                  setCartaoTaxaValorManual(String(Number(((total * numP) / 100).toFixed(2))));
-                                }
-                              }}
-                              className="h-7 text-xs font-semibold"
+                              type="date"
+                              value={dataEntrada}
+                              onChange={(e) => setDataEntrada(e.target.value)}
+                              className="h-8 text-xs font-semibold bg-background"
                             />
                           </div>
-                        </div>
 
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                          <div className="p-2 rounded bg-muted/50 border border-border/50">
-                            <span className="text-[10px] text-muted-foreground block">Valor do Orçamento:</span>
-                            <span className="font-semibold text-foreground text-sm">{formatMoney(total)}</span>
-                          </div>
-                          <div className="p-2 rounded bg-muted/50 border border-border/50">
-                            <span className="text-[10px] text-muted-foreground block">Valor descontado da taxa:</span>
-                            <span className="font-bold text-destructive text-sm">
-                              -{formatMoney(taxaValorFinal)}
-                            </span>
-                            <span className="text-[9px] text-muted-foreground block">({taxaPercFinal}% - Despesa)</span>
-                          </div>
-                          <div className="p-2 rounded bg-emerald-500/10 border border-emerald-500/30">
-                            <span className="text-[10px] text-emerald-400 block font-medium">Líquido da Clínica:</span>
-                            <span className="font-bold text-emerald-400 text-sm">{formatMoney(valorLiquidoFinal)}</span>
-                          </div>
-                          <div className="p-2 rounded bg-blue-500/10 border border-blue-500/30">
-                            <span className="text-[10px] text-blue-400 block font-medium">Parcelamento:</span>
-                            <span className="font-bold text-blue-400 text-sm">
-                              {isDeb ? 'À vista (Débito)' : `${cartaoParcelas}x de ${formatMoney(calc.valorParcelaBruto)}`}
-                            </span>
+                          <div className="space-y-1">
+                            <Label className="text-[11px] text-muted-foreground">Situação</Label>
+                            <Select
+                              value={situacaoEntrada}
+                              onValueChange={(v: any) => setSituacaoEntrada(v)}
+                            >
+                              <SelectTrigger className="h-8 text-xs font-semibold">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Quitada">
+                                  <span className="text-emerald-500 font-medium">● Quitada (Já paga)</span>
+                                </SelectItem>
+                                <SelectItem value="A vencer">
+                                  <span className="text-amber-500 font-medium">● A vencer (A pagar)</span>
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
                           </div>
                         </div>
 
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-border/40">
-                          <p className="text-[11px] text-muted-foreground flex items-center gap-1">
-                            <Sparkles className="h-3 w-3 text-blue-400 shrink-0" />
-                            Taxa de <strong>{taxaPercFinal}%</strong> ({formatMoney(taxaValorFinal)}) na operadora <strong>{opNome}</strong>.
-                          </p>
+                        {/* Resumo Visual em Cards: Total, Entrada, Saldo */}
+                        {(() => {
+                          const saldo = Math.max(0, total - valorEntrada);
+                          return (
+                            <div className="grid grid-cols-3 gap-2 pt-1 text-xs">
+                              <div className="p-2 rounded bg-muted/40 border border-border/50">
+                                <span className="text-[10px] text-muted-foreground block">Total Orçamento:</span>
+                                <span className="font-semibold text-foreground text-xs">{formatMoney(total)}</span>
+                              </div>
+                              <div className="p-2 rounded bg-purple-500/10 border border-purple-500/30">
+                                <span className="text-[10px] text-purple-400 block font-medium">(-) Entrada Definida:</span>
+                                <span className="font-bold text-purple-400 text-xs">{formatMoney(valorEntrada)}</span>
+                              </div>
+                              <div className={`p-2 rounded ${saldo > 0 ? 'bg-amber-500/10 border border-amber-500/30' : 'bg-emerald-500/10 border border-emerald-500/30'}`}>
+                                <span className={`text-[10px] block font-medium ${saldo > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                                  (=) Saldo Restante:
+                                </span>
+                                <span className={`font-bold text-xs ${saldo > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                                  {formatMoney(saldo)}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })()}
+
+                        {/* Opção Rápida: Salvar Apenas Entrada */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1.5 border-t border-border/50">
+                          <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                            <Sparkles className="h-3 w-3 text-purple-400 shrink-0" />
+                            Quer registrar só a entrada agora e combinar o restante depois?
+                          </span>
                           <Button
                             type="button"
                             size="sm"
-                            onClick={aplicarAoOrcamento}
-                            className="h-7 text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold shrink-0"
+                            variant="outline"
+                            onClick={() => aplicarEntradaApenas()}
+                            disabled={valorEntrada <= 0}
+                            className="h-7 text-xs border-purple-500/50 text-purple-400 hover:bg-purple-950/40 shrink-0 font-semibold"
                           >
-                            <Check className="h-3.5 w-3.5 mr-1" /> Aplicar ao Orçamento
+                            <Check className="h-3 w-3 mr-1" /> Registrar apenas a Entrada (Saldo a combinar)
                           </Button>
                         </div>
                       </div>
-                    );
-                  })()}
-                </div>
-              )}
 
-              {/* Compositor de Múltiplas Formas de Pagamento (Ex: Entrada PIX + Restante Cartão) */}
-              {multiplasFormasAtivo && (
-                <div className="rounded-lg border border-emerald-500/40 bg-emerald-950/20 p-3.5 space-y-3 animate-in fade-in duration-200">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
-                      <Layers className="h-4 w-4" />
-                      Compositor de Pagamento Misto (Entrada + Cartão/Boleto)
-                    </div>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      className="h-6 px-1.5 text-xs text-muted-foreground hover:text-foreground"
-                      onClick={() => setMultiplasFormasAtivo(false)}
-                    >
-                      <X className="h-3.5 w-3.5 mr-1" /> Fechar
-                    </Button>
-                  </div>
-
-                  <div className="space-y-3">
-                    {formasMultiplas.map((item, idx) => (
-                      <div
-                        key={item.id}
-                        className="p-2.5 rounded-lg border border-border/70 bg-background/90 space-y-2"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2">
-                            <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold flex items-center justify-center">
-                              {idx + 1}
+                      {/* Passo 2: Preencher Opções de Pagamento do Saldo */}
+                      {total - valorEntrada > 0 && (
+                        <div className="space-y-3 p-3 rounded-lg bg-background/90 border border-border">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                            <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                              <span className="px-1.5 py-0.5 rounded bg-blue-600/20 text-blue-400 font-bold text-[10px]">
+                                2º Passo
+                              </span>
+                              Preencher Forma de Pagamento do Saldo ({formatMoney(total - valorEntrada)})
+                            </Label>
+                            <span className="text-[10px] text-muted-foreground">
+                              Selecione como o saldo restante será pago
                             </span>
-                            <Input
-                              value={item.rotulo}
-                              onChange={(e) => handleAtualizarFormaMultipla(idx, { rotulo: e.target.value })}
-                              placeholder="Ex: Entrada, Restante..."
-                              className="h-7 text-xs w-36 font-semibold"
-                            />
                           </div>
 
-                          {formasMultiplas.length > 1 && (
-                            <Button
-                              type="button"
-                              size="icon"
-                              variant="ghost"
-                              className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                              onClick={() => handleRemoverFormaMultipla(idx)}
-                              title="Remover forma"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
-                        </div>
-
-                        {(() => {
-                          const isParcelavel = item.metodo === 'cartao' || item.metodo === 'pix_parcelado' || item.metodo === 'boleto';
-                          const isCartao = item.metodo === 'cartao';
-                          const requerDatasParcelas = (item.metodo === 'pix_parcelado' || item.metodo === 'boleto') && (item.parcelas || 1) > 1;
-                          const isEntrada = item.rotulo.toLowerCase().includes('entrada') || idx === 0;
-
-                          return (
-                            <>
-                              <div
-                                className={`grid gap-2.5 ${
-                                  !isParcelavel
-                                    ? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-4'
-                                    : isCartao
-                                    ? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6'
-                                    : 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5'
-                                }`}
+                          <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
+                            {[
+                              { id: 'combinar', label: 'A combinar' },
+                              { id: 'cartao', label: 'Cartão de Crédito' },
+                              { id: 'pix_parcelado', label: 'PIX Parcelado' },
+                              { id: 'boleto', label: 'Boleto' },
+                              { id: 'conclusao', label: 'Na Conclusão' },
+                            ].map((opc) => (
+                              <Button
+                                key={opc.id}
+                                type="button"
+                                variant={modalidadeSaldo === opc.id ? 'default' : 'outline'}
+                                size="sm"
+                                className={`h-7 text-xs font-medium ${modalidadeSaldo === opc.id
+                                  ? 'bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-xs'
+                                  : 'border-border text-muted-foreground hover:text-foreground'
+                                  }`}
+                                onClick={() => setModalidadeSaldo(opc.id as any)}
                               >
-                                <div className="space-y-1">
-                                  <Label className="text-[11px] text-muted-foreground">Método</Label>
-                                  <Select
-                                    value={item.metodo}
-                                    onValueChange={(v: any) => handleAtualizarFormaMultipla(idx, { metodo: v })}
-                                  >
-                                    <SelectTrigger className="h-8 text-xs font-medium">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="pix">PIX</SelectItem>
-                                      <SelectItem value="cartao">Cartão</SelectItem>
-                                      <SelectItem value="dinheiro">Dinheiro</SelectItem>
-                                      <SelectItem value="boleto">Boleto Bancário</SelectItem>
-                                      <SelectItem value="pix_parcelado">PIX Parcelado</SelectItem>
-                                      <SelectItem value="transferencia">Transferência</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
+                                {opc.label}
+                              </Button>
+                            ))}
+                          </div>
 
-                                {isCartao && (
-                                  <>
-                                    <div className="space-y-1">
-                                      <Label className="text-[11px] text-muted-foreground font-semibold flex items-center gap-1 text-emerald-400">
-                                        <CreditCard className="h-3 w-3" /> Operadora
-                                      </Label>
-                                      <Select
-                                        value={item.operadoraCartaoId || configMaquinas.operadoraPadraoId || 'infinitepay'}
-                                        onValueChange={(v) => handleAtualizarFormaMultipla(idx, { operadoraCartaoId: v })}
-                                      >
-                                        <SelectTrigger className="h-8 text-xs font-bold bg-background">
-                                          <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          {operadoras.filter((o) => o.ativa !== false).map((op) => (
-                                            <SelectItem key={op.id} value={op.id}>
-                                              <div className="flex items-center gap-1.5">
-                                                <span
-                                                  className="w-2 h-2 rounded-full"
-                                                  style={{ backgroundColor: op.cor || '#10b981' }}
-                                                />
-                                                <span className="font-semibold">{op.nome}</span>
-                                              </div>
-                                            </SelectItem>
-                                          ))}
-                                        </SelectContent>
-                                      </Select>
-                                    </div>
+                          {/* Conteúdo de acordo com modalidade do saldo */}
+                          {modalidadeSaldo === 'combinar' && (
+                            <div className="p-2.5 rounded bg-muted/30 border border-border/50 text-xs text-muted-foreground space-y-1">
+                              <p className="font-semibold text-foreground">
+                                Saldo Restante de {formatMoney(total - valorEntrada)} a combinar
+                              </p>
+                              <p className="text-[11px]">
+                                O saldo restante ficará em aberto como conta a receber pendente, podendo ser quitado ou parcelado posteriormente de acordo com as consultas do paciente.
+                              </p>
+                            </div>
+                          )}
 
-                                    <div className="space-y-1">
-                                      <Label className="text-[11px] text-muted-foreground">Tipo</Label>
-                                      <Select
-                                        value={item.tipoCartao || 'credito'}
-                                        onValueChange={(v: 'credito' | 'debito') =>
-                                          handleAtualizarFormaMultipla(idx, {
-                                            tipoCartao: v,
-                                            parcelas: v === 'debito' ? 1 : item.parcelas || 1,
-                                          })
-                                        }
-                                      >
-                                        <SelectTrigger className="h-8 text-xs font-medium">
-                                          <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          <SelectItem value="credito">Crédito</SelectItem>
-                                          <SelectItem value="debito">Débito</SelectItem>
-                                        </SelectContent>
-                                      </Select>
-                                    </div>
-                                  </>
-                                )}
+                          {modalidadeSaldo === 'cartao' && (() => {
+                            const saldo = Math.max(0, total - valorEntrada);
+                            const op = operadoras.find((o) => o.id === saldoCartaoOperadoraId) || operadoraPadrao;
+                            const calc = calcularTaxaCartao(op, saldoCartaoParcelas, saldo, false);
+                            const taxaPercFinal =
+                              saldoCartaoTaxaPercentualManual !== '' && !isNaN(parseFloat(saldoCartaoTaxaPercentualManual))
+                                ? parseFloat(saldoCartaoTaxaPercentualManual)
+                                : calc.taxaPercentual;
+                            const taxaValorFinal =
+                              saldoCartaoTaxaValorManual !== '' && !isNaN(parseFloat(saldoCartaoTaxaValorManual))
+                                ? parseFloat(saldoCartaoTaxaValorManual)
+                                : Number(((saldo * taxaPercFinal) / 100).toFixed(2));
+                            const valorLiquidoFinal = Math.max(0, Number((saldo - taxaValorFinal).toFixed(2)));
 
-                                <div className="space-y-1">
-                                  <div className="flex justify-between items-center">
-                                    <Label className="text-[11px] text-muted-foreground">Valor (R$)</Label>
-                                    {idx === formasMultiplas.length - 1 && (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          const somaOutras = formasMultiplas
-                                            .filter((_, i) => i !== idx)
-                                            .reduce((s, f) => s + (f.valor || 0), 0);
-                                          handleAtualizarFormaMultipla(idx, { valor: Math.max(0, total - somaOutras) });
-                                        }}
-                                        className="text-[10px] text-emerald-400 hover:underline font-medium"
-                                      >
-                                        Preencher saldo
-                                      </button>
-                                    )}
-                                  </div>
-                                  <Input
-                                    type="number"
-                                    min={0}
-                                    step="0.01"
-                                    value={item.valor || ''}
-                                    onChange={(e) => handleAtualizarFormaMultipla(idx, { valor: Number(e.target.value) || 0 })}
-                                    placeholder="0,00"
-                                    className="h-8 text-xs font-semibold"
-                                  />
-                                </div>
-
-                                {isParcelavel && (!isCartao || item.tipoCartao !== 'debito') && (
+                            return (
+                              <div className="space-y-2.5 p-2.5 rounded bg-blue-950/20 border border-blue-500/30">
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                                   <div className="space-y-1">
-                                    <Label className="text-[11px] text-muted-foreground">Parcelas</Label>
+                                    <Label className="text-[11px] text-muted-foreground">Operadora</Label>
                                     <Select
-                                      value={String(item.parcelas || 1)}
-                                      onValueChange={(v) => handleAtualizarFormaMultipla(idx, { parcelas: Number(v) || 1 })}
+                                      value={saldoCartaoOperadoraId}
+                                      onValueChange={setSaldoCartaoOperadoraId}
                                     >
-                                      <SelectTrigger className="h-8 text-xs font-medium">
+                                      <SelectTrigger className="h-8 text-xs font-bold bg-background">
                                         <SelectValue />
                                       </SelectTrigger>
                                       <SelectContent>
-                                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18, 24].map((n) => (
-                                          <SelectItem key={n} value={String(n)}>
-                                            {n === 1 ? '1x (À vista)' : `${n}x ${item.valor > 0 ? `(${formatMoney(item.valor / n)})` : ''}`}
+                                        {operadoras.filter((o) => o.ativa !== false).map((operadora) => (
+                                          <SelectItem key={operadora.id} value={operadora.id}>
+                                            <div className="flex items-center gap-1.5">
+                                              <span
+                                                className="w-2 h-2 rounded-full"
+                                                style={{ backgroundColor: operadora.cor || '#3b82f6' }}
+                                              />
+                                              <span className="font-semibold">{operadora.nome}</span>
+                                            </div>
                                           </SelectItem>
                                         ))}
                                       </SelectContent>
                                     </Select>
                                   </div>
-                                )}
 
-                                {isCartao ? (
                                   <div className="space-y-1">
-                                    <div className="flex items-center justify-between">
-                                      <Label className="text-[11px] text-muted-foreground flex items-center gap-1">
-                                        <CalendarDays className="h-3 w-3 text-emerald-400" />
-                                        {isEntrada ? 'Data da Entrada' : 'Data Pagamento'}
-                                      </Label>
-                                      <span className="text-[10px] text-emerald-400 font-medium">Fatura</span>
-                                    </div>
+                                    <Label className="text-[11px] text-muted-foreground">Parcelas</Label>
+                                    <Select
+                                      value={String(saldoCartaoParcelas)}
+                                      onValueChange={(v) => setSaldoCartaoParcelas(Number(v) || 1)}
+                                    >
+                                      <SelectTrigger className="h-8 text-xs font-semibold bg-background">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18].map((n) => (
+                                          <SelectItem key={n} value={String(n)}>
+                                            {n === 1 ? '1x à vista' : `${n}x (${formatMoney(saldo / n)})`}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+
+                                  <div className="space-y-1">
+                                    <Label className="text-[11px] text-muted-foreground">Taxa (R$)</Label>
                                     <Input
-                                      type="date"
-                                      value={item.dataPagamento || formatIsoDate(new Date())}
-                                      onChange={(e) => handleAtualizarFormaMultipla(idx, { dataPagamento: e.target.value })}
+                                      type="number"
+                                      step="0.01"
+                                      min="0"
+                                      placeholder="0,00"
+                                      value={saldoCartaoTaxaValorManual}
+                                      onChange={(e) => {
+                                        const v = e.target.value;
+                                        setSaldoCartaoTaxaValorManual(v);
+                                        const num = parseFloat(v);
+                                        if (!isNaN(num) && saldo > 0) {
+                                          setSaldoCartaoTaxaPercentualManual(String(Number(((num / saldo) * 100).toFixed(2))));
+                                        }
+                                      }}
                                       className="h-8 text-xs font-semibold bg-background"
-                                      title="Data da transação (as parcelas são cobradas automaticamente na fatura do cartão)"
                                     />
                                   </div>
-                                ) : requerDatasParcelas ? (
+
                                   <div className="space-y-1">
-                                    <div className="flex items-center justify-between">
-                                      <Label className="text-[11px] text-muted-foreground">Dia Base Venc.</Label>
-                                      <span className="text-[10px] text-muted-foreground">1 a 31</span>
-                                    </div>
+                                    <Label className="text-[11px] text-muted-foreground">Taxa (%)</Label>
+                                    <Input
+                                      type="number"
+                                      step="0.01"
+                                      min="0"
+                                      placeholder="0.00"
+                                      value={saldoCartaoTaxaPercentualManual}
+                                      onChange={(e) => {
+                                        const p = e.target.value;
+                                        setSaldoCartaoTaxaPercentualManual(p);
+                                        const numP = parseFloat(p);
+                                        if (!isNaN(numP) && saldo > 0) {
+                                          setSaldoCartaoTaxaValorManual(String(Number(((saldo * numP) / 100).toFixed(2))));
+                                        }
+                                      }}
+                                      className="h-8 text-xs font-semibold bg-background"
+                                    />
+                                  </div>
+                                </div>
+
+                                <div className="flex flex-wrap items-center justify-between gap-2 p-2 rounded bg-background/90 border border-blue-500/20 text-xs">
+                                  <span className="text-foreground font-medium">
+                                    Cobrado: <strong>{saldoCartaoParcelas}x de {formatMoney(saldo / saldoCartaoParcelas)}</strong> ({op?.nome || 'Cartão'})
+                                  </span>
+                                  <div className="flex items-center gap-3">
+                                    <span className="text-destructive font-semibold text-[11px]">
+                                      Desconto taxa: -{formatMoney(taxaValorFinal)} ({taxaPercFinal}%)
+                                    </span>
+                                    <span className="text-emerald-500 font-bold text-xs">
+                                      Líquido Saldo: {formatMoney(valorLiquidoFinal)}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })()}
+
+                          {modalidadeSaldo === 'pix_parcelado' && (() => {
+                            const saldo = Math.max(0, total - valorEntrada);
+                            return (
+                              <div className="space-y-2 p-2.5 rounded bg-emerald-950/20 border border-emerald-500/30">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                  <div className="space-y-1">
+                                    <Label className="text-[11px] text-muted-foreground">Parcelas no PIX</Label>
                                     <Select
-                                      value={String(item.diaVencimento || 10)}
-                                      onValueChange={(v) => handleAtualizarFormaMultipla(idx, { diaVencimento: Number(v) || 10 })}
+                                      value={String(saldoPixParcelas)}
+                                      onValueChange={(v) => setSaldoPixParcelas(Number(v) || 1)}
                                     >
-                                      <SelectTrigger className="h-8 text-xs font-semibold">
-                                        <SelectValue placeholder="Selecione o dia" />
+                                      <SelectTrigger className="h-8 text-xs font-semibold bg-background">
+                                        <SelectValue />
                                       </SelectTrigger>
-                                      <SelectContent className="max-h-56">
-                                        {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                                      <SelectContent>
+                                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18, 24].map((n) => (
+                                          <SelectItem key={n} value={String(n)}>
+                                            {n === 1 ? '1x à vista' : `${n}x mensais de ${formatMoney(saldo / n)}`}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+
+                                  <div className="space-y-1">
+                                    <Label className="text-[11px] text-muted-foreground">Dia do Vencimento Padrão</Label>
+                                    <Select
+                                      value={String(saldoPixDiaVencimento)}
+                                      onValueChange={(v) => setSaldoPixDiaVencimento(Number(v) || 10)}
+                                    >
+                                      <SelectTrigger className="h-8 text-xs font-semibold bg-background">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {[1, 5, 10, 15, 20, 25, 28, 30].map((d) => (
                                           <SelectItem key={d} value={String(d)}>
                                             Todo dia {d}
                                           </SelectItem>
@@ -5050,29 +4521,912 @@ const PatientOrcamentos = ({ patient }: Props) => {
                                       </SelectContent>
                                     </Select>
                                   </div>
-                                ) : (
-                                  <div className="space-y-1">
-                                    <Label className="text-[11px] text-muted-foreground flex items-center gap-1">
-                                      <CalendarDays className="h-3 w-3 text-emerald-400" />
-                                      {isEntrada ? 'Data da Entrada' : item.metodo === 'boleto' ? 'Data de Vencimento' : 'Data do Pagamento'}
-                                    </Label>
-                                    <Input
-                                      type="date"
-                                      value={item.dataPagamento || formatIsoDate(new Date())}
-                                      onChange={(e) => handleAtualizarFormaMultipla(idx, { dataPagamento: e.target.value })}
-                                      className="h-8 text-xs font-semibold bg-background"
-                                      title="Digite dia/mês/ano ou escolha no calendário"
-                                    />
-                                  </div>
-                                )}
+                                </div>
+                                <p className="text-[11px] text-muted-foreground">
+                                  Saldo será dividido em <strong>{saldoPixParcelas}x de {formatMoney(saldo / saldoPixParcelas)}</strong> no PIX com vencimento todo dia {saldoPixDiaVencimento}.
+                                </p>
+                              </div>
+                            );
+                          })()}
 
-                                <div className="space-y-1">
-                                  <Label className="text-[11px] text-muted-foreground">Situação</Label>
-                                  <Select
-                                    value={item.situacao || (item.metodo === 'cartao' ? 'Autorizado' : 'A vencer')}
-                                    onValueChange={(v: any) => handleAtualizarFormaMultipla(idx, { situacao: v })}
+                          {modalidadeSaldo === 'boleto' && (() => {
+                            const saldo = Math.max(0, total - valorEntrada);
+                            return (
+                              <div className="space-y-2 p-2.5 rounded bg-amber-950/20 border border-amber-500/30">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                  <div className="space-y-1">
+                                    <Label className="text-[11px] text-muted-foreground">Parcelas no Boleto</Label>
+                                    <Select
+                                      value={String(saldoBoletoParcelas)}
+                                      onValueChange={(v) => setSaldoBoletoParcelas(Number(v) || 1)}
+                                    >
+                                      <SelectTrigger className="h-8 text-xs font-semibold bg-background">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18, 24].map((n) => (
+                                          <SelectItem key={n} value={String(n)}>
+                                            {n === 1 ? '1x à vista' : `${n}x mensais de ${formatMoney(saldo / n)}`}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+
+                                  <div className="space-y-1">
+                                    <Label className="text-[11px] text-muted-foreground">Dia do Vencimento Padrão</Label>
+                                    <Select
+                                      value={String(saldoBoletoDiaVencimento)}
+                                      onValueChange={(v) => setSaldoBoletoDiaVencimento(Number(v) || 10)}
+                                    >
+                                      <SelectTrigger className="h-8 text-xs font-semibold bg-background">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {[1, 5, 10, 15, 20, 25, 28, 30].map((d) => (
+                                          <SelectItem key={d} value={String(d)}>
+                                            Todo dia {d}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                </div>
+                                <p className="text-[11px] text-muted-foreground">
+                                  Saldo será emitido em <strong>{saldoBoletoParcelas}x de {formatMoney(saldo / saldoBoletoParcelas)}</strong> no boleto bancário.
+                                </p>
+                              </div>
+                            );
+                          })()}
+
+                          {modalidadeSaldo === 'conclusao' && (
+                            <div className="p-2.5 rounded bg-muted/30 border border-border/50 text-xs text-muted-foreground space-y-1">
+                              <p className="font-semibold text-foreground">
+                                Saldo de {formatMoney(total - valorEntrada)} a ser pago na conclusão do tratamento
+                              </p>
+                              <p className="text-[11px]">
+                                O paciente pagará o restante na última consulta ou entrega final do procedimento.
+                              </p>
+                            </div>
+                          )}
+
+                          <div className="flex justify-end pt-2 border-t border-border/50">
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={aplicarEntradaComSaldo}
+                              disabled={valorEntrada <= 0}
+                              className="h-8 text-xs bg-purple-600 hover:bg-purple-700 text-white font-semibold gap-1.5"
+                            >
+                              <Check className="h-3.5 w-3.5" /> Aplicar Entrada + Saldo ao Orçamento
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Assistente de Cartão (PagBank / InfinitePay) */}
+                  {cartaoAssistenteAtivo && (
+                    <div className="rounded-lg border border-blue-500/40 bg-blue-950/20 p-3.5 space-y-3 animate-in fade-in duration-200">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-xs font-semibold text-blue-400">
+                          <CreditCard className="h-4 w-4" />
+                          Configuração da Máquina de Cartão (PagBank / InfinitePay)
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 px-1.5 text-xs text-muted-foreground hover:text-foreground"
+                          onClick={() => setCartaoAssistenteAtivo(false)}
+                        >
+                          <X className="h-3.5 w-3.5 mr-1" /> Fechar
+                        </Button>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs font-medium">Operadora da Máquina</Label>
+                          <Select
+                            value={cartaoOperadoraId}
+                            onValueChange={setCartaoOperadoraId}
+                          >
+                            <SelectTrigger className="h-9 text-xs font-bold bg-background">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {operadoras.filter((o) => o.ativa !== false).map((op) => (
+                                <SelectItem key={op.id} value={op.id}>
+                                  <div className="flex items-center gap-1.5">
+                                    <span
+                                      className="w-2 h-2 rounded-full"
+                                      style={{ backgroundColor: op.cor || '#3b82f6' }}
+                                    />
+                                    <span className="font-semibold">{op.nome}</span>
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-xs font-medium">Modalidade</Label>
+                          <Select
+                            value={cartaoTipo}
+                            onValueChange={(v: 'credito' | 'debito') => {
+                              setCartaoTipo(v);
+                              if (v === 'debito') setCartaoParcelas(1);
+                            }}
+                          >
+                            <SelectTrigger className="h-9 text-xs font-medium bg-background">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="credito">Crédito</SelectItem>
+                              <SelectItem value="debito">Débito</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-xs font-medium">Quantidade de Parcelas</Label>
+                          <Select
+                            value={String(cartaoParcelas)}
+                            onValueChange={(v) => setCartaoParcelas(Number(v) || 1)}
+                            disabled={cartaoTipo === 'debito'}
+                          >
+                            <SelectTrigger className="h-9 text-xs font-medium bg-background">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18].map((n) => (
+                                <SelectItem key={n} value={String(n)}>
+                                  {n === 1 ? '1x (À vista)' : `${n}x ${total > 0 ? `(${formatMoney(total / n)})` : ''}`}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      {(() => {
+                        const op = operadoras.find((o) => o.id === cartaoOperadoraId) || operadoraPadrao;
+                        const isDeb = cartaoTipo === 'debito';
+                        const calc = calcularTaxaCartao(op, cartaoParcelas, total, isDeb);
+                        const taxaPercFinal =
+                          cartaoTaxaPercentualManual !== '' && !isNaN(parseFloat(cartaoTaxaPercentualManual))
+                            ? parseFloat(cartaoTaxaPercentualManual)
+                            : calc.taxaPercentual;
+                        const taxaValorFinal =
+                          cartaoTaxaValorManual !== '' && !isNaN(parseFloat(cartaoTaxaValorManual))
+                            ? parseFloat(cartaoTaxaValorManual)
+                            : Number(((total * taxaPercFinal) / 100).toFixed(2));
+                        const valorLiquidoFinal = Math.max(0, Number((total - taxaValorFinal).toFixed(2)));
+                        const opNome = op?.nome || 'Cartão';
+
+                        const aplicarAoOrcamento = () => {
+                          let textoFinal = '';
+                          const taxaStr = taxaValorFinal > 0 ? ` [taxa: ${formatMoney(taxaValorFinal)} / ${taxaPercFinal}%]` : '';
+                          if (isDeb) {
+                            textoFinal = `Cartão de Débito (${opNome})${taxaStr}`;
+                          } else if (cartaoParcelas === 1) {
+                            textoFinal = `Cartão de Crédito à vista 1x (${opNome})${taxaStr}`;
+                          } else {
+                            textoFinal = `Cartão de Crédito em ${cartaoParcelas}x de ${formatMoney(calc.valorParcelaBruto)} (${opNome})${taxaStr}`;
+                          }
+                          setFormasPagamento(textoFinal);
+                          toast.success(`Plano de cartão (${opNome}) aplicado ao orçamento!`);
+                        };
+
+                        return (
+                          <div className="rounded-lg bg-background/90 border border-blue-500/30 p-3 space-y-2.5">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pb-2 border-b border-border/40">
+                              <div>
+                                <Label className="text-[10px] text-muted-foreground">Valor da Taxa (R$)</Label>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  placeholder="0,00"
+                                  value={cartaoTaxaValorManual}
+                                  onChange={(e) => {
+                                    const v = e.target.value;
+                                    setCartaoTaxaValorManual(v);
+                                    const num = parseFloat(v);
+                                    if (!isNaN(num) && total > 0) {
+                                      setCartaoTaxaPercentualManual(String(Number(((num / total) * 100).toFixed(2))));
+                                    }
+                                  }}
+                                  className="h-7 text-xs font-semibold"
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-[10px] text-muted-foreground">Taxa da Máquina (%)</Label>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  placeholder="0.00"
+                                  value={cartaoTaxaPercentualManual}
+                                  onChange={(e) => {
+                                    const p = e.target.value;
+                                    setCartaoTaxaPercentualManual(p);
+                                    const numP = parseFloat(p);
+                                    if (!isNaN(numP) && total > 0) {
+                                      setCartaoTaxaValorManual(String(Number(((total * numP) / 100).toFixed(2))));
+                                    }
+                                  }}
+                                  className="h-7 text-xs font-semibold"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                              <div className="p-2 rounded bg-muted/50 border border-border/50">
+                                <span className="text-[10px] text-muted-foreground block">Valor do Orçamento:</span>
+                                <span className="font-semibold text-foreground text-sm">{formatMoney(total)}</span>
+                              </div>
+                              <div className="p-2 rounded bg-muted/50 border border-border/50">
+                                <span className="text-[10px] text-muted-foreground block">Valor descontado da taxa:</span>
+                                <span className="font-bold text-destructive text-sm">
+                                  -{formatMoney(taxaValorFinal)}
+                                </span>
+                                <span className="text-[9px] text-muted-foreground block">({taxaPercFinal}% - Despesa)</span>
+                              </div>
+                              <div className="p-2 rounded bg-emerald-500/10 border border-emerald-500/30">
+                                <span className="text-[10px] text-emerald-400 block font-medium">Líquido da Clínica:</span>
+                                <span className="font-bold text-emerald-400 text-sm">{formatMoney(valorLiquidoFinal)}</span>
+                              </div>
+                              <div className="p-2 rounded bg-blue-500/10 border border-blue-500/30">
+                                <span className="text-[10px] text-blue-400 block font-medium">Parcelamento:</span>
+                                <span className="font-bold text-blue-400 text-sm">
+                                  {isDeb ? 'À vista (Débito)' : `${cartaoParcelas}x de ${formatMoney(calc.valorParcelaBruto)}`}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-border/40">
+                              <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                                <Sparkles className="h-3 w-3 text-blue-400 shrink-0" />
+                                Taxa de <strong>{taxaPercFinal}%</strong> ({formatMoney(taxaValorFinal)}) na operadora <strong>{opNome}</strong>.
+                              </p>
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={aplicarAoOrcamento}
+                                className="h-7 text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold shrink-0"
+                              >
+                                <Check className="h-3.5 w-3.5 mr-1" /> Aplicar ao Orçamento
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+
+                  {/* Compositor de Múltiplas Formas de Pagamento (Ex: Entrada PIX + Restante Cartão) */}
+                  {multiplasFormasAtivo && (
+                    <div className="rounded-lg border border-emerald-500/40 bg-emerald-950/20 p-3.5 space-y-3 animate-in fade-in duration-200">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
+                          <Layers className="h-4 w-4" />
+                          Compositor de Pagamento Misto (Entrada + Cartão/Boleto)
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 px-1.5 text-xs text-muted-foreground hover:text-foreground"
+                          onClick={() => setMultiplasFormasAtivo(false)}
+                        >
+                          <X className="h-3.5 w-3.5 mr-1" /> Fechar
+                        </Button>
+                      </div>
+
+                      <div className="space-y-3">
+                        {formasMultiplas.map((item, idx) => (
+                          <div
+                            key={item.id}
+                            className="p-2.5 rounded-lg border border-border/70 bg-background/90 space-y-2"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold flex items-center justify-center">
+                                  {idx + 1}
+                                </span>
+                                <Input
+                                  value={item.rotulo}
+                                  onChange={(e) => handleAtualizarFormaMultipla(idx, { rotulo: e.target.value })}
+                                  placeholder="Ex: Entrada, Restante..."
+                                  className="h-7 text-xs w-36 font-semibold"
+                                />
+                              </div>
+
+                              {formasMultiplas.length > 1 && (
+                                <Button
+                                  type="button"
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                                  onClick={() => handleRemoverFormaMultipla(idx)}
+                                  title="Remover forma"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
+                            </div>
+
+                            {(() => {
+                              const isParcelavel = item.metodo === 'cartao' || item.metodo === 'pix_parcelado' || item.metodo === 'boleto';
+                              const isCartao = item.metodo === 'cartao';
+                              const requerDatasParcelas = (item.metodo === 'pix_parcelado' || item.metodo === 'boleto') && (item.parcelas || 1) > 1;
+                              const isEntrada = item.rotulo.toLowerCase().includes('entrada') || idx === 0;
+
+                              return (
+                                <>
+                                  <div
+                                    className={`grid gap-2.5 ${!isParcelavel
+                                      ? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-4'
+                                      : isCartao
+                                        ? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6'
+                                        : 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5'
+                                      }`}
                                   >
-                                    <SelectTrigger className="h-8 text-xs font-semibold">
+                                    <div className="space-y-1">
+                                      <Label className="text-[11px] text-muted-foreground">Método</Label>
+                                      <Select
+                                        value={item.metodo}
+                                        onValueChange={(v: any) => handleAtualizarFormaMultipla(idx, { metodo: v })}
+                                      >
+                                        <SelectTrigger className="h-8 text-xs font-medium">
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="pix">PIX</SelectItem>
+                                          <SelectItem value="cartao">Cartão</SelectItem>
+                                          <SelectItem value="dinheiro">Dinheiro</SelectItem>
+                                          <SelectItem value="boleto">Boleto Bancário</SelectItem>
+                                          <SelectItem value="pix_parcelado">PIX Parcelado</SelectItem>
+                                          <SelectItem value="transferencia">Transferência</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+
+                                    {isCartao && (
+                                      <>
+                                        <div className="space-y-1">
+                                          <Label className="text-[11px] text-muted-foreground font-semibold flex items-center gap-1 text-emerald-400">
+                                            <CreditCard className="h-3 w-3" /> Operadora
+                                          </Label>
+                                          <Select
+                                            value={item.operadoraCartaoId || configMaquinas.operadoraPadraoId || 'infinitepay'}
+                                            onValueChange={(v) => handleAtualizarFormaMultipla(idx, { operadoraCartaoId: v })}
+                                          >
+                                            <SelectTrigger className="h-8 text-xs font-bold bg-background">
+                                              <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              {operadoras.filter((o) => o.ativa !== false).map((op) => (
+                                                <SelectItem key={op.id} value={op.id}>
+                                                  <div className="flex items-center gap-1.5">
+                                                    <span
+                                                      className="w-2 h-2 rounded-full"
+                                                      style={{ backgroundColor: op.cor || '#10b981' }}
+                                                    />
+                                                    <span className="font-semibold">{op.nome}</span>
+                                                  </div>
+                                                </SelectItem>
+                                              ))}
+                                            </SelectContent>
+                                          </Select>
+                                        </div>
+
+                                        <div className="space-y-1">
+                                          <Label className="text-[11px] text-muted-foreground">Tipo</Label>
+                                          <Select
+                                            value={item.tipoCartao || 'credito'}
+                                            onValueChange={(v: 'credito' | 'debito') =>
+                                              handleAtualizarFormaMultipla(idx, {
+                                                tipoCartao: v,
+                                                parcelas: v === 'debito' ? 1 : item.parcelas || 1,
+                                              })
+                                            }
+                                          >
+                                            <SelectTrigger className="h-8 text-xs font-medium">
+                                              <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              <SelectItem value="credito">Crédito</SelectItem>
+                                              <SelectItem value="debito">Débito</SelectItem>
+                                            </SelectContent>
+                                          </Select>
+                                        </div>
+                                      </>
+                                    )}
+
+                                    <div className="space-y-1">
+                                      <div className="flex justify-between items-center">
+                                        <Label className="text-[11px] text-muted-foreground">Valor (R$)</Label>
+                                        {idx === formasMultiplas.length - 1 && (
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const somaOutras = formasMultiplas
+                                                .filter((_, i) => i !== idx)
+                                                .reduce((s, f) => s + (f.valor || 0), 0);
+                                              handleAtualizarFormaMultipla(idx, { valor: Math.max(0, total - somaOutras) });
+                                            }}
+                                            className="text-[10px] text-emerald-400 hover:underline font-medium"
+                                          >
+                                            Preencher saldo
+                                          </button>
+                                        )}
+                                      </div>
+                                      <Input
+                                        type="number"
+                                        min={0}
+                                        step="0.01"
+                                        value={item.valor || ''}
+                                        onChange={(e) => handleAtualizarFormaMultipla(idx, { valor: Number(e.target.value) || 0 })}
+                                        placeholder="0,00"
+                                        className="h-8 text-xs font-semibold"
+                                      />
+                                    </div>
+
+                                    {isParcelavel && (!isCartao || item.tipoCartao !== 'debito') && (
+                                      <div className="space-y-1">
+                                        <Label className="text-[11px] text-muted-foreground">Parcelas</Label>
+                                        <Select
+                                          value={String(item.parcelas || 1)}
+                                          onValueChange={(v) => handleAtualizarFormaMultipla(idx, { parcelas: Number(v) || 1 })}
+                                        >
+                                          <SelectTrigger className="h-8 text-xs font-medium">
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18, 24].map((n) => (
+                                              <SelectItem key={n} value={String(n)}>
+                                                {n === 1 ? '1x (À vista)' : `${n}x ${item.valor > 0 ? `(${formatMoney(item.valor / n)})` : ''}`}
+                                              </SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                    )}
+
+                                    {isCartao ? (
+                                      <div className="space-y-1">
+                                        <div className="flex items-center justify-between">
+                                          <Label className="text-[11px] text-muted-foreground flex items-center gap-1">
+                                            <CalendarDays className="h-3 w-3 text-emerald-400" />
+                                            {isEntrada ? 'Data da Entrada' : 'Data Pagamento'}
+                                          </Label>
+                                          <span className="text-[10px] text-emerald-400 font-medium">Fatura</span>
+                                        </div>
+                                        <Input
+                                          type="date"
+                                          value={item.dataPagamento || formatIsoDate(new Date())}
+                                          onChange={(e) => handleAtualizarFormaMultipla(idx, { dataPagamento: e.target.value })}
+                                          className="h-8 text-xs font-semibold bg-background"
+                                          title="Data da transação (as parcelas são cobradas automaticamente na fatura do cartão)"
+                                        />
+                                      </div>
+                                    ) : requerDatasParcelas ? (
+                                      <div className="space-y-1">
+                                        <div className="flex items-center justify-between">
+                                          <Label className="text-[11px] text-muted-foreground">Dia Base Venc.</Label>
+                                          <span className="text-[10px] text-muted-foreground">1 a 31</span>
+                                        </div>
+                                        <Select
+                                          value={String(item.diaVencimento || 10)}
+                                          onValueChange={(v) => handleAtualizarFormaMultipla(idx, { diaVencimento: Number(v) || 10 })}
+                                        >
+                                          <SelectTrigger className="h-8 text-xs font-semibold">
+                                            <SelectValue placeholder="Selecione o dia" />
+                                          </SelectTrigger>
+                                          <SelectContent className="max-h-56">
+                                            {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                                              <SelectItem key={d} value={String(d)}>
+                                                Todo dia {d}
+                                              </SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                    ) : (
+                                      <div className="space-y-1">
+                                        <Label className="text-[11px] text-muted-foreground flex items-center gap-1">
+                                          <CalendarDays className="h-3 w-3 text-emerald-400" />
+                                          {isEntrada ? 'Data da Entrada' : item.metodo === 'boleto' ? 'Data de Vencimento' : 'Data do Pagamento'}
+                                        </Label>
+                                        <Input
+                                          type="date"
+                                          value={item.dataPagamento || formatIsoDate(new Date())}
+                                          onChange={(e) => handleAtualizarFormaMultipla(idx, { dataPagamento: e.target.value })}
+                                          className="h-8 text-xs font-semibold bg-background"
+                                          title="Digite dia/mês/ano ou escolha no calendário"
+                                        />
+                                      </div>
+                                    )}
+
+                                    <div className="space-y-1">
+                                      <Label className="text-[11px] text-muted-foreground">Situação</Label>
+                                      <Select
+                                        value={item.situacao || (item.metodo === 'cartao' ? 'Autorizado' : 'A vencer')}
+                                        onValueChange={(v: any) => handleAtualizarFormaMultipla(idx, { situacao: v })}
+                                      >
+                                        <SelectTrigger className="h-8 text-xs font-semibold">
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="A vencer">
+                                            <span className="text-amber-500 font-medium">● A vencer</span>
+                                          </SelectItem>
+                                          <SelectItem value="Quitada">
+                                            <span className="text-emerald-500 font-medium">● Quitada</span>
+                                          </SelectItem>
+                                          <SelectItem value="Autorizado">
+                                            <span className="text-blue-500 font-medium">● Autorizado</span>
+                                          </SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                  </div>
+
+                                  {/* Banner e Campos de Ajuste de Taxas da Máquina */}
+                                  {isCartao && item.valor > 0 && (() => {
+                                    const op = operadoras.find((o) => o.id === item.operadoraCartaoId) || operadoraPadrao;
+                                    const isDeb = item.tipoCartao === 'debito';
+                                    const calc = calcularTaxaCartao(op, item.parcelas || 1, item.valor, isDeb);
+                                    const taxaPerc = item.taxaCartaoPercentual ?? calc.taxaPercentual;
+                                    const taxaValor = item.taxaCartaoValor ?? calc.taxaValor;
+                                    const valorLiquido = Math.max(0, Number((item.valor - taxaValor).toFixed(2)));
+
+                                    return (
+                                      <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-2.5 space-y-2">
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 items-end">
+                                          <div>
+                                            <Label className="text-[10px] text-muted-foreground">Cobrado (Bruto)</Label>
+                                            <div className="h-7 px-2 flex items-center rounded border bg-muted/40 font-bold text-xs text-foreground">
+                                              {formatMoney(item.valor)}
+                                            </div>
+                                          </div>
+
+                                          <div>
+                                            <Label className="text-[10px] text-muted-foreground">Valor da Taxa (R$)</Label>
+                                            <Input
+                                              type="number"
+                                              step="0.01"
+                                              min={0}
+                                              placeholder="0,00"
+                                              value={item.taxaCartaoValor !== undefined ? item.taxaCartaoValor : (calc.taxaValor || '')}
+                                              onChange={(e) => {
+                                                const val = parseFloat(e.target.value);
+                                                handleAtualizarFormaMultipla(idx, {
+                                                  taxaCartaoValor: isNaN(val) ? 0 : Math.max(0, val),
+                                                });
+                                              }}
+                                              className="h-7 text-xs font-semibold bg-background"
+                                            />
+                                          </div>
+
+                                          <div>
+                                            <Label className="text-[10px] text-muted-foreground">Taxa da Máquina (%)</Label>
+                                            <Input
+                                              type="number"
+                                              step="0.01"
+                                              min={0}
+                                              placeholder="0.00"
+                                              value={item.taxaCartaoPercentual !== undefined ? item.taxaCartaoPercentual : (calc.taxaPercentual || '')}
+                                              onChange={(e) => {
+                                                const val = parseFloat(e.target.value);
+                                                handleAtualizarFormaMultipla(idx, {
+                                                  taxaCartaoPercentual: isNaN(val) ? 0 : Math.max(0, val),
+                                                });
+                                              }}
+                                              className="h-7 text-xs font-semibold bg-background"
+                                            />
+                                          </div>
+
+                                          <div>
+                                            <Label className="text-[10px] text-muted-foreground">Valor Líquido</Label>
+                                            <div className="h-7 px-2 flex items-center rounded border border-emerald-500/40 bg-emerald-500/20 font-bold text-xs text-emerald-600 dark:text-emerald-400">
+                                              {formatMoney(valorLiquido)}
+                                            </div>
+                                          </div>
+                                        </div>
+
+                                        <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] pt-1.5 border-t border-emerald-500/20">
+                                          <div className="flex items-center gap-1.5 text-emerald-400 font-semibold">
+                                            <CreditCard className="h-3.5 w-3.5" />
+                                            <span>Máquina: <strong>{calc.operadoraNome}</strong> ({isDeb ? 'Débito' : `${item.parcelas || 1}x Crédito`})</span>
+                                          </div>
+                                          <div className="flex items-center gap-3">
+                                            <span className="text-destructive font-semibold">
+                                              Valor descontado da taxa: -{formatMoney(taxaValor)} ({taxaPerc}%)
+                                            </span>
+                                            <span className="text-emerald-500 font-bold">
+                                              Líquido creditado: {formatMoney(valorLiquido)}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })()}
+
+                                  {/* Grade de vencimentos específicos para editar qualquer dia e data livremente - Apenas para Boleto Parcelado e PIX Parcelado */}
+                                  {requerDatasParcelas && (
+                                    <div className="pt-2.5 border-t border-border/60 space-y-2">
+                                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                                        <span className="text-[11px] font-semibold text-foreground flex items-center gap-1.5">
+                                          <CalendarDays className="h-3.5 w-3.5 text-emerald-400" />
+                                          Vencimentos e Situações das Parcelas ({item.rotulo})
+                                        </span>
+                                        <span className="text-[10px] text-muted-foreground">
+                                          Edite data ou situação individual de cada parcela
+                                        </span>
+                                      </div>
+
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-52 overflow-y-auto overflow-x-hidden pr-1">
+                                        {Array.from({ length: item.parcelas }).map((_, pIdx) => {
+                                          const valParc = item.valor > 0 ? item.valor / item.parcelas : 0;
+                                          const dataAtual = item.datasParcelas?.[pIdx] || '';
+                                          return (
+                                            <div
+                                              key={pIdx}
+                                              className="p-2.5 rounded-lg bg-card/60 border border-border/80 text-xs shadow-xs hover:border-emerald-500/40 transition-colors space-y-1.5"
+                                            >
+                                              <div className="flex items-center justify-between">
+                                                <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-bold text-[10px]">
+                                                  {pIdx + 1}ª Parcela
+                                                </span>
+                                                <span className="font-semibold text-xs text-foreground">
+                                                  {formatMoney(valParc)}
+                                                </span>
+                                              </div>
+                                              <div className="flex items-center justify-between gap-1.5 pt-1 border-t border-border/40">
+                                                <div className="flex items-center gap-1">
+                                                  <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                                                    <CalendarDays className="h-3 w-3 text-emerald-400" />
+                                                    Venc:
+                                                  </span>
+                                                  <Input
+                                                    type="date"
+                                                    value={dataAtual}
+                                                    onChange={(e) => handleAtualizarDataParcelaMultipla(idx, pIdx, e.target.value)}
+                                                    className="h-7 text-xs w-28 font-semibold bg-background border-border/80"
+                                                    title={`Data de vencimento da parcela ${pIdx + 1}`}
+                                                  />
+                                                </div>
+                                                <Select
+                                                  value={item.situacoesParcelas?.[pIdx] || item.situacao || 'A vencer'}
+                                                  onValueChange={(v: any) => handleAtualizarSituacaoParcelaMultipla(idx, pIdx, v)}
+                                                >
+                                                  <SelectTrigger className="h-7 text-[11px] w-28 font-semibold">
+                                                    <SelectValue />
+                                                  </SelectTrigger>
+                                                  <SelectContent>
+                                                    <SelectItem value="A vencer">
+                                                      <span className="text-amber-500 font-medium">● A vencer</span>
+                                                    </SelectItem>
+                                                    <SelectItem value="Quitada">
+                                                      <span className="text-emerald-500 font-medium">● Quitada</span>
+                                                    </SelectItem>
+                                                    <SelectItem value="Autorizado">
+                                                      <span className="text-blue-500 font-medium">● Autorizado</span>
+                                                    </SelectItem>
+                                                  </SelectContent>
+                                                </Select>
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
+                                </>
+                              );
+                            })()}
+                          </div>
+                        ))}
+
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={handleAdicionarFormaMultipla}
+                          className="w-full h-8 text-xs gap-1 border-dashed border-emerald-500/40 text-emerald-400 hover:bg-emerald-950/30"
+                        >
+                          <Plus className="h-3.5 w-3.5" /> Adicionar Outra Forma de Pagamento
+                        </Button>
+
+                        {/* Balanceador em tempo real */}
+                        {(() => {
+                          const soma = formasMultiplas.reduce((s, f) => s + (f.valor || 0), 0);
+                          const dif = total - soma;
+                          const bateu = Math.abs(dif) < 0.01;
+                          return (
+                            <div className="rounded-lg bg-background/90 border border-border p-2.5 text-xs space-y-1.5">
+                              <div className="flex justify-between items-center">
+                                <span className="text-muted-foreground">Total do Orçamento:</span>
+                                <span className="font-bold text-foreground">{formatMoney(total)}</span>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <span className="text-muted-foreground">Soma das Formas:</span>
+                                <span className="font-semibold">{formatMoney(soma)}</span>
+                              </div>
+                              <div className="flex justify-between items-center pt-1 border-t border-border/60">
+                                <span className="font-medium">Status da Composição:</span>
+                                {bateu ? (
+                                  <Badge className="bg-emerald-600/90 text-white text-[10px] gap-1">
+                                    <CheckCircle2 className="h-3 w-3" /> 100% Coberto
+                                  </Badge>
+                                ) : dif > 0 ? (
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="text-amber-500 font-semibold text-[11px]">
+                                      Faltam distribuir {formatMoney(dif)}
+                                    </span>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-5 px-1.5 text-[10px] border-amber-500/40 text-amber-500 hover:bg-amber-500/10"
+                                      onClick={() => {
+                                        const novoItem = {
+                                          id: String(Date.now()),
+                                          rotulo: 'Saldo Restante',
+                                          metodo: 'pix' as const,
+                                          valor: dif,
+                                          parcelas: 1,
+                                          diaVencimento: 10,
+                                          dataPagamento: formatIsoDate(new Date()),
+                                          datasParcelas: [formatIsoDate(new Date())],
+                                          situacao: 'A vencer' as const,
+                                          situacoesParcelas: ['A vencer' as const],
+                                        };
+                                        const novas = [...formasMultiplas, novoItem];
+                                        setFormasMultiplas(novas);
+                                        setFormasPagamento(montarTextoMultiplasFormas(novas));
+                                      }}
+                                    >
+                                      Preencher saldo a combinar
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <span className="text-red-500 font-semibold text-[11px]">
+                                    Excede em {formatMoney(Math.abs(dif))}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  )}
+
+                  {pixParceladoAtivo && (
+                    <div className="rounded-lg border border-primary/30 bg-primary/5 p-3.5 space-y-3 animate-in fade-in duration-200">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-xs font-semibold text-primary">
+                          <Sparkles className="h-4 w-4" />
+                          Configuração de PIX Parcelado (Entrada, Parcelas e Vencimento)
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 px-1.5 text-xs text-muted-foreground hover:text-foreground"
+                          onClick={() => setPixParceladoAtivo(false)}
+                        >
+                          <X className="h-3.5 w-3.5 mr-1" /> Fechar
+                        </Button>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="space-y-1">
+                          <div className="flex justify-between items-center">
+                            <Label className="text-xs">Valor da Entrada (R$)</Label>
+                            {pixEntrada >= total && total > 0 && (
+                              <span className="text-[10px] text-amber-500 font-medium">Entrada cobre o total</span>
+                            )}
+                          </div>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={total}
+                            step="0.01"
+                            placeholder="0.00 (sem entrada)"
+                            value={pixEntrada || ''}
+                            onChange={(e) => handleChangePixEntrada(Number(e.target.value) || 0)}
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-xs">Qtd. de Parcelas</Label>
+                          <Select
+                            value={String(pixParcelas)}
+                            onValueChange={(v) => handleChangePixParcelas(Number(v) || 1)}
+                          >
+                            <SelectTrigger className="h-9 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18, 24].map((n) => (
+                                <SelectItem key={n} value={String(n)}>
+                                  {n}x {n > 1 ? 'mensais' : '(à vista)'}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-xs">Dia do Vencimento Padrão</Label>
+                          <Select
+                            value={String(pixDiaVencimento)}
+                            onValueChange={(v) => handleChangePixDia(Number(v) || 10)}
+                          >
+                            <SelectTrigger className="h-9 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {[1, 5, 10, 15, 20, 25, 28, 30].map((d) => (
+                                <SelectItem key={d} value={String(d)}>
+                                  Todo dia {d}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      {/* Vencimentos personalizados por pagamento (Entrada e Parcelas) */}
+                      <div className="space-y-2 pt-2 border-t border-primary/20">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                          <Label className="text-xs font-semibold flex items-center gap-1.5 text-foreground">
+                            <CalendarDays className="h-3.5 w-3.5 text-primary" />
+                            Datas de Vencimento dos Pagamentos (Personalizadas)
+                          </Label>
+                          <span className="text-[10px] text-muted-foreground">
+                            Selecione no calendário ou digite dia/mês/ano diretamente
+                          </span>
+                        </div>
+
+                        <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                          {pixEntrada > 0 && (
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-lg bg-background/90 border border-emerald-500/30 text-xs shadow-xs">
+                              <div className="flex items-center justify-between sm:justify-start gap-2">
+                                <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-500 font-bold text-[10px]">
+                                  Entrada (PIX)
+                                </span>
+                                <span className="font-semibold text-emerald-600">
+                                  {formatMoney(pixEntrada)}
+                                </span>
+                              </div>
+                              <div className="flex items-center flex-wrap gap-2">
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                                    <CalendarDays className="h-3 w-3 text-emerald-500" /> Data:
+                                  </span>
+                                  <Input
+                                    type="date"
+                                    value={pixDataEntrada}
+                                    onChange={(e) => handleAtualizarDataEntrada(e.target.value)}
+                                    className="h-8 text-xs w-32 font-semibold bg-background"
+                                    title="Data da entrada em PIX"
+                                  />
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[11px] text-muted-foreground">Situação:</span>
+                                  <Select
+                                    value={pixEntradaSituacao}
+                                    onValueChange={(v: any) => handleAtualizarPixEntradaSituacao(v)}
+                                  >
+                                    <SelectTrigger className="h-8 text-xs w-28 font-semibold">
                                       <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -5082,481 +5436,113 @@ const PatientOrcamentos = ({ patient }: Props) => {
                                       <SelectItem value="Quitada">
                                         <span className="text-emerald-500 font-medium">● Quitada</span>
                                       </SelectItem>
-                                      <SelectItem value="Autorizado">
-                                        <span className="text-blue-500 font-medium">● Autorizado</span>
-                                      </SelectItem>
                                     </SelectContent>
                                   </Select>
                                 </div>
                               </div>
+                            </div>
+                          )}
 
-                              {/* Banner e Campos de Ajuste de Taxas da Máquina */}
-                              {isCartao && item.valor > 0 && (() => {
-                                const op = operadoras.find((o) => o.id === item.operadoraCartaoId) || operadoraPadrao;
-                                const isDeb = item.tipoCartao === 'debito';
-                                const calc = calcularTaxaCartao(op, item.parcelas || 1, item.valor, isDeb);
-                                const taxaPerc = item.taxaCartaoPercentual ?? calc.taxaPercentual;
-                                const taxaValor = item.taxaCartaoValor ?? calc.taxaValor;
-                                const valorLiquido = Math.max(0, Number((item.valor - taxaValor).toFixed(2)));
-
-                                return (
-                                  <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-2.5 space-y-2">
-                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 items-end">
-                                      <div>
-                                        <Label className="text-[10px] text-muted-foreground">Cobrado (Bruto)</Label>
-                                        <div className="h-7 px-2 flex items-center rounded border bg-muted/40 font-bold text-xs text-foreground">
-                                          {formatMoney(item.valor)}
-                                        </div>
-                                      </div>
-
-                                      <div>
-                                        <Label className="text-[10px] text-muted-foreground">Valor da Taxa (R$)</Label>
-                                        <Input
-                                          type="number"
-                                          step="0.01"
-                                          min={0}
-                                          placeholder="0,00"
-                                          value={item.taxaCartaoValor !== undefined ? item.taxaCartaoValor : (calc.taxaValor || '')}
-                                          onChange={(e) => {
-                                            const val = parseFloat(e.target.value);
-                                            handleAtualizarFormaMultipla(idx, {
-                                              taxaCartaoValor: isNaN(val) ? 0 : Math.max(0, val),
-                                            });
-                                          }}
-                                          className="h-7 text-xs font-semibold bg-background"
-                                        />
-                                      </div>
-
-                                      <div>
-                                        <Label className="text-[10px] text-muted-foreground">Taxa da Máquina (%)</Label>
-                                        <Input
-                                          type="number"
-                                          step="0.01"
-                                          min={0}
-                                          placeholder="0.00"
-                                          value={item.taxaCartaoPercentual !== undefined ? item.taxaCartaoPercentual : (calc.taxaPercentual || '')}
-                                          onChange={(e) => {
-                                            const val = parseFloat(e.target.value);
-                                            handleAtualizarFormaMultipla(idx, {
-                                              taxaCartaoPercentual: isNaN(val) ? 0 : Math.max(0, val),
-                                            });
-                                          }}
-                                          className="h-7 text-xs font-semibold bg-background"
-                                        />
-                                      </div>
-
-                                      <div>
-                                        <Label className="text-[10px] text-muted-foreground">Valor Líquido</Label>
-                                        <div className="h-7 px-2 flex items-center rounded border border-emerald-500/40 bg-emerald-500/20 font-bold text-xs text-emerald-600 dark:text-emerald-400">
-                                          {formatMoney(valorLiquido)}
-                                        </div>
-                                      </div>
-                                    </div>
-
-                                    <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] pt-1.5 border-t border-emerald-500/20">
-                                      <div className="flex items-center gap-1.5 text-emerald-400 font-semibold">
-                                        <CreditCard className="h-3.5 w-3.5" />
-                                        <span>Máquina: <strong>{calc.operadoraNome}</strong> ({isDeb ? 'Débito' : `${item.parcelas || 1}x Crédito`})</span>
-                                      </div>
-                                      <div className="flex items-center gap-3">
-                                        <span className="text-destructive font-semibold">
-                                          Valor descontado da taxa: -{formatMoney(taxaValor)} ({taxaPerc}%)
-                                        </span>
-                                        <span className="text-emerald-500 font-bold">
-                                          Líquido creditado: {formatMoney(valorLiquido)}
-                                        </span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                );
-                              })()}
-
-                              {/* Grade de vencimentos específicos para editar qualquer dia e data livremente - Apenas para Boleto Parcelado e PIX Parcelado */}
-                              {requerDatasParcelas && (
-                                <div className="pt-2.5 border-t border-border/60 space-y-2">
-                                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                                    <span className="text-[11px] font-semibold text-foreground flex items-center gap-1.5">
-                                      <CalendarDays className="h-3.5 w-3.5 text-emerald-400" />
-                                      Vencimentos e Situações das Parcelas ({item.rotulo})
+                          {Array.from({ length: pixParcelas }).map((_, idx) => {
+                            const valorParc = Math.max(0, total - pixEntrada) / Math.max(1, pixParcelas);
+                            return (
+                              <div
+                                key={idx}
+                                className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-lg bg-background/90 border border-border text-xs hover:border-primary/40 transition-colors shadow-xs"
+                              >
+                                <div className="flex items-center justify-between sm:justify-start gap-2">
+                                  <span className="px-1.5 py-0.5 rounded bg-primary/10 text-primary font-bold text-[10px]">
+                                    {idx + 1}ª Parcela PIX
+                                  </span>
+                                  <span className="font-semibold text-foreground">
+                                    {formatMoney(valorParc)}
+                                  </span>
+                                </div>
+                                <div className="flex items-center flex-wrap gap-2">
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                                      <CalendarDays className="h-3 w-3 text-primary" /> Venc.:
                                     </span>
-                                    <span className="text-[10px] text-muted-foreground">
-                                      Edite data ou situação individual de cada parcela
-                                    </span>
+                                    <Input
+                                      type="date"
+                                      value={pixDatasParcelas[idx] || ''}
+                                      onChange={(e) => handleAtualizarDataParcela(idx, e.target.value)}
+                                      className="h-8 text-xs w-32 font-semibold bg-background"
+                                      title={`Data de vencimento da parcela ${idx + 1}`}
+                                    />
                                   </div>
-
-                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-52 overflow-y-auto overflow-x-hidden pr-1">
-                                    {Array.from({ length: item.parcelas }).map((_, pIdx) => {
-                                      const valParc = item.valor > 0 ? item.valor / item.parcelas : 0;
-                                      const dataAtual = item.datasParcelas?.[pIdx] || '';
-                                      return (
-                                        <div
-                                          key={pIdx}
-                                          className="p-2.5 rounded-lg bg-card/60 border border-border/80 text-xs shadow-xs hover:border-emerald-500/40 transition-colors space-y-1.5"
-                                        >
-                                          <div className="flex items-center justify-between">
-                                            <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-bold text-[10px]">
-                                              {pIdx + 1}ª Parcela
-                                            </span>
-                                            <span className="font-semibold text-xs text-foreground">
-                                              {formatMoney(valParc)}
-                                            </span>
-                                          </div>
-                                          <div className="flex items-center justify-between gap-1.5 pt-1 border-t border-border/40">
-                                            <div className="flex items-center gap-1">
-                                              <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
-                                                <CalendarDays className="h-3 w-3 text-emerald-400" />
-                                                Venc:
-                                              </span>
-                                              <Input
-                                                type="date"
-                                                value={dataAtual}
-                                                onChange={(e) => handleAtualizarDataParcelaMultipla(idx, pIdx, e.target.value)}
-                                                className="h-7 text-xs w-28 font-semibold bg-background border-border/80"
-                                                title={`Data de vencimento da parcela ${pIdx + 1}`}
-                                              />
-                                            </div>
-                                            <Select
-                                              value={item.situacoesParcelas?.[pIdx] || item.situacao || 'A vencer'}
-                                              onValueChange={(v: any) => handleAtualizarSituacaoParcelaMultipla(idx, pIdx, v)}
-                                            >
-                                              <SelectTrigger className="h-7 text-[11px] w-28 font-semibold">
-                                                <SelectValue />
-                                              </SelectTrigger>
-                                              <SelectContent>
-                                                <SelectItem value="A vencer">
-                                                  <span className="text-amber-500 font-medium">● A vencer</span>
-                                                </SelectItem>
-                                                <SelectItem value="Quitada">
-                                                  <span className="text-emerald-500 font-medium">● Quitada</span>
-                                                </SelectItem>
-                                                <SelectItem value="Autorizado">
-                                                  <span className="text-blue-500 font-medium">● Autorizado</span>
-                                                </SelectItem>
-                                              </SelectContent>
-                                            </Select>
-                                          </div>
-                                        </div>
-                                      );
-                                    })}
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-[11px] text-muted-foreground">Situação:</span>
+                                    <Select
+                                      value={pixSituacoesParcelas[idx] || 'A vencer'}
+                                      onValueChange={(v: any) => handleAtualizarPixSituacaoParcela(idx, v)}
+                                    >
+                                      <SelectTrigger className="h-8 text-xs w-28 font-semibold">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="A vencer">
+                                          <span className="text-amber-500 font-medium">● A vencer</span>
+                                        </SelectItem>
+                                        <SelectItem value="Quitada">
+                                          <span className="text-emerald-500 font-medium">● Quitada</span>
+                                        </SelectItem>
+                                      </SelectContent>
+                                    </Select>
                                   </div>
                                 </div>
-                              )}
-                            </>
-                          );
-                        })()}
-                      </div>
-                    ))}
-
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={handleAdicionarFormaMultipla}
-                      className="w-full h-8 text-xs gap-1 border-dashed border-emerald-500/40 text-emerald-400 hover:bg-emerald-950/30"
-                    >
-                      <Plus className="h-3.5 w-3.5" /> Adicionar Outra Forma de Pagamento
-                    </Button>
-
-                    {/* Balanceador em tempo real */}
-                    {(() => {
-                      const soma = formasMultiplas.reduce((s, f) => s + (f.valor || 0), 0);
-                      const dif = total - soma;
-                      const bateu = Math.abs(dif) < 0.01;
-                      return (
-                        <div className="rounded-lg bg-background/90 border border-border p-2.5 text-xs space-y-1.5">
-                          <div className="flex justify-between items-center">
-                            <span className="text-muted-foreground">Total do Orçamento:</span>
-                            <span className="font-bold text-foreground">{formatMoney(total)}</span>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-muted-foreground">Soma das Formas:</span>
-                            <span className="font-semibold">{formatMoney(soma)}</span>
-                          </div>
-                          <div className="flex justify-between items-center pt-1 border-t border-border/60">
-                            <span className="font-medium">Status da Composição:</span>
-                            {bateu ? (
-                              <Badge className="bg-emerald-600/90 text-white text-[10px] gap-1">
-                                <CheckCircle2 className="h-3 w-3" /> 100% Coberto
-                              </Badge>
-                            ) : dif > 0 ? (
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="text-amber-500 font-semibold text-[11px]">
-                                  Faltam distribuir {formatMoney(dif)}
-                                </span>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-5 px-1.5 text-[10px] border-amber-500/40 text-amber-500 hover:bg-amber-500/10"
-                                  onClick={() => {
-                                    const novoItem = {
-                                      id: String(Date.now()),
-                                      rotulo: 'Saldo Restante',
-                                      metodo: 'pix' as const,
-                                      valor: dif,
-                                      parcelas: 1,
-                                      diaVencimento: 10,
-                                      dataPagamento: formatIsoDate(new Date()),
-                                      datasParcelas: [formatIsoDate(new Date())],
-                                      situacao: 'A vencer' as const,
-                                      situacoesParcelas: ['A vencer' as const],
-                                    };
-                                    const novas = [...formasMultiplas, novoItem];
-                                    setFormasMultiplas(novas);
-                                    setFormasPagamento(montarTextoMultiplasFormas(novas));
-                                  }}
-                                >
-                                  Preencher saldo a combinar
-                                </Button>
                               </div>
-                            ) : (
-                              <span className="text-red-500 font-semibold text-[11px]">
-                                Excede em {formatMoney(Math.abs(dif))}
-                              </span>
-                            )}
-                          </div>
+                            );
+                          })}
                         </div>
-                      );
-                    })()}
-                  </div>
-                </div>
-              )}
-
-              {pixParceladoAtivo && (
-                <div className="rounded-lg border border-primary/30 bg-primary/5 p-3.5 space-y-3 animate-in fade-in duration-200">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 text-xs font-semibold text-primary">
-                      <Sparkles className="h-4 w-4" />
-                      Configuração de PIX Parcelado (Entrada, Parcelas e Vencimento)
-                    </div>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      className="h-6 px-1.5 text-xs text-muted-foreground hover:text-foreground"
-                      onClick={() => setPixParceladoAtivo(false)}
-                    >
-                      <X className="h-3.5 w-3.5 mr-1" /> Fechar
-                    </Button>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="space-y-1">
-                      <div className="flex justify-between items-center">
-                        <Label className="text-xs">Valor da Entrada (R$)</Label>
-                        {pixEntrada >= total && total > 0 && (
-                          <span className="text-[10px] text-amber-500 font-medium">Entrada cobre o total</span>
-                        )}
                       </div>
-                      <Input
-                        type="number"
-                        min={0}
-                        max={total}
-                        step="0.01"
-                        placeholder="0.00 (sem entrada)"
-                        value={pixEntrada || ''}
-                        onChange={(e) => handleChangePixEntrada(Number(e.target.value) || 0)}
-                      />
-                    </div>
 
-                    <div className="space-y-1">
-                      <Label className="text-xs">Qtd. de Parcelas</Label>
-                      <Select
-                        value={String(pixParcelas)}
-                        onValueChange={(v) => handleChangePixParcelas(Number(v) || 1)}
-                      >
-                        <SelectTrigger className="h-9 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18, 24].map((n) => (
-                            <SelectItem key={n} value={String(n)}>
-                              {n}x {n > 1 ? 'mensais' : '(à vista)'}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-1">
-                      <Label className="text-xs">Dia do Vencimento Padrão</Label>
-                      <Select
-                        value={String(pixDiaVencimento)}
-                        onValueChange={(v) => handleChangePixDia(Number(v) || 10)}
-                      >
-                        <SelectTrigger className="h-9 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {[1, 5, 10, 15, 20, 25, 28, 30].map((d) => (
-                            <SelectItem key={d} value={String(d)}>
-                              Todo dia {d}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  {/* Vencimentos personalizados por pagamento (Entrada e Parcelas) */}
-                  <div className="space-y-2 pt-2 border-t border-primary/20">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                      <Label className="text-xs font-semibold flex items-center gap-1.5 text-foreground">
-                        <CalendarDays className="h-3.5 w-3.5 text-primary" />
-                        Datas de Vencimento dos Pagamentos (Personalizadas)
-                      </Label>
-                      <span className="text-[10px] text-muted-foreground">
-                        Selecione no calendário ou digite dia/mês/ano diretamente
-                      </span>
-                    </div>
-
-                    <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-                      {pixEntrada > 0 && (
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-lg bg-background/90 border border-emerald-500/30 text-xs shadow-xs">
-                          <div className="flex items-center justify-between sm:justify-start gap-2">
-                            <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-500 font-bold text-[10px]">
-                              Entrada (PIX)
-                            </span>
+                      {/* Resumo do Cálculo em tempo real */}
+                      <div className="rounded-md bg-background/80 border border-border p-2.5 text-xs space-y-1">
+                        <div className="flex justify-between text-muted-foreground">
+                          <span>Total do Orçamento:</span>
+                          <span className="font-medium text-foreground">{formatMoney(total)}</span>
+                        </div>
+                        {pixEntrada > 0 && (
+                          <div className="flex justify-between text-muted-foreground">
+                            <span>Entrada pactuada (PIX):</span>
                             <span className="font-semibold text-emerald-600">
-                              {formatMoney(pixEntrada)}
+                              +{formatMoney(pixEntrada)} {pixDataEntrada ? `(em ${formatBrDate(pixDataEntrada)})` : ''}
                             </span>
                           </div>
-                          <div className="flex items-center flex-wrap gap-2">
-                            <div className="flex items-center gap-1">
-                              <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-                                <CalendarDays className="h-3 w-3 text-emerald-500" /> Data:
-                              </span>
-                              <Input
-                                type="date"
-                                value={pixDataEntrada}
-                                onChange={(e) => handleAtualizarDataEntrada(e.target.value)}
-                                className="h-8 text-xs w-32 font-semibold bg-background"
-                                title="Data da entrada em PIX"
-                              />
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <span className="text-[11px] text-muted-foreground">Situação:</span>
-                              <Select
-                                value={pixEntradaSituacao}
-                                onValueChange={(v: any) => handleAtualizarPixEntradaSituacao(v)}
-                              >
-                                <SelectTrigger className="h-8 text-xs w-28 font-semibold">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="A vencer">
-                                    <span className="text-amber-500 font-medium">● A vencer</span>
-                                  </SelectItem>
-                                  <SelectItem value="Quitada">
-                                    <span className="text-emerald-500 font-medium">● Quitada</span>
-                                  </SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
+                        )}
+                        <div className="flex justify-between text-muted-foreground">
+                          <span>Saldo a parcelar:</span>
+                          <span>{formatMoney(Math.max(0, total - pixEntrada))}</span>
+                        </div>
+                        <div className="flex justify-between text-foreground font-semibold pt-1 border-t border-border/60">
+                          <span>Plano PIX:</span>
+                          <span className="text-primary font-bold">
+                            {pixParcelas}x de {formatMoney(Math.max(0, total - pixEntrada) / Math.max(1, pixParcelas))}
+                          </span>
+                        </div>
+                        <div className="flex items-start gap-1.5 text-[11px] text-muted-foreground pt-1">
+                          <CalendarDays className="h-3.5 w-3.5 text-primary mt-0.5 shrink-0" />
+                          <div>
+                            <span className="font-medium text-foreground">Vencimentos configurados: </span>
+                            <span>
+                              {pixDatasParcelas.filter(Boolean).map(formatBrDate).join(', ') || `Todo dia ${pixDiaVencimento}`}
+                            </span>
+                            <p className="text-[10px] text-muted-foreground mt-0.5">
+                              Essas datas exatas serão usadas no contrato, no PDF e nas parcelas de Contas a Receber.
+                            </p>
                           </div>
                         </div>
-                      )}
-
-                      {Array.from({ length: pixParcelas }).map((_, idx) => {
-                        const valorParc = Math.max(0, total - pixEntrada) / Math.max(1, pixParcelas);
-                        return (
-                          <div
-                            key={idx}
-                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-lg bg-background/90 border border-border text-xs hover:border-primary/40 transition-colors shadow-xs"
-                          >
-                            <div className="flex items-center justify-between sm:justify-start gap-2">
-                              <span className="px-1.5 py-0.5 rounded bg-primary/10 text-primary font-bold text-[10px]">
-                                {idx + 1}ª Parcela PIX
-                              </span>
-                              <span className="font-semibold text-foreground">
-                                {formatMoney(valorParc)}
-                              </span>
-                            </div>
-                            <div className="flex items-center flex-wrap gap-2">
-                              <div className="flex items-center gap-1">
-                                <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-                                  <CalendarDays className="h-3 w-3 text-primary" /> Venc.:
-                                </span>
-                                <Input
-                                  type="date"
-                                  value={pixDatasParcelas[idx] || ''}
-                                  onChange={(e) => handleAtualizarDataParcela(idx, e.target.value)}
-                                  className="h-8 text-xs w-32 font-semibold bg-background"
-                                  title={`Data de vencimento da parcela ${idx + 1}`}
-                                />
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <span className="text-[11px] text-muted-foreground">Situação:</span>
-                                <Select
-                                  value={pixSituacoesParcelas[idx] || 'A vencer'}
-                                  onValueChange={(v: any) => handleAtualizarPixSituacaoParcela(idx, v)}
-                                >
-                                  <SelectTrigger className="h-8 text-xs w-28 font-semibold">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="A vencer">
-                                      <span className="text-amber-500 font-medium">● A vencer</span>
-                                    </SelectItem>
-                                    <SelectItem value="Quitada">
-                                      <span className="text-emerald-500 font-medium">● Quitada</span>
-                                    </SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Resumo do Cálculo em tempo real */}
-                  <div className="rounded-md bg-background/80 border border-border p-2.5 text-xs space-y-1">
-                    <div className="flex justify-between text-muted-foreground">
-                      <span>Total do Orçamento:</span>
-                      <span className="font-medium text-foreground">{formatMoney(total)}</span>
-                    </div>
-                    {pixEntrada > 0 && (
-                      <div className="flex justify-between text-muted-foreground">
-                        <span>Entrada pactuada (PIX):</span>
-                        <span className="font-semibold text-emerald-600">
-                          +{formatMoney(pixEntrada)} {pixDataEntrada ? `(em ${formatBrDate(pixDataEntrada)})` : ''}
-                        </span>
-                      </div>
-                    )}
-                    <div className="flex justify-between text-muted-foreground">
-                      <span>Saldo a parcelar:</span>
-                      <span>{formatMoney(Math.max(0, total - pixEntrada))}</span>
-                    </div>
-                    <div className="flex justify-between text-foreground font-semibold pt-1 border-t border-border/60">
-                      <span>Plano PIX:</span>
-                      <span className="text-primary font-bold">
-                        {pixParcelas}x de {formatMoney(Math.max(0, total - pixEntrada) / Math.max(1, pixParcelas))}
-                      </span>
-                    </div>
-                    <div className="flex items-start gap-1.5 text-[11px] text-muted-foreground pt-1">
-                      <CalendarDays className="h-3.5 w-3.5 text-primary mt-0.5 shrink-0" />
-                      <div>
-                        <span className="font-medium text-foreground">Vencimentos configurados: </span>
-                        <span>
-                          {pixDatasParcelas.filter(Boolean).map(formatBrDate).join(', ') || `Todo dia ${pixDiaVencimento}`}
-                        </span>
-                        <p className="text-[10px] text-muted-foreground mt-0.5">
-                          Essas datas exatas serão usadas no contrato, no PDF e nas parcelas de Contas a Receber.
-                        </p>
                       </div>
                     </div>
-                  </div>
-                </div>
-              )}
+                  )}
 
-              <Textarea
-                value={formasPagamento}
-                onChange={(e) => setFormasPagamento(e.target.value)}
-                placeholder="Ex.: À vista com 10% de desconto, ou em até 12x no cartão"
-                maxLength={500}
-              />
+                  <Textarea
+                    value={formasPagamento}
+                    onChange={(e) => setFormasPagamento(e.target.value)}
+                    placeholder="Ex.: À vista com 10% de desconto, ou em até 12x no cartão"
+                    maxLength={500}
+                  />
                 </>
               )}
             </div>
@@ -5912,18 +5898,16 @@ const PatientOrcamentos = ({ patient }: Props) => {
                             atualizada.descricao = c.descricao || calcularDescricaoCondicao(atualizada, aprovandoOrcamento.total);
                             setCondicaoAprovacaoEmEdicao(atualizada);
                           }}
-                          className={`p-3 rounded-xl border text-xs cursor-pointer transition-all flex flex-col justify-between gap-2 ${
-                            isSel
-                              ? 'border-emerald-500 bg-emerald-500/10 dark:bg-emerald-950/20 shadow-xs ring-2 ring-emerald-500/20'
-                              : 'border-border/80 bg-card hover:border-primary/40'
-                          }`}
+                          className={`p-3 rounded-xl border text-xs cursor-pointer transition-all flex flex-col justify-between gap-2 ${isSel
+                            ? 'border-emerald-500 bg-emerald-500/10 dark:bg-emerald-950/20 shadow-xs ring-2 ring-emerald-500/20'
+                            : 'border-border/80 bg-card hover:border-primary/40'
+                            }`}
                         >
                           <div className="space-y-1">
                             <div className="flex items-center justify-between">
                               <span
-                                className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                                  isSel ? 'bg-emerald-600 text-white' : 'bg-muted text-muted-foreground'
-                                }`}
+                                className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${isSel ? 'bg-emerald-600 text-white' : 'bg-muted text-muted-foreground'
+                                  }`}
                               >
                                 Opção {idx + 1}
                               </span>
@@ -6429,11 +6413,10 @@ const PatientOrcamentos = ({ patient }: Props) => {
                                             upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
                                             setCondicaoAprovacaoEmEdicao(upd);
                                           }}
-                                          className={`py-1.5 px-2 rounded-md text-xs font-bold border transition-all flex items-center justify-center gap-1.5 ${
-                                            isSel
-                                              ? 'bg-primary text-primary-foreground border-primary shadow-sm'
-                                              : 'bg-muted/50 hover:bg-muted text-muted-foreground border-border'
-                                          }`}
+                                          className={`py-1.5 px-2 rounded-md text-xs font-bold border transition-all flex items-center justify-center gap-1.5 ${isSel
+                                            ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                                            : 'bg-muted/50 hover:bg-muted text-muted-foreground border-border'
+                                            }`}
                                         >
                                           <IconComponent className="w-3.5 h-3.5" />
                                           <span>{m.label}</span>
@@ -6471,11 +6454,10 @@ const PatientOrcamentos = ({ patient }: Props) => {
                                             upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
                                             setCondicaoAprovacaoEmEdicao(upd);
                                           }}
-                                          className={`px-2 py-1 text-xs rounded font-bold border transition-colors ${
-                                            isSel
-                                              ? 'bg-primary text-primary-foreground border-primary'
-                                              : 'bg-muted/40 hover:bg-muted text-foreground border-border'
-                                          }`}
+                                          className={`px-2 py-1 text-xs rounded font-bold border transition-colors ${isSel
+                                            ? 'bg-primary text-primary-foreground border-primary'
+                                            : 'bg-muted/40 hover:bg-muted text-foreground border-border'
+                                            }`}
                                         >
                                           {n}x
                                         </button>
@@ -6663,54 +6645,54 @@ const PatientOrcamentos = ({ patient }: Props) => {
                         condicaoAprovacaoEmEdicao.tipo === 'a_vista' ||
                         (condicaoAprovacaoEmEdicao.valorEntrada && condicaoAprovacaoEmEdicao.valorEntrada > 0) ||
                         condicaoAprovacaoEmEdicao.tipo === 'personalizado') && (
-                        <div className="p-2.5 rounded-lg bg-background border border-border/70 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
-                              {condicaoAprovacaoEmEdicao.tipo === 'a_vista' ? 'Pagamento À Vista' : 'Entrada (Sinal)'}
-                            </span>
-                            {condicaoAprovacaoEmEdicao.situacaoEntrada === 'Quitada' ? (
-                              <Badge className="bg-emerald-600 text-white text-[9px] px-1.5 py-0 h-4">
-                                ✓ Quitada no Caixa
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline" className="text-amber-600 border-amber-500/40 text-[9px] px-1.5 py-0 h-4">
-                                A Vencer / Pendente
-                              </Badge>
-                            )}
-                          </div>
+                          <div className="p-2.5 rounded-lg bg-background border border-border/70 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                                {condicaoAprovacaoEmEdicao.tipo === 'a_vista' ? 'Pagamento À Vista' : 'Entrada (Sinal)'}
+                              </span>
+                              {condicaoAprovacaoEmEdicao.situacaoEntrada === 'Quitada' ? (
+                                <Badge className="bg-emerald-600 text-white text-[9px] px-1.5 py-0 h-4">
+                                  ✓ Quitada no Caixa
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-amber-600 border-amber-500/40 text-[9px] px-1.5 py-0 h-4">
+                                  A Vencer / Pendente
+                                </Badge>
+                              )}
+                            </div>
 
-                          <div className="grid grid-cols-2 gap-2">
-                            <div className="space-y-1">
-                              <Label className="text-[10px] text-muted-foreground font-medium">Data do Pagamento:</Label>
-                              <Input
-                                type="date"
-                                value={condicaoAprovacaoEmEdicao.dataEntrada || formatIsoDate(new Date())}
-                                onChange={(e) => {
-                                  const upd = { ...condicaoAprovacaoEmEdicao, dataEntrada: e.target.value };
-                                  upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
-                                  setCondicaoAprovacaoEmEdicao(upd);
-                                }}
-                                className="h-7 text-xs font-semibold"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-[10px] text-muted-foreground font-medium">Situação:</Label>
-                              <select
-                                value={condicaoAprovacaoEmEdicao.situacaoEntrada || 'Quitada'}
-                                onChange={(e) => {
-                                  const upd = { ...condicaoAprovacaoEmEdicao, situacaoEntrada: e.target.value as any };
-                                  upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
-                                  setCondicaoAprovacaoEmEdicao(upd);
-                                }}
-                                className="w-full h-7 px-1.5 text-xs font-semibold rounded bg-background border border-border"
-                              >
-                                <option value="Quitada">Quitada (Recebida agora)</option>
-                                <option value="A vencer">A vencer (Pendente / A receber)</option>
-                              </select>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="space-y-1">
+                                <Label className="text-[10px] text-muted-foreground font-medium">Data do Pagamento:</Label>
+                                <Input
+                                  type="date"
+                                  value={condicaoAprovacaoEmEdicao.dataEntrada || formatIsoDate(new Date())}
+                                  onChange={(e) => {
+                                    const upd = { ...condicaoAprovacaoEmEdicao, dataEntrada: e.target.value };
+                                    upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
+                                    setCondicaoAprovacaoEmEdicao(upd);
+                                  }}
+                                  className="h-7 text-xs font-semibold"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[10px] text-muted-foreground font-medium">Situação:</Label>
+                                <select
+                                  value={condicaoAprovacaoEmEdicao.situacaoEntrada || 'Quitada'}
+                                  onChange={(e) => {
+                                    const upd = { ...condicaoAprovacaoEmEdicao, situacaoEntrada: e.target.value as any };
+                                    upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
+                                    setCondicaoAprovacaoEmEdicao(upd);
+                                  }}
+                                  className="w-full h-7 px-1.5 text-xs font-semibold rounded bg-background border border-border"
+                                >
+                                  <option value="Quitada">Quitada (Recebida agora)</option>
+                                  <option value="A vencer">A vencer (Pendente / A receber)</option>
+                                </select>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      )}
+                        )}
 
                       {/* Saldo / Parcelas / Cartão */}
                       {(condicaoAprovacaoEmEdicao.tipo === 'cartao' ||
@@ -6718,103 +6700,103 @@ const PatientOrcamentos = ({ patient }: Props) => {
                         condicaoAprovacaoEmEdicao.tipo === 'pix_parcelado' ||
                         condicaoAprovacaoEmEdicao.tipo === 'boleto' ||
                         condicaoAprovacaoEmEdicao.tipo === 'personalizado') && (
-                        <div className="p-2.5 rounded-lg bg-background border border-border/70 space-y-2">
+                          <div className="p-2.5 rounded-lg bg-background border border-border/70 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-bold text-primary">
+                                {condicaoAprovacaoEmEdicao.tipo === 'cartao' ? 'Cartão / Parcelamento' : 'Saldo Restante / Parcelas'}
+                              </span>
+                              <Badge variant="outline" className="text-primary border-primary/40 text-[9px] px-1.5 py-0 h-4">
+                                {condicaoAprovacaoEmEdicao.situacaoSaldo || 'A vencer'}
+                              </Badge>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="space-y-1">
+                                <Label className="text-[10px] text-muted-foreground font-medium">
+                                  {condicaoAprovacaoEmEdicao.tipo === 'entrada_saldo' && condicaoAprovacaoEmEdicao.saldoTipoPrazo === 'dias'
+                                    ? 'Data Vencimento Saldo:'
+                                    : 'Data 1º Vencimento:'}
+                                </Label>
+                                <Input
+                                  type="date"
+                                  value={condicaoAprovacaoEmEdicao.dataPrimeiroVencimento || formatIsoDate(somarMesesSeguro(new Date(), 1))}
+                                  onChange={(e) => {
+                                    const upd = { ...condicaoAprovacaoEmEdicao, dataPrimeiroVencimento: e.target.value };
+                                    upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
+                                    setCondicaoAprovacaoEmEdicao(upd);
+                                  }}
+                                  className="h-7 text-xs font-semibold"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[10px] text-muted-foreground font-medium">Situação do Saldo:</Label>
+                                <select
+                                  value={condicaoAprovacaoEmEdicao.situacaoSaldo || (condicaoAprovacaoEmEdicao.tipo === 'cartao' ? 'Autorizado' : 'A vencer')}
+                                  onChange={(e) => {
+                                    const upd = { ...condicaoAprovacaoEmEdicao, situacaoSaldo: e.target.value as any };
+                                    upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
+                                    setCondicaoAprovacaoEmEdicao(upd);
+                                  }}
+                                  className="w-full h-7 px-1.5 text-xs font-semibold rounded bg-background border border-border"
+                                >
+                                  <option value="A vencer">A vencer no prazo</option>
+                                  <option value="Quitado">Quitado antecipado</option>
+                                  <option value="Autorizado">Autorizado na máquina</option>
+                                </select>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                    </div>
+
+                    {/* Cronograma das Parcelas em Sequência Automática */}
+                    {(() => {
+                      const isEntradaSaldo = condicaoAprovacaoEmEdicao.tipo === 'entrada_saldo';
+                      const parc = isEntradaSaldo ? (condicaoAprovacaoEmEdicao.saldoParcelas || 1) : (condicaoAprovacaoEmEdicao.parcelas || 1);
+                      if (parc <= 1) return null;
+
+                      const ent = isEntradaSaldo ? (condicaoAprovacaoEmEdicao.valorEntrada || 0) : 0;
+                      const saldo = Math.max(0, aprovandoOrcamento.total - ent);
+                      const metodoNome = isEntradaSaldo
+                        ? (condicaoAprovacaoEmEdicao.saldoMetodo === 'boleto' ? 'Boleto Bancário' : condicaoAprovacaoEmEdicao.saldoMetodo === 'pix_parcelado' ? 'PIX Parcelado' : 'Cartão de Crédito')
+                        : (condicaoAprovacaoEmEdicao.tipo === 'boleto' ? 'Boleto Bancário' : condicaoAprovacaoEmEdicao.tipo === 'pix_parcelado' ? 'PIX Parcelado' : 'Cartão de Crédito');
+
+                      const sequencia = calcularSequenciaParcelas(
+                        parc,
+                        saldo,
+                        condicaoAprovacaoEmEdicao.dataPrimeiroVencimento,
+                        condicaoAprovacaoEmEdicao.diaVencimento,
+                        metodoNome
+                      );
+
+                      return (
+                        <div className="mt-2 p-2 rounded-lg bg-muted/40 border border-primary/30 space-y-1.5">
                           <div className="flex items-center justify-between">
-                            <span className="text-[11px] font-bold text-primary">
-                              {condicaoAprovacaoEmEdicao.tipo === 'cartao' ? 'Cartão / Parcelamento' : 'Saldo Restante / Parcelas'}
+                            <span className="text-[10px] font-bold text-foreground flex items-center gap-1">
+                              <CalendarDays className="h-3 w-3 text-primary" />
+                              Cronograma das Parcelas em Sequência Automática ({parc}x):
                             </span>
-                            <Badge variant="outline" className="text-primary border-primary/40 text-[9px] px-1.5 py-0 h-4">
-                              {condicaoAprovacaoEmEdicao.situacaoSaldo || 'A vencer'}
+                            <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 text-emerald-600 border-emerald-500/40 font-semibold">
+                              {condicaoAprovacaoEmEdicao.diaVencimento ? `Todo dia ${condicaoAprovacaoEmEdicao.diaVencimento}` : 'Mensal'}
                             </Badge>
                           </div>
-
-                          <div className="grid grid-cols-2 gap-2">
-                            <div className="space-y-1">
-                              <Label className="text-[10px] text-muted-foreground font-medium">
-                                {condicaoAprovacaoEmEdicao.tipo === 'entrada_saldo' && condicaoAprovacaoEmEdicao.saldoTipoPrazo === 'dias'
-                                  ? 'Data Vencimento Saldo:'
-                                  : 'Data 1º Vencimento:'}
-                              </Label>
-                              <Input
-                                type="date"
-                                value={condicaoAprovacaoEmEdicao.dataPrimeiroVencimento || formatIsoDate(somarMesesSeguro(new Date(), 1))}
-                                onChange={(e) => {
-                                  const upd = { ...condicaoAprovacaoEmEdicao, dataPrimeiroVencimento: e.target.value };
-                                  upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
-                                  setCondicaoAprovacaoEmEdicao(upd);
-                                }}
-                                className="h-7 text-xs font-semibold"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-[10px] text-muted-foreground font-medium">Situação do Saldo:</Label>
-                              <select
-                                value={condicaoAprovacaoEmEdicao.situacaoSaldo || (condicaoAprovacaoEmEdicao.tipo === 'cartao' ? 'Autorizado' : 'A vencer')}
-                                onChange={(e) => {
-                                  const upd = { ...condicaoAprovacaoEmEdicao, situacaoSaldo: e.target.value as any };
-                                  upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
-                                  setCondicaoAprovacaoEmEdicao(upd);
-                                }}
-                                className="w-full h-7 px-1.5 text-xs font-semibold rounded bg-background border border-border"
-                              >
-                                <option value="A vencer">A vencer no prazo</option>
-                                <option value="Quitado">Quitado antecipado</option>
-                                <option value="Autorizado">Autorizado na máquina</option>
-                              </select>
-                            </div>
-                          </div>
-
-                          {/* Cronograma das Parcelas em Sequência Automática */}
-                          {(() => {
-                            const isEntradaSaldo = condicaoAprovacaoEmEdicao.tipo === 'entrada_saldo';
-                            const parc = isEntradaSaldo ? (condicaoAprovacaoEmEdicao.saldoParcelas || 1) : (condicaoAprovacaoEmEdicao.parcelas || 1);
-                            if (parc <= 1) return null;
-
-                            const ent = isEntradaSaldo ? (condicaoAprovacaoEmEdicao.valorEntrada || 0) : 0;
-                            const saldo = Math.max(0, aprovandoOrcamento.total - ent);
-                            const metodoNome = isEntradaSaldo
-                              ? (condicaoAprovacaoEmEdicao.saldoMetodo === 'boleto' ? 'Boleto Bancário' : condicaoAprovacaoEmEdicao.saldoMetodo === 'pix_parcelado' ? 'PIX Parcelado' : 'Cartão de Crédito')
-                              : (condicaoAprovacaoEmEdicao.tipo === 'boleto' ? 'Boleto Bancário' : condicaoAprovacaoEmEdicao.tipo === 'pix_parcelado' ? 'PIX Parcelado' : 'Cartão de Crédito');
-
-                            const sequencia = calcularSequenciaParcelas(
-                              parc,
-                              saldo,
-                              condicaoAprovacaoEmEdicao.dataPrimeiroVencimento,
-                              condicaoAprovacaoEmEdicao.diaVencimento,
-                              metodoNome
-                            );
-
-                            return (
-                              <div className="mt-2 p-2 rounded-lg bg-muted/40 border border-primary/30 space-y-1.5">
-                                <div className="flex items-center justify-between">
-                                  <span className="text-[10px] font-bold text-foreground flex items-center gap-1">
-                                    <CalendarDays className="h-3 w-3 text-primary" />
-                                    Cronograma das Parcelas em Sequência Automática ({parc}x):
-                                  </span>
-                                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 text-emerald-600 border-emerald-500/40 font-semibold">
-                                    {condicaoAprovacaoEmEdicao.diaVencimento ? `Todo dia ${condicaoAprovacaoEmEdicao.diaVencimento}` : 'Mensal'}
-                                  </Badge>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 max-h-36 overflow-y-auto">
+                            {sequencia.map((p) => (
+                              <div key={p.numero} className="p-1.5 rounded bg-background border border-border/70 text-[10px] space-y-0.5">
+                                <div className="flex items-center justify-between font-bold">
+                                  <span className="text-primary">{p.numero}/{parc}</span>
+                                  <span className="text-foreground">{formatMoney(p.valor)}</span>
                                 </div>
-                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 max-h-36 overflow-y-auto">
-                                  {sequencia.map((p) => (
-                                    <div key={p.numero} className="p-1.5 rounded bg-background border border-border/70 text-[10px] space-y-0.5">
-                                      <div className="flex items-center justify-between font-bold">
-                                        <span className="text-primary">{p.numero}/{parc}</span>
-                                        <span className="text-foreground">{formatMoney(p.valor)}</span>
-                                      </div>
-                                      <div className="flex items-center justify-between text-[9px] text-muted-foreground">
-                                        <span>📅 {p.dataVencimento}</span>
-                                        <span className="truncate max-w-[65px]">{p.metodo}</span>
-                                      </div>
-                                    </div>
-                                  ))}
+                                <div className="flex items-center justify-between text-[9px] text-muted-foreground">
+                                  <span>📅 {p.dataVencimento}</span>
+                                  <span className="truncate max-w-[65px]">{p.metodo}</span>
                                 </div>
                               </div>
-                            );
-                          })()}
+                            ))}
+                          </div>
                         </div>
-                      )}
-                    </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Visão Interna da Clínica — Desconto das Taxas do Cartão */}
@@ -7339,811 +7321,812 @@ const PatientOrcamentos = ({ patient }: Props) => {
                       <div className="space-y-1">
                         <Label className="text-xs font-semibold">Meio da Entrada:</Label>
                         <select
-                        value={condicaoEmEdicao.metodoEntrada || 'pix'}
-                        onChange={(e) => {
-                          const me = e.target.value as any;
-                          const updated: Partial<CondicaoPagamento> = {
-                            ...condicaoEmEdicao,
-                            metodoEntrada: me,
-                          };
-                          updated.descricao = calcularDescricaoCondicao(updated, total);
-                          setCondicaoEmEdicao(updated);
-                        }}
-                        className="w-full h-8 px-2 text-xs font-semibold rounded-md bg-background border border-border"
-                      >
-                        <option value="pix">PIX</option>
-                        <option value="dinheiro">Dinheiro</option>
-                        <option value="cartao_debito">Débito</option>
-                        <option value="cartao_credito">Crédito</option>
-                        <option value="transferencia">Transferência</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Modalidade do Saldo: Dias, Parcelas ou Conclusão */}
-                  <div className="pt-2 border-t border-border/60 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-[11px] font-semibold">Como o saldo será pago?</Label>
-                      <select
-                        value={condicaoEmEdicao.saldoTipoPrazo || (condicaoEmEdicao.saldoPrazoDias ? 'dias' : 'parcelas')}
-                        onChange={(e) => {
-                          const stp = e.target.value as 'dias' | 'parcelas' | 'conclusao';
-                          const updated: Partial<CondicaoPagamento> = {
-                            ...condicaoEmEdicao,
-                            saldoTipoPrazo: stp,
-                          };
-                          if (stp === 'dias') {
-                            updated.saldoPrazoDias = updated.saldoPrazoDias || 30;
-                          }
-                          updated.descricao = calcularDescricaoCondicao(updated, total);
-                          setCondicaoEmEdicao(updated);
-                        }}
-                        className="h-7 px-2 text-[11px] font-semibold rounded bg-background border border-primary/50"
-                      >
-                        <option value="dias">Prazo em Dias (ex: em 30 dias)</option>
-                        <option value="parcelas">Parcelado em vezes mensais</option>
-                        <option value="conclusao">Na Conclusão do Tratamento</option>
-                      </select>
+                          value={condicaoEmEdicao.metodoEntrada || 'pix'}
+                          onChange={(e) => {
+                            const me = e.target.value as any;
+                            const updated: Partial<CondicaoPagamento> = {
+                              ...condicaoEmEdicao,
+                              metodoEntrada: me,
+                            };
+                            updated.descricao = calcularDescricaoCondicao(updated, total);
+                            setCondicaoEmEdicao(updated);
+                          }}
+                          className="w-full h-8 px-2 text-xs font-semibold rounded-md bg-background border border-border"
+                        >
+                          <option value="pix">PIX</option>
+                          <option value="dinheiro">Dinheiro</option>
+                          <option value="cartao_debito">Débito</option>
+                          <option value="cartao_credito">Crédito</option>
+                          <option value="transferencia">Transferência</option>
+                        </select>
+                      </div>
                     </div>
 
-                    {(condicaoEmEdicao.saldoTipoPrazo === 'dias' || (!condicaoEmEdicao.saldoTipoPrazo && condicaoEmEdicao.saldoPrazoDias)) && (
-                      <div className="space-y-1.5 p-2 rounded bg-background border border-border/70">
-                        <div className="flex items-center justify-between gap-1 flex-wrap">
-                          <span className="text-[10px] text-muted-foreground font-medium">Atalhos de prazo:</span>
-                          <div className="flex items-center gap-1">
-                            {[15, 30, 45, 60, 90].map((dias) => (
-                              <button
-                                key={dias}
-                                type="button"
-                                onClick={() => {
+                    {/* Modalidade do Saldo: Dias, Parcelas ou Conclusão */}
+                    <div className="pt-2 border-t border-border/60 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-[11px] font-semibold">Como o saldo será pago?</Label>
+                        <select
+                          value={condicaoEmEdicao.saldoTipoPrazo || (condicaoEmEdicao.saldoPrazoDias ? 'dias' : 'parcelas')}
+                          onChange={(e) => {
+                            const stp = e.target.value as 'dias' | 'parcelas' | 'conclusao';
+                            const updated: Partial<CondicaoPagamento> = {
+                              ...condicaoEmEdicao,
+                              saldoTipoPrazo: stp,
+                            };
+                            if (stp === 'dias') {
+                              updated.saldoPrazoDias = updated.saldoPrazoDias || 30;
+                            }
+                            updated.descricao = calcularDescricaoCondicao(updated, total);
+                            setCondicaoEmEdicao(updated);
+                          }}
+                          className="h-7 px-2 text-[11px] font-semibold rounded bg-background border border-primary/50"
+                        >
+                          <option value="dias">Prazo em Dias (ex: em 30 dias)</option>
+                          <option value="parcelas">Parcelado em vezes mensais</option>
+                          <option value="conclusao">Na Conclusão do Tratamento</option>
+                        </select>
+                      </div>
+
+                      {(condicaoEmEdicao.saldoTipoPrazo === 'dias' || (!condicaoEmEdicao.saldoTipoPrazo && condicaoEmEdicao.saldoPrazoDias)) && (
+                        <div className="space-y-1.5 p-2 rounded bg-background border border-border/70">
+                          <div className="flex items-center justify-between gap-1 flex-wrap">
+                            <span className="text-[10px] text-muted-foreground font-medium">Atalhos de prazo:</span>
+                            <div className="flex items-center gap-1">
+                              {[15, 30, 45, 60, 90].map((dias) => (
+                                <button
+                                  key={dias}
+                                  type="button"
+                                  onClick={() => {
+                                    const updated: Partial<CondicaoPagamento> = {
+                                      ...condicaoEmEdicao,
+                                      saldoTipoPrazo: 'dias',
+                                      saldoPrazoDias: dias,
+                                    };
+                                    updated.descricao = calcularDescricaoCondicao(updated, total);
+                                    setCondicaoEmEdicao(updated);
+                                  }}
+                                  className="px-1.5 py-0.5 text-[10px] rounded bg-muted hover:bg-primary/20 hover:text-primary font-semibold border border-border"
+                                >
+                                  {dias} dias
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                              <Label className="text-[11px]">Prazo em Dias:</Label>
+                              <Input
+                                type="number"
+                                min={1}
+                                max={365}
+                                value={condicaoEmEdicao.saldoPrazoDias || 30}
+                                onChange={(e) => {
+                                  const d = Number(e.target.value) || 30;
                                   const updated: Partial<CondicaoPagamento> = {
                                     ...condicaoEmEdicao,
                                     saldoTipoPrazo: 'dias',
-                                    saldoPrazoDias: dias,
+                                    saldoPrazoDias: d,
                                   };
                                   updated.descricao = calcularDescricaoCondicao(updated, total);
                                   setCondicaoEmEdicao(updated);
                                 }}
-                                className="px-1.5 py-0.5 text-[10px] rounded bg-muted hover:bg-primary/20 hover:text-primary font-semibold border border-border"
+                                className="h-8 text-xs font-bold"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-[11px]">Forma do Saldo:</Label>
+                              <select
+                                value={condicaoEmEdicao.saldoMetodo || 'cartao'}
+                                onChange={(e) => {
+                                  const sm = e.target.value as any;
+                                  const updated: Partial<CondicaoPagamento> = {
+                                    ...condicaoEmEdicao,
+                                    saldoMetodo: sm,
+                                  };
+                                  updated.descricao = calcularDescricaoCondicao(updated, total);
+                                  setCondicaoEmEdicao(updated);
+                                }}
+                                className="w-full h-8 px-2 text-xs font-semibold rounded-md bg-background border border-border"
                               >
-                                {dias} dias
-                              </button>
-                            ))}
+                                <option value="cartao">Cartão de Crédito</option>
+                                <option value="pix_parcelado">PIX</option>
+                                <option value="boleto">Boleto Bancário</option>
+                              </select>
+                            </div>
                           </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="space-y-1">
-                            <Label className="text-[11px]">Prazo em Dias:</Label>
-                            <Input
-                              type="number"
-                              min={1}
-                              max={365}
-                              value={condicaoEmEdicao.saldoPrazoDias || 30}
-                              onChange={(e) => {
-                                const d = Number(e.target.value) || 30;
-                                const updated: Partial<CondicaoPagamento> = {
-                                  ...condicaoEmEdicao,
-                                  saldoTipoPrazo: 'dias',
-                                  saldoPrazoDias: d,
-                                };
-                                updated.descricao = calcularDescricaoCondicao(updated, total);
-                                setCondicaoEmEdicao(updated);
-                              }}
-                              className="h-8 text-xs font-bold"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-[11px]">Forma do Saldo:</Label>
-                            <select
-                              value={condicaoEmEdicao.saldoMetodo || 'cartao'}
-                              onChange={(e) => {
-                                const sm = e.target.value as any;
-                                const updated: Partial<CondicaoPagamento> = {
-                                  ...condicaoEmEdicao,
-                                  saldoMetodo: sm,
-                                };
-                                updated.descricao = calcularDescricaoCondicao(updated, total);
-                                setCondicaoEmEdicao(updated);
-                              }}
-                              className="w-full h-8 px-2 text-xs font-semibold rounded-md bg-background border border-border"
-                            >
-                              <option value="cartao">Cartão de Crédito</option>
-                              <option value="pix_parcelado">PIX</option>
-                              <option value="boleto">Boleto Bancário</option>
-                            </select>
-                          </div>
-                        </div>
-                      </div>
-                    )}
+                      )}
 
-                    {(condicaoEmEdicao.saldoTipoPrazo === 'parcelas' || (!condicaoEmEdicao.saldoTipoPrazo && !condicaoEmEdicao.saldoPrazoDias)) && (() => {
-                      const vTotal = typeof condicaoEmEdicao.valorTotal === 'number' && condicaoEmEdicao.valorTotal > 0 ? condicaoEmEdicao.valorTotal : total;
-                      const ent = condicaoEmEdicao.valorEntrada || 0;
-                      const saldo = Math.max(0, vTotal - ent);
-                      const qtd = Math.max(1, condicaoEmEdicao.saldoParcelas || 1);
-                      const diaVenc = condicaoEmEdicao.diaVencimento || 10;
-                      const metodoAtual = condicaoEmEdicao.saldoMetodo || 'cartao';
-                      const valParc = Number((saldo / qtd).toFixed(2));
+                      {(condicaoEmEdicao.saldoTipoPrazo === 'parcelas' || (!condicaoEmEdicao.saldoTipoPrazo && !condicaoEmEdicao.saldoPrazoDias)) && (() => {
+                        const vTotal = typeof condicaoEmEdicao.valorTotal === 'number' && condicaoEmEdicao.valorTotal > 0 ? condicaoEmEdicao.valorTotal : total;
+                        const ent = condicaoEmEdicao.valorEntrada || 0;
+                        const saldo = Math.max(0, vTotal - ent);
+                        const qtd = Math.max(1, condicaoEmEdicao.saldoParcelas || 1);
+                        const diaVenc = condicaoEmEdicao.diaVencimento || 10;
+                        const metodoAtual = condicaoEmEdicao.saldoMetodo || 'cartao';
+                        const valParc = Number((saldo / qtd).toFixed(2));
 
-                      return (
-                        <div className="space-y-2.5 p-3 rounded-lg bg-background border border-primary/40">
-                          {/* 1. Forma do Saldo em Botões Rápidos */}
-                          <div className="space-y-1">
-                            <Label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                              <CreditCard className="w-3.5 h-3.5 text-primary" /> Forma de Pagamento do Saldo Restante:
-                            </Label>
-                            <div className="grid grid-cols-3 gap-1.5">
-                              {[
-                                { id: 'boleto', label: 'Boleto Bancário', icon: FileText },
-                                { id: 'pix_parcelado', label: 'PIX Parcelado', icon: DollarSign },
-                                { id: 'cartao', label: 'Cartão de Crédito', icon: CreditCard },
-                              ].map((m) => {
-                                const IconComponent = m.icon;
-                                const isSel = metodoAtual === m.id;
-                                return (
-                                  <button
-                                    key={m.id}
-                                    type="button"
-                                    onClick={() => {
-                                      const updated: Partial<CondicaoPagamento> = {
-                                        ...condicaoEmEdicao,
-                                        saldoTipoPrazo: 'parcelas',
-                                        saldoMetodo: m.id as any,
-                                      };
-                                      updated.descricao = calcularDescricaoCondicao(updated, total);
-                                      setCondicaoEmEdicao(updated);
-                                    }}
-                                    className={`py-1.5 px-2 rounded-md text-xs font-bold border transition-all flex items-center justify-center gap-1.5 ${
-                                      isSel
+                        return (
+                          <div className="space-y-2.5 p-3 rounded-lg bg-background border border-primary/40">
+                            {/* 1. Forma do Saldo em Botões Rápidos */}
+                            <div className="space-y-1">
+                              <Label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                                <CreditCard className="w-3.5 h-3.5 text-primary" /> Forma de Pagamento do Saldo Restante:
+                              </Label>
+                              <div className="grid grid-cols-3 gap-1.5">
+                                {[
+                                  { id: 'boleto', label: 'Boleto Bancário', icon: FileText },
+                                  { id: 'pix_parcelado', label: 'PIX Parcelado', icon: DollarSign },
+                                  { id: 'cartao', label: 'Cartão de Crédito', icon: CreditCard },
+                                ].map((m) => {
+                                  const IconComponent = m.icon;
+                                  const isSel = metodoAtual === m.id;
+                                  return (
+                                    <button
+                                      key={m.id}
+                                      type="button"
+                                      onClick={() => {
+                                        const updated: Partial<CondicaoPagamento> = {
+                                          ...condicaoEmEdicao,
+                                          saldoTipoPrazo: 'parcelas',
+                                          saldoMetodo: m.id as any,
+                                        };
+                                        updated.descricao = calcularDescricaoCondicao(updated, total);
+                                        setCondicaoEmEdicao(updated);
+                                      }}
+                                      className={`py-1.5 px-2 rounded-md text-xs font-bold border transition-all flex items-center justify-center gap-1.5 ${isSel
                                         ? 'bg-primary text-primary-foreground border-primary shadow-sm'
                                         : 'bg-muted/50 hover:bg-muted text-muted-foreground border-border'
-                                    }`}
-                                  >
-                                    <IconComponent className="w-3.5 h-3.5" />
-                                    <span>{m.label}</span>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-
-                          {/* 2. Quantas Vezes (Atalhos + Dropdown) */}
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between">
-                              <Label className="text-xs font-semibold text-foreground">
-                                Quantas vezes deseja parcelar o saldo ({formatMoney(saldo)}):
-                              </Label>
-                              <span className="text-[11px] font-extrabold text-primary">
-                                {qtd}x de {formatMoney(valParc)}
-                              </span>
+                                        }`}
+                                    >
+                                      <IconComponent className="w-3.5 h-3.5" />
+                                      <span>{m.label}</span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
                             </div>
 
-                            <div className="flex items-center gap-1 flex-wrap">
-                              {[1, 2, 3, 4, 5, 6, 8, 10, 12, 18, 24].map((n) => {
-                                const isSel = qtd === n;
-                                return (
-                                  <button
-                                    key={n}
-                                    type="button"
-                                    onClick={() => {
+                            {/* 2. Quantas Vezes (Atalhos + Dropdown) */}
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between">
+                                <Label className="text-xs font-semibold text-foreground">
+                                  Quantas vezes deseja parcelar o saldo ({formatMoney(saldo)}):
+                                </Label>
+                                <span className="text-[11px] font-extrabold text-primary">
+                                  {qtd}x de {formatMoney(valParc)}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-1 flex-wrap">
+                                {[1, 2, 3, 4, 5, 6, 8, 10, 12, 18, 24].map((n) => {
+                                  const isSel = qtd === n;
+                                  return (
+                                    <button
+                                      key={n}
+                                      type="button"
+                                      onClick={() => {
+                                        const updated: Partial<CondicaoPagamento> = {
+                                          ...condicaoEmEdicao,
+                                          saldoTipoPrazo: 'parcelas',
+                                          saldoParcelas: n,
+                                          saldoValorParcela: Number((saldo / n).toFixed(2)),
+                                        };
+                                        updated.descricao = calcularDescricaoCondicao(updated, total);
+                                        setCondicaoEmEdicao(updated);
+                                      }}
+                                      className={`px-2 py-1 text-xs rounded font-bold border transition-colors ${isSel
+                                        ? 'bg-primary text-primary-foreground border-primary'
+                                        : 'bg-muted/40 hover:bg-muted text-foreground border-border'
+                                        }`}
+                                    >
+                                      {n}x
+                                    </button>
+                                  );
+                                })}
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-2 pt-1">
+                                <div className="space-y-1">
+                                  <Label className="text-[10px] text-muted-foreground font-medium">Ou selecione na lista:</Label>
+                                  <select
+                                    value={qtd}
+                                    onChange={(e) => {
+                                      const parc = Number(e.target.value) || 1;
                                       const updated: Partial<CondicaoPagamento> = {
                                         ...condicaoEmEdicao,
                                         saldoTipoPrazo: 'parcelas',
-                                        saldoParcelas: n,
-                                        saldoValorParcela: Number((saldo / n).toFixed(2)),
+                                        saldoParcelas: parc,
+                                        saldoValorParcela: Number((saldo / parc).toFixed(2)),
                                       };
                                       updated.descricao = calcularDescricaoCondicao(updated, total);
                                       setCondicaoEmEdicao(updated);
                                     }}
-                                    className={`px-2 py-1 text-xs rounded font-bold border transition-colors ${
-                                      isSel
-                                        ? 'bg-primary text-primary-foreground border-primary'
-                                        : 'bg-muted/40 hover:bg-muted text-foreground border-border'
-                                    }`}
+                                    className="w-full h-8 px-2 text-xs font-semibold rounded-md bg-background border border-border"
                                   >
-                                    {n}x
-                                  </button>
-                                );
-                              })}
+                                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 18, 20, 24].map((n) => (
+                                      <option key={n} value={n}>
+                                        {n === 1 ? `1x de ${formatMoney(saldo)}` : `${n}x de ${formatMoney(saldo / n)} (Saldo: ${formatMoney(saldo)})`}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+
+                                {/* 3. Dia de Vencimento Mensal */}
+                                <div className="space-y-1">
+                                  <Label className="text-[10px] text-muted-foreground font-medium">Dia de Vencimento Mensal:</Label>
+                                  <select
+                                    value={diaVenc}
+                                    onChange={(e) => {
+                                      const d = Number(e.target.value) || 10;
+                                      let novaDataPrimeiroVenc = condicaoEmEdicao.dataPrimeiroVencimento;
+                                      if (novaDataPrimeiroVenc) {
+                                        const parsed = parseDateSafe(novaDataPrimeiroVenc);
+                                        parsed.setDate(Math.min(d, 28));
+                                        novaDataPrimeiroVenc = formatIsoDate(parsed);
+                                      } else {
+                                        const hoje = new Date();
+                                        const proximoMes = somarMesesSeguro(hoje, 1, d);
+                                        novaDataPrimeiroVenc = formatIsoDate(proximoMes);
+                                      }
+                                      const updated: Partial<CondicaoPagamento> = {
+                                        ...condicaoEmEdicao,
+                                        saldoTipoPrazo: 'parcelas',
+                                        diaVencimento: d,
+                                        dataPrimeiroVencimento: novaDataPrimeiroVenc,
+                                      };
+                                      updated.descricao = calcularDescricaoCondicao(updated, total);
+                                      setCondicaoEmEdicao(updated);
+                                    }}
+                                    className="w-full h-8 px-2 text-xs font-semibold rounded-md bg-background border border-border"
+                                  >
+                                    {[1, 5, 10, 15, 20, 25, 26, 28, 30].map((d) => (
+                                      <option key={d} value={d}>
+                                        Todo dia {d} do mês
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                );
+              })()}
+
+                    {/* Detalhes de PIX Parcelado (1x a 10x com Entrada opcional) */}
+                    {condicaoEmEdicao.tipo === 'pix_parcelado' && (() => {
+                      const vTotal = typeof condicaoEmEdicao.valorTotal === 'number' && condicaoEmEdicao.valorTotal > 0 ? condicaoEmEdicao.valorTotal : total;
+                      const ent = Math.min(vTotal, Math.max(0, condicaoEmEdicao.valorEntrada || 0));
+                      const saldo = Math.max(0, vTotal - ent);
+                      const qtd = Math.max(1, Math.min(10, condicaoEmEdicao.parcelas || 3));
+                      const valParc = Number((saldo / qtd).toFixed(2));
+                      return (
+                        <div className="p-3 rounded-xl bg-muted/40 border border-border/70 space-y-3">
+                          <div className="flex items-center justify-between pb-1 border-b border-border/60">
+                            <span className="text-xs font-bold text-primary flex items-center gap-1.5">
+                              <DollarSign className="w-3.5 h-3.5" /> Configuração do PIX Parcelado (1x a 10x)
+                            </span>
+                            <span className="text-xs font-extrabold text-foreground">
+                              Total: {formatMoney(vTotal)}
+                            </span>
+                          </div>
+
+                          {/* Opção de Entrada */}
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-2 rounded-lg bg-background border border-border/60">
+                            <div className="space-y-1">
+                              <Label className="text-[11px] font-semibold">Entrada no PIX (R$):</Label>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min={0}
+                                max={vTotal}
+                                placeholder="0,00"
+                                value={condicaoEmEdicao.valorEntrada || ''}
+                                onChange={(e) => {
+                                  const val = Math.min(vTotal, Math.max(0, Number(e.target.value) || 0));
+                                  const s = Math.max(0, vTotal - val);
+                                  const updated: Partial<CondicaoPagamento> = {
+                                    ...condicaoEmEdicao,
+                                    valorEntrada: val,
+                                    valorParcela: Number((s / qtd).toFixed(2)),
+                                  };
+                                  updated.descricao = calcularDescricaoCondicao(updated, total);
+                                  setCondicaoEmEdicao(updated);
+                                }}
+                                className="h-8 text-xs font-bold"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-[11px] font-semibold">Data da Entrada:</Label>
+                              <Input
+                                type="date"
+                                value={condicaoEmEdicao.dataEntrada || formatIsoDate(new Date())}
+                                onChange={(e) => {
+                                  const updated = { ...condicaoEmEdicao, dataEntrada: e.target.value };
+                                  updated.descricao = calcularDescricaoCondicao(updated, total);
+                                  setCondicaoEmEdicao(updated);
+                                }}
+                                className="h-8 text-xs font-semibold"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-[11px] font-semibold">Situação da Entrada:</Label>
+                              <select
+                                value={condicaoEmEdicao.situacaoEntrada || 'A vencer'}
+                                onChange={(e) => {
+                                  const updated = { ...condicaoEmEdicao, situacaoEntrada: e.target.value as any };
+                                  updated.descricao = calcularDescricaoCondicao(updated, total);
+                                  setCondicaoEmEdicao(updated);
+                                }}
+                                className="w-full h-8 px-2 text-xs font-semibold rounded-md bg-background border border-border"
+                              >
+                                <option value="A vencer">A vencer</option>
+                                <option value="Quitada">Quitada (Confirmada)</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          {/* Saldo Restante e Parcelas (1x a 10x) */}
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-2 rounded-lg bg-background border border-border/60">
+                            <div className="space-y-1">
+                              <Label className="text-[11px] font-semibold">Parcelas no PIX (1x a 10x):</Label>
+                              <select
+                                value={qtd}
+                                onChange={(e) => {
+                                  const p = Math.max(1, Math.min(10, Number(e.target.value) || 1));
+                                  const updated: Partial<CondicaoPagamento> = {
+                                    ...condicaoEmEdicao,
+                                    parcelas: p,
+                                    valorParcela: Number((saldo / p).toFixed(2)),
+                                  };
+                                  updated.descricao = calcularDescricaoCondicao(updated, total);
+                                  setCondicaoEmEdicao(updated);
+                                }}
+                                className="w-full h-8 px-2 text-xs font-bold rounded-md bg-background border border-primary/60 text-primary"
+                              >
+                                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+                                  <option key={n} value={n}>
+                                    {n === 1 ? `1x à vista de ${formatMoney(saldo)}` : `${n}x mensais de ${formatMoney(saldo / n)}`}
+                                  </option>
+                                ))}
+                              </select>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-2 pt-1">
-                              <div className="space-y-1">
-                                <Label className="text-[10px] text-muted-foreground font-medium">Ou selecione na lista:</Label>
-                                <select
-                                  value={qtd}
-                                  onChange={(e) => {
-                                    const parc = Number(e.target.value) || 1;
-                                    const updated: Partial<CondicaoPagamento> = {
-                                      ...condicaoEmEdicao,
-                                      saldoTipoPrazo: 'parcelas',
-                                      saldoParcelas: parc,
-                                      saldoValorParcela: Number((saldo / parc).toFixed(2)),
-                                    };
-                                    updated.descricao = calcularDescricaoCondicao(updated, total);
-                                    setCondicaoEmEdicao(updated);
-                                  }}
-                                  className="w-full h-8 px-2 text-xs font-semibold rounded-md bg-background border border-border"
-                                >
-                                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 18, 20, 24].map((n) => (
-                                    <option key={n} value={n}>
-                                      {n === 1 ? `1x de ${formatMoney(saldo)}` : `${n}x de ${formatMoney(saldo / n)} (Saldo: ${formatMoney(saldo)})`}
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
+                            <div className="space-y-1">
+                              <Label className="text-[11px] font-semibold">Dia de Vencimento:</Label>
+                              <select
+                                value={condicaoEmEdicao.diaVencimento || 10}
+                                onChange={(e) => {
+                                  const d = Number(e.target.value) || 10;
+                                  const updated: Partial<CondicaoPagamento> = {
+                                    ...condicaoEmEdicao,
+                                    diaVencimento: d,
+                                  };
+                                  updated.descricao = calcularDescricaoCondicao(updated, total);
+                                  setCondicaoEmEdicao(updated);
+                                }}
+                                className="w-full h-8 px-2 text-xs font-semibold rounded-md bg-background border border-border"
+                              >
+                                {[1, 5, 10, 15, 20, 25, 28, 30].map((d) => (
+                                  <option key={d} value={d}>
+                                    Todo dia {d}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
 
-                              {/* 3. Dia de Vencimento Mensal */}
-                              <div className="space-y-1">
-                                <Label className="text-[10px] text-muted-foreground font-medium">Dia de Vencimento Mensal:</Label>
-                                <select
-                                  value={diaVenc}
-                                  onChange={(e) => {
-                                    const d = Number(e.target.value) || 10;
-                                    let novaDataPrimeiroVenc = condicaoEmEdicao.dataPrimeiroVencimento;
-                                    if (novaDataPrimeiroVenc) {
-                                      const parsed = parseDateSafe(novaDataPrimeiroVenc);
-                                      parsed.setDate(Math.min(d, 28));
-                                      novaDataPrimeiroVenc = formatIsoDate(parsed);
-                                    } else {
-                                      const hoje = new Date();
-                                      const proximoMes = somarMesesSeguro(hoje, 1, d);
-                                      novaDataPrimeiroVenc = formatIsoDate(proximoMes);
-                                    }
-                                    const updated: Partial<CondicaoPagamento> = {
-                                      ...condicaoEmEdicao,
-                                      saldoTipoPrazo: 'parcelas',
-                                      diaVencimento: d,
-                                      dataPrimeiroVencimento: novaDataPrimeiroVenc,
-                                    };
-                                    updated.descricao = calcularDescricaoCondicao(updated, total);
-                                    setCondicaoEmEdicao(updated);
-                                  }}
-                                  className="w-full h-8 px-2 text-xs font-semibold rounded-md bg-background border border-border"
-                                >
-                                  {[1, 5, 10, 15, 20, 25, 26, 28, 30].map((d) => (
-                                    <option key={d} value={d}>
-                                      Todo dia {d} do mês
-                                    </option>
-                                  ))}
-                                </select>
+                            <div className="space-y-1">
+                              <Label className="text-[11px] font-semibold">Saldo Restante:</Label>
+                              <div className="h-8 px-2 flex items-center justify-between font-bold text-xs bg-muted/40 rounded border border-border">
+                                <span>{formatMoney(saldo)}</span>
+                                <span className="text-[10px] text-muted-foreground font-medium">({qtd}x de {formatMoney(valParc)})</span>
                               </div>
                             </div>
                           </div>
                         </div>
                       );
                     })()}
-                  </div>
-                </div>
-              );
-            })()}
 
-              {/* Detalhes de PIX Parcelado (1x a 10x com Entrada opcional) */}
-              {condicaoEmEdicao.tipo === 'pix_parcelado' && (() => {
-                const vTotal = typeof condicaoEmEdicao.valorTotal === 'number' && condicaoEmEdicao.valorTotal > 0 ? condicaoEmEdicao.valorTotal : total;
-                const ent = Math.min(vTotal, Math.max(0, condicaoEmEdicao.valorEntrada || 0));
-                const saldo = Math.max(0, vTotal - ent);
-                const qtd = Math.max(1, Math.min(10, condicaoEmEdicao.parcelas || 3));
-                const valParc = Number((saldo / qtd).toFixed(2));
-                return (
-                  <div className="p-3 rounded-xl bg-muted/40 border border-border/70 space-y-3">
-                    <div className="flex items-center justify-between pb-1 border-b border-border/60">
-                      <span className="text-xs font-bold text-primary flex items-center gap-1.5">
-                        <DollarSign className="w-3.5 h-3.5" /> Configuração do PIX Parcelado (1x a 10x)
-                      </span>
-                      <span className="text-xs font-extrabold text-foreground">
-                        Total: {formatMoney(vTotal)}
-                      </span>
-                    </div>
+                    {/* Construtor Visual Personalizado com Todas as Formas de Pagamento */}
+                    {condicaoEmEdicao.tipo === 'personalizado' && (() => {
+                      const formas: ItemFormaComposta[] =
+                        condicaoEmEdicao.formasCompostas && condicaoEmEdicao.formasCompostas.length > 0
+                          ? condicaoEmEdicao.formasCompostas
+                          : parseTextoParaFormasCompostas(condicaoEmEdicao.descricao || '', total);
+                      const totalAlvo = typeof condicaoEmEdicao.valorTotal === 'number' && condicaoEmEdicao.valorTotal > 0 ? condicaoEmEdicao.valorTotal : total;
+                      const somaValores = formas.reduce((acc, f) => acc + (Number(f.valor) || 0), 0);
+                      const diferenca = Number((totalAlvo - somaValores).toFixed(2));
+                      const diferencaAbs = Math.abs(diferenca);
+                      const estaBalanceado = Math.abs(diferenca) < 0.05;
 
-                    {/* Opção de Entrada */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-2 rounded-lg bg-background border border-border/60">
-                      <div className="space-y-1">
-                        <Label className="text-[11px] font-semibold">Entrada no PIX (R$):</Label>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          min={0}
-                          max={vTotal}
-                          placeholder="0,00"
-                          value={condicaoEmEdicao.valorEntrada || ''}
-                          onChange={(e) => {
-                            const val = Math.min(vTotal, Math.max(0, Number(e.target.value) || 0));
-                            const s = Math.max(0, vTotal - val);
-                            const updated: Partial<CondicaoPagamento> = {
-                              ...condicaoEmEdicao,
-                              valorEntrada: val,
-                              valorParcela: Number((s / qtd).toFixed(2)),
-                            };
-                            updated.descricao = calcularDescricaoCondicao(updated, total);
-                            setCondicaoEmEdicao(updated);
-                          }}
-                          className="h-8 text-xs font-bold"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-[11px] font-semibold">Data da Entrada:</Label>
-                        <Input
-                          type="date"
-                          value={condicaoEmEdicao.dataEntrada || formatIsoDate(new Date())}
-                          onChange={(e) => {
-                            const updated = { ...condicaoEmEdicao, dataEntrada: e.target.value };
-                            updated.descricao = calcularDescricaoCondicao(updated, total);
-                            setCondicaoEmEdicao(updated);
-                          }}
-                          className="h-8 text-xs font-semibold"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-[11px] font-semibold">Situação da Entrada:</Label>
-                        <select
-                          value={condicaoEmEdicao.situacaoEntrada || 'A vencer'}
-                          onChange={(e) => {
-                            const updated = { ...condicaoEmEdicao, situacaoEntrada: e.target.value as any };
-                            updated.descricao = calcularDescricaoCondicao(updated, total);
-                            setCondicaoEmEdicao(updated);
-                          }}
-                          className="w-full h-8 px-2 text-xs font-semibold rounded-md bg-background border border-border"
-                        >
-                          <option value="A vencer">A vencer</option>
-                          <option value="Quitada">Quitada (Confirmada)</option>
-                        </select>
-                      </div>
-                    </div>
+                      const handleAtualizarFormaComposta = (idx: number, campos: Partial<ItemFormaComposta>) => {
+                        const novasFormas = formas.map((item, i) => {
+                          if (i !== idx) return item;
+                          const atualizado = { ...item, ...campos };
+                          if (campos.metodo === 'cartao' && !atualizado.tipoCartao) {
+                            atualizado.tipoCartao = 'credito';
+                          }
+                          return atualizado;
+                        });
+                        const descAuto = montarTextoFormasCompostas(novasFormas, total);
+                        setCondicaoEmEdicao((prev) => ({
+                          ...prev,
+                          formasCompostas: novasFormas,
+                          descricao: descAuto,
+                        }));
+                      };
 
-                    {/* Saldo Restante e Parcelas (1x a 10x) */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-2 rounded-lg bg-background border border-border/60">
-                      <div className="space-y-1">
-                        <Label className="text-[11px] font-semibold">Parcelas no PIX (1x a 10x):</Label>
-                        <select
-                          value={qtd}
-                          onChange={(e) => {
-                            const p = Math.max(1, Math.min(10, Number(e.target.value) || 1));
-                            const updated: Partial<CondicaoPagamento> = {
-                              ...condicaoEmEdicao,
-                              parcelas: p,
-                              valorParcela: Number((saldo / p).toFixed(2)),
-                            };
-                            updated.descricao = calcularDescricaoCondicao(updated, total);
-                            setCondicaoEmEdicao(updated);
-                          }}
-                          className="w-full h-8 px-2 text-xs font-bold rounded-md bg-background border border-primary/60 text-primary"
-                        >
-                          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
-                            <option key={n} value={n}>
-                              {n === 1 ? `1x à vista de ${formatMoney(saldo)}` : `${n}x mensais de ${formatMoney(saldo / n)}`}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                      const handleAdicionarFormaComposta = () => {
+                        const valorSugerido = Math.max(0, diferenca);
+                        const novoItem: ItemFormaComposta = {
+                          id: String(Date.now()),
+                          rotulo: formas.length === 1 ? 'Restante' : `Forma ${formas.length + 1}`,
+                          metodo: 'cartao',
+                          valor: valorSugerido,
+                          parcelas: 3,
+                          tipoCartao: 'credito',
+                          situacao: 'Autorizado',
+                        };
+                        const novasFormas = [...formas, novoItem];
+                        const descAuto = montarTextoFormasCompostas(novasFormas, total);
+                        setCondicaoEmEdicao((prev) => ({
+                          ...prev,
+                          formasCompostas: novasFormas,
+                          descricao: descAuto,
+                        }));
+                      };
 
-                      <div className="space-y-1">
-                        <Label className="text-[11px] font-semibold">Dia de Vencimento:</Label>
-                        <select
-                          value={condicaoEmEdicao.diaVencimento || 10}
-                          onChange={(e) => {
-                            const d = Number(e.target.value) || 10;
-                            const updated: Partial<CondicaoPagamento> = {
-                              ...condicaoEmEdicao,
-                              diaVencimento: d,
-                            };
-                            updated.descricao = calcularDescricaoCondicao(updated, total);
-                            setCondicaoEmEdicao(updated);
-                          }}
-                          className="w-full h-8 px-2 text-xs font-semibold rounded-md bg-background border border-border"
-                        >
-                          {[1, 5, 10, 15, 20, 25, 28, 30].map((d) => (
-                            <option key={d} value={d}>
-                              Todo dia {d}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                      const handleRemoverFormaComposta = (idx: number) => {
+                        if (formas.length <= 1) {
+                          toast.error('Mantenha pelo menos uma forma de pagamento.');
+                          return;
+                        }
+                        const novasFormas = formas.filter((_, i) => i !== idx);
+                        const descAuto = montarTextoFormasCompostas(novasFormas, total);
+                        setCondicaoEmEdicao((prev) => ({
+                          ...prev,
+                          formasCompostas: novasFormas,
+                          descricao: descAuto,
+                        }));
+                      };
 
-                      <div className="space-y-1">
-                        <Label className="text-[11px] font-semibold">Saldo Restante:</Label>
-                        <div className="h-8 px-2 flex items-center justify-between font-bold text-xs bg-muted/40 rounded border border-border">
-                          <span>{formatMoney(saldo)}</span>
-                          <span className="text-[10px] text-muted-foreground font-medium">({qtd}x de {formatMoney(valParc)})</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
+                      const handlePreencherRestante = (idx: number) => {
+                        const somaOutras = formas.filter((_, i) => i !== idx).reduce((s, f) => s + (Number(f.valor) || 0), 0);
+                        const valorSobra = Math.max(0, Number((total - somaOutras).toFixed(2)));
+                        handleAtualizarFormaComposta(idx, { valor: valorSobra });
+                        toast.success(`Valor ajustado para ${formatMoney(valorSobra)}!`);
+                      };
 
-              {/* Construtor Visual Personalizado com Todas as Formas de Pagamento */}
-              {condicaoEmEdicao.tipo === 'personalizado' && (() => {
-                const formas: ItemFormaComposta[] =
-                  condicaoEmEdicao.formasCompostas && condicaoEmEdicao.formasCompostas.length > 0
-                    ? condicaoEmEdicao.formasCompostas
-                    : parseTextoParaFormasCompostas(condicaoEmEdicao.descricao || '', total);
-                const totalAlvo = typeof condicaoEmEdicao.valorTotal === 'number' && condicaoEmEdicao.valorTotal > 0 ? condicaoEmEdicao.valorTotal : total;
-                const somaValores = formas.reduce((acc, f) => acc + (Number(f.valor) || 0), 0);
-                const diferenca = Number((totalAlvo - somaValores).toFixed(2));
-                const diferencaAbs = Math.abs(diferenca);
-                const estaBalanceado = Math.abs(diferenca) < 0.05;
-
-                const handleAtualizarFormaComposta = (idx: number, campos: Partial<ItemFormaComposta>) => {
-                  const novasFormas = formas.map((item, i) => {
-                    if (i !== idx) return item;
-                    const atualizado = { ...item, ...campos };
-                    if (campos.metodo === 'cartao' && !atualizado.tipoCartao) {
-                      atualizado.tipoCartao = 'credito';
-                    }
-                    return atualizado;
-                  });
-                  const descAuto = montarTextoFormasCompostas(novasFormas, total);
-                  setCondicaoEmEdicao((prev) => ({
-                    ...prev,
-                    formasCompostas: novasFormas,
-                    descricao: descAuto,
-                  }));
-                };
-
-                const handleAdicionarFormaComposta = () => {
-                  const valorSugerido = Math.max(0, diferenca);
-                  const novoItem: ItemFormaComposta = {
-                    id: String(Date.now()),
-                    rotulo: formas.length === 1 ? 'Restante' : `Forma ${formas.length + 1}`,
-                    metodo: 'cartao',
-                    valor: valorSugerido,
-                    parcelas: 3,
-                    tipoCartao: 'credito',
-                    situacao: 'Autorizado',
-                  };
-                  const novasFormas = [...formas, novoItem];
-                  const descAuto = montarTextoFormasCompostas(novasFormas, total);
-                  setCondicaoEmEdicao((prev) => ({
-                    ...prev,
-                    formasCompostas: novasFormas,
-                    descricao: descAuto,
-                  }));
-                };
-
-                const handleRemoverFormaComposta = (idx: number) => {
-                  if (formas.length <= 1) {
-                    toast.error('Mantenha pelo menos uma forma de pagamento.');
-                    return;
-                  }
-                  const novasFormas = formas.filter((_, i) => i !== idx);
-                  const descAuto = montarTextoFormasCompostas(novasFormas, total);
-                  setCondicaoEmEdicao((prev) => ({
-                    ...prev,
-                    formasCompostas: novasFormas,
-                    descricao: descAuto,
-                  }));
-                };
-
-                const handlePreencherRestante = (idx: number) => {
-                  const somaOutras = formas.filter((_, i) => i !== idx).reduce((s, f) => s + (Number(f.valor) || 0), 0);
-                  const valorSobra = Math.max(0, Number((total - somaOutras).toFixed(2)));
-                  handleAtualizarFormaComposta(idx, { valor: valorSobra });
-                  toast.success(`Valor ajustado para ${formatMoney(valorSobra)}!`);
-                };
-
-                return (
-                  <div className="p-3.5 rounded-xl bg-muted/40 border border-border/80 space-y-3">
-                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                      <div>
-                        <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                          <Wallet className="h-3.5 w-3.5 text-primary" />
-                          Composição com Todas as Formas de Pagamento
-                        </Label>
-                        <p className="text-[11px] text-muted-foreground">
-                          Combine entradas, cartões, PIX, dinheiro e boletos livremente.
-                        </p>
-                      </div>
-                      <Badge variant="outline" className="text-[10px] font-semibold border-primary/40 text-primary">
-                        {formas.length} {formas.length === 1 ? 'forma' : 'formas'} combinadas
-                      </Badge>
-                    </div>
-
-                    {/* Cards de cada forma */}
-                    <div className="space-y-2.5">
-                      {formas.map((forma, idx) => {
-                        const isCartao = forma.metodo === 'cartao';
-                        const isDebito = isCartao && forma.tipoCartao === 'debito';
-                        const isPixParc = forma.metodo === 'pix_parcelado';
-                        const isBoleto = forma.metodo === 'boleto';
-                        const parcelas = forma.parcelas || 1;
-
-                        return (
-                          <div
-                            key={forma.id || idx}
-                            className="p-2.5 rounded-lg bg-background border border-border/70 space-y-2 shadow-xs"
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-1.5 flex-1 max-w-xs">
-                                <span className="h-5 w-5 rounded-full bg-primary/10 text-primary font-bold text-[10px] flex items-center justify-center shrink-0">
-                                  {idx + 1}
-                                </span>
-                                <Input
-                                  value={forma.rotulo || ''}
-                                  onChange={(e) => handleAtualizarFormaComposta(idx, { rotulo: e.target.value })}
-                                  placeholder="Ex: Entrada, Restante..."
-                                  className="h-7 text-xs font-semibold"
-                                />
-                              </div>
-
-                              <div className="flex items-center gap-1">
-                                {['Entrada', 'Restante', 'Parcela 2'].map((rot) => (
-                                  <button
-                                    key={rot}
-                                    type="button"
-                                    onClick={() => handleAtualizarFormaComposta(idx, { rotulo: rot })}
-                                    className="px-1.5 py-0.5 text-[9px] rounded bg-muted hover:bg-primary/20 hover:text-primary font-medium text-muted-foreground"
-                                  >
-                                    {rot}
-                                  </button>
-                                ))}
-                                {formas.length > 1 && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemoverFormaComposta(idx)}
-                                    className="p-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded transition-colors ml-1"
-                                    title="Remover esta forma"
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </button>
-                                )}
-                              </div>
+                      return (
+                        <div className="p-3.5 rounded-xl bg-muted/40 border border-border/80 space-y-3">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <div>
+                              <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                                <Wallet className="h-3.5 w-3.5 text-primary" />
+                                Composição com Todas as Formas de Pagamento
+                              </Label>
+                              <p className="text-[11px] text-muted-foreground">
+                                Combine entradas, cartões, PIX, dinheiro e boletos livremente.
+                              </p>
                             </div>
+                            <Badge variant="outline" className="text-[10px] font-semibold border-primary/40 text-primary">
+                              {formas.length} {formas.length === 1 ? 'forma' : 'formas'} combinadas
+                            </Badge>
+                          </div>
 
-                            {/* Grid de Configurações da Linha */}
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                              {/* Meio / Método */}
-                              <div className="space-y-1">
-                                <Label className="text-[10px] text-muted-foreground">Forma de Pagamento:</Label>
-                                <select
-                                  value={forma.metodo}
-                                  onChange={(e) => {
-                                    const m = e.target.value as any;
-                                    const sitPadrao = m === 'cartao' ? 'Autorizado' : 'A vencer';
-                                    handleAtualizarFormaComposta(idx, { metodo: m, situacao: sitPadrao });
-                                  }}
-                                  className="w-full h-8 px-2 text-xs font-semibold rounded bg-background border border-border"
+                          {/* Cards de cada forma */}
+                          <div className="space-y-2.5">
+                            {formas.map((forma, idx) => {
+                              const isCartao = forma.metodo === 'cartao';
+                              const isDebito = isCartao && forma.tipoCartao === 'debito';
+                              const isPixParc = forma.metodo === 'pix_parcelado';
+                              const isBoleto = forma.metodo === 'boleto';
+                              const parcelas = forma.parcelas || 1;
+
+                              return (
+                                <div
+                                  key={forma.id || idx}
+                                  className="p-2.5 rounded-lg bg-background border border-border/70 space-y-2 shadow-xs"
                                 >
-                                  <option value="cartao">Cartão de Crédito</option>
-                                  <option value="pix">PIX</option>
-                                  <option value="dinheiro">Dinheiro</option>
-                                  <option value="cartao_debito">Cartão de Débito</option>
-                                  <option value="pix_parcelado">PIX Parcelado</option>
-                                  <option value="boleto">Boleto Bancário</option>
-                                  <option value="transferencia">Transferência</option>
-                                </select>
-                              </div>
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-1.5 flex-1 max-w-xs">
+                                      <span className="h-5 w-5 rounded-full bg-primary/10 text-primary font-bold text-[10px] flex items-center justify-center shrink-0">
+                                        {idx + 1}
+                                      </span>
+                                      <Input
+                                        value={forma.rotulo || ''}
+                                        onChange={(e) => handleAtualizarFormaComposta(idx, { rotulo: e.target.value })}
+                                        placeholder="Ex: Entrada, Restante..."
+                                        className="h-7 text-xs font-semibold"
+                                      />
+                                    </div>
 
-                              {/* Valor */}
-                              <div className="space-y-1">
-                                <div className="flex justify-between items-center">
-                                  <Label className="text-[10px] text-muted-foreground">Valor (R$):</Label>
-                                  {!estaBalanceado && (
-                                    <button
-                                      type="button"
-                                      onClick={() => handlePreencherRestante(idx)}
-                                      className="text-[9px] text-primary hover:underline font-semibold"
-                                      title="Ajusta para o saldo faltante do orçamento"
-                                    >
-                                      Cobrir Saldo
-                                    </button>
-                                  )}
-                                </div>
-                                <Input
-                                  type="number"
-                                  step="0.01"
-                                  min={0}
-                                  value={forma.valor || ''}
-                                  onChange={(e) => handleAtualizarFormaComposta(idx, { valor: Number(e.target.value) || 0 })}
-                                  className="h-8 text-xs font-bold text-foreground"
-                                  placeholder="0,00"
-                                />
-                              </div>
+                                    <div className="flex items-center gap-1">
+                                      {['Entrada', 'Restante', 'Parcela 2'].map((rot) => (
+                                        <button
+                                          key={rot}
+                                          type="button"
+                                          onClick={() => handleAtualizarFormaComposta(idx, { rotulo: rot })}
+                                          className="px-1.5 py-0.5 text-[9px] rounded bg-muted hover:bg-primary/20 hover:text-primary font-medium text-muted-foreground"
+                                        >
+                                          {rot}
+                                        </button>
+                                      ))}
+                                      {formas.length > 1 && (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleRemoverFormaComposta(idx)}
+                                          className="p-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded transition-colors ml-1"
+                                          title="Remover esta forma"
+                                        >
+                                          <Trash2 className="h-3.5 w-3.5" />
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
 
-                              {/* Detalhes de Parcelas ou Situação */}
-                              {isCartao && !isDebito ? (
-                                <div className="space-y-1">
-                                  <Label className="text-[10px] text-muted-foreground">Parcelas no Cartão:</Label>
-                                  <select
-                                    value={forma.parcelas || 1}
-                                    onChange={(e) => handleAtualizarFormaComposta(idx, { parcelas: Number(e.target.value) || 1 })}
-                                    className="w-full h-8 px-2 text-xs font-semibold rounded bg-background border border-border"
-                                  >
-                                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 18].map((n) => (
-                                      <option key={n} value={n}>
-                                        {n === 1 ? '1x (À vista)' : `${n}x de ${formatMoney(forma.valor / n)}`}
-                                      </option>
-                                    ))}
-                                  </select>
+                                  {/* Grid de Configurações da Linha */}
+                                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                    {/* Meio / Método */}
+                                    <div className="space-y-1">
+                                      <Label className="text-[10px] text-muted-foreground">Forma de Pagamento:</Label>
+                                      <select
+                                        value={forma.metodo}
+                                        onChange={(e) => {
+                                          const m = e.target.value as any;
+                                          const sitPadrao = m === 'cartao' ? 'Autorizado' : 'A vencer';
+                                          handleAtualizarFormaComposta(idx, { metodo: m, situacao: sitPadrao });
+                                        }}
+                                        className="w-full h-8 px-2 text-xs font-semibold rounded bg-background border border-border"
+                                      >
+                                        <option value="cartao">Cartão de Crédito</option>
+                                        <option value="pix">PIX</option>
+                                        <option value="dinheiro">Dinheiro</option>
+                                        <option value="cartao_debito">Cartão de Débito</option>
+                                        <option value="pix_parcelado">PIX Parcelado</option>
+                                        <option value="boleto">Boleto Bancário</option>
+                                        <option value="transferencia">Transferência</option>
+                                      </select>
+                                    </div>
+
+                                    {/* Valor */}
+                                    <div className="space-y-1">
+                                      <div className="flex justify-between items-center">
+                                        <Label className="text-[10px] text-muted-foreground">Valor (R$):</Label>
+                                        {!estaBalanceado && (
+                                          <button
+                                            type="button"
+                                            onClick={() => handlePreencherRestante(idx)}
+                                            className="text-[9px] text-primary hover:underline font-semibold"
+                                            title="Ajusta para o saldo faltante do orçamento"
+                                          >
+                                            Cobrir Saldo
+                                          </button>
+                                        )}
+                                      </div>
+                                      <Input
+                                        type="number"
+                                        step="0.01"
+                                        min={0}
+                                        value={forma.valor || ''}
+                                        onChange={(e) => handleAtualizarFormaComposta(idx, { valor: Number(e.target.value) || 0 })}
+                                        className="h-8 text-xs font-bold text-foreground"
+                                        placeholder="0,00"
+                                      />
+                                    </div>
+
+                                    {/* Detalhes de Parcelas ou Situação */}
+                                    {isCartao && !isDebito ? (
+                                      <div className="space-y-1">
+                                        <Label className="text-[10px] text-muted-foreground">Parcelas no Cartão:</Label>
+                                        <select
+                                          value={forma.parcelas || 1}
+                                          onChange={(e) => handleAtualizarFormaComposta(idx, { parcelas: Number(e.target.value) || 1 })}
+                                          className="w-full h-8 px-2 text-xs font-semibold rounded bg-background border border-border"
+                                        >
+                                          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 18].map((n) => (
+                                            <option key={n} value={n}>
+                                              {n === 1 ? '1x (À vista)' : `${n}x de ${formatMoney(forma.valor / n)}`}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                    ) : isPixParc || isBoleto ? (
+                                      <div className="space-y-1">
+                                        <Label className="text-[10px] text-muted-foreground">Parcelas ({isPixParc ? 'PIX' : 'Boleto'}):</Label>
+                                        <select
+                                          value={forma.parcelas || 1}
+                                          onChange={(e) => handleAtualizarFormaComposta(idx, { parcelas: Number(e.target.value) || 1 })}
+                                          className="w-full h-8 px-2 text-xs font-semibold rounded bg-background border border-border"
+                                        >
+                                          {[1, 2, 3, 4, 5, 6, 8, 10, 12].map((n) => (
+                                            <option key={n} value={n}>
+                                              {n === 1 ? '1x à vista' : `${n}x de ${formatMoney(forma.valor / n)}`}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                    ) : (
+                                      <div className="space-y-1">
+                                        <Label className="text-[10px] text-muted-foreground">Situação:</Label>
+                                        <select
+                                          value={forma.situacao || 'A vencer'}
+                                          onChange={(e) => handleAtualizarFormaComposta(idx, { situacao: e.target.value as any })}
+                                          className="w-full h-8 px-2 text-xs font-semibold rounded bg-background border border-border"
+                                        >
+                                          <option value="A vencer">● A vencer</option>
+                                          <option value="Quitada">● Quitada</option>
+                                          <option value="Autorizado">● Autorizado</option>
+                                        </select>
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
-                              ) : isPixParc || isBoleto ? (
-                                <div className="space-y-1">
-                                  <Label className="text-[10px] text-muted-foreground">Parcelas ({isPixParc ? 'PIX' : 'Boleto'}):</Label>
-                                  <select
-                                    value={forma.parcelas || 1}
-                                    onChange={(e) => handleAtualizarFormaComposta(idx, { parcelas: Number(e.target.value) || 1 })}
-                                    className="w-full h-8 px-2 text-xs font-semibold rounded bg-background border border-border"
-                                  >
-                                    {[1, 2, 3, 4, 5, 6, 8, 10, 12].map((n) => (
-                                      <option key={n} value={n}>
-                                        {n === 1 ? '1x à vista' : `${n}x de ${formatMoney(forma.valor / n)}`}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {/* Botão de Adicionar Forma */}
+                          <div className="flex items-center justify-between gap-2 pt-1 flex-wrap">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={handleAdicionarFormaComposta}
+                              className="h-8 text-xs font-semibold gap-1.5 border-dashed border-primary/50 text-primary hover:bg-primary/10"
+                            >
+                              <Plus className="h-3.5 w-3.5" /> Adicionar Outra Forma de Pagamento
+                            </Button>
+
+                            {/* Barra de Balanço */}
+                            <div className="flex items-center gap-2 text-xs">
+                              <span className="text-muted-foreground text-[11px]">
+                                Soma: <strong>{formatMoney(somaValores)}</strong> / {formatMoney(total)}
+                              </span>
+                              {estaBalanceado ? (
+                                <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-[10px] gap-1">
+                                  <Check className="h-3 w-3" /> 100% Coberto
+                                </Badge>
+                              ) : diferenca > 0 ? (
+                                <Badge className="bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 text-[10px]">
+                                  Falta cobrir {formatMoney(diferenca)}
+                                </Badge>
                               ) : (
-                                <div className="space-y-1">
-                                  <Label className="text-[10px] text-muted-foreground">Situação:</Label>
-                                  <select
-                                    value={forma.situacao || 'A vencer'}
-                                    onChange={(e) => handleAtualizarFormaComposta(idx, { situacao: e.target.value as any })}
-                                    className="w-full h-8 px-2 text-xs font-semibold rounded bg-background border border-border"
-                                  >
-                                    <option value="A vencer">● A vencer</option>
-                                    <option value="Quitada">● Quitada</option>
-                                    <option value="Autorizado">● Autorizado</option>
-                                  </select>
-                                </div>
+                                <Badge className="bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30 text-[10px]">
+                                  Excede em {formatMoney(diferencaAbs)}
+                                </Badge>
                               )}
                             </div>
                           </div>
-                        );
-                      })}
-                    </div>
+                        </div>
+                      );
+                    })()}
 
-                    {/* Botão de Adicionar Forma */}
-                    <div className="flex items-center justify-between gap-2 pt-1 flex-wrap">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={handleAdicionarFormaComposta}
-                        className="h-8 text-xs font-semibold gap-1.5 border-dashed border-primary/50 text-primary hover:bg-primary/10"
-                      >
-                        <Plus className="h-3.5 w-3.5" /> Adicionar Outra Forma de Pagamento
-                      </Button>
-
-                      {/* Barra de Balanço */}
-                      <div className="flex items-center gap-2 text-xs">
-                        <span className="text-muted-foreground text-[11px]">
-                          Soma: <strong>{formatMoney(somaValores)}</strong> / {formatMoney(total)}
-                        </span>
-                        {estaBalanceado ? (
-                          <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-[10px] gap-1">
-                            <Check className="h-3 w-3" /> 100% Coberto
-                          </Badge>
-                        ) : diferenca > 0 ? (
-                          <Badge className="bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 text-[10px]">
-                            Falta cobrir {formatMoney(diferenca)}
-                          </Badge>
-                        ) : (
-                          <Badge className="bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30 text-[10px]">
-                            Excede em {formatMoney(diferencaAbs)}
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* Bloco de Ajuste de Datas e Situação de Pagamento */}
-              <div className="p-3 rounded-xl bg-muted/40 border border-border/80 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                    <CalendarDays className="h-4 w-4 text-primary" />
-                    Datas e Situação de Pagamento (Contrato & Caixa)
-                  </Label>
-                  <span className="text-[10px] text-muted-foreground font-medium">
-                    Opcional: defina datas e situações
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {/* Entrada / À Vista */}
-                  {(condicaoEmEdicao.tipo === 'entrada_saldo' ||
-                    condicaoEmEdicao.tipo === 'a_vista' ||
-                    (condicaoEmEdicao.valorEntrada && condicaoEmEdicao.valorEntrada > 0) ||
-                    condicaoEmEdicao.tipo === 'personalizado') && (
-                    <div className="p-2.5 rounded-lg bg-background border border-border/70 space-y-2">
+                    {/* Bloco de Ajuste de Datas e Situação de Pagamento */}
+                    <div className="p-3 rounded-xl bg-muted/40 border border-border/80 space-y-2.5">
                       <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
-                          {condicaoEmEdicao.tipo === 'a_vista' ? 'Pagamento À Vista' : 'Entrada (Sinal)'}
+                        <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                          <CalendarDays className="h-4 w-4 text-primary" />
+                          Datas e Situação de Pagamento (Contrato & Caixa)
+                        </Label>
+                        <span className="text-[10px] text-muted-foreground font-medium">
+                          Opcional: defina datas e situações
                         </span>
-                        {condicaoEmEdicao.situacaoEntrada === 'Quitada' ? (
-                          <Badge className="bg-emerald-600 text-white text-[9px] px-1.5 py-0 h-4">
-                            ✓ Quitada no Caixa
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-amber-600 border-amber-500/40 text-[9px] px-1.5 py-0 h-4">
-                            A Vencer / Pendente
-                          </Badge>
-                        )}
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="space-y-1">
-                          <Label className="text-[10px] text-muted-foreground font-medium">Data do Pagamento:</Label>
-                          <Input
-                            type="date"
-                            value={condicaoEmEdicao.dataEntrada || formatIsoDate(new Date())}
-                            onChange={(e) => {
-                              const upd = { ...condicaoEmEdicao, dataEntrada: e.target.value };
-                              upd.descricao = calcularDescricaoCondicao(upd, total);
-                              setCondicaoEmEdicao(upd);
-                            }}
-                            className="h-7 text-xs font-semibold"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-[10px] text-muted-foreground font-medium">Situação:</Label>
-                          <select
-                            value={condicaoEmEdicao.situacaoEntrada || 'Quitada'}
-                            onChange={(e) => {
-                              const upd = { ...condicaoEmEdicao, situacaoEntrada: e.target.value as any };
-                              upd.descricao = calcularDescricaoCondicao(upd, total);
-                              setCondicaoEmEdicao(upd);
-                            }}
-                            className="w-full h-7 px-1.5 text-xs font-semibold rounded bg-background border border-border"
-                          >
-                            <option value="Quitada">Quitada (Recebida agora)</option>
-                            <option value="A vencer">A vencer (Pendente / A receber)</option>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        {/* Entrada / À Vista */}
+                        {(condicaoEmEdicao.tipo === 'entrada_saldo' ||
+                          condicaoEmEdicao.tipo === 'a_vista' ||
+                          (condicaoEmEdicao.valorEntrada && condicaoEmEdicao.valorEntrada > 0) ||
+                          condicaoEmEdicao.tipo === 'personalizado') && (
+                            <div className="p-2.5 rounded-lg bg-background border border-border/70 space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                                  {condicaoEmEdicao.tipo === 'a_vista' ? 'Pagamento À Vista' : 'Entrada (Sinal)'}
+                                </span>
+                                {condicaoEmEdicao.situacaoEntrada === 'Quitada' ? (
+                                  <Badge className="bg-emerald-600 text-white text-[9px] px-1.5 py-0 h-4">
+                                    ✓ Quitada no Caixa
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-amber-600 border-amber-500/40 text-[9px] px-1.5 py-0 h-4">
+                                    A Vencer / Pendente
+                                  </Badge>
+                                )}
+                              </div>
 
-                  {/* Saldo / Parcelas / Cartão */}
-                  {(condicaoEmEdicao.tipo === 'cartao' ||
-                    condicaoEmEdicao.tipo === 'entrada_saldo' ||
-                    condicaoEmEdicao.tipo === 'pix_parcelado' ||
-                    condicaoEmEdicao.tipo === 'boleto' ||
-                    condicaoEmEdicao.tipo === 'personalizado') && (
-                    <div className="p-2.5 rounded-lg bg-background border border-border/70 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-bold text-primary">
-                          {condicaoEmEdicao.tipo === 'cartao' ? 'Cartão / Parcelamento' : 'Saldo Restante / Parcelas'}
-                        </span>
-                        <Badge variant="outline" className="text-primary border-primary/40 text-[9px] px-1.5 py-0 h-4">
-                          {condicaoEmEdicao.situacaoSaldo || 'A vencer'}
-                        </Badge>
-                      </div>
+                              <div className="grid grid-cols-2 gap-2">
+                                <div className="space-y-1">
+                                  <Label className="text-[10px] text-muted-foreground font-medium">Data do Pagamento:</Label>
+                                  <Input
+                                    type="date"
+                                    value={condicaoEmEdicao.dataEntrada || formatIsoDate(new Date())}
+                                    onChange={(e) => {
+                                      const upd = { ...condicaoEmEdicao, dataEntrada: e.target.value };
+                                      upd.descricao = calcularDescricaoCondicao(upd, total);
+                                      setCondicaoEmEdicao(upd);
+                                    }}
+                                    className="h-7 text-xs font-semibold"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className="text-[10px] text-muted-foreground font-medium">Situação:</Label>
+                                  <select
+                                    value={condicaoEmEdicao.situacaoEntrada || 'Quitada'}
+                                    onChange={(e) => {
+                                      const upd = { ...condicaoEmEdicao, situacaoEntrada: e.target.value as any };
+                                      upd.descricao = calcularDescricaoCondicao(upd, total);
+                                      setCondicaoEmEdicao(upd);
+                                    }}
+                                    className="w-full h-7 px-1.5 text-xs font-semibold rounded bg-background border border-border"
+                                  >
+                                    <option value="Quitada">Quitada (Recebida agora)</option>
+                                    <option value="A vencer">A vencer (Pendente / A receber)</option>
+                                  </select>
+                                </div>
+                              </div>
+                            </div>
+                          )}
 
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="space-y-1">
-                          <Label className="text-[10px] text-muted-foreground font-medium">
-                            {condicaoEmEdicao.tipo === 'entrada_saldo' && condicaoEmEdicao.saldoTipoPrazo === 'dias'
-                              ? 'Data Vencimento Saldo:'
-                              : 'Data 1º Vencimento:'}
-                          </Label>
-                          <Input
-                            type="date"
-                            value={condicaoEmEdicao.dataPrimeiroVencimento || formatIsoDate(somarMesesSeguro(new Date(), 1))}
-                            onChange={(e) => {
-                              const upd = { ...condicaoEmEdicao, dataPrimeiroVencimento: e.target.value };
-                              upd.descricao = calcularDescricaoCondicao(upd, total);
-                              setCondicaoEmEdicao(upd);
-                            }}
-                            className="h-7 text-xs font-semibold"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-[10px] text-muted-foreground font-medium">Situação do Saldo:</Label>
-                          <select
-                            value={condicaoEmEdicao.situacaoSaldo || (condicaoEmEdicao.tipo === 'cartao' ? 'Autorizado' : 'A vencer')}
-                            onChange={(e) => {
-                              const upd = { ...condicaoEmEdicao, situacaoSaldo: e.target.value as any };
-                              upd.descricao = calcularDescricaoCondicao(upd, total);
-                              setCondicaoEmEdicao(upd);
-                            }}
-                            className="w-full h-7 px-1.5 text-xs font-semibold rounded bg-background border border-border"
-                          >
-                            <option value="A vencer">A vencer no prazo</option>
-                            <option value="Quitado">Quitado antecipado</option>
-                            <option value="Autorizado">Autorizado na máquina</option>
-                          </select>
-                        </div>
+                        {/* Saldo / Parcelas / Cartão */}
+                        {(condicaoEmEdicao.tipo === 'cartao' ||
+                          condicaoEmEdicao.tipo === 'entrada_saldo' ||
+                          condicaoEmEdicao.tipo === 'pix_parcelado' ||
+                          condicaoEmEdicao.tipo === 'boleto' ||
+                          condicaoEmEdicao.tipo === 'personalizado') && (
+                            <div className="p-2.5 rounded-lg bg-background border border-border/70 space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[11px] font-bold text-primary">
+                                  {condicaoEmEdicao.tipo === 'cartao' ? 'Cartão / Parcelamento' : 'Saldo Restante / Parcelas'}
+                                </span>
+                                <Badge variant="outline" className="text-primary border-primary/40 text-[9px] px-1.5 py-0 h-4">
+                                  {condicaoEmEdicao.situacaoSaldo || 'A vencer'}
+                                </Badge>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-2">
+                                <div className="space-y-1">
+                                  <Label className="text-[10px] text-muted-foreground font-medium">
+                                    {condicaoEmEdicao.tipo === 'entrada_saldo' && condicaoEmEdicao.saldoTipoPrazo === 'dias'
+                                      ? 'Data Vencimento Saldo:'
+                                      : 'Data 1º Vencimento:'}
+                                  </Label>
+                                  <Input
+                                    type="date"
+                                    value={condicaoEmEdicao.dataPrimeiroVencimento || formatIsoDate(somarMesesSeguro(new Date(), 1))}
+                                    onChange={(e) => {
+                                      const upd = { ...condicaoEmEdicao, dataPrimeiroVencimento: e.target.value };
+                                      upd.descricao = calcularDescricaoCondicao(upd, total);
+                                      setCondicaoEmEdicao(upd);
+                                    }}
+                                    className="h-7 text-xs font-semibold"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className="text-[10px] text-muted-foreground font-medium">Situação do Saldo:</Label>
+                                  <select
+                                    value={condicaoEmEdicao.situacaoSaldo || (condicaoEmEdicao.tipo === 'cartao' ? 'Autorizado' : 'A vencer')}
+                                    onChange={(e) => {
+                                      const upd = { ...condicaoEmEdicao, situacaoSaldo: e.target.value as any };
+                                      upd.descricao = calcularDescricaoCondicao(upd, total);
+                                      setCondicaoEmEdicao(upd);
+                                    }}
+                                    className="w-full h-7 px-1.5 text-xs font-semibold rounded bg-background border border-border"
+                                  >
+                                    <option value="A vencer">A vencer no prazo</option>
+                                    <option value="Quitado">Quitado antecipado</option>
+                                    <option value="Autorizado">Autorizado na máquina</option>
+                                  </select>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                       </div>
 
                       {/* Cronograma das Parcelas em Sequência Automática */}
@@ -8196,78 +8179,76 @@ const PatientOrcamentos = ({ patient }: Props) => {
                         );
                       })()}
                     </div>
-                  )}
-                </div>
-              </div>
 
-              {/* Visão Interna da Clínica — Desconto das Taxas do Cartão */}
-              <CardSimulacaoTaxasCartao
-                condicao={condicaoEmEdicao}
-                totalBase={total}
-                operadoraIdSelecionada={condicaoEmEdicao.operadoraCartaoId}
-                onAlterarOperadora={(opId) =>
-                  setCondicaoEmEdicao((prev) => (prev ? { ...prev, operadoraCartaoId: opId } : null))
-                }
-              />
+                    {/* Visão Interna da Clínica — Desconto das Taxas do Cartão */}
+                    <CardSimulacaoTaxasCartao
+                      condicao={condicaoEmEdicao}
+                      totalBase={total}
+                      operadoraIdSelecionada={condicaoEmEdicao.operadoraCartaoId}
+                      onAlterarOperadora={(opId) =>
+                        setCondicaoEmEdicao((prev) => (prev ? { ...prev, operadoraCartaoId: opId } : null))
+                      }
+                    />
 
-              {/* Descrição em Texto da Condição */}
-              <div className="space-y-1">
-                <div className="flex justify-between items-center">
-                  <Label className="text-xs font-semibold">Texto Detalhado da Condição:</Label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const desc = calcularDescricaoCondicao(condicaoEmEdicao, total);
-                      setCondicaoEmEdicao((prev) => ({ ...prev, descricao: desc }));
-                      toast.info('Texto recalculado automaticamente!');
-                    }}
-                    className="text-[10px] text-primary hover:underline font-medium"
-                  >
-                    Recalcular texto
-                  </button>
-                </div>
-                <Textarea
-                  rows={2}
-                  value={condicaoEmEdicao.descricao || ''}
-                  onChange={(e) => setCondicaoEmEdicao((prev) => ({ ...prev, descricao: e.target.value }))}
-                  placeholder="Descrição da condição..."
-                  className="text-xs font-medium"
-                />
-              </div>
+                    {/* Descrição em Texto da Condição */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between items-center">
+                        <Label className="text-xs font-semibold">Texto Detalhado da Condição:</Label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const desc = calcularDescricaoCondicao(condicaoEmEdicao, total);
+                            setCondicaoEmEdicao((prev) => ({ ...prev, descricao: desc }));
+                            toast.info('Texto recalculado automaticamente!');
+                          }}
+                          className="text-[10px] text-primary hover:underline font-medium"
+                        >
+                          Recalcular texto
+                        </button>
+                      </div>
+                      <Textarea
+                        rows={2}
+                        value={condicaoEmEdicao.descricao || ''}
+                        onChange={(e) => setCondicaoEmEdicao((prev) => ({ ...prev, descricao: e.target.value }))}
+                        placeholder="Descrição da condição..."
+                        className="text-xs font-medium"
+                      />
+                    </div>
 
-              {/* Destaque e Seleção */}
-              <div className="flex flex-col sm:flex-row gap-3 pt-1 border-t border-border/60">
-                <label className="flex items-center gap-2 cursor-pointer text-xs">
-                  <input
-                    type="checkbox"
-                    checked={!!condicaoEmEdicao.destaque}
-                    onChange={(e) => setCondicaoEmEdicao((prev) => ({ ...prev, destaque: e.target.checked }))}
-                    className="rounded border-border text-primary focus:ring-primary"
-                  />
-                  <span>Marcar como <strong>"★ Mais Escolhida / Recomendada"</strong></span>
-                </label>
+                    {/* Destaque e Seleção */}
+                    <div className="flex flex-col sm:flex-row gap-3 pt-1 border-t border-border/60">
+                      <label className="flex items-center gap-2 cursor-pointer text-xs">
+                        <input
+                          type="checkbox"
+                          checked={!!condicaoEmEdicao.destaque}
+                          onChange={(e) => setCondicaoEmEdicao((prev) => ({ ...prev, destaque: e.target.checked }))}
+                          className="rounded border-border text-primary focus:ring-primary"
+                        />
+                        <span>Marcar como <strong>"★ Mais Escolhida / Recomendada"</strong></span>
+                      </label>
 
-                <label className="flex items-center gap-2 cursor-pointer text-xs">
-                  <input
-                    type="checkbox"
-                    checked={!!condicaoEmEdicao.selecionada}
-                    onChange={(e) => setCondicaoEmEdicao((prev) => ({ ...prev, selecionada: e.target.checked }))}
-                    className="rounded border-border text-primary focus:ring-primary"
-                  />
-                  <span>Definir como <strong>Opção Padrão</strong></span>
-                </label>
-              </div>
+                      <label className="flex items-center gap-2 cursor-pointer text-xs">
+                        <input
+                          type="checkbox"
+                          checked={!!condicaoEmEdicao.selecionada}
+                          onChange={(e) => setCondicaoEmEdicao((prev) => ({ ...prev, selecionada: e.target.checked }))}
+                          className="rounded border-border text-primary focus:ring-primary"
+                        />
+                        <span>Definir como <strong>Opção Padrão</strong></span>
+                      </label>
+                    </div>
 
-              <div className="flex justify-end gap-2 pt-2">
-                <Button variant="outline" size="sm" onClick={() => setModalEdicaoCondicaoOpen(false)}>
-                  Cancelar
-                </Button>
-                <Button size="sm" onClick={handleSalvarCondicaoEmEdicaoOrcamento} className="font-bold">
-                  Salvar Condição
-                </Button>
-              </div>
-            </div>
-          )}
+                    <div className="flex justify-end gap-2 pt-2">
+                      <Button variant="outline" size="sm" onClick={() => setModalEdicaoCondicaoOpen(false)}>
+                        Cancelar
+                      </Button>
+                      <Button size="sm" onClick={handleSalvarCondicaoEmEdicaoOrcamento} className="font-bold">
+                        Salvar Condição
+                      </Button>
+                    </div>
+                  </div>
+                )
+              }
         </DialogContent>
       </Dialog>
 

@@ -1418,7 +1418,8 @@ async function executarArquivamentoPdfServidor(
   supabase: any,
   doc: any,
   updatedSnapshot: any,
-  dataHoraIso: string
+  dataHoraIso: string,
+  providedPdfBase64?: string
 ): Promise<{ ok: boolean; pdfPath?: string; signedUrl?: string; error?: string }> {
   const identificador = String(updatedSnapshot.contratoId || doc.itens?.contratoId || doc.identificador || doc.id);
   const targetPacId = doc.paciente_id || updatedSnapshot.pacienteId || updatedSnapshot.paciente?.id;
@@ -1438,6 +1439,7 @@ async function executarArquivamentoPdfServidor(
 
   const canonicalFileName = `Contrato_Assinado_${identificador}.pdf`;
   const canonicalPath = `contratos/${identificador}/${canonicalFileName}`;
+  const formalizadoPath = `contratos/${identificador}/contrato_formalizado.pdf`;
 
   // 1. Receber/enfileirar uma tarefa persistida
   try {
@@ -1459,15 +1461,42 @@ async function executarArquivamentoPdfServidor(
   }
 
   try {
-    // 2. Processar o documento final no servidor utilizando a versão imutável assinada
-    const pdfBytes = gerarPdfServidorContrato(updatedSnapshot, doc);
+    // 2. Processar o documento final no servidor utilizando a versão imutável oficial de 5 páginas
+    let pdfBytes: Uint8Array | null = null;
+    if (providedPdfBase64 && typeof providedPdfBase64 === "string" && providedPdfBase64.length > 1000) {
+      try {
+        const cleanBase64 = providedPdfBase64.replace(/^data:application\/pdf;base64,/, '');
+        const binaryString = atob(cleanBase64);
+        pdfBytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          pdfBytes[i] = binaryString.charCodeAt(i);
+        }
+      } catch (decErr) {
+        console.warn("[contrato-publico] Erro ao decodificar providedPdfBase64:", decErr);
+      }
+    }
+
+    if (!pdfBytes) {
+      // Se não veio pelo payload do cliente, verifica se já existe versão oficial de 5 páginas (>= 1.2MB) no Storage
+      try {
+        const { data: existingBlob } = await supabase.storage.from("documentos-pacientes").download(canonicalPath);
+        if (existingBlob && existingBlob.size >= 1_200_000) {
+          const ab = await existingBlob.arrayBuffer();
+          pdfBytes = new Uint8Array(ab);
+        }
+      } catch (_) {}
+    }
+
+    if (!pdfBytes) {
+      pdfBytes = gerarPdfServidorContrato(updatedSnapshot, doc);
+    }
 
     // 3. Garantir que o bucket privado exista
     try {
       await supabase.storage.createBucket("documentos-pacientes", { public: false });
     } catch (_) {}
 
-    // 4. Armazenar o PDF em bucket privado
+    // 4. Armazenar o PDF em bucket privado tanto no nome canônico quanto em contrato_formalizado.pdf
     const { error: uploadErr } = await supabase.storage
       .from("documentos-pacientes")
       .upload(canonicalPath, pdfBytes, {
@@ -1476,6 +1505,15 @@ async function executarArquivamentoPdfServidor(
       });
 
     if (uploadErr) throw uploadErr;
+
+    try {
+      await supabase.storage
+        .from("documentos-pacientes")
+        .upload(formalizadoPath, pdfBytes, {
+          contentType: "application/pdf",
+          upsert: true,
+        });
+    } catch (_) {}
 
     // 5. Confirmar a existência do arquivo gerando URL assinada
     const { data: signedData, error: signErr } = await supabase.storage
@@ -2190,7 +2228,7 @@ Deno.serve(async (req) => {
       let serverPdfResult: { ok: boolean; pdfPath?: string; signedUrl?: string; error?: string } | null = null;
       if (temDentista) {
         try {
-          serverPdfResult = await executarArquivamentoPdfServidor(supabase, finalDoc, updatedSnapshot, dataHoraIso);
+          serverPdfResult = await executarArquivamentoPdfServidor(supabase, finalDoc, updatedSnapshot, dataHoraIso, body?.pdfBase64);
         } catch (pdfErr) {
           console.warn("[contrato-publico] Aviso ao arquivar PDF no servidor no sign:", pdfErr);
         }
@@ -2316,7 +2354,7 @@ Deno.serve(async (req) => {
       let serverPdfResult: { ok: boolean; pdfPath?: string; signedUrl?: string; error?: string } | null = null;
       if (temPaciente) {
         try {
-          serverPdfResult = await executarArquivamentoPdfServidor(supabase, doc, updatedSnapshot, dataHoraIso);
+          serverPdfResult = await executarArquivamentoPdfServidor(supabase, doc, updatedSnapshot, dataHoraIso, body?.pdfBase64);
         } catch (pdfErr) {
           console.warn("[contrato-publico] Aviso ao arquivar PDF no servidor no sign_professional:", pdfErr);
         }

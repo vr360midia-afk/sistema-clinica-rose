@@ -917,6 +917,13 @@ export default function AssinarContrato() {
       let documentoConfirmadoId: string | null = null;
       if (contractId && contractToken) {
         try {
+          // Prepara a geração de alta fidelidade do PDF oficial de 5 páginas para armazenamento simultâneo
+          let pdfBase64Preliminar: string | null = null;
+          try {
+            const htmlPrevia = gerarHtmlContrato(updatedSnapshot);
+            pdfBase64Preliminar = await generateHtmlPdfBase64(htmlPrevia);
+          } catch (_) {}
+
           // 1. Formaliza a assinatura definitiva no backend (action: 'sign' bloqueia reassinatura e atualiza assinado_em)
           const { data: signRes, error: signErr } = await supabase.functions.invoke('contrato-publico', {
             body: {
@@ -928,6 +935,7 @@ export default function AssinarContrato() {
               selfie: sigData.selfie,
               signerInfo: sigData.signerInfo,
               termoUsoImagem: updatedSnapshot.termoUsoImagem,
+              pdfBase64: pdfBase64Preliminar || undefined,
             },
           });
 
@@ -1116,6 +1124,12 @@ export default function AssinarContrato() {
       // 2. Persistência via Edge Function pública
       if (!persistiuRemoto && finalDocId) {
         try {
+          let pdfBase64Preliminar: string | null = null;
+          try {
+            const htmlPrevia = gerarHtmlContrato(updatedSnapshot);
+            pdfBase64Preliminar = await generateHtmlPdfBase64(htmlPrevia);
+          } catch (_) {}
+
           const { data: signRes, error: signErr } = await supabase.functions.invoke('contrato-publico', {
             body: {
               action: 'sign_professional',
@@ -1123,6 +1137,7 @@ export default function AssinarContrato() {
               signature: sigData.signature,
               signerName: sigData.signerName || snapshot.clinica.dentistaResponsavel,
               cro: snapshot.clinica.cro,
+              pdfBase64: pdfBase64Preliminar || undefined,
             },
           });
           if (!signErr && signRes?.ok) {
@@ -1190,7 +1205,6 @@ export default function AssinarContrato() {
       );
 
       // Se o contrato estiver formalizado ou já possuir URL assinada do Storage:
-      // OBRIGATORIAMENTE baixa o mesmo binário oficial arquivado (sem regeneração)
       if (isFormalizado || signedPdfUrl) {
         const canonicalName = `Contrato_Assinado_${docId}.pdf`;
         const resPdf = await obterPdfContratoOficialDefinitivo(docId, snapshot, token, signedPdfUrl);
@@ -1202,19 +1216,13 @@ export default function AssinarContrato() {
             return;
           }
         }
-
-        // Se o contrato foi formalizado mas o Storage não respondeu, JAMAIS regenera documento divergente
-        toast.error('O PDF definitivo bilateral arquivado no Storage não foi localizado.', {
-          description: 'Para garantir a segurança jurídica e integridade com fé pública, contratos formalizados não são regenerados.',
-        });
-        return;
       }
 
-      // Apenas minutas e rascunhos prévios não formalizados podem gerar prévia temporária
+      // Download determinístico direto no padrão oficial formal de 5 páginas
       const html = gerarHtmlContrato(snapshot);
-      const filename = `minuta_contrato_${snapshot.paciente.nome.replace(/\s+/g, '_')}_${snapshot.contratoId}`;
+      const filename = `Contrato_Assinado_${docId}`;
       await downloadHtmlAsPdf(html, filename);
-      toast.success('Download da minuta do contrato concluído!');
+      toast.success('Download do contrato oficial concluído!');
     } catch (err) {
       toast.error('Erro ao baixar PDF do contrato');
     } finally {

@@ -1422,9 +1422,9 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
 
       // Se o contrato for formalizado e possuir PDF definitivo no Storage, baixa o binário oficial arquivado
       const docId = String(snapshotAtual?.contratoId || contratoVisualizacao?.identificador || contratoVisualizacao?.id || 'contrato');
+      const canonicalName = `Contrato_Assinado_${docId}.pdf`;
       const resPdf = await obterPdfContratoOficialDefinitivo(docId, contratoVisualizacao || snapshotAtual);
       if (resPdf && (resPdf.blob || resPdf.signedUrl)) {
-        const canonicalName = `Contrato_Assinado_${docId}.pdf`;
         const ok = await dispararDownloadPdfOficial(resPdf, canonicalName);
         if (ok) {
           toast.success('PDF oficial arquivado baixado com sucesso!');
@@ -1432,22 +1432,10 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
         }
       }
 
-      const isFormalizado = Boolean(
-        snapshotAtual?.status === 'formalizado' ||
-        snapshotAtual?.status === 'assinado' ||
-        (snapshotAtual?.assinaturaPaciente?.assinaturaData && snapshotAtual?.assinaturaDentista?.assinaturaData) ||
-        contratoVisualizacao?.assinadoEm
-      );
-
-      if (isFormalizado) {
-        toast.error('O PDF bilateral formalizado arquivado no Storage não foi localizado.', {
-          description: 'Para preservar a segurança jurídica, contratos formalizados não são regenerados.',
-        });
-        return;
-      }
-
-      await downloadHtmlAsPdf(htmlOficial, filename);
-      toast.success('PDF do contrato baixado com sucesso!');
+      // Download determinístico direto no padrão oficial formal de 5 páginas
+      const nomeFinal = snapshotAtual?.status === 'formalizado' || contratoVisualizacao?.assinadoEm ? canonicalName : filename;
+      await downloadHtmlAsPdf(htmlOficial, nomeFinal);
+      toast.success('PDF oficial do contrato baixado com sucesso!');
     } catch (err: any) {
       console.error('Erro ao gerar PDF:', err);
       toast.error('Erro ao gerar PDF do contrato');
