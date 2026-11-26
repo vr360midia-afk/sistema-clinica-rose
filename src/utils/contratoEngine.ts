@@ -1867,22 +1867,50 @@ export const mapearDadosContrato = ({
     ? cidadeLimpa
     : 'Maceió';
 
+  const clinicaNomeDefinido = (cfgContrato.nomeClinicaContrato && cfgContrato.nomeClinicaContrato !== 'Clínica Odontológica')
+    ? cfgContrato.nomeClinicaContrato.trim()
+    : (configuracoes?.nomeClinica && configuracoes.nomeClinica !== 'Clínica Odontológica' ? configuracoes.nomeClinica.trim() : 'Duracenski Odontologia');
+
+  const clinicaCnpjDefinido = (cfgContrato.cnpjClinicaContrato && cfgContrato.cnpjClinicaContrato !== 'Não informado')
+    ? cfgContrato.cnpjClinicaContrato.trim()
+    : (configuracoes?.cnpj && configuracoes.cnpj !== 'Não informado' ? configuracoes.cnpj.trim() : '69.890.045/0001-85');
+
+  const clinicaCroDefinido = (cfgContrato.croResponsavelContrato && cfgContrato.croResponsavelContrato !== 'CRO sob consulta')
+    ? cfgContrato.croResponsavelContrato.trim()
+    : (configuracoes?.croResponsavel || dentistaCro?.trim() || 'CRO-AL 06267');
+
+  const clinicaEnderecoDefinido = (cfgContrato.enderecoContrato && cfgContrato.enderecoContrato !== 'Endereço da clínica')
+    ? cfgContrato.enderecoContrato.trim()
+    : (configuracoes?.endereco && configuracoes.endereco !== 'Endereço da clínica' ? configuracoes.endereco.trim() : 'JTR - Edifício Espanha - R. Comerc. José Pontes de Magalhães, 70 - Sl 405 - Jatiúca, Maceió - AL, 57036-250');
+
+  const clinicaTelefoneDefinido = (cfgContrato.telefoneContrato && cfgContrato.telefoneContrato !== 'Não informado')
+    ? cfgContrato.telefoneContrato.trim()
+    : (configuracoes?.telefone || configuracoes?.whatsappNumero || '(82) 99740-0221');
+
+  const clinicaEmailDefinido = (cfgContrato.emailContrato && cfgContrato.emailContrato !== 'Não informado')
+    ? cfgContrato.emailContrato.trim()
+    : (configuracoes?.email || 'contato@duracenskiodontologia.com.br');
+
+  const clinicaDentistaDefinido = (cfgContrato.dentistaResponsavelContrato && cfgContrato.dentistaResponsavelContrato !== 'Cirurgião-Dentista Responsável')
+    ? cfgContrato.dentistaResponsavelContrato.trim()
+    : (configuracoes?.dentistaResponsavel || dentistaNome?.trim() || 'Dra. Rosângela Santos Pereira');
+
   // 2. Dados da Contratada extraídos obrigatoriamente de Configurações → Contrato & PIX
   const dadosClinica: ContratoDadosClinica = {
-    nome: cfgContrato.nomeClinicaContrato?.trim() || configuracoes?.nomeClinica?.trim() || 'Clínica Odontológica',
-    cnpj: cfgContrato.cnpjClinicaContrato?.trim() || configuracoes?.cnpj?.trim() || 'Não informado',
-    cro: cfgContrato.croResponsavelContrato?.trim() || configuracoes?.croResponsavel?.trim() || dentistaCro?.trim() || 'CRO sob consulta',
-    endereco: cfgContrato.enderecoContrato?.trim() || configuracoes?.endereco?.trim() || 'Endereço da clínica',
-    telefone: cfgContrato.telefoneContrato?.trim() || configuracoes?.telefone?.trim() || configuracoes?.whatsappNumero?.trim() || 'Não informado',
-    email: cfgContrato.emailContrato?.trim() || configuracoes?.email?.trim() || 'Não informado',
+    nome: clinicaNomeDefinido,
+    cnpj: clinicaCnpjDefinido,
+    cro: clinicaCroDefinido,
+    endereco: clinicaEnderecoDefinido,
+    telefone: clinicaTelefoneDefinido,
+    email: clinicaEmailDefinido,
     logoUrl: configuracoes?.logoUrl || undefined,
-    cidade: cidadeDefinida,
-    dentistaResponsavel: cfgContrato.dentistaResponsavelContrato?.trim() || configuracoes?.dentistaResponsavel?.trim() || dentistaNome?.trim() || 'Cirurgião-Dentista Responsável',
-    chavePix: cfgContrato?.chavePix?.trim() || '',
-    tipoChavePix: cfgContrato?.tipoChavePix || 'telefone',
-    favorecidoPix: cfgContrato?.favorecidoPix?.trim() || cfgContrato?.nomeClinicaContrato?.trim() || configuracoes?.nomeClinica?.trim() || 'Titular da Conta',
-    cnpjCpfFavorecidoPix: cfgContrato?.cnpjCpfFavorecidoPix?.trim() || cfgContrato?.cnpjClinicaContrato?.trim() || configuracoes?.cnpj?.trim() || '',
-    bancoPix: cfgContrato?.bancoPix?.trim() || '',
+    cidade: cidadeDefinida || 'Maceió - AL',
+    dentistaResponsavel: clinicaDentistaDefinido,
+    chavePix: cfgContrato?.chavePix?.trim() || '69.890.045/0001-85',
+    tipoChavePix: cfgContrato?.tipoChavePix || 'cnpj',
+    favorecidoPix: cfgContrato?.favorecidoPix?.trim() || clinicaNomeDefinido || 'Duracenski Odontologia',
+    cnpjCpfFavorecidoPix: cfgContrato?.cnpjCpfFavorecidoPix?.trim() || clinicaCnpjDefinido || '69.890.045/0001-85',
+    bancoPix: cfgContrato?.bancoPix?.trim() || '301 - DOCK IP S.A',
     instrucoesPix: cfgContrato?.instrucoesPix?.trim() || 'O(A) CONTRATANTE poderá utilizar a câmera do smartphone para leitura do QR Code acima ou efetuar a transferência direta para a chave informada, encaminhando o comprovante para confirmação da baixa da parcela.',
   };
 
@@ -2623,8 +2651,26 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
     return gerarHtmlContratoEndodontia(snapshot);
   }
 
-  const { paciente, clinica, orcamento, financeiro } = snapshot;
-  const dataHojeExtenso = formatarDataPorExtenso(new Date(snapshot.emitidoEm), clinica.cidade || 'Local');
+  const { paciente, orcamento, financeiro } = snapshot;
+
+  // Cura defensiva dos dados da clínica caso o snapshot antigo possua placeholders
+  const rawClinica = snapshot.clinica || {} as ContratoDadosClinica;
+  const clinica: ContratoDadosClinica = {
+    ...rawClinica,
+    nome: (!rawClinica?.nome || rawClinica.nome === 'Clínica Odontológica') ? 'Duracenski Odontologia' : rawClinica.nome,
+    cnpj: (!rawClinica?.cnpj || rawClinica.cnpj === 'Não informado') ? '69.890.045/0001-85' : rawClinica.cnpj,
+    cro: (!rawClinica?.cro || rawClinica.cro === 'CRO sob consulta') ? 'CRO-AL 06267' : rawClinica.cro,
+    endereco: (!rawClinica?.endereco || rawClinica.endereco === 'Endereço da clínica') ? 'JTR - Edifício Espanha - R. Comerc. José Pontes de Magalhães, 70 - Sl 405 - Jatiúca, Maceió - AL, 57036-250' : rawClinica.endereco,
+    telefone: (!rawClinica?.telefone || rawClinica.telefone === 'Não informado') ? '(82) 99740-0221' : rawClinica.telefone,
+    email: (!rawClinica?.email || rawClinica.email === 'Não informado') ? 'contato@duracenskiodontologia.com.br' : rawClinica.email,
+    cidade: (!rawClinica?.cidade || rawClinica.cidade === 'Local' || rawClinica.cidade.toLowerCase().includes('são paulo') || rawClinica.cidade.toLowerCase().includes('sao paulo')) ? 'Maceió - AL' : rawClinica.cidade,
+    dentistaResponsavel: (!rawClinica?.dentistaResponsavel || rawClinica.dentistaResponsavel === 'Cirurgião-Dentista Responsável') ? 'Dra. Rosângela Santos Pereira' : rawClinica.dentistaResponsavel,
+    chavePix: rawClinica?.chavePix || '69.890.045/0001-85',
+    favorecidoPix: rawClinica?.favorecidoPix || 'Duracenski Odontologia',
+    bancoPix: rawClinica?.bancoPix || '301 - DOCK IP S.A',
+  };
+
+  const dataHojeExtenso = formatarDataPorExtenso(new Date(snapshot.emitidoEm), clinica.cidade || 'Maceió - AL');
 
   // Identificador seguro do orçamento: nunca produz #undefined
   const numOrcamentoIdentificador =

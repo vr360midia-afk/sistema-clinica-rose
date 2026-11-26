@@ -122,7 +122,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
   const { configuracoes } = useConfiguracoes();
   const { configContrato, autorizacaoAtiva } = useConfiguracoesContrato();
   const { dentistas } = useDentistas();
-  const { transacoes, addTransacao, deleteTransacao } = useDentalSystem();
+  const { transacoes, addTransacao, deleteTransacao, updatePaciente } = useDentalSystem();
   const { documentos, salvarDocumento } = useDocumentosClinicos(patient?.id);
   const { parceiros } = useParceiros();
 
@@ -139,6 +139,13 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
   const [salvando, setSalvando] = useState<boolean>(false);
   const [baixandoPdf, setBaixandoPdf] = useState<boolean>(false);
   const [copiouLink, setCopiouLink] = useState<boolean>(false);
+
+  // Quick-fill e hidratação de dados cadastrais do paciente no contrato
+  const [quickCpf, setQuickCpf] = useState<string>('');
+  const [quickEndereco, setQuickEndereco] = useState<string>('');
+  const [quickTelefone, setQuickTelefone] = useState<string>('');
+  const [showQuickFill, setShowQuickFill] = useState<boolean>(false);
+  const [salvandoDadosPaciente, setSalvandoDadosPaciente] = useState<boolean>(false);
 
   // Múltiplas condições e flexibilização de pagamento do contrato
   const [condicoesContrato, setCondicoesContrato] = useState<CondicaoPagamento[]>([]);
@@ -243,7 +250,16 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
           const totalOrc = Number(orcamentoAtual.total || 0);
           const totalSnap = Number(snapDoc?.financeiro?.total ?? snapDoc?.financeiro?.valorTotal ?? 0);
 
+          const temClinicaPlaceholder =
+            !snapDoc?.clinica?.nome ||
+            snapDoc.clinica.nome === 'Clínica Odontológica' ||
+            !snapDoc?.clinica?.cnpj ||
+            snapDoc.clinica.cnpj === 'Não informado' ||
+            !snapDoc?.clinica?.endereco ||
+            snapDoc.clinica.endereco === 'Endereço da clínica';
+
           const requerAtualizacao =
+            temClinicaPlaceholder ||
             valExistente?.divergenciaFinanceira ||
             (totalOrc > 0 && Math.abs(totalOrc - totalSnap) > 0.05) ||
             (formasOrc && formasSnap && formasOrc !== formasSnap);
@@ -330,6 +346,132 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
   const isFormalizadoBilateral = useMemo(() => {
     return Boolean(hasAssinaturaPaciente && hasAssinaturaProfissional);
   }, [hasAssinaturaPaciente, hasAssinaturaProfissional]);
+
+  // Sincroniza campos rápidos quando snapshot ou patient mudar
+  useEffect(() => {
+    const cpfFonte = patient?.cpf && patient.cpf !== 'Não informado'
+      ? patient.cpf
+      : (snapshotAtual?.paciente?.cpf && snapshotAtual.paciente.cpf !== 'Não informado' ? snapshotAtual.paciente.cpf : '');
+    setQuickCpf(cpfFonte);
+
+    const endFonte = patient?.endereco && patient.endereco !== 'Não informado'
+      ? patient.endereco
+      : (snapshotAtual?.paciente?.endereco && snapshotAtual.paciente.endereco !== 'Não informado' ? snapshotAtual.paciente.endereco : '');
+    setQuickEndereco(endFonte);
+
+    const telFonte = patient?.telefone && patient.telefone !== 'Não informado'
+      ? patient.telefone
+      : (snapshotAtual?.paciente?.telefone && snapshotAtual.paciente.telefone !== 'Não informado' ? snapshotAtual.paciente.telefone : '');
+    setQuickTelefone(telFonte);
+  }, [patient, snapshotAtual?.paciente?.cpf, snapshotAtual?.paciente?.endereco, snapshotAtual?.paciente?.telefone]);
+
+  // Hidrata dados do paciente caso estejam ausentes no momento da abertura
+  useEffect(() => {
+    const rawId = patient?.id;
+    if (!rawId || !isOpen) return;
+
+    const cpfFaltando = !temValorValido(patient?.cpf) || patient.cpf === 'Não informado';
+    const endFaltando = !temValorValido(patient?.endereco) || patient.endereco === 'Não informado';
+    const telFaltando = !temValorValido(patient?.telefone) || patient.telefone === 'Não informado';
+
+    if (cpfFaltando || endFaltando || telFaltando) {
+      // 1. Tenta carregar do localStorage
+      try {
+        const raw = localStorage.getItem('dental-system-pacientes');
+        if (raw) {
+          const arr = JSON.parse(raw);
+          if (Array.isArray(arr)) {
+            const achado = arr.find((p: any) => p.id === rawId || (p.nome && patient.nome && p.nome.trim().toLowerCase() === patient.nome.trim().toLowerCase()));
+            if (achado) {
+              setSnapshotAtual((prev) => {
+                if (!prev) return prev;
+                return {
+                  ...prev,
+                  paciente: {
+                    ...prev.paciente,
+                    cpf: cpfFaltando && temValorValido(achado.cpf) ? formatarDocumento(achado.cpf) : prev.paciente.cpf,
+                    endereco: endFaltando && temValorValido(achado.endereco) ? (formatarEnderecoCompleto(achado) || achado.endereco) : prev.paciente.endereco,
+                    telefone: telFaltando && temValorValido(achado.telefone) ? formatarTelefone(achado.telefone) : prev.paciente.telefone,
+                    rg: temValorValido(achado.rg) ? achado.rg : prev.paciente.rg,
+                  },
+                };
+              });
+            }
+          }
+        }
+      } catch (_) {}
+
+      // 2. Tenta carregar do Supabase
+      supabase
+        .from('pacientes')
+        .select('*')
+        .eq('id', rawId)
+        .maybeSingle()
+        .then(({ data: pDb }) => {
+          if (pDb) {
+            const endDb = formatarEnderecoCompleto(pDb) || (temValorValido(pDb.endereco) ? pDb.endereco : '');
+            setSnapshotAtual((prev) => {
+              if (!prev) return prev;
+              return {
+                ...prev,
+                paciente: {
+                  ...prev.paciente,
+                  cpf: cpfFaltando && temValorValido(pDb.cpf) ? formatarDocumento(pDb.cpf) : prev.paciente.cpf,
+                  endereco: endFaltando && temValorValido(endDb) ? endDb : prev.paciente.endereco,
+                  telefone: telFaltando && temValorValido(pDb.telefone) ? formatarTelefone(pDb.telefone) : prev.paciente.telefone,
+                  rg: temValorValido(pDb.rg) ? pDb.rg : prev.paciente.rg,
+                },
+              };
+            });
+          }
+        })
+        .catch(() => {});
+    }
+  }, [patient?.id, isOpen]);
+
+  const handleSalvarDadosPacienteRapido = async () => {
+    if (!quickCpf && !quickEndereco && !quickTelefone) {
+      toast.error('Preencha ao menos o CPF ou o Endereço do paciente.');
+      return;
+    }
+    setSalvandoDadosPaciente(true);
+    try {
+      const updates: any = {};
+      if (quickCpf.trim()) updates.cpf = quickCpf.trim();
+      if (quickEndereco.trim()) updates.endereco = quickEndereco.trim();
+      if (quickTelefone.trim()) updates.telefone = quickTelefone.trim();
+
+      if (patient?.id && updatePaciente) {
+        await updatePaciente(patient.id, updates);
+      }
+
+      setSnapshotAtual((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          paciente: {
+            ...prev.paciente,
+            cpf: quickCpf.trim() ? formatarDocumento(quickCpf.trim()) : prev.paciente.cpf,
+            endereco: quickEndereco.trim() ? quickEndereco.trim() : prev.paciente.endereco,
+            telefone: quickTelefone.trim() ? formatarTelefone(quickTelefone.trim()) : prev.paciente.telefone,
+          },
+        };
+      });
+
+      if (patient) {
+        if (quickCpf.trim()) patient.cpf = quickCpf.trim();
+        if (quickEndereco.trim()) patient.endereco = quickEndereco.trim();
+        if (quickTelefone.trim()) patient.telefone = quickTelefone.trim();
+      }
+
+      toast.success('Dados do paciente salvos com sucesso e atualizados no contrato!');
+      setShowQuickFill(false);
+    } catch (err: any) {
+      toast.error('Erro ao salvar dados do paciente: ' + (err.message || 'Erro desconhecido'));
+    } finally {
+      setSalvandoDadosPaciente(false);
+    }
+  };
 
   // Dentista responsável padrão
   useEffect(() => {
@@ -749,12 +891,15 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
   // Validação de campos cadastrais indispensáveis
   const pendenciasCadastrais = useMemo(() => {
     const pendencias: string[] = [];
-    if (!patient?.cpf || patient.cpf === 'Não informado') pendencias.push('CPF');
+    const cpfAtual = snapshotAtual?.paciente?.cpf || patient?.cpf;
+    if (!temValorValido(cpfAtual) || cpfAtual === 'Não informado') pendencias.push('CPF');
     // RG e Estado Civil são opcionais e não bloqueiam a geração/assinatura do contrato
-    if (!patient?.endereco || patient.endereco === 'Não informado') pendencias.push('Endereço');
-    if (!patient?.telefone || patient.telefone === 'Não informado') pendencias.push('Telefone');
+    const endAtual = snapshotAtual?.paciente?.endereco || patient?.endereco;
+    if (!temValorValido(endAtual) || endAtual === 'Não informado') pendencias.push('Endereço');
+    const telAtual = snapshotAtual?.paciente?.telefone || patient?.telefone;
+    if (!temValorValido(telAtual) || telAtual === 'Não informado') pendencias.push('Telefone');
     return pendencias;
-  }, [patient]);
+  }, [patient, snapshotAtual?.paciente?.cpf, snapshotAtual?.paciente?.endereco, snapshotAtual?.paciente?.telefone]);
 
   // Validação de intervalo de parcelas (ex: Outubro -> Dezembro sem Novembro)
   const alertaIntervaloParcelas = useMemo(() => {
@@ -2299,24 +2444,82 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                   )}
                 </div>
 
-                {/* Alerta de Pendências Cadastrais do Paciente */}
+                {/* Alerta e Formulário Rápido de Preenchimento Cadastral do Paciente */}
                 {pendenciasCadastrais.length > 0 && (
-                  <Alert variant="default" className="bg-amber-500/10 border-amber-500/30 text-amber-800 dark:text-amber-200 py-2.5">
-                    <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                    <AlertDescription className="text-xs flex items-center justify-between">
-                      <span>
-                        <strong>Aviso:</strong> Campos pendentes no cadastro: <em>{pendenciasCadastrais.join(', ')}</em>.
-                      </span>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-6 text-xs text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 px-2"
-                        onClick={() => setActiveTab('editar')}
-                      >
-                        Preencher no Contrato
-                      </Button>
-                    </AlertDescription>
-                  </Alert>
+                  <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-amber-900 dark:text-amber-100 space-y-2.5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                        <span className="text-xs font-semibold">
+                          Dados pendentes no cadastro de <em>{patient?.nome || snapshotAtual?.paciente?.nome}</em>: <span className="text-amber-700 dark:text-amber-300 font-bold">{pendenciasCadastrais.join(', ')}</span>
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 self-end sm:self-auto">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs border-amber-500/40 text-amber-800 dark:text-amber-200 hover:bg-amber-500/20 px-2.5 font-medium"
+                          onClick={() => setShowQuickFill((prev) => !prev)}
+                        >
+                          {showQuickFill ? 'Ocultar campos rápidos' : '✏️ Preencher agora (salva no paciente)'}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 text-xs text-amber-800 dark:text-amber-200 hover:bg-amber-500/20 px-2"
+                          onClick={() => setActiveTab('editar')}
+                        >
+                          Aba Editar
+                        </Button>
+                      </div>
+                    </div>
+
+                    {(showQuickFill || pendenciasCadastrais.includes('CPF') || pendenciasCadastrais.includes('Endereço')) && (
+                      <div className="pt-2 border-t border-amber-500/20 grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end">
+                        <div className="sm:col-span-4 space-y-1">
+                          <Label className="text-[11px] font-semibold text-amber-950 dark:text-amber-100">
+                            CPF do Paciente
+                          </Label>
+                          <Input
+                            placeholder="000.000.000-00"
+                            value={quickCpf}
+                            onChange={(e) => setQuickCpf(formatarDocumento(e.target.value))}
+                            className="h-8 text-xs bg-background text-foreground border-amber-500/40 focus-visible:ring-amber-500"
+                          />
+                        </div>
+
+                        <div className="sm:col-span-5 space-y-1">
+                          <Label className="text-[11px] font-semibold text-amber-950 dark:text-amber-100">
+                            Endereço Residencial Completo
+                          </Label>
+                          <Input
+                            placeholder="Rua, número, bairro, cidade - UF"
+                            value={quickEndereco}
+                            onChange={(e) => setQuickEndereco(e.target.value)}
+                            className="h-8 text-xs bg-background text-foreground border-amber-500/40 focus-visible:ring-amber-500"
+                          />
+                        </div>
+
+                        <div className="sm:col-span-3">
+                          <Button
+                            size="sm"
+                            type="button"
+                            disabled={salvandoDadosPaciente}
+                            onClick={handleSalvarDadosPacienteRapido}
+                            className="w-full h-8 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white shadow-sm"
+                          >
+                            {salvandoDadosPaciente ? (
+                              <>
+                                <Loader2 className="h-3 w-3 mr-1 animate-spin" /> Salvando...
+                              </>
+                            ) : (
+                              '💾 Salvar no Paciente'
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 )}
 
                 {/* Alerta de Divergência Financeira vs Orçamento */}

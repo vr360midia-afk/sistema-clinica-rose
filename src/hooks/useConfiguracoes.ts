@@ -24,13 +24,13 @@ export interface ConfiguracoesGerais {
 }
 
 export const defaultConfiguracoes: ConfiguracoesGerais = {
-  nomeClinica: '',
+  nomeClinica: 'Duracenski Odontologia',
   logoUrl: '',
-  cnpj: '',
-  endereco: '',
-  telefone: '',
-  whatsappNumero: '',
-  email: '',
+  cnpj: '69.890.045/0001-85',
+  endereco: 'JTR - Edifício Espanha - R. Comerc. José Pontes de Magalhães, 70 - Sl 405 - Jatiúca, Maceió - AL, 57036-250',
+  telefone: '(82) 99740-0221',
+  whatsappNumero: '(82) 99740-0221',
+  email: 'contato@duracenskiodontologia.com.br',
   emailNotificacoes: true,
   whatsappLembretes: true,
   lembrete24h: true,
@@ -95,13 +95,13 @@ export const useConfiguracoes = () => {
     } else if (data) {
       const row = data as Record<string, unknown>;
       setConfiguracoes({
-        nomeClinica: (row.nome_clinica as string) || '',
+        nomeClinica: (row.nome_clinica as string) || defaultConfiguracoes.nomeClinica,
         logoUrl: (row.logo_url as string) || '',
-        cnpj: (row.cnpj as string) || '',
-        endereco: (row.endereco as string) || '',
-        telefone: (row.telefone as string) || '',
-        whatsappNumero: (row.whatsapp_numero as string) || '',
-        email: (row.email as string) || '',
+        cnpj: (row.cnpj as string) || defaultConfiguracoes.cnpj,
+        endereco: (row.endereco as string) || defaultConfiguracoes.endereco,
+        telefone: (row.telefone as string) || defaultConfiguracoes.telefone,
+        whatsappNumero: (row.whatsapp_numero as string) || defaultConfiguracoes.whatsappNumero,
+        email: (row.email as string) || defaultConfiguracoes.email,
         emailNotificacoes: Boolean(row.email_notificacoes),
         whatsappLembretes: Boolean(row.whatsapp_lembretes),
         lembrete24h: Boolean(row.lembrete_24h),

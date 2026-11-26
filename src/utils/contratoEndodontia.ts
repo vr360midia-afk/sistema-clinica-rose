@@ -37,19 +37,19 @@ export const gerarHtmlContratoEndodontia = (snapshot: ContratoSnapshot): string 
   // 1. Identificação da Contratada extraída exclusivamente de Configurações → Contrato & PIX
   const tipoDocClinica = identificarTipoDocumento(clinica.cnpj);
   const labelDocClinica = tipoDocClinica === 'cpf' ? 'CPF' : 'CNPJ';
-  const nomeContratada = (clinica.nome || 'Clínica Odontológica').trim();
-  const docContratada = temValorValido(clinica.cnpj) ? formatarDocumento(clinica.cnpj) : (clinica.cnpj || 'Não informado');
-  const croContratada = (clinica.cro || 'CRO sob consulta').trim();
-  const responsavelTecnica = (clinica.dentistaResponsavel || clinica.nome || 'Cirurgião-Dentista Responsável').trim();
-  const enderecoProfissional = (clinica.endereco || 'Endereço da clínica').trim();
-  const telefoneContratada = temValorValido(clinica.telefone) ? formatarTelefone(clinica.telefone) : (clinica.telefone || 'Não informado');
-  const emailContratada = (clinica.email || 'Não informado').trim();
+  const nomeContratada = (clinica.nome && clinica.nome !== 'Clínica Odontológica' ? clinica.nome : 'Duracenski Odontologia').trim();
+  const docContratada = temValorValido(clinica.cnpj) && clinica.cnpj !== 'Não informado' ? formatarDocumento(clinica.cnpj) : '69.890.045/0001-85';
+  const croContratada = (clinica.cro && clinica.cro !== 'CRO sob consulta' ? clinica.cro : 'CRO-AL 06267').trim();
+  const responsavelTecnica = (clinica.dentistaResponsavel && clinica.dentistaResponsavel !== 'Cirurgião-Dentista Responsável' ? clinica.dentistaResponsavel : 'Dra. Rosângela Santos Pereira').trim();
+  const enderecoProfissional = (clinica.endereco && clinica.endereco !== 'Endereço da clínica' ? clinica.endereco : 'JTR - Edifício Espanha - R. Comerc. José Pontes de Magalhães, 70 - Sl 405 - Jatiúca, Maceió - AL, 57036-250').trim();
+  const telefoneContratada = temValorValido(clinica.telefone) && clinica.telefone !== 'Não informado' ? formatarTelefone(clinica.telefone) : '(82) 99740-0221';
+  const emailContratada = (clinica.email && clinica.email !== 'Não informado' ? clinica.email : 'contato@duracenskiodontologia.com.br').trim();
 
   // Dados do PIX extraídos exclusivamente de Configurações → Contrato & PIX
-  const chavePixOficial = (clinica?.chavePix && clinica.chavePix !== 'Chave da clínica sob consulta') ? clinica.chavePix.trim() : '';
-  const titularPixOficial = (clinica?.favorecidoPix || clinica?.nome || 'Titular da Conta').trim();
-  const bancoPixOficial = (clinica?.bancoPix || '').trim();
-  const docFavorecidoPix = clinica?.cnpjCpfFavorecidoPix ? formatarDocumento(clinica.cnpjCpfFavorecidoPix) : '';
+  const chavePixOficial = (clinica?.chavePix && clinica.chavePix !== 'Chave da clínica sob consulta') ? clinica.chavePix.trim() : '69.890.045/0001-85';
+  const titularPixOficial = (clinica?.favorecidoPix || clinica?.nome || 'Duracenski Odontologia').trim();
+  const bancoPixOficial = (clinica?.bancoPix || '301 - DOCK IP S.A').trim();
+  const docFavorecidoPix = clinica?.cnpjCpfFavorecidoPix ? formatarDocumento(clinica.cnpjCpfFavorecidoPix) : '69.890.045/0001-85';
   const instrucoesPixOficial = clinica?.instrucoesPix || 'O(A) CONTRATANTE poderá utilizar a câmera do smartphone ou app bancário para leitura do QR Code acima ou copiar o código PIX.';
 
   const temAlgumPix = financeiro.parcelas.some((p) =>

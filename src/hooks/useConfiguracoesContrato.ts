@@ -47,20 +47,20 @@ export const getStorageKey = (clinicaId?: string | null): string => {
 };
 
 export const getDefaultConfigContrato = (configGerais?: any): ConfiguracoesContrato => {
-  const cnpjClinica = configGerais?.cnpj || '';
-  const nomeClinica = configGerais?.nomeClinica || configGerais?.nome_clinica || '';
+  const cnpjClinica = configGerais?.cnpj || '69.890.045/0001-85';
+  const nomeClinica = configGerais?.nomeClinica || configGerais?.nome_clinica || 'Duracenski Odontologia';
   const dentista = configGerais?.dentistaResponsavel || configGerais?.dentista_responsavel || 'Dra. Rosângela Santos Pereira';
   const cro = configGerais?.croResponsavel || configGerais?.cro || 'CRO-AL 06267';
-  const endereco = configGerais?.endereco || '';
-  const telefone = configGerais?.telefone || configGerais?.whatsappNumero || configGerais?.whatsapp_numero || '';
-  const email = configGerais?.email || '';
+  const endereco = configGerais?.endereco || 'JTR - Edifício Espanha - R. Comerc. José Pontes de Magalhães, 70 - Sl 405 - Jatiúca, Maceió - AL, 57036-250';
+  const telefone = configGerais?.telefone || configGerais?.whatsappNumero || configGerais?.whatsapp_numero || '(82) 99740-0221';
+  const email = configGerais?.email || 'contato@duracenskiodontologia.com.br';
 
   return {
-    chavePix: cnpjClinica,
+    chavePix: configGerais?.chavePix || cnpjClinica,
     tipoChavePix: 'cnpj',
-    favorecidoPix: nomeClinica || 'Titular da Conta',
+    favorecidoPix: nomeClinica || 'Duracenski Odontologia',
     cnpjCpfFavorecidoPix: cnpjClinica,
-    bancoPix: '',
+    bancoPix: configGerais?.bancoPix || '301 - DOCK IP S.A',
     instrucoesPix:
       'O(A) CONTRATANTE poderá utilizar a câmera do smartphone para leitura do QR Code acima ou efetuar a transferência direta para a chave informada, encaminhando o comprovante para confirmação da baixa da parcela.',
 
@@ -94,9 +94,19 @@ export const carregarConfiguracoesContratoSync = (clinicaId?: string | null, con
         return {
           ...padrao,
           ...parsed,
-          chavePix: parsed.chavePix || padrao.chavePix,
+          nomeClinicaContrato: parsed.nomeClinicaContrato?.trim() || padrao.nomeClinicaContrato,
+          cnpjClinicaContrato: parsed.cnpjClinicaContrato?.trim() || padrao.cnpjClinicaContrato,
+          croResponsavelContrato: parsed.croResponsavelContrato?.trim() || padrao.croResponsavelContrato,
+          dentistaResponsavelContrato: parsed.dentistaResponsavelContrato?.trim() || padrao.dentistaResponsavelContrato,
+          enderecoContrato: parsed.enderecoContrato?.trim() || padrao.enderecoContrato,
+          telefoneContrato: parsed.telefoneContrato?.trim() || padrao.telefoneContrato,
+          emailContrato: parsed.emailContrato?.trim() || padrao.emailContrato,
+          cidadeForoContrato: parsed.cidadeForoContrato?.trim() || padrao.cidadeForoContrato,
+          chavePix: parsed.chavePix?.trim() || padrao.chavePix,
           tipoChavePix: parsed.tipoChavePix || padrao.tipoChavePix,
-          favorecidoPix: parsed.favorecidoPix || padrao.favorecidoPix,
+          favorecidoPix: parsed.favorecidoPix?.trim() || padrao.favorecidoPix,
+          cnpjCpfFavorecidoPix: parsed.cnpjCpfFavorecidoPix?.trim() || padrao.cnpjCpfFavorecidoPix,
+          bancoPix: parsed.bancoPix?.trim() || padrao.bancoPix,
           assinaturaPadraoDentista: parsed.assinaturaPadraoDentista || localStorage.getItem('assinatura_padrao_dentista') || '',
           autoAssinarContrato: parsed.autoAssinarContrato !== undefined ? Boolean(parsed.autoAssinarContrato) : true,
         };

@@ -129,13 +129,13 @@ export const validarDocumento = (
 };
 
 /**
- * Identifica se um documento é CPF (11 dígitos ou menos) ou CNPJ (14 dígitos).
+ * Identifica se um documento é CPF (11 dígitos ou menos, padrão para pacientes) ou CNPJ (mais de 11 dígitos, tipicamente 14).
  */
 export const identificarTipoDocumento = (doc?: string | null): 'cpf' | 'cnpj' => {
-  if (!doc) return 'cnpj';
+  if (!doc) return 'cpf';
   const limpo = String(doc).replace(/\D/g, '');
-  if (limpo.length > 0 && limpo.length <= 11) return 'cpf';
-  return 'cnpj';
+  if (limpo.length > 11) return 'cnpj';
+  return 'cpf';
 };
 
 /**
