@@ -276,6 +276,36 @@ console.log('\nCENÁRIO 5: Pagamento com entrada e saldo');
   const somaTodas = snapEnt.financeiro.parcelas.reduce((acc, p) => acc + p.valor, 0);
   assert(Math.abs(somaTodas - 10000) < 0.01, `Soma da entrada + parcelas fecha R$ 10.000,00 (obtido: ${somaTodas})`);
   assert(validarIntegridadeOrcamentoContrato(orcEntradaSaldo, snapEnt).valido === true, 'Validação de integridade aprovada');
+
+  // Cenário 5b: Entrada de R$ 4.000 + 4 parcelas do saldo de R$ 1.000 (onde parcelas contém apenas o saldo)
+  const snapSaldoSeparado: any = {
+    emitidoEm: new Date().toISOString(),
+    paciente: mockPatient,
+    clinica: mockConfig,
+    orcamento: { id: 'orc-8k', total: 8000, subtotal: 8000, itens: [{ nome: 'Procedimento Odontológico', quantidade: 1, valorTotal: 8000 }] },
+    financeiro: {
+      total: 8000,
+      valorTotal: 8000,
+      subtotal: 8000,
+      entrada: 4000,
+      quantidadeParcelas: 4,
+      valorParcela: 1000,
+      formaPagamento: 'Entrada: R$ 4.000,00 via PIX + Saldo: R$ 4.000,00 em 4x de R$ 1.000,00 no Boleto Bancário',
+      parcelas: [
+        { numero: 1, descricao: 'Boleto Bancário 1/4', valor: 1000, vencimento: '26/12/2026', metodo: 'Boleto Bancário', status: 'A vencer' },
+        { numero: 2, descricao: 'Boleto Bancário 2/4', valor: 1000, vencimento: '26/01/2027', metodo: 'Boleto Bancário', status: 'A vencer' },
+        { numero: 3, descricao: 'Boleto Bancário 3/4', valor: 1000, vencimento: '26/02/2027', metodo: 'Boleto Bancário', status: 'A vencer' },
+        { numero: 4, descricao: 'Boleto Bancário 4/4', valor: 1000, vencimento: '26/03/2027', metodo: 'Boleto Bancário', status: 'A vencer' },
+      ],
+    },
+  };
+  const valSaldo = validarIntegridadeOrcamentoContrato({ total: 8000 }, snapSaldoSeparado);
+  assert(valSaldo.valido === true, 'Validação de integridade aprovada com entrada e saldo separados');
+  const valCrono = validarCronogramaFinanceiroContrato(snapSaldoSeparado);
+  assert(valCrono.valido === true, 'Validação de cronograma aprovada com entrada e saldo separados');
+  const htmlGerado = gerarHtmlContrato(snapSaldoSeparado);
+  assert(htmlGerado.includes('Entrada Inicial'), 'HTML do contrato inclui a linha de Entrada Inicial no cronograma');
+  assert(htmlGerado.includes('Boleto Bancário 1/4'), 'HTML do contrato mantém as parcelas de boleto');
 }
 
 // -----------------------------------------------------------------------------

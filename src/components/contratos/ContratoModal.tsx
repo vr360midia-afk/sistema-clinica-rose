@@ -39,6 +39,7 @@ import {
   Building2,
   CreditCard,
   X,
+  Plus,
   RefreshCw,
   Sparkles,
   Camera,
@@ -71,6 +72,7 @@ import {
   mapearDadosContrato,
   gerarHtmlContrato,
   ContratoSnapshot,
+  ContratoParcela,
   gerarLinkAssinaturaContrato,
   emitirContratoPersistido,
   isContratoLenteResina,
@@ -2765,6 +2767,66 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                               <span>Parcelas e Cronograma Oficial (Cláusula 3ª)</span>
                               <span className="text-[10px] text-muted-foreground font-normal">Edite a data, valor ou situação de cada parcela</span>
                             </Label>
+
+                            {(() => {
+                              const somaP = (snapshotAtual.financeiro.parcelas || []).reduce((acc, p) => acc + (Number(p.valor) || 0), 0);
+                              const ent = Number(snapshotAtual.financeiro.entrada || 0);
+                              const tot = Number(snapshotAtual.financeiro.total ?? (snapshotAtual.financeiro as any)?.valorTotal ?? 0);
+                              const temEntNaLista = (snapshotAtual.financeiro.parcelas || []).some((p) => /entrada|sinal/i.test(p?.descricao || ''));
+                              const bateComEnt = !temEntNaLista && ent > 0 && Math.abs((somaP + ent) - tot) <= 0.05;
+
+                              return (
+                                <div className="flex flex-wrap items-center justify-between gap-2 p-2 rounded-lg bg-muted/40 border border-border/70 text-xs">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="text-muted-foreground">Soma das parcelas:</span>
+                                    <strong className="text-foreground">{formatMoney(somaP)}</strong>
+                                    {bateComEnt && (
+                                      <>
+                                        <span className="text-muted-foreground">+ Entrada:</span>
+                                        <strong className="text-emerald-600 dark:text-emerald-400">{formatMoney(ent)}</strong>
+                                        <span className="text-muted-foreground">=</span>
+                                        <strong className="text-primary font-bold">{formatMoney(somaP + ent)}</strong>
+                                        <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800 py-0 h-5">
+                                          ✓ Total conciliado ({formatMoney(tot)})
+                                        </Badge>
+                                      </>
+                                    )}
+                                  </div>
+
+                                  {!temEntNaLista && ent > 0 && (
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-6 text-[10px] gap-1 px-2 border-primary/30 text-primary hover:bg-primary/10"
+                                      onClick={() => {
+                                        const dataHoje = new Date().toLocaleDateString('pt-BR');
+                                        const pEntrada: ContratoParcela = {
+                                          numero: 1,
+                                          descricao: 'Entrada Inicial (PIX)',
+                                          vencimento: dataHoje,
+                                          valor: ent,
+                                          metodo: 'PIX',
+                                          status: 'Quitada',
+                                        };
+                                        const novas = [
+                                          pEntrada,
+                                          ...(snapshotAtual.financeiro.parcelas || []).map((p, idx) => ({
+                                            ...p,
+                                            numero: idx + 2,
+                                          })),
+                                        ];
+                                        handleUpdateSnapshotField('financeiro.parcelas', novas);
+                                        toast.success('Entrada adicionada ao cronograma com sucesso!');
+                                      }}
+                                    >
+                                      <Plus className="h-3 w-3" />
+                                      <span>Incluir Entrada como Linha 1</span>
+                                    </Button>
+                                  )}
+                                </div>
+                              );
+                            })()}
 
                             {alertaIntervaloParcelas && (
                               <div className="p-2.5 rounded-md bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-xs flex items-start gap-2">

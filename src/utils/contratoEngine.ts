@@ -1502,8 +1502,20 @@ export function validarCronogramaFinanceiroContrato(
     erros.push('O cronograma financeiro está vazio: nenhuma parcela foi preenchida');
   } else {
     const soma = parcelas.reduce((acc, p) => acc + (Number(p.valor) || 0), 0);
-    if (Math.abs(soma - total) > 0.05) {
-      erros.push(`A soma das parcelas (${formatMoney(soma)}) diverge do total do contrato (${formatMoney(total)})`);
+    const entradaValor = Number(fin.entrada ?? (fin as any).valorEntrada ?? 0);
+    const temParcelaEntrada = parcelas.some((p) => /entrada|sinal/i.test(p?.descricao || ''));
+
+    const bateDireto = Math.abs(soma - total) <= 0.05;
+    const bateComEntrada = entradaValor > 0 && Math.abs((soma + entradaValor) - total) <= 0.05;
+
+    if (!bateDireto && !bateComEntrada) {
+      if (entradaValor > 0 && !temParcelaEntrada) {
+        erros.push(
+          `A soma das parcelas do saldo (${formatMoney(soma)}) somada à entrada (${formatMoney(entradaValor)}) totaliza ${formatMoney(soma + entradaValor)}, divergindo do total do contrato (${formatMoney(total)})`
+        );
+      } else {
+        erros.push(`A soma das parcelas (${formatMoney(soma)}) diverge do total do contrato (${formatMoney(total)})`);
+      }
     }
 
     parcelas.forEach((p, idx) => {
@@ -1613,10 +1625,24 @@ export function validarIntegridadeOrcamentoContrato(
     erros.push('O cronograma financeiro não possui parcelas cadastradas.');
   } else {
     const somaParcelas = parcelas.reduce((acc, p) => acc + (Number(p.valor) || 0), 0);
-    if (Math.abs(somaParcelas - totalContrato) > 0.05) {
-      erros.push(
-        `A soma das parcelas do cronograma (${formatMoney(somaParcelas)}) não totaliza o valor global contratual (${formatMoney(totalContrato)}).`
-      );
+    const entradaValor = Number(fin.entrada ?? (fin as any).valorEntrada ?? 0);
+    const temParcelaEntrada = parcelas.some((p) => /entrada|sinal/i.test(p?.descricao || ''));
+
+    // O cronograma é válido se a soma das parcelas atingir o total do contrato diretamente (quando a entrada já é uma das parcelas)
+    // OU se a soma das parcelas do saldo + o valor da entrada totalizarem o valor global contratual
+    const bateDireto = Math.abs(somaParcelas - totalContrato) <= 0.05;
+    const bateComEntrada = entradaValor > 0 && Math.abs((somaParcelas + entradaValor) - totalContrato) <= 0.05;
+
+    if (!bateDireto && !bateComEntrada) {
+      if (entradaValor > 0 && !temParcelaEntrada) {
+        erros.push(
+          `A soma das parcelas do saldo (${formatMoney(somaParcelas)}) somada à entrada (${formatMoney(entradaValor)}) totaliza ${formatMoney(somaParcelas + entradaValor)}, divergindo do valor global contratual (${formatMoney(totalContrato)}).`
+        );
+      } else {
+        erros.push(
+          `A soma das parcelas do cronograma (${formatMoney(somaParcelas)}) não totaliza o valor global contratual (${formatMoney(totalContrato)}).`
+        );
+      }
     }
 
     const qtdEsperada = fin.entrada && fin.entrada > 0
@@ -2581,6 +2607,41 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
     ];
   }
 
+  // Se houver valor de entrada registrado mas nenhuma parcela de entrada na tabela,
+  // e a soma das parcelas do saldo + entrada fechar o total do contrato, injeta a Entrada Inicial no topo da tabela
+  const entradaValorEfetiva = Number(financeiro?.entrada ?? (financeiro as any)?.valorEntrada ?? 0);
+  const temEntradaNaTabelaEfetiva = parcelasEfetivas.some((p) => /entrada|sinal/i.test(p?.descricao || ''));
+  if (entradaValorEfetiva > 0 && !temEntradaNaTabelaEfetiva && parcelasEfetivas.length > 0) {
+    const somaParc = parcelasEfetivas.reduce((acc, p) => acc + (Number(p?.valor) || 0), 0);
+    if (Math.abs((somaParc + entradaValorEfetiva) - valorTotalReal) <= 0.05) {
+      const formaTexto = financeiro?.formaPagamento || orcamento?.formasPagamento || '';
+      let mEntrada = 'PIX';
+      if (/dinheiro/i.test(formaTexto) && /entrada.*dinheiro/i.test(formaTexto)) mEntrada = 'Dinheiro';
+      else if (/cart[aã]o.*d[eé]bito/i.test(formaTexto)) mEntrada = 'Cartão de Débito';
+      else if (/cart[aã]o.*cr[eé]dito/i.test(formaTexto)) mEntrada = 'Cartão de Crédito';
+      else if (/transfer[eê]ncia/i.test(formaTexto)) mEntrada = 'Transferência';
+
+      const isQuitada = /quitad|pago|paga/i.test(formaTexto) || true;
+      const dataEntrada = snapshot.emitidoEm ? formatarData(new Date(snapshot.emitidoEm)) : formatarData(new Date());
+
+      const parcelaEntradaInjetada: ContratoParcela = {
+        numero: 1,
+        descricao: `Entrada Inicial (${mEntrada})`,
+        vencimento: dataEntrada,
+        valor: entradaValorEfetiva,
+        metodo: mEntrada,
+        status: isQuitada ? 'Quitada' : 'Pendente',
+      };
+
+      const parcelasRenumeradas = parcelasEfetivas.map((p, idx) => ({
+        ...p,
+        numero: idx + 2,
+      }));
+
+      parcelasEfetivas = [parcelaEntradaInjetada, ...parcelasRenumeradas];
+    }
+  }
+
   const incluiLentes = isContratoLenteResina(snapshot);
   let numeroClausula = 0;
   const numClausula = () => {
@@ -3034,7 +3095,7 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
           </tr>
         </thead>
         <tbody>
-          ${orcamento.itens.map((item, idx) => {
+          ${(orcamento?.itens || []).map((item, idx) => {
             const q = Number(item.quantidade) || 1;
             const vu = Number(item.valorUnitario ?? (item as any).valor ?? ((item as any).valorTotal ? (item as any).valorTotal / q : 0));
             const vt = Number((item as any).valorTotal ?? (vu * q));
