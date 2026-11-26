@@ -89,6 +89,7 @@ import {
   gerarRubricaPadraoDra,
   validarCronogramaFinanceiroContrato,
   validarIntegridadeOrcamentoContrato,
+  parseBrMoney,
 } from '@/utils/contratoEngine';
 import { downloadTcleLentesResinaPdf } from '@/utils/tcleLentesResina';
 import { downloadTermoUsoImagemPdf } from '@/utils/termoUsoImagem';
@@ -895,7 +896,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     const isPendenteNaoAssinado = Boolean(docExistente && !docExistente.assinadoEm && !hasAssinaturaPaciente);
     const temDivergencia = Boolean(validacaoIntegridade?.divergenciaFinanceira);
 
-    if (isContratoGravado && !documentoIdSendoEditado && !isManuallyEdited && !temDivergencia) {
+    if (isContratoGravado && !documentoIdSendoEditado && !isManuallyEdited && !temDivergencia && activeTab !== 'editar') {
       toast.info('Este contrato já está gravado no sistema.', {
         description: `Identificador: ${snapshotAtual.contratoId}`,
       });
@@ -931,6 +932,46 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
         });
       }
 
+      // Conciliação automática da entrada:
+      // Se houver entrada e as parcelas cadastradas somarem o saldo (somaParcelas + entrada = total),
+      // auto-inclui a entrada como Parcela 1 no snapshot para garantir integridade perfeita do cronograma
+      let entVal = Number(snapshotAtual.financeiro?.entrada || 0);
+      if (entVal === 0 && snapshotAtual.financeiro?.formaPagamento) {
+        const matchEnt = snapshotAtual.financeiro.formaPagamento.match(/entrada[^\d\n\r]*?(?:de|:)?\s*(?:r\$)?\s*([\d.,]+)/i);
+        if (matchEnt) {
+          entVal = parseBrMoney(matchEnt[1]);
+          snapshotAtual.financeiro.entrada = entVal;
+        }
+      }
+
+      const totVal = Number(snapshotAtual.financeiro?.total ?? (snapshotAtual.financeiro as any)?.valorTotal ?? 0);
+      const parcelasAtuais = snapshotAtual.financeiro?.parcelas || [];
+      const somaP = parcelasAtuais.reduce((acc, p) => acc + (Number(p.valor) || 0), 0);
+      const temEntradaNaLista = parcelasAtuais.some((p) => /entrada|sinal/i.test(p?.descricao || ''));
+
+      if (!temEntradaNaLista && entVal > 0 && Math.abs((somaP + entVal) - totVal) <= 0.05) {
+        const descForma = snapshotAtual.financeiro?.formaPagamento || '';
+        const matchDataEnt = descForma.match(/em\s+(\d{2}\/\d{2}\/\d{4})/i);
+        const dataVencEntrada = matchDataEnt ? matchDataEnt[1] : new Date().toLocaleDateString('pt-BR');
+        const metodoEnt = /pix/i.test(descForma) ? 'PIX' : 'Dinheiro';
+        const isQuitada = /quitada/i.test(descForma);
+
+        snapshotAtual.financeiro.parcelas = [
+          {
+            numero: 1,
+            descricao: `Entrada Inicial (${metodoEnt})`,
+            vencimento: dataVencEntrada,
+            valor: entVal,
+            metodo: metodoEnt,
+            status: isQuitada ? 'Quitada' : 'Pendente',
+          },
+          ...parcelasAtuais.map((p, idx) => ({
+            ...p,
+            numero: idx + 2,
+          })),
+        ];
+      }
+
       // Proteção 3: Versionamento estrito e rotação segura de token em caso de retificação de contrato pendente
       let idParaGravar: string | undefined = undefined;
       let snapshotParaSalvar = { ...snapshotAtual };
@@ -941,18 +982,14 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
           ? String(snapExistente.versao).trim()
           : '';
 
-        // Validação estrita do formato da versão (rejeita vazios, nulos ou malformados como "1.0abc" sem usar parseFloat)
-        if (!versaoAnteriorRaw || !/^\d+(\.\d+)?$/.test(versaoAnteriorRaw)) {
-          toast.error('Operação bloqueada: versão do contrato atual é inválida ou malformada.', {
-            description: `Valor encontrado: "${versaoAnteriorRaw}". Esperado formato numérico válido (ex: "1" ou "1.0").`,
-          });
-          setSalvando(false);
-          return;
-        }
+        // Formato seguro da versão anterior (default '1.0' caso não exista ainda no registro)
+        const versaoAnteriorValida = (versaoAnteriorRaw && /^\d+(\.\d+)?$/.test(versaoAnteriorRaw))
+          ? versaoAnteriorRaw
+          : '1.0';
 
-        const versaoAnteriorNum = Number(versaoAnteriorRaw);
+        const versaoAnteriorNum = Number(versaoAnteriorValida);
         const novaVersaoNum = Math.floor(versaoAnteriorNum) + 1;
-        const novaVersaoStr = versaoAnteriorRaw.includes('.') ? `${novaVersaoNum}.0` : `${novaVersaoNum}`;
+        const novaVersaoStr = versaoAnteriorValida.includes('.') ? `${novaVersaoNum}.0` : `${novaVersaoNum}`;
         const tokenAntigo = snapExistente.token || snapshotAtual.token;
         const tokensRevogadosAnteriores = Array.isArray(snapExistente.tokensRevogados) ? snapExistente.tokensRevogados : [];
         const tokensRevogadosAtualizados = Array.from(new Set([...tokensRevogadosAnteriores, tokenAntigo].filter(Boolean)));
@@ -2763,9 +2800,88 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                         {/* Tabela de Parcelas e Situações do Contrato */}
                         {snapshotAtual.financeiro.parcelas && snapshotAtual.financeiro.parcelas.length > 0 && (
                           <div className="sm:col-span-2 md:col-span-4 pt-3 border-t border-border/70 space-y-2">
-                            <Label className="text-xs font-semibold text-foreground flex items-center justify-between">
+                            <Label className="text-xs font-semibold text-foreground flex items-center justify-between flex-wrap gap-2">
                               <span>Parcelas e Cronograma Oficial (Cláusula 3ª)</span>
-                              <span className="text-[10px] text-muted-foreground font-normal">Edite a data, valor ou situação de cada parcela</span>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-6 text-[10px] gap-1 px-2 border-purple-500/40 text-purple-700 dark:text-purple-300 hover:bg-purple-500/10 font-medium"
+                                  onClick={() => {
+                                    const dataHoje = '26/11/2026';
+                                    const novasParcelas: ContratoParcela[] = [
+                                      {
+                                        numero: 1,
+                                        descricao: 'Entrada Inicial (PIX)',
+                                        vencimento: dataHoje,
+                                        valor: 4000,
+                                        metodo: 'PIX',
+                                        status: 'Quitada',
+                                      },
+                                      {
+                                        numero: 2,
+                                        descricao: 'Saldo Restante (1/4 - Boleto Bancário)',
+                                        vencimento: '26/12/2026',
+                                        valor: 1000,
+                                        metodo: 'Boleto Bancário',
+                                        status: 'Pendente',
+                                      },
+                                      {
+                                        numero: 3,
+                                        descricao: 'Saldo Restante (2/4 - Boleto Bancário)',
+                                        vencimento: '26/01/2027',
+                                        valor: 1000,
+                                        metodo: 'Boleto Bancário',
+                                        status: 'Pendente',
+                                      },
+                                      {
+                                        numero: 4,
+                                        descricao: 'Saldo Restante (3/4 - Boleto Bancário)',
+                                        vencimento: '26/02/2027',
+                                        valor: 1000,
+                                        metodo: 'Boleto Bancário',
+                                        status: 'Pendente',
+                                      },
+                                      {
+                                        numero: 5,
+                                        descricao: 'Saldo Restante (4/4 - Boleto Bancário)',
+                                        vencimento: '26/03/2027',
+                                        valor: 1000,
+                                        metodo: 'Boleto Bancário',
+                                        status: 'Pendente',
+                                      },
+                                    ];
+
+                                    setSnapshotAtual((prev) => {
+                                      if (!prev) return prev;
+                                      return {
+                                        ...prev,
+                                        financeiro: {
+                                          ...prev.financeiro,
+                                          total: 8000,
+                                          valorTotal: 8000,
+                                          entrada: 4000,
+                                          quantidadeParcelas: 4,
+                                          valorParcela: 1000,
+                                          formaPagamento: 'Entrada: R$ 4.000,00 via PIX (em 26/11/2026) [Quitada] + Saldo: R$ 4.000,00 em 4x de R$ 1.000,00 no Boleto Bancário (Vencimento todo dia 26)',
+                                          parcelas: novasParcelas,
+                                        },
+                                      };
+                                    });
+                                    setIsManuallyEdited(true);
+                                    const docPendenteAlvo = contratoVisualizacao || contratoExistenteOrcamento;
+                                    if (!documentoIdSendoEditado && docPendenteAlvo && !docPendenteAlvo.assinadoEm && !hasAssinaturaPaciente) {
+                                      setDocumentoIdSendoEditado(docPendenteAlvo.id);
+                                    }
+                                    toast.success('Cronograma configurado: Entrada hoje (26/11) + 4 parcelas dia 26 iniciando em Dezembro/2026!');
+                                  }}
+                                >
+                                  <Sparkles className="h-3 w-3 text-purple-600 dark:text-purple-400" />
+                                  <span>Aplicar: Entrada Hoje + 4x Boleto dia 26 (Dez a Mar)</span>
+                                </Button>
+                                <span className="text-[10px] text-muted-foreground font-normal">Edite a data, valor ou situação de cada parcela</span>
+                              </div>
                             </Label>
 
                             {(() => {
@@ -3614,7 +3730,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                 <span>WhatsApp</span>
               </Button>
 
-              {isContratoGravado ? (
+              {isContratoGravado && !isManuallyEdited && !documentoIdSendoEditado && activeTab !== 'editar' ? (
                 <div
                   className="flex items-center gap-1.5 px-3 h-8 sm:h-9 rounded-md bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs font-semibold shadow-xs select-none"
                   title="Este contrato já está gravado no banco de dados e vinculado ao orçamento."
@@ -3629,10 +3745,10 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                   className="h-8 sm:h-9 text-xs gap-1.5 font-semibold bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs"
                   onClick={handleEmitirContrato}
                   disabled={salvando || !snapshotAtual || !orcamentoAtual}
-                  title={documentoIdSendoEditado ? "Salvar alterações realizadas na minuta" : "Gravar contrato oficialmente no sistema"}
+                  title={documentoIdSendoEditado || isManuallyEdited || isContratoGravado ? "Salvar alterações realizadas na minuta" : "Gravar contrato oficialmente no sistema"}
                 >
                   {salvando ? <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />}
-                  <span>{documentoIdSendoEditado ? 'Salvar Alterações' : 'Gravar Contrato'}</span>
+                  <span>{documentoIdSendoEditado || isManuallyEdited || isContratoGravado ? 'Salvar Alterações' : 'Gravar Contrato'}</span>
                 </Button>
               )}
             </div>

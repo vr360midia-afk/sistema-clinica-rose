@@ -1684,7 +1684,17 @@ export function validarIntegridadeOrcamentoContrato(
     erros.push('O cronograma financeiro não possui parcelas cadastradas.');
   } else {
     const somaParcelas = parcelas.reduce((acc, p) => acc + (Number(p.valor) || 0), 0);
-    const entradaValor = Number(fin.entrada ?? (fin as any).valorEntrada ?? 0);
+    let entradaValor = Number(fin.entrada ?? (fin as any).valorEntrada ?? 0);
+
+    // Defensivo: se entradaValor for 0, tenta extrair da formaPagamento ou condicoes
+    if (entradaValor === 0 && (fin.formaPagamento || (fin as any).condicoes)) {
+      const txt = `${fin.formaPagamento || ''} ${(fin as any).condicoes || ''}`;
+      const matchEnt = txt.match(/entrada[^\d\n\r]*?(?:de|:)?\s*(?:r\$)?\s*([\d.,]+)/i);
+      if (matchEnt) {
+        entradaValor = parseBrMoney(matchEnt[1]);
+      }
+    }
+
     const temParcelaEntrada = parcelas.some((p) => /entrada|sinal/i.test(p?.descricao || ''));
 
     // O cronograma é válido se a soma das parcelas atingir o total do contrato diretamente (quando a entrada já é uma das parcelas)
