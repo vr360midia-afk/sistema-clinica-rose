@@ -1719,6 +1719,21 @@ export function validarIntegridadeOrcamentoContrato(
       }
     }
 
+    // Defensivo adicional: tenta extrair do próprio orçamento se fornecido
+    if (entradaValor === 0 && orcamento) {
+      let entOrc = Number(orcamento.entrada ?? (orcamento as any).valorEntrada ?? 0);
+      if (entOrc === 0) {
+        const txtOrc = `${orcamento.formasPagamento || orcamento.formas_pagamento || ''} ${orcamento.condicoes || ''}`;
+        const matchEntOrc = txtOrc.match(/entrada[^\d\n\r]*?(?:de|:)?\s*(?:r\$)?\s*([\d.,]+)/i);
+        if (matchEntOrc) {
+          entOrc = parseBrMoney(matchEntOrc[1]);
+        }
+      }
+      if (entOrc > 0) {
+        entradaValor = entOrc;
+      }
+    }
+
     const temParcelaEntrada = parcelas.some((p) => /entrada|sinal/i.test(p?.descricao || ''));
 
     // O cronograma é válido se a soma das parcelas atingir o total do contrato diretamente (quando a entrada já é uma das parcelas)

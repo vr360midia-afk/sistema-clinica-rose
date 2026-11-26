@@ -1640,20 +1640,50 @@ export async function gerarContratoDoOrcamentoAprovado(params: {
         const pacSnap = checkDoc.snapshot?.paciente || {};
         const isIncompleto = !temValorValido(pacSnap.endereco) || !temValorValido(pacSnap.cpf) || !temValorValido(pacSnap.telefone);
 
-        // Idempotência estrita (ETAPA 2): se já existe contrato oficial recuperável no servidor para este orçamento,
-        // preserva a identidade e o snapshot existentes, impedindo novas duplicações
-        const link = construirUrlPublicaContrato({
-          pacienteNome: ('pacienteNome' in orcamento ? orcamento.pacienteNome : (orcamento as any).paciente_nome) || patient?.nome,
-          identificador: existingContratoId,
-          token: existingContratoToken,
-        });
-        return {
-          ok: true,
-          contratoId: existingContratoId,
-          contratoToken: existingContratoToken,
-          contratoLink: link,
-          snapshot: checkDoc.snapshot,
-        };
+        // Idempotência estrita (ETAPA 2): se o contrato já foi assinado pelo paciente, preserva estritamente
+        if (isJaAssinadoPac) {
+          const link = construirUrlPublicaContrato({
+            pacienteNome: ('pacienteNome' in orcamento ? orcamento.pacienteNome : (orcamento as any).paciente_nome) || patient?.nome,
+            identificador: existingContratoId,
+            token: existingContratoToken,
+          });
+          return {
+            ok: true,
+            contratoId: existingContratoId,
+            contratoToken: existingContratoToken,
+            contratoLink: link,
+            snapshot: checkDoc.snapshot,
+          };
+        }
+
+        // Se NÃO foi assinado pelo paciente, checa se as condições financeiras do orçamento mudaram
+        const finExistente = checkDoc.snapshot?.financeiro;
+        const totalExistente = Number(finExistente?.total ?? finExistente?.valorTotal ?? 0);
+        const condicaoAtual = extrairCondicaoEscolhida(orcamento);
+        const totalAtual = Number(condicaoAtual?.valorTotal ?? orcamento.total ?? 0);
+        const formasAtual = String(orcamento.formasPagamento || orcamento.formas_pagamento || '').trim();
+        const formasExistente = String(finExistente?.formaPagamento || '').trim();
+
+        const condicaoInalterada =
+          Math.abs(totalExistente - totalAtual) < 0.05 &&
+          (formasAtual === formasExistente || !formasAtual);
+
+        if (condicaoInalterada && !isIncompleto) {
+          const link = construirUrlPublicaContrato({
+            pacienteNome: ('pacienteNome' in orcamento ? orcamento.pacienteNome : (orcamento as any).paciente_nome) || patient?.nome,
+            identificador: existingContratoId,
+            token: existingContratoToken,
+          });
+          return {
+            ok: true,
+            contratoId: existingContratoId,
+            contratoToken: existingContratoToken,
+            contratoLink: link,
+            snapshot: checkDoc.snapshot,
+          };
+        }
+        // Se as condições mudaram (ex: entrada + novo parcelamento), NÃO retorna o snapshot antigo!
+        // Permite avançar para re-mapear o contrato com as novas condições aprovadas, preservando o identificador.
       }
     } catch (_) {}
   }

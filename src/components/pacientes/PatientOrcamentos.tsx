@@ -1074,6 +1074,33 @@ const PatientOrcamentos = ({ patient }: Props) => {
             contratoId: resContrato.contratoId,
             contratoToken: resContrato.contratoToken,
           } as any);
+
+          // Se houver documento clínico salvo para este contrato e não assinado, atualiza com o novo snapshot
+          if (resContrato.snapshot) {
+            try {
+              const docExistente = (documentos || []).find(
+                (d) =>
+                  d.tipo === 'contrato' &&
+                  !d.assinadoEm &&
+                  (d.orcamentoId === orcamentoFinal.id ||
+                    (d.itens as any)?.orcamentoId === orcamentoFinal.id ||
+                    d.identificador === resContrato.contratoId)
+              );
+              if (docExistente && salvarDocumento) {
+                await salvarDocumento({
+                  id: docExistente.id,
+                  identificador: resContrato.contratoId,
+                  pacienteId: patient?.id,
+                  pacienteNome: patient?.nome,
+                  tipo: 'contrato',
+                  titulo: docExistente.titulo || `Contrato Odontológico - Orçamento #${orcamentoFinal.id.slice(0, 8)}`,
+                  itens: resContrato.snapshot as any,
+                });
+              }
+            } catch (errSyncDoc) {
+              console.warn('[PatientOrcamentos] Sincronização de documento clínico pendente:', errSyncDoc);
+            }
+          }
         }
       } catch (errC) {
         console.error('Erro na automação do contrato após aprovação:', errC);

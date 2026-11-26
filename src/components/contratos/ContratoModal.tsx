@@ -90,6 +90,7 @@ import {
   validarCronogramaFinanceiroContrato,
   validarIntegridadeOrcamentoContrato,
   parseBrMoney,
+  formatarData,
 } from '@/utils/contratoEngine';
 import { downloadTcleLentesResinaPdf } from '@/utils/tcleLentesResina';
 import { downloadTermoUsoImagemPdf } from '@/utils/termoUsoImagem';
@@ -223,13 +224,75 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
 
     if (contratoExistenteOrcamento) {
       setContratoVisualizacao(contratoExistenteOrcamento);
-      if (contratoExistenteOrcamento.itens && typeof contratoExistenteOrcamento.itens === 'object' && !isManuallyEdited) {
-        setSnapshotAtual(contratoExistenteOrcamento.itens as ContratoSnapshot);
+      const snapDoc = (contratoExistenteOrcamento.itens || {}) as ContratoSnapshot;
+      const isAssinado = Boolean(
+        contratoExistenteOrcamento.assinadoEm ||
+        contratoExistenteOrcamento.status === 'formalizado' ||
+        snapDoc?.status === 'formalizado' ||
+        snapDoc?.assinaturaPaciente?.assinaturaData
+      );
+
+      if (!isManuallyEdited) {
+        if (isAssinado) {
+          setSnapshotAtual(snapDoc);
+        } else if (orcamentoAtual && patient) {
+          // Se NÃO está assinado pelo paciente, verifica se o orçamento foi atualizado ou possui divergência
+          const valExistente = snapDoc?.financeiro ? validarIntegridadeOrcamentoContrato(orcamentoAtual, snapDoc) : null;
+          const formasOrc = String(orcamentoAtual.formasPagamento || (orcamentoAtual as any).formas_pagamento || '').trim();
+          const formasSnap = String(snapDoc?.financeiro?.formaPagamento || '').trim();
+          const totalOrc = Number(orcamentoAtual.total || 0);
+          const totalSnap = Number(snapDoc?.financeiro?.total ?? snapDoc?.financeiro?.valorTotal ?? 0);
+
+          const requerAtualizacao =
+            valExistente?.divergenciaFinanceira ||
+            (totalOrc > 0 && Math.abs(totalOrc - totalSnap) > 0.05) ||
+            (formasOrc && formasSnap && formasOrc !== formasSnap);
+
+          if (requerAtualizacao) {
+            const snapAtualizado = mapearDadosContrato({
+              patient,
+              orcamento: orcamentoAtual,
+              transacoes: transacoesOrcamento,
+              configuracoes,
+              configContrato,
+              dentistaNome: selectedDentistaNome || configContrato?.dentistaResponsavelContrato || configuracoes?.croResponsavel,
+              dentistaCro: dentistaAtual?.cro || configContrato?.croResponsavelContrato || configuracoes?.croResponsavel,
+              cidadeLocal: cidadeLocal || configContrato?.cidadeForoContrato,
+              dadosRestauracoesPreexistentes: patient?.restauracoesPreexistentes,
+            });
+
+            if (snapDoc.contratoId) snapAtualizado.contratoId = snapDoc.contratoId;
+            if (snapDoc.token) snapAtualizado.token = snapDoc.token;
+            if (snapDoc.assinaturaDentista) {
+              snapAtualizado.assinaturaDentista = snapDoc.assinaturaDentista;
+              snapAtualizado.statusAssinaturaDentista = snapDoc.statusAssinaturaDentista;
+            }
+
+            setSnapshotAtual(snapAtualizado);
+            setDocumentoIdSendoEditado(contratoExistenteOrcamento.id);
+          } else {
+            setSnapshotAtual(snapDoc);
+          }
+        } else {
+          setSnapshotAtual(snapDoc);
+        }
       }
     } else {
       setContratoVisualizacao(null);
     }
-  }, [isOpen, contratoExistenteOrcamento, isManuallyEdited]);
+  }, [
+    isOpen,
+    contratoExistenteOrcamento,
+    isManuallyEdited,
+    orcamentoAtual,
+    patient,
+    transacoesOrcamento,
+    configuracoes,
+    configContrato,
+    selectedDentistaNome,
+    dentistaAtual,
+    cidadeLocal,
+  ]);
 
   // Checagens granulares de status de assinatura
   const hasAssinaturaPaciente = useMemo(() => {
@@ -943,6 +1006,14 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
           snapshotAtual.financeiro.entrada = entVal;
         }
       }
+      if (entVal === 0 && orcamentoAtual) {
+        const txtOrc = `${orcamentoAtual.formasPagamento || (orcamentoAtual as any).formas_pagamento || ''} ${orcamentoAtual.condicoes || ''}`;
+        const matchEntOrc = txtOrc.match(/entrada[^\d\n\r]*?(?:de|:)?\s*(?:r\$)?\s*([\d.,]+)/i);
+        if (matchEntOrc) {
+          entVal = parseBrMoney(matchEntOrc[1]);
+          snapshotAtual.financeiro.entrada = entVal;
+        }
+      }
 
       const totVal = Number(snapshotAtual.financeiro?.total ?? (snapshotAtual.financeiro as any)?.valorTotal ?? 0);
       const parcelasAtuais = snapshotAtual.financeiro?.parcelas || [];
@@ -950,11 +1021,11 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
       const temEntradaNaLista = parcelasAtuais.some((p) => /entrada|sinal/i.test(p?.descricao || ''));
 
       if (!temEntradaNaLista && entVal > 0 && Math.abs((somaP + entVal) - totVal) <= 0.05) {
-        const descForma = snapshotAtual.financeiro?.formaPagamento || '';
+        const descForma = snapshotAtual.financeiro?.formaPagamento || orcamentoAtual?.formasPagamento || '';
         const matchDataEnt = descForma.match(/em\s+(\d{2}\/\d{2}\/\d{4})/i);
         const dataVencEntrada = matchDataEnt ? matchDataEnt[1] : new Date().toLocaleDateString('pt-BR');
-        const metodoEnt = /pix/i.test(descForma) ? 'PIX' : 'Dinheiro';
-        const isQuitada = /quitada/i.test(descForma);
+        const metodoEnt = /pix/i.test(descForma) ? 'PIX' : /dinheiro/i.test(descForma) ? 'Dinheiro' : 'PIX';
+        const isQuitada = /quitada/i.test(descForma) || Boolean(transacoesOrcamento.some(t => /entrada/i.test(t.descricao || '') && (t.status === 'pago' || t.status === 'quitado')));
 
         snapshotAtual.financeiro.parcelas = [
           {
@@ -974,7 +1045,14 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
 
       // Proteção 3: Versionamento estrito e rotação segura de token em caso de retificação de contrato pendente
       let idParaGravar: string | undefined = undefined;
-      let snapshotParaSalvar = { ...snapshotAtual };
+      let snapshotParaSalvar = {
+        ...snapshotAtual,
+        financeiro: {
+          ...snapshotAtual.financeiro,
+          entrada: entVal > 0 ? entVal : snapshotAtual.financeiro?.entrada,
+          parcelas: snapshotAtual.financeiro?.parcelas || [],
+        },
+      };
 
       if ((finalTargetDocId || docExistente) && docExistente && isPendenteNaoAssinado) {
         const snapExistente = (docExistente.itens || {}) as any;
@@ -2807,9 +2885,43 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                                   type="button"
                                   variant="outline"
                                   size="sm"
+                                  className="h-6 text-[10px] gap-1 px-2 border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 font-medium"
+                                  onClick={() => {
+                                    if (!patient || !orcamentoAtual) return;
+                                    const snapAtualizado = mapearDadosContrato({
+                                      patient,
+                                      orcamento: orcamentoAtual,
+                                      transacoes: transacoesOrcamento,
+                                      configuracoes,
+                                      configContrato,
+                                      dentistaNome: selectedDentistaNome || configContrato?.dentistaResponsavelContrato || configuracoes?.croResponsavel,
+                                      dentistaCro: dentistaAtual?.cro || configContrato?.croResponsavelContrato || configuracoes?.croResponsavel,
+                                      cidadeLocal: cidadeLocal || configContrato?.cidadeForoContrato,
+                                      dadosRestauracoesPreexistentes: patient?.restauracoesPreexistentes,
+                                    });
+                                    if (snapshotAtual?.contratoId) snapAtualizado.contratoId = snapshotAtual.contratoId;
+                                    if (snapshotAtual?.token) snapAtualizado.token = snapshotAtual.token;
+                                    setSnapshotAtual(snapAtualizado);
+                                    setIsManuallyEdited(true);
+                                    const docPendenteAlvo = contratoVisualizacao || contratoExistenteOrcamento;
+                                    if (!documentoIdSendoEditado && docPendenteAlvo && !docPendenteAlvo.assinadoEm && !hasAssinaturaPaciente) {
+                                      setDocumentoIdSendoEditado(docPendenteAlvo.id);
+                                    }
+                                    toast.success('Cronograma e valores sincronizados com o orçamento aprovado!');
+                                  }}
+                                  title="Recarrega o cronograma oficial de parcelas diretamente da condição aprovada no orçamento"
+                                >
+                                  <RefreshCw className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                                  <span>Sincronizar com Orçamento</span>
+                                </Button>
+
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
                                   className="h-6 text-[10px] gap-1 px-2 border-purple-500/40 text-purple-700 dark:text-purple-300 hover:bg-purple-500/10 font-medium"
                                   onClick={() => {
-                                    const dataHoje = '26/11/2026';
+                                    const dataHoje = new Date().toLocaleDateString('pt-BR');
                                     const novasParcelas: ContratoParcela[] = [
                                       {
                                         numero: 1,
@@ -2864,7 +2976,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                                           entrada: 4000,
                                           quantidadeParcelas: 4,
                                           valorParcela: 1000,
-                                          formaPagamento: 'Entrada: R$ 4.000,00 via PIX (em 26/11/2026) [Quitada] + Saldo: R$ 4.000,00 em 4x de R$ 1.000,00 no Boleto Bancário (Vencimento todo dia 26)',
+                                          formaPagamento: `Entrada: R$ 4.000,00 via PIX (em ${dataHoje}) [Quitada] + Saldo: R$ 4.000,00 em 4x de R$ 1.000,00 no Boleto Bancário (Vencimento todo dia 26)`,
                                           parcelas: novasParcelas,
                                         },
                                       };
@@ -2874,7 +2986,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                                     if (!documentoIdSendoEditado && docPendenteAlvo && !docPendenteAlvo.assinadoEm && !hasAssinaturaPaciente) {
                                       setDocumentoIdSendoEditado(docPendenteAlvo.id);
                                     }
-                                    toast.success('Cronograma configurado: Entrada hoje (26/11) + 4 parcelas dia 26 iniciando em Dezembro/2026!');
+                                    toast.success(`Cronograma configurado: Entrada hoje (${dataHoje}) + 4 parcelas dia 26 iniciando em Dezembro/2026!`);
                                   }}
                                 >
                                   <Sparkles className="h-3 w-3 text-purple-600 dark:text-purple-400" />
@@ -3001,8 +3113,33 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                                           type="text"
                                           value={parc.vencimento || ''}
                                           onChange={(e) => {
+                                            const val = e.target.value;
                                             const novas = [...snapshotAtual.financeiro.parcelas];
-                                            novas[pIdx] = { ...novas[pIdx], vencimento: e.target.value };
+                                            novas[pIdx] = { ...novas[pIdx], vencimento: val };
+
+                                            // Auto-sequenciamento inteligente de datas nos meses consecutivos ao preencher ou alterar a primeira parcela do saldo
+                                            if (/^\d{2}\/\d{2}\/\d{4}$/.test(val)) {
+                                              const [dStr, mStr, yStr] = val.split('/');
+                                              const dia = parseInt(dStr, 10);
+                                              const mes = parseInt(mStr, 10) - 1;
+                                              const ano = parseInt(yStr, 10);
+                                              const baseDate = new Date(ano, mes, dia, 12, 0, 0);
+
+                                              if (!isNaN(baseDate.getTime())) {
+                                                for (let j = pIdx + 1; j < novas.length; j++) {
+                                                  const isEnt = /entrada|sinal/i.test(novas[j]?.descricao || '');
+                                                  if (!isEnt) {
+                                                    const offsetMeses = j - pIdx;
+                                                    const proxData = somarMesesSeguro(baseDate, offsetMeses, dia);
+                                                    novas[j] = {
+                                                      ...novas[j],
+                                                      vencimento: formatarData(proxData),
+                                                    };
+                                                  }
+                                                }
+                                              }
+                                            }
+
                                             handleUpdateSnapshotField('financeiro.parcelas', novas);
                                           }}
                                           placeholder="DD/MM/AAAA"
