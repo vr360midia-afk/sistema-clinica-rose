@@ -3764,29 +3764,6 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
           ` : ''}
         </div>
       </div>
-
-      <!-- Testemunhas Instrumentais (Art. 784, III CPC) -->
-      <div style="margin-top: 36px; padding-top: 16px; border-top: 1px dashed #d1d5db;">
-        <div style="text-align: center; font-size: 10px; color: #6b7280; font-family: Arial, sans-serif; margin-bottom: 24px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: bold;">
-          Testemunhas Instrumentais (Art. 784, III do Código de Processo Civil)
-        </div>
-        <div class="grid-assinaturas" style="margin-top: 0;">
-          <div class="campo-assinatura">
-            <div style="height: 35px;"></div>
-            <div class="linha-assinatura"></div>
-            <div class="assinatura-nome">Testemunha 1</div>
-            <div class="assinatura-papel">Nome: ____________________________</div>
-            <div class="assinatura-detalhes">CPF: _____________________________</div>
-          </div>
-          <div class="campo-assinatura">
-            <div style="height: 35px;"></div>
-            <div class="linha-assinatura"></div>
-            <div class="assinatura-nome">Testemunha 2</div>
-            <div class="assinatura-papel">Nome: ____________________________</div>
-            <div class="assinatura-detalhes">CPF: _____________________________</div>
-          </div>
-        </div>
-      </div>
     </div>
 
     ${incluiLentes ? `

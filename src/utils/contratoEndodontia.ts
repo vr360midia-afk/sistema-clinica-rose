@@ -293,14 +293,6 @@ export const gerarHtmlContratoEndodontia = (snapshot: ContratoSnapshot): string 
       color: #6b7280;
       margin-top: 1px;
     }
-    .grid-testemunhas {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 20px;
-      margin-top: 22px;
-      page-break-inside: avoid;
-      break-inside: avoid;
-    }
     .rodape-documento {
       margin-top: 24px;
       padding-top: 10px;
@@ -316,7 +308,6 @@ export const gerarHtmlContratoEndodontia = (snapshot: ContratoSnapshot): string 
       body { padding: 0; }
       .clausula-bloco { page-break-inside: avoid; break-inside: avoid; }
       .grid-assinaturas { page-break-inside: avoid; break-inside: avoid; }
-      .grid-testemunhas { page-break-inside: avoid; break-inside: avoid; }
     }
   </style>
 </head>
@@ -925,22 +916,6 @@ export const gerarHtmlContratoEndodontia = (snapshot: ContratoSnapshot): string 
             <div class="assinatura-detalhes">${parceiro.croUf ? `CRO: ${parceiro.croUf}` : 'Registro CRO ativo'}</div>
           </div>
         ` : ''}
-      </div>
-
-      <!-- Testemunhas -->
-      <div class="grid-testemunhas">
-        <div class="campo-assinatura">
-          <div style="height: 35px;"></div>
-          <div class="linha-assinatura"></div>
-          <div class="assinatura-nome">Testemunha 1</div>
-          <div class="assinatura-detalhes">Nome: ________________________ • CPF: _______________</div>
-        </div>
-        <div class="campo-assinatura">
-          <div style="height: 35px;"></div>
-          <div class="linha-assinatura"></div>
-          <div class="assinatura-nome">Testemunha 2</div>
-          <div class="assinatura-detalhes">Nome: ________________________ • CPF: _______________</div>
-        </div>
       </div>
     </div>
 
