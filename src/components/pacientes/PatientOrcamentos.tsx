@@ -3699,18 +3699,32 @@ const PatientOrcamentos = ({ patient }: Props) => {
                         </span>
                       )}
                     </Label>
-                    {modoCalculoValor === 'desconto' && (
+                    <div className="flex items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => {
-                          setModoCalculoValor('valor_final');
-                          setInputValorFinal(total > 0 ? String(total) : String(subtotal));
-                        }}
-                        className="text-[11px] text-primary hover:underline font-medium flex items-center gap-0.5"
+                        onClick={() => setOcultarValorTotal(!ocultarValorTotal)}
+                        className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-all ${
+                          ocultarValorTotal
+                            ? 'bg-primary text-primary-foreground border-primary shadow-xs'
+                            : 'bg-muted/50 text-muted-foreground border-border hover:border-primary/50'
+                        }`}
+                        title="Ocultar total para propostas com opções alternativas"
                       >
-                        <Pencil className="h-3 w-3" /> Ajustar final
+                        {ocultarValorTotal ? '✓ Total Oculto' : 'Ocultar Total?'}
                       </button>
-                    )}
+                      {modoCalculoValor === 'desconto' && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setModoCalculoValor('valor_final');
+                            setInputValorFinal(total > 0 ? String(total) : String(subtotal));
+                          }}
+                          className="text-[11px] text-primary hover:underline font-medium flex items-center gap-0.5"
+                        >
+                          <Pencil className="h-3 w-3" /> Ajustar final
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {modoCalculoValor === 'valor_final' ? (
@@ -3760,6 +3774,12 @@ const PatientOrcamentos = ({ patient }: Props) => {
                         <span className="text-[11px] font-medium">Ajustar</span>
                       </Button>
                     </div>
+                  )}
+                  {ocultarValorTotal && (
+                    <p className="text-[10.5px] text-primary font-medium flex items-center gap-1 mt-1">
+                      <Sparkles className="h-3 w-3 shrink-0" />
+                      <span>Total oculto ativado: o PDF e a proposta exibirão opções individuais sem soma cumulativa.</span>
+                    </p>
                   )}
                 </div>
               </div>
@@ -3825,31 +3845,40 @@ const PatientOrcamentos = ({ patient }: Props) => {
             </div>
 
             {/* Opção para Propostas com Opções Alternativas do Mesmo Protocolo */}
-            <div className="rounded-xl border border-border/80 bg-muted/20 p-3.5 space-y-2">
+            <div className={`rounded-xl border p-4 space-y-2.5 transition-all ${
+              ocultarValorTotal
+                ? 'bg-primary/5 border-primary shadow-xs'
+                : 'bg-muted/30 border-primary/20 hover:border-primary/40'
+            }`}>
               <div className="flex items-center justify-between gap-3">
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-1.5 font-semibold text-xs text-foreground">
-                    <Sparkles className="h-3.5 w-3.5 text-primary" />
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 font-bold text-xs text-foreground">
+                    <Sparkles className="h-4 w-4 text-primary shrink-0" />
                     <span>Ocultar Valor Total do Orçamento</span>
-                    <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 border-primary/30 text-primary">
-                      Multi-Opções
+                    <Badge className="text-[10px] px-2 py-0.5 bg-primary text-primary-foreground font-semibold">
+                      Multi-Opções de Protocolo
                     </Badge>
                   </div>
-                  <p className="text-[11px] text-muted-foreground leading-snug">
-                    Ideal para quando a proposta tiver mais opções do mesmo protocolo (ex: alternativas de resina vs. porcelana ou técnicas distintas). O paciente visualiza o valor de cada opção individualmente sem a soma cumulativa de opções excludentes.
+                  <p className="text-[11.5px] text-muted-foreground leading-snug">
+                    Ative esta opção quando a proposta tiver alternativas de um mesmo tratamento (ex: 2 opções de clareamento, ou resina vs. porcelana). O total e subtotal não são somados no PDF nem no link do paciente.
                   </p>
                 </div>
-                <Switch
-                  id="toggleOcultarTotal"
-                  checked={ocultarValorTotal}
-                  onCheckedChange={setOcultarValorTotal}
-                />
+                <div className="flex items-center gap-2 shrink-0">
+                  <Switch
+                    id="toggleOcultarTotal"
+                    checked={ocultarValorTotal}
+                    onCheckedChange={setOcultarValorTotal}
+                  />
+                  <Label htmlFor="toggleOcultarTotal" className="text-xs font-bold cursor-pointer select-none">
+                    {ocultarValorTotal ? 'Ativado' : 'Desativado'}
+                  </Label>
+                </div>
               </div>
               {ocultarValorTotal && (
-                <div className="p-2 rounded-lg bg-primary/10 border border-primary/20 text-[11px] text-primary flex items-start gap-1.5">
-                  <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                  <span>
-                    Com esta opção ativada, o PDF, impressão e link da proposta não exibirão o Subtotal e Total cumulativos, exibindo um aviso claro de opções alternativas para livre escolha do paciente.
+                <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-700 dark:text-emerald-300 flex items-start gap-2">
+                  <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-emerald-600" />
+                  <span className="font-medium">
+                    ✓ Perfeito! O Subtotal e o Total cumulativo foram desativados. Na impressão, PDF e no link, o paciente verá apenas o valor de cada opção individualmente para escolher a preferida.
                   </span>
                 </div>
               )}

@@ -2085,7 +2085,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
               setSnapshotAtual((prev) => {
                 if (!prev) return prev;
                 return {
-                  ...prev;
+                  ...prev,
                   termoUsoImagem: {
                     ativo: true,
                     autorizado: checked,
@@ -2824,7 +2824,6 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
             {/* ABA 2: EDITAR CAMPOS MANUALMENTE */}
             {activeTab === 'editar' && (
               <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-muted/20 space-y-4">
-              <div className="space-y-4">
                 {/* Banner Informativo de Edição Manual */}
                 <div className="p-3.5 bg-card rounded-lg border border-border shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                   <div>
