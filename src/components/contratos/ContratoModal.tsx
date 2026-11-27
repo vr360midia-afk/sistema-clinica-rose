@@ -50,6 +50,7 @@ import {
   Clock,
   ChevronDown,
   ChevronUp,
+  MapPin,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -149,6 +150,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
   const [quickTelefone, setQuickTelefone] = useState<string>('');
   const [showQuickFill, setShowQuickFill] = useState<boolean>(false);
   const [salvandoDadosPaciente, setSalvandoDadosPaciente] = useState<boolean>(false);
+  const [modalCompletarDadosAdminOpen, setModalCompletarDadosAdminOpen] = useState<boolean>(false);
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
   const [mobileOptionsOpen, setMobileOptionsOpen] = useState<boolean>(false);
 
@@ -1140,12 +1142,16 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     toast.info('Alterações não salvas descartadas. Exibindo documento oficial gravado.');
   };
 
-  // Abre o modal de assinatura com guarda estrita contra prévias não salvas
+  // Abre o modal de assinatura com guarda estrita contra prévias não salvas e validação cadastral
   const handleAbrirAssinatura = (role: 'paciente' | 'dentista') => {
     if (isEmModoEdicaoOuRetificacao) {
       toast.warning('Salve as alterações do contrato antes de registrar assinaturas.', {
         description: 'Não é possível assinar uma prévia com alterações pendentes de gravação no sistema.',
       });
+      return;
+    }
+    if (role === 'paciente' && pendenciasCadastrais.length > 0) {
+      setModalCompletarDadosAdminOpen(true);
       return;
     }
     setSignerRole(role);
@@ -4174,6 +4180,101 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
         initialRg={signerRole === 'paciente' ? (temValorValido(patient?.rg) ? patient.rg : (temValorValido(snapshotAtual?.paciente?.rg) ? snapshotAtual?.paciente?.rg : '')) : snapshotAtual?.clinica?.cro}
         onSignatureComplete={handleAssinaturaConcluida}
       />
+
+      {/* Modal para Completar Dados Cadastrais do Paciente ao Assinar */}
+      <Dialog open={modalCompletarDadosAdminOpen} onOpenChange={setModalCompletarDadosAdminOpen}>
+        <DialogContent className="max-w-md w-full p-5 sm:p-6 bg-card text-card-foreground border border-border shadow-2xl rounded-xl">
+          <DialogHeader className="space-y-1.5">
+            <div className="flex items-center gap-2 text-primary">
+              <MapPin className="h-5 w-5" />
+              <DialogTitle className="text-base font-bold text-foreground">
+                Completar Dados do Paciente para Formalização
+              </DialogTitle>
+            </div>
+            <DialogDescription className="text-xs text-muted-foreground leading-relaxed">
+              O contrato exige qualificação completa (Endereço e CPF) para validação jurídica perante o CFO e Código Civil.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3.5 my-2">
+            <div className="grid grid-cols-2 gap-2.5">
+              <div>
+                <label className="text-xs font-semibold text-foreground mb-1 block">CPF do Paciente:</label>
+                <Input
+                  placeholder="000.000.000-00"
+                  value={quickCpf}
+                  onChange={(e) => setQuickCpf(formatarDocumento(e.target.value))}
+                  maxLength={14}
+                  className="h-9 text-xs"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-foreground mb-1 block">Telefone / WhatsApp:</label>
+                <Input
+                  placeholder="(00) 00000-0000"
+                  value={quickTelefone}
+                  onChange={(e) => setQuickTelefone(formatarTelefone(e.target.value))}
+                  maxLength={15}
+                  className="h-9 text-xs"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-foreground mb-1 block">
+                Endereço Completo: <span className="text-red-500">*</span>
+              </label>
+              <Textarea
+                placeholder="Ex: Rua das Flores, 123, Apto 402, Ponta Verde, Maceió - AL, CEP 57035-000"
+                value={quickEndereco}
+                onChange={(e) => setQuickEndereco(e.target.value)}
+                rows={3}
+                className="text-xs resize-none"
+              />
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Informe logradouro, número, complemento (se houver), bairro, cidade e estado.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-border mt-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setModalCompletarDadosAdminOpen(false)}
+              disabled={salvandoDadosPaciente}
+              className="text-xs h-9"
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={salvandoDadosPaciente || !quickEndereco.trim()}
+              onClick={async () => {
+                await handleSalvarDadosPacienteRapido();
+                setModalCompletarDadosAdminOpen(false);
+                setSignerRole('paciente');
+                setIsSignatureModalOpen(true);
+              }}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs h-9 px-4 gap-1.5 shadow-sm"
+            >
+              {salvandoDadosPaciente ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Salvando...
+                </>
+              ) : (
+                <>
+                  <Check className="h-3.5 w-3.5" />
+                  Salvar e Abrir Assinatura
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Modal de Flexibilização de Pagamento no Contrato */}
       <Dialog open={modalFlexibilizarContratoOpen} onOpenChange={(open) => !open && setModalFlexibilizarContratoOpen(false)}>

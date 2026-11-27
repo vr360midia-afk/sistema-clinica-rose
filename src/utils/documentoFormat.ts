@@ -152,7 +152,7 @@ export const obterRotuloDocumento = (doc?: string | null, incluirMF: boolean = f
 /**
  * Formata um CPF ou CNPJ de acordo com a quantidade de dígitos numéricos.
  */
-export const formatarDocumento = (value?: string | null): string => {
+export function formatarDocumento(value?: string | null): string {
   if (!value) return '';
   const digits = String(value).replace(/\D/g, '').slice(0, 14);
   if (digits.length <= 11) {
@@ -166,13 +166,13 @@ export const formatarDocumento = (value?: string | null): string => {
     .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
     .replace(/\.(\d{3})(\d)/, '.$1/$2')
     .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
-};
+}
 
 /**
  * Adiciona meses a uma data de forma matematicamente segura,
  * impedindo o clássico 'mês rollover' do JavaScript (ex: 31 de Outubro + 1 mês virar 1º de Dezembro, pulando Novembro).
  */
-export const somarMesesSeguro = (dataBase: Date, meses: number, diaFixo?: number): Date => {
+export function somarMesesSeguro(dataBase: Date, meses: number, diaFixo?: number): Date {
   const ano = dataBase.getFullYear();
   const mesAlvo = dataBase.getMonth() + meses;
   const diaOriginal = diaFixo ?? dataBase.getDate();
@@ -180,12 +180,12 @@ export const somarMesesSeguro = (dataBase: Date, meses: number, diaFixo?: number
   const maxDiasNoMes = new Date(primeiroDia.getFullYear(), primeiroDia.getMonth() + 1, 0).getDate();
   primeiroDia.setDate(Math.min(diaOriginal, maxDiasNoMes));
   return primeiroDia;
-};
+}
 
 /**
  * Verifica se um campo textual tem conteúdo informativo real (não vazio e diferente de 'Não informado').
  */
-export const temValorValido = (val?: string | null): boolean => {
+export function temValorValido(val?: string | null): boolean {
   if (!val) return false;
   const s = String(val).trim().toLowerCase();
   return (
@@ -197,14 +197,14 @@ export const temValorValido = (val?: string | null): boolean => {
     s !== 'null' &&
     s !== 'undefined'
   );
-};
+}
 
 /**
  * Formata um endereço completo a partir de uma string ou objeto com campos
  * (logradouro, número, complemento, bairro, cidade, estado, CEP).
  * Nunca inventa dados ausentes.
  */
-export const formatarEnderecoCompleto = (input?: any): string => {
+export function formatarEnderecoCompleto(input?: any): string {
   if (!input) return '';
   if (typeof input === 'string') {
     const s = input.trim();
@@ -259,12 +259,12 @@ export const formatarEnderecoCompleto = (input?: any): string => {
   }
 
   return partes.join(', ');
-};
+}
 
 /**
  * Formata um número de telefone/WhatsApp em formato legível brasileiro.
  */
-export const formatarTelefone = (v?: string | null): string => {
+export function formatarTelefone(v?: string | null): string {
   if (!v || !temValorValido(v)) return '';
   const digits = String(v).replace(/\D/g, '');
   if (digits.length === 11) {
@@ -274,4 +274,18 @@ export const formatarTelefone = (v?: string | null): string => {
     return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
   }
   return String(v).trim();
-};
+}
+
+// Garante disponibilidade global universal contra erros de inicialização em qualquer bundle
+if (typeof globalThis !== 'undefined') {
+  (globalThis as any).formatarEnderecoCompleto = formatarEnderecoCompleto;
+  (globalThis as any).temValorValido = temValorValido;
+  (globalThis as any).formatarDocumento = formatarDocumento;
+  (globalThis as any).formatarTelefone = formatarTelefone;
+}
+if (typeof window !== 'undefined') {
+  (window as any).formatarEnderecoCompleto = formatarEnderecoCompleto;
+  (window as any).temValorValido = temValorValido;
+  (window as any).formatarDocumento = formatarDocumento;
+  (window as any).formatarTelefone = formatarTelefone;
+}

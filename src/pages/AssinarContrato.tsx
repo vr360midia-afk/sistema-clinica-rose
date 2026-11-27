@@ -38,11 +38,22 @@ import {
   Eye,
   Printer,
   ExternalLink,
+  MapPin,
+  Loader2,
+  AlertCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { formatMoney } from '@/utils/exportCsv';
 import { gerarPayloadPix, gerarQrCodePixUrl } from '@/utils/pixPayload';
+import {
+  temValorValido,
+  formatarDocumento,
+  formatarEnderecoCompleto,
+  formatarTelefone,
+} from '@/utils/documentoFormat';
 import {
   ContratoSnapshot,
   decodificarContratoUrl,
@@ -50,10 +61,6 @@ import {
   identificarTipoDocumento,
   isContratoLenteResina,
   isContratoEndodontia,
-  temValorValido,
-  formatarDocumento,
-  formatarEnderecoCompleto,
-  formatarTelefone,
   obterCardsResumoPagamento,
   isMetodoPix,
   isMetodoCartao,
@@ -217,6 +224,15 @@ export default function AssinarContrato() {
   const [modalVisualizarAssinado, setModalVisualizarAssinado] = useState(false);
   const [signedPdfUrl, setSignedPdfUrl] = useState<string | null>(null);
   const [gerandoPdfVisualizacao, setGerandoPdfVisualizacao] = useState(false);
+
+  // Estados para Preenchimento de Dados Cadastrais Obrigatórios Pendentes (Endereço, CPF, Telefone)
+  const [modalCompletarDadosOpen, setModalCompletarDadosOpen] = useState(false);
+  const [dadosPendentesNome, setDadosPendentesNome] = useState('');
+  const [dadosPendentesCpf, setDadosPendentesCpf] = useState('');
+  const [dadosPendentesEndereco, setDadosPendentesEndereco] = useState('');
+  const [dadosPendentesTelefone, setDadosPendentesTelefone] = useState('');
+  const [salvandoDadosPendentes, setSalvandoDadosPendentes] = useState(false);
+  const [assinaturaPendenteAguardandoDados, setAssinaturaPendenteAguardandoDados] = useState<SignatureData | null>(null);
 
   // Sincroniza em segundo plano a geração e o upload do PDF assinado para o Supabase Storage privado
   const sincronizarArmazenamentoPdf = async (snap: ContratoSnapshot, docId: string, tok: string) => {
@@ -866,6 +882,126 @@ export default function AssinarContrato() {
     carregarContrato();
   }, [targetId, rawSlug, encodedData, token]);
 
+  // Inicia o fluxo de assinatura do paciente com checagem antecipada de dados obrigatórios
+  const verificarEComecarAssinaturaPaciente = () => {
+    setConcordouTermos(true);
+    const pacCad = snapshot?.paciente || {};
+    const nomeValido = temValorValido(pacCad.nome);
+    const cpfValido = temValorValido(pacCad.cpf);
+    const endValido = temValorValido(pacCad.endereco);
+    const telValido = temValorValido(pacCad.telefone);
+
+    if (!nomeValido || !cpfValido || !endValido || !telValido) {
+      setDadosPendentesNome(nomeValido ? (pacCad.nome || '') : '');
+      setDadosPendentesCpf(cpfValido ? (pacCad.cpf || '') : '');
+      setDadosPendentesEndereco(endValido ? (pacCad.endereco || '') : '');
+      setDadosPendentesTelefone(telValido ? (pacCad.telefone || '') : '');
+      setModalCompletarDadosOpen(true);
+      return;
+    }
+    setShowSignatureModal(true);
+  };
+
+  // Salva dados cadastrais obrigatórios pendentes diretamente no Supabase e no contrato
+  const handleSalvarDadosPendentes = async () => {
+    if (!snapshot) return;
+
+    const nomeLimpo = dadosPendentesNome.trim();
+    const cpfLimpo = dadosPendentesCpf.trim();
+    const enderecoLimpo = dadosPendentesEndereco.trim();
+    const telefoneLimpo = dadosPendentesTelefone.trim();
+
+    if (!nomeLimpo || !temValorValido(nomeLimpo)) {
+      toast.error('Informe o nome completo do paciente.');
+      return;
+    }
+    if (!cpfLimpo || !temValorValido(cpfLimpo)) {
+      toast.error('Informe um CPF válido.');
+      return;
+    }
+    if (!enderecoLimpo || !temValorValido(enderecoLimpo)) {
+      toast.error('Informe o endereço completo (Rua, Número, Bairro, Cidade/UF).');
+      return;
+    }
+    if (!telefoneLimpo || !temValorValido(telefoneLimpo)) {
+      toast.error('Informe o telefone ou WhatsApp de contato.');
+      return;
+    }
+
+    setSalvandoDadosPendentes(true);
+    try {
+      const targetPacId = snapshot.paciente?.id || (snapshot as any)?.pacienteId || (snapshot?.orcamento as any)?.pacienteId;
+      const targetPacNome = snapshot.paciente?.nome;
+
+      const payloadAtualizacao = {
+        nome: nomeLimpo,
+        cpf: formatarDocumento(cpfLimpo),
+        endereco: enderecoLimpo,
+        telefone: formatarTelefone(telefoneLimpo),
+      };
+
+      // 1. Atualiza no Supabase (tabela pacientes)
+      if (targetPacId) {
+        await supabase.from('pacientes').update(payloadAtualizacao).eq('id', targetPacId);
+      } else if (targetPacNome) {
+        await supabase.from('pacientes').update(payloadAtualizacao).ilike('nome', targetPacNome.trim());
+      }
+
+      // 2. Atualiza snapshot em memória
+      const updatedSnapshot: ContratoSnapshot = {
+        ...snapshot,
+        paciente: {
+          ...snapshot.paciente,
+          nome: payloadAtualizacao.nome,
+          cpf: payloadAtualizacao.cpf,
+          endereco: payloadAtualizacao.endereco,
+          telefone: payloadAtualizacao.telefone,
+        },
+      };
+
+      // 3. Atualiza no backend caso já esteja emitido
+      if (docDbId && token) {
+        try {
+          await supabase.functions.invoke('contrato-publico', {
+            body: {
+              action: 'update_snapshot',
+              id: docDbId,
+              token,
+              snapshot: updatedSnapshot,
+            },
+          });
+        } catch (_) {}
+      }
+
+      // 4. Salva no cache local
+      if (typeof window !== 'undefined' && window.localStorage && updatedSnapshot.contratoId) {
+        try {
+          localStorage.setItem(`contrato_${updatedSnapshot.contratoId}`, JSON.stringify(updatedSnapshot));
+          if (docDbId) localStorage.setItem(`contrato_${docDbId}`, JSON.stringify(updatedSnapshot));
+        } catch (_) {}
+      }
+
+      setSnapshot(updatedSnapshot);
+      setModalCompletarDadosOpen(false);
+      toast.success('Dados cadastrais salvos com sucesso!');
+
+      // 5. Se já havia uma assinatura aguardando os dados cadastrais, conclui a formalização
+      if (assinaturaPendenteAguardandoDados) {
+        const sig = { ...assinaturaPendenteAguardandoDados };
+        setAssinaturaPendenteAguardandoDados(null);
+        setTimeout(() => {
+          void handleSignatureComplete(sig);
+        }, 100);
+      } else {
+        setShowSignatureModal(true);
+      }
+    } catch (err: any) {
+      toast.error('Erro ao salvar dados cadastrais: ' + (err.message || 'Tente novamente.'));
+    } finally {
+      setSalvandoDadosPendentes(false);
+    }
+  };
+
   // Registra a assinatura digital do paciente
   const handleSignatureComplete = async (sigData: SignatureData) => {
     if (!snapshot) return;
@@ -891,8 +1027,14 @@ export default function AssinarContrato() {
     if (!finalTelefone || !temValorValido(finalTelefone)) camposFaltantes.push('Telefone/WhatsApp');
 
     if (camposFaltantes.length > 0) {
-      toast.error(`Não é possível formalizar o contrato. Dados cadastrais obrigatórios ausentes: ${camposFaltantes.join(', ')}. Por favor, complete o cadastro antes de prosseguir.`);
+      setAssinaturaPendenteAguardandoDados(sigData);
+      setDadosPendentesNome(finalNome && temValorValido(finalNome) ? finalNome : (pacCad.nome || ''));
+      setDadosPendentesCpf(finalCpf && temValorValido(finalCpf) ? finalCpf : (pacCad.cpf || ''));
+      setDadosPendentesEndereco(finalEndereco && temValorValido(finalEndereco) ? finalEndereco : '');
+      setDadosPendentesTelefone(finalTelefone && temValorValido(finalTelefone) ? finalTelefone : (pacCad.telefone || ''));
       setShowSignatureModal(false);
+      setModalCompletarDadosOpen(true);
+      toast.info('Para concluir a formalização com validade jurídica, complete os dados cadastrais solicitados.');
       return;
     }
 
@@ -1665,10 +1807,7 @@ export default function AssinarContrato() {
               {!isAssinado && (
                 <Button
                   size="sm"
-                  onClick={() => {
-                    setConcordouTermos(true);
-                    setShowSignatureModal(true);
-                  }}
+                  onClick={verificarEComecarAssinaturaPaciente}
                   className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-xs"
                 >
                   <PenTool className="h-3.5 w-3.5 mr-1.5" />
@@ -2721,7 +2860,7 @@ export default function AssinarContrato() {
                       <Button
                         size="lg"
                         disabled={!concordouTermos}
-                        onClick={() => setShowSignatureModal(true)}
+                        onClick={verificarEComecarAssinaturaPaciente}
                         className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-5 text-sm shadow-xs"
                       >
                         <PenTool className="h-4 w-4 mr-2" />
@@ -2938,8 +3077,7 @@ export default function AssinarContrato() {
                   className="h-8 text-xs gap-1.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow-sm"
                   onClick={() => {
                     setIsFullScreen(false);
-                    setConcordouTermos(true);
-                    setShowSignatureModal(true);
+                    verificarEComecarAssinaturaPaciente();
                   }}
                   title="Concordar e assinar contrato digitalmente como Paciente"
                 >
@@ -3169,6 +3307,109 @@ export default function AssinarContrato() {
                 Fechar
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal para Preenchimento de Dados Cadastrais Obrigatórios (Endereço, CPF, Telefone) */}
+      <Dialog open={modalCompletarDadosOpen} onOpenChange={setModalCompletarDadosOpen}>
+        <DialogContent className="max-w-md w-full p-5 sm:p-6 bg-card text-card-foreground border border-border shadow-2xl rounded-xl">
+          <DialogHeader className="space-y-1.5">
+            <div className="flex items-center gap-2 text-primary">
+              <MapPin className="h-5 w-5" />
+              <DialogTitle className="text-base font-bold text-foreground">
+                Completar Dados Cadastrais do Contrato
+              </DialogTitle>
+            </div>
+            <DialogDescription className="text-xs text-muted-foreground leading-relaxed">
+              Por exigência legal do Conselho Federal de Odontologia (CFO) e Código Civil, o instrumento contratual requer a qualificação completa do paciente, incluindo endereço completo e CPF.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3.5 my-2">
+            <div>
+              <label className="text-xs font-semibold text-foreground mb-1 block">Nome Completo:</label>
+              <Input
+                value={dadosPendentesNome}
+                onChange={(e) => setDadosPendentesNome(e.target.value)}
+                placeholder="Nome completo do paciente"
+                className="h-9 text-xs"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5">
+              <div>
+                <label className="text-xs font-semibold text-foreground mb-1 block">CPF:</label>
+                <Input
+                  value={dadosPendentesCpf}
+                  onChange={(e) => setDadosPendentesCpf(formatarDocumento(e.target.value))}
+                  placeholder="000.000.000-00"
+                  maxLength={14}
+                  className="h-9 text-xs"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-foreground mb-1 block">Telefone / WhatsApp:</label>
+                <Input
+                  value={dadosPendentesTelefone}
+                  onChange={(e) => setDadosPendentesTelefone(formatarTelefone(e.target.value))}
+                  placeholder="(00) 00000-0000"
+                  maxLength={15}
+                  className="h-9 text-xs"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-foreground mb-1 block">
+                Endereço Completo: <span className="text-red-500">*</span>
+              </label>
+              <Textarea
+                value={dadosPendentesEndereco}
+                onChange={(e) => setDadosPendentesEndereco(e.target.value)}
+                placeholder="Ex: Rua das Flores, 123, Apto 402, Ponta Verde, Maceió - AL, CEP 57035-000"
+                rows={3}
+                className="text-xs resize-none"
+              />
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Informe logradouro, número, complemento (se houver), bairro, cidade e estado.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-border mt-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setModalCompletarDadosOpen(false);
+                setAssinaturaPendenteAguardandoDados(null);
+              }}
+              disabled={salvandoDadosPendentes}
+              className="text-xs h-9"
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleSalvarDadosPendentes}
+              disabled={salvandoDadosPendentes || !dadosPendentesEndereco.trim()}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs h-9 px-4 gap-1.5 shadow-sm"
+            >
+              {salvandoDadosPendentes ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Salvando...
+                </>
+              ) : (
+                <>
+                  <Check className="h-3.5 w-3.5" />
+                  Salvar e Continuar para Assinatura
+                </>
+              )}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
