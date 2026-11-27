@@ -2842,8 +2842,39 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
     !temAlgumPix &&
     !parcelasEfetivas.some((p) => /boleto|dinheiro|transfer/i.test(p.metodo || ''));
 
+  const isFormaAvista =
+    /à\s*vista|a\s*vista|avista|pix\s*com\s*desconto|dinheiro|transfer[eê]ncia/i.test(financeiro.formaPagamento || '') ||
+    (financeiro.quantidadeParcelas <= 1 && parcelasEfetivas.length <= 1);
+
+  const todasQuitadas =
+    parcelasEfetivas.length > 0 &&
+    parcelasEfetivas.every((p) => Boolean(p.status && /paga|pago|quitad/i.test(p.status)));
+
+  const todasCartaoOuQuitadas =
+    parcelasEfetivas.length > 0 &&
+    parcelasEfetivas.every((p) => {
+      const isCartao = isMetodoCartao(p.metodo, p.descricao) || (p.vencimento && /fatura/i.test(p.vencimento));
+      const isPaga = Boolean(p.status && /paga|pago|quitad/i.test(p.status));
+      return isCartao || isPaga;
+    });
+
+  // Apenas exibe parágrafos de mora/multa e suspensão por inadimplência se houver parcelas mensais futuras sob cobrança direta da clínica
+  const temParcelasPendentesDiretasClinica =
+    !isFormaAvista &&
+    !todasQuitadas &&
+    !todasCartaoOuQuitadas &&
+    parcelasEfetivas.some((p) => {
+      const isCartao = isMetodoCartao(p.metodo, p.descricao) || (p.vencimento && /fatura/i.test(p.vencimento));
+      const isPaga = Boolean(p.status && /paga|pago|quitad/i.test(p.status));
+      return !isCartao && !isPaga;
+    });
+
   let tituloClausulaPagamento = 'DO PAGAMENTO, PARCELAMENTO E CONDIÇÕES ACORDADAS';
-  if (apenasCartao) {
+  if (isFormaAvista) {
+    tituloClausulaPagamento = temAlgumPix
+      ? 'DO PAGAMENTO À VISTA VIA PIX E CONDIÇÕES ACORDADAS'
+      : 'DO PAGAMENTO À VISTA E CONDIÇÕES ACORDADAS';
+  } else if (apenasCartao) {
     tituloClausulaPagamento = 'DO PAGAMENTO VIA CARTÃO DE CRÉDITO E CONDIÇÕES ACORDADAS';
   } else if (temAlgumPix && !temAlgumCartao) {
     tituloClausulaPagamento = 'DO PAGAMENTO MENSAL VIA PIX E FORMAS ACORDADAS NO ORÇAMENTO';
@@ -3632,12 +3663,14 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
       </p>
       ` : ''}
 
+      ${temParcelasPendentesDiretasClinica ? `
       <p class="paragrafo" style="font-size: 11px; color: #4b5563;">
         <strong>Parágrafo Primeiro (Mora e Encargos):</strong> O não pagamento de qualquer das parcelas mensais na data de seus respectivos vencimentos sujeitará o(a) <strong>CONTRATANTE</strong> à incidência de multa moratória de 2% (dois por cento) sobre o montante em atraso, acrescida de juros de mora legais de 1% (um por cento) ao mês calculados <em>pro rata die</em>, nos termos do art. 52, § 1º do Código de Defesa do Consumidor e art. 406 do Código Civil.
       </p>
       <p class="paragrafo" style="font-size: 11px; color: #4b5563;">
         <strong>Parágrafo Segundo (Inadimplência Superior a 30 dias):</strong> Ocorrendo atraso superior a 30 (trinta) dias no pagamento de qualquer parcela mensal acordada, a <strong>CONTRATADA</strong> poderá suspender temporariamente a continuidade dos procedimentos eletivos não emergenciais até a regularização financeira das parcelas em aberto, assegurados os atendimentos de urgência indispensáveis à saúde do paciente.
       </p>
+      ` : ''}
     </div>
 
     ${incluiLentes ? `

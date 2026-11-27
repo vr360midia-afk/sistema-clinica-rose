@@ -95,6 +95,32 @@ export const gerarHtmlContratoEndodontia = (snapshot: ContratoSnapshot): string 
         : parcelasSemEntrada[parcelasSemEntrada.length - 1].vencimento)
     : 'Na conclusão do tratamento / A combinar';
 
+  const isFormaAvista =
+    /à\s*vista|a\s*vista|avista|pix\s*com\s*desconto|dinheiro|transfer[eê]ncia/i.test(financeiro.formaPagamento || '') ||
+    (financeiro.quantidadeParcelas <= 1 && (financeiro.parcelas || []).length <= 1);
+
+  const todasQuitadas =
+    (financeiro.parcelas || []).length > 0 &&
+    (financeiro.parcelas || []).every((p) => Boolean(p.status && /paga|pago|quitad/i.test(p.status)));
+
+  const todasCartaoOuQuitadas =
+    (financeiro.parcelas || []).length > 0 &&
+    (financeiro.parcelas || []).every((p) => {
+      const isCartao = isMetodoCartao(p.metodo, p.descricao) || (p.vencimento && /fatura/i.test(p.vencimento));
+      const isPaga = Boolean(p.status && /paga|pago|quitad/i.test(p.status));
+      return isCartao || isPaga;
+    });
+
+  const temParcelasPendentesDiretasClinica =
+    !isFormaAvista &&
+    !todasQuitadas &&
+    !todasCartaoOuQuitadas &&
+    (financeiro.parcelas || []).some((p) => {
+      const isCartao = isMetodoCartao(p.metodo, p.descricao) || (p.vencimento && /fatura/i.test(p.vencimento));
+      const isPaga = Boolean(p.status && /paga|pago|quitad/i.test(p.status));
+      return !isCartao && !isPaga;
+    });
+
   return `<!doctype html>
 <html lang="pt-BR">
 <head>
@@ -799,6 +825,7 @@ export const gerarHtmlContratoEndodontia = (snapshot: ContratoSnapshot): string 
     </div>
 
     <!-- CLÁUSULA 11ª — DA INADIMPLÊNCIA -->
+    ${temParcelasPendentesDiretasClinica ? `
     <div class="clausula-bloco">
       <div class="clausula-titulo">CLÁUSULA 11ª — DA INADIMPLÊNCIA</div>
       <p class="paragrafo">
@@ -817,6 +844,7 @@ export const gerarHtmlContratoEndodontia = (snapshot: ContratoSnapshot): string 
         11.5. A inadimplência não autoriza a interrupção insegura de tratamento clínico já iniciado, devendo ser respeitadas as obrigações éticas profissionais e a continuidade assistencial cabível.
       </p>
     </div>
+    ` : ''}
 
     <!-- CLÁUSULA 12ª — DA DESISTÊNCIA E DA RESCISÃO CONTRATUAL -->
     <div class="clausula-bloco">
