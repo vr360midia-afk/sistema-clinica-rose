@@ -877,7 +877,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
 
   const handleSalvarFlexibilizacaoContrato = async () => {
     if (!condicaoFlexibilizarContrato || !orcamentoAtual) return;
-    const descAuto = calcularDescricaoCondicao(condicaoFlexibilizarContrato, orcamentoAtual.total);
+    const descAuto = calcularDescricaoCondicao(condicaoFlexibilizarContrato, condicaoFlexibilizarContrato.valorTotal || orcamentoAtual.total);
     const finalCond: CondicaoPagamento = {
       id: condicaoFlexibilizarContrato.id || String(Date.now()),
       titulo: condicaoFlexibilizarContrato.titulo?.trim() || 'Opção Ajustada',
@@ -909,7 +909,9 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
 
     const orcAtualizado: Orcamento = {
       ...orcamentoAtual,
+      total: finalCond.valorTotal || orcamentoAtual.total,
       formasPagamento: novoJson,
+      condicaoEscolhida: finalCond,
     };
     if (saveOrcamento) {
       try {
@@ -922,7 +924,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     const snap = mapearDadosContrato({
       patient,
       orcamento: orcAtualizado,
-      transacoes: transacoesOrcamento,
+      transacoes: [], // recalcula parcelas e cronograma atualizados a partir da nova condição definida
       configuracoes,
       configuracoesContrato: configContrato,
       dentistaNome: selectedDentistaNome || configContrato?.dentistaResponsavelContrato || configuracoes?.croResponsavel,
@@ -930,9 +932,45 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
       cidadeLocal: cidadeLocal || configContrato?.cidadeForoContrato,
       dadosRestauracoesPreexistentes: patient?.restauracoesPreexistentes,
     });
+
+    if (snapshotAtual?.contratoId) snap.contratoId = snapshotAtual.contratoId;
+    if (snapshotAtual?.token) snap.token = snapshotAtual.token;
+    if (snapshotAtual?.assinaturaDentista) {
+      snap.assinaturaDentista = snapshotAtual.assinaturaDentista;
+      snap.statusAssinaturaDentista = snapshotAtual.statusAssinaturaDentista;
+    }
+
     setSnapshotAtual(snap);
+    setIsManuallyEdited(true);
+
+    const novoHtml = gerarHtmlContrato(snap);
+    if (contratoVisualizacao) {
+      setContratoVisualizacao((prev: any) => ({
+        ...prev,
+        conteudo: novoHtml,
+        itens: snap,
+      }));
+    }
+
+    // Persiste atualização no banco para documento existente em elaboração
+    const targetDocId = documentoIdSendoEditado || contratoVisualizacao?.id || contratoExistenteOrcamento?.id;
+    if (targetDocId && supabase) {
+      try {
+        await supabase
+          .from('documentos_clinicos')
+          .update({
+            conteudo: novoHtml,
+            itens: snap,
+            atualizado_em: new Date().toISOString(),
+          })
+          .eq('id', targetDocId);
+      } catch (errDb) {
+        console.warn('Erro ao atualizar documento clínico com nova flexibilização:', errDb);
+      }
+    }
+
     setModalFlexibilizarContratoOpen(false);
-    toast.success('Condição flexibilizada e contrato atualizado com sucesso!');
+    toast.success('Condições de pagamento e cronograma do contrato atualizados com sucesso!');
   };
 
   // Identifica se o contrato inclui lentes em resina composta e as cláusulas específicas
@@ -960,23 +998,18 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     !contratoVisualizacao?.assinadoEm
   );
 
-  // HTML da prévia exibido nos visualizadores (Padrão A4 e Modo Tela Cheia) com prioridade rigorosa:
+  // HTML da prévia exibido nos visualizadores (Padrão A4 e Modo Tela Cheia):
   // 1. Contratos formalizados com assinatura do paciente NUNCA exibem HTML recalculado em memória (preserva imutabilidade legal)
-  // 2. Em modo de edição manual ativa ou restauração de padrão autorizada em contrato pendente, exibe o HTML em tempo real gerado pelo motor
-  // 3. Fora do modo de edição, exibe estritamente o HTML oficial persistido no banco de dados
-  // 4. Em minutas novas sem documento gravado no banco, exibe o HTML gerado a partir do orçamento
+  // 2. Em contratos em elaboração/não assinados, exibe o HTML em tempo real gerado pelo motor com as condições atuais
   const htmlPreview = useMemo(() => {
     if (hasAssinaturaPaciente || contratoVisualizacao?.assinadoEm) {
       return contratoVisualizacao?.conteudo || '';
     }
-    if (isEmModoEdicaoOuRetificacao && htmlContratoAtual) {
+    if (htmlContratoAtual) {
       return htmlContratoAtual;
     }
-    if (contratoVisualizacao?.conteudo) {
-      return contratoVisualizacao.conteudo;
-    }
-    return htmlContratoAtual || '';
-  }, [hasAssinaturaPaciente, contratoVisualizacao, isEmModoEdicaoOuRetificacao, htmlContratoAtual]);
+    return contratoVisualizacao?.conteudo || '';
+  }, [hasAssinaturaPaciente, contratoVisualizacao, htmlContratoAtual]);
 
   // Validação de campos cadastrais indispensáveis
   const pendenciasCadastrais = useMemo(() => {
@@ -1881,85 +1914,72 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
             </span>
           </div>
 
-          {snapshotAtual?.financeiro?.formaPagamento && (
-            <div className="text-[11px] text-muted-foreground bg-muted/40 p-2 rounded border border-border/60">
-              <span className="font-medium text-foreground">Pagamento atual:</span>{" "}
-              <span className="font-semibold text-primary">
-                {limparFormaPagamentoParaContrato(snapshotAtual.financeiro.formaPagamento)}
+          {/* Condição de Pagamento Fechada / Aprovada do Contrato */}
+          <div className="pt-2 border-t border-border/70 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] font-bold text-foreground flex items-center gap-1.5">
+                <Wallet className="h-3.5 w-3.5 text-primary" />
+                Condição Fechada no Contrato:
               </span>
-            </div>
-          )}
-
-          {condicoesContrato.length > 1 ? (
-            <div className="pt-2 border-t border-border/70 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-foreground flex items-center gap-1">
-                  <Wallet className="h-3.5 w-3.5 text-primary" />
-                  Opção Fechada para este Contrato:
-                </span>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    const sel = condicoesContrato.find((c) => c.id === condicaoContratoAtivaId) || condicoesContrato[0];
-                    setCondicaoFlexibilizarContrato({ ...sel });
-                    setModalFlexibilizarContratoOpen(true);
-                  }}
-                  className="h-6 text-[10px] gap-1 text-primary hover:bg-primary/10 font-medium px-1.5"
-                >
-                  <Pencil className="h-3 w-3" />
-                  Flexibilizar
-                </Button>
-              </div>
-
-              <div className="grid grid-cols-1 gap-1.5">
-                {condicoesContrato.map((c, idx) => {
-                  const isAtiva = c.id === condicaoContratoAtivaId;
-                  return (
-                    <button
-                      key={c.id || idx}
-                      type="button"
-                      onClick={() => handleTrocarCondicaoContrato(c.id)}
-                      className={`w-full text-left px-2.5 py-1.5 rounded-md text-[11px] font-medium transition-all flex items-center justify-between border ${
-                        isAtiva
-                          ? "bg-emerald-600 text-white border-emerald-500 shadow-xs"
-                          : "bg-background hover:bg-muted text-muted-foreground hover:text-foreground border-border"
-                      }`}
-                    >
-                      <span className="truncate">{c.titulo}</span>
-                      {isAtiva && <Check className="h-3.5 w-3.5 shrink-0 ml-1.5" />}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ) : (
-            <div className="pt-2 border-t border-border/50 flex items-center justify-between gap-2">
-              <span className="text-[11px] text-muted-foreground">Condição de pagamento definida.</span>
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
                 onClick={() => {
-                  const sel = condicoesContrato[0] || {
-                    id: "1",
-                    titulo: "Condição de Pagamento",
-                    tipo: "personalizado" as const,
-                    valorTotal: orcamentoAtual.total,
-                    descricao: snapshotAtual?.financeiro.formaPagamento || orcamentoAtual.formasPagamento || "",
-                    selecionada: true,
-                  };
+                  const condAprovada = extrairCondicaoEscolhida(orcamentoAtual);
+                  const sel = condicaoFlexibilizarContrato ||
+                    (condAprovada ? condicoesContrato.find((c) => c.id === condAprovada.id || c.titulo === condAprovada.titulo) || condAprovada : null) ||
+                    condicoesContrato.find((c) => c.id === condicaoContratoAtivaId) ||
+                    condicoesContrato[0] || {
+                      id: "1",
+                      titulo: "Condição Fechada",
+                      tipo: "personalizado" as const,
+                      valorTotal: snapshotAtual?.financeiro?.total || orcamentoAtual.total,
+                      descricao: snapshotAtual?.financeiro?.formaPagamento || orcamentoAtual.formasPagamento || "",
+                      selecionada: true,
+                    };
                   setCondicaoFlexibilizarContrato({ ...sel });
                   setModalFlexibilizarContratoOpen(true);
                 }}
-                className="h-6 text-[10px] gap-1 text-primary border-primary/40 hover:bg-primary/10 font-medium"
+                className="h-6 text-[10.5px] gap-1 text-primary hover:bg-primary/10 border-primary/30 font-medium px-2"
+                title="Apenas administradores podem editar ou flexibilizar as condições de pagamento do contrato"
               >
                 <Pencil className="h-3 w-3" />
-                Flexibilizar
+                Editar Pagamento
               </Button>
             </div>
-          )}
+
+            <div className="p-2.5 rounded-md bg-muted/40 border border-border/70 space-y-1.5">
+              <div className="flex items-center justify-between gap-1">
+                <span className="font-semibold text-xs text-foreground truncate">
+                  {condicoesContrato.find((c) => c.id === condicaoContratoAtivaId)?.titulo ||
+                   (orcamentoAtual as any)?.condicaoEscolhida?.titulo ||
+                   'Condição Aprovada no Orçamento'}
+                </span>
+                <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 font-medium shrink-0">
+                  ✓ Aprovada
+                </Badge>
+              </div>
+
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                {snapshotAtual?.financeiro?.formaPagamento ||
+                 condicoesContrato.find((c) => c.id === condicaoContratoAtivaId)?.descricao ||
+                 'Conforme acordado entre as partes'}
+              </p>
+
+              {snapshotAtual?.financeiro && (
+                <div className="pt-1.5 border-t border-border/50 flex flex-wrap gap-x-3 gap-y-1 text-[10.5px] text-muted-foreground">
+                  <span><strong>Total:</strong> {formatMoney(snapshotAtual.financeiro.total)}</span>
+                  {snapshotAtual.financeiro.entrada > 0 && (
+                    <span><strong>Entrada:</strong> {formatMoney(snapshotAtual.financeiro.entrada)}</span>
+                  )}
+                  {snapshotAtual.financeiro.quantidadeParcelas > 0 && (
+                    <span><strong>Parcelas:</strong> {snapshotAtual.financeiro.quantidadeParcelas}x de {formatMoney(snapshotAtual.financeiro.valorParcela)}</span>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
