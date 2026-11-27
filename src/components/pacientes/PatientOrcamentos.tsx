@@ -164,6 +164,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
   const [titulo, setTitulo] = useState('Plano de tratamento');
   const [itens, setItens] = useState<OrcamentoItem[]>([]);
   const [desconto, setDesconto] = useState(0);
+  const [ocultarValorTotal, setOcultarValorTotal] = useState(false);
   const [observacoes, setObservacoes] = useState('');
   const [formasPagamento, setFormasPagamento] = useState('');
   const [modoFormaPagamento, setModoFormaPagamento] = useState<'propostas' | 'livre'>('propostas');
@@ -1625,6 +1626,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
     setTitulo('Plano de tratamento');
     setItens([]);
     setDesconto(0);
+    setOcultarValorTotal(false);
     setObservacoes('');
     setFormasPagamento('');
     const trio = gerarTrioPropostasSugeridas(0);
@@ -1678,6 +1680,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
     setTitulo(o.titulo);
     setItens(o.itens.map((i) => ({ ...i })));
     setDesconto(o.desconto || 0);
+    setOcultarValorTotal(Boolean(o.ocultarValorTotal));
     setObservacoes(o.observacoes || '');
     setFormasPagamento(o.formasPagamento || '');
     const parsed = parseCondicoesPagamento(o.formasPagamento, o.total);
@@ -2074,6 +2077,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
       titulo,
       itens,
       desconto,
+      ocultarValorTotal,
       observacoes,
       formasPagamento: formasParaSalvar,
       pacienteId: patient.id,
@@ -2097,6 +2101,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
     setTitulo('Plano de tratamento');
     setItens([]);
     setDesconto(0);
+    setOcultarValorTotal(false);
     setObservacoes('');
     setFormasPagamento('');
     setParceriaAtiva(false);
@@ -2126,6 +2131,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
         itens: o.itens,
         desconto: o.desconto,
         total: o.total,
+        ocultarValorTotal: o.ocultarValorTotal,
         observacoes: o.observacoes,
         formasPagamento: o.formasPagamento,
         validade: o.validade,
@@ -2239,8 +2245,12 @@ const PatientOrcamentos = ({ patient }: Props) => {
       `📋 *${o.titulo}*`,
       '',
       ...o.itens.map((i) => `• ${i.nome} ${i.quantidade > 1 ? `(${i.quantidade}x) ` : ''}— ${formatMoney(i.valor * i.quantidade)}`),
-      o.desconto ? `Desconto especial: -${formatMoney(o.desconto)}` : null,
-      `*Valor Total: ${formatMoney(o.total)}*`,
+      ...(o.ocultarValorTotal
+        ? ['💡 *Proposta com opções alternativas para o mesmo protocolo (valores discriminados individualmente por opção acima).*']
+        : [
+            o.desconto ? `Desconto especial: -${formatMoney(o.desconto)}` : null,
+            `*Valor Total: ${formatMoney(o.total)}*`,
+          ]),
       '',
       gerarTextoWhatsAppCondicoes(parseCondicoesPagamento(o.formasPagamento, o.total), o.total),
       o.observacoes ? `Observações: ${o.observacoes}` : null,
@@ -2312,8 +2322,12 @@ const PatientOrcamentos = ({ patient }: Props) => {
     const linhas = [
       `*${o.titulo}*`,
       ...o.itens.map((i) => `• ${i.nome} ${i.quantidade > 1 ? `(${i.quantidade}x) ` : ''}— ${formatMoney(i.valor * i.quantidade)}`),
-      o.desconto ? `Desconto: ${formatMoney(o.desconto)}` : null,
-      `*Total: ${formatMoney(o.total)}*`,
+      ...(o.ocultarValorTotal
+        ? ['💡 *Proposta com opções alternativas para o mesmo protocolo (valores discriminados por opção).*']
+        : [
+            o.desconto ? `Desconto: ${formatMoney(o.desconto)}` : null,
+            `*Total: ${formatMoney(o.total)}*`,
+          ]),
       '',
       gerarTextoWhatsAppCondicoes(parseCondicoesPagamento(o.formasPagamento, o.total), o.total),
       o.observacoes || null,
@@ -2609,8 +2623,14 @@ const PatientOrcamentos = ({ patient }: Props) => {
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="font-medium truncate">{o.titulo}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {(o.itens || []).length} procedimento(s) • {formatMoney(o.total || 0)}
+                    <p className="text-xs text-muted-foreground flex items-center gap-1.5 flex-wrap">
+                      <span>{(o.itens || []).length} procedimento(s)</span>
+                      <span>•</span>
+                      {o.ocultarValorTotal ? (
+                        <span className="text-primary font-medium">Opções alternativas (Total oculto)</span>
+                      ) : (
+                        <span>{formatMoney(o.total || 0)}</span>
+                      )}
                     </p>
                   </div>
                   <div className="flex items-center gap-1.5 flex-wrap justify-end">
@@ -2741,18 +2761,32 @@ const PatientOrcamentos = ({ patient }: Props) => {
                 </ul>
 
                 <div className="rounded-md bg-muted/40 p-2 space-y-1 text-xs">
-                  <div className="flex justify-between text-muted-foreground">
-                    <span>Subtotal</span>
-                    <span>{formatMoney((o.itens || []).reduce((s, i) => s + (i.valor || 0) * (i.quantidade || 1), 0))}</span>
-                  </div>
-                  <div className="flex justify-between text-muted-foreground">
-                    <span>Desconto</span>
-                    <span>- {formatMoney(o.desconto || 0)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm font-semibold text-foreground border-t border-border pt-1">
-                    <span>Total</span>
-                    <span>{formatMoney(o.total || 0)}</span>
-                  </div>
+                  {o.ocultarValorTotal ? (
+                    <div className="p-2 rounded bg-primary/10 border border-primary/20 space-y-1 text-xs">
+                      <div className="flex items-center gap-1.5 font-semibold text-primary">
+                        <Sparkles className="h-3.5 w-3.5" />
+                        <span>Opções Alternativas do Mesmo Protocolo</span>
+                      </div>
+                      <p className="text-muted-foreground text-[11px] leading-relaxed">
+                        Total cumulativo oculto para avaliação de procedimentos alternativos para o mesmo protocolo.
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex justify-between text-muted-foreground">
+                        <span>Subtotal</span>
+                        <span>{formatMoney((o.itens || []).reduce((s, i) => s + (i.valor || 0) * (i.quantidade || 1), 0))}</span>
+                      </div>
+                      <div className="flex justify-between text-muted-foreground">
+                        <span>Desconto</span>
+                        <span>- {formatMoney(o.desconto || 0)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm font-semibold text-foreground border-t border-border pt-1">
+                        <span>Total</span>
+                        <span>{formatMoney(o.total || 0)}</span>
+                      </div>
+                    </>
+                  )}
                   {o.formasPagamento && (() => {
                     const conds = parseCondicoesPagamento(o.formasPagamento, o.total);
                     const isAprovado = o.status === 'aprovado' || o.status === 'concluido';
@@ -3786,6 +3820,37 @@ const PatientOrcamentos = ({ patient }: Props) => {
                       Arredondar p/ {formatMoney(Math.floor(subtotal / 500) * 500)}
                     </Button>
                   )}
+                </div>
+              )}
+            </div>
+
+            {/* Opção para Propostas com Opções Alternativas do Mesmo Protocolo */}
+            <div className="rounded-xl border border-border/80 bg-muted/20 p-3.5 space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-1.5 font-semibold text-xs text-foreground">
+                    <Sparkles className="h-3.5 w-3.5 text-primary" />
+                    <span>Ocultar Valor Total do Orçamento</span>
+                    <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 border-primary/30 text-primary">
+                      Multi-Opções
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-snug">
+                    Ideal para quando a proposta tiver mais opções do mesmo protocolo (ex: alternativas de resina vs. porcelana ou técnicas distintas). O paciente visualiza o valor de cada opção individualmente sem a soma cumulativa de opções excludentes.
+                  </p>
+                </div>
+                <Switch
+                  id="toggleOcultarTotal"
+                  checked={ocultarValorTotal}
+                  onCheckedChange={setOcultarValorTotal}
+                />
+              </div>
+              {ocultarValorTotal && (
+                <div className="p-2 rounded-lg bg-primary/10 border border-primary/20 text-[11px] text-primary flex items-start gap-1.5">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                  <span>
+                    Com esta opção ativada, o PDF, impressão e link da proposta não exibirão o Subtotal e Total cumulativos, exibindo um aviso claro de opções alternativas para livre escolha do paciente.
+                  </span>
                 </div>
               )}
             </div>

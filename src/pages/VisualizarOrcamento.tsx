@@ -727,37 +727,49 @@ export default function VisualizarOrcamento() {
             </div>
 
             {/* Resumo Financeiro Oficial */}
-            <div className="p-4 rounded-xl bg-card border border-border/80 space-y-2 text-xs">
-              <div className="flex justify-between text-muted-foreground">
-                <span>Subtotal dos Procedimentos:</span>
-                <span className="font-semibold text-foreground">{formatMoney(orcamento.subtotal)}</span>
+            {orcamento.ocultarValorTotal ? (
+              <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 space-y-2 text-xs">
+                <div className="flex items-center gap-2 text-primary font-bold text-sm">
+                  <Sparkles className="h-4 w-4 shrink-0" />
+                  <span>Proposta com Opções Alternativas de Tratamento</span>
+                </div>
+                <p className="text-muted-foreground text-xs leading-relaxed">
+                  Este orçamento apresenta opções terapêuticas alternativas para o mesmo protocolo clínico. Os valores de cada procedimento estão discriminados individualmente acima para sua livre escolha, sem soma cumulativa de opções excludentes.
+                </p>
               </div>
-
-              {orcamento.desconto > 0 && (
-                <div className="flex justify-between text-emerald-600 font-semibold">
-                  <span>Desconto Especial Oferecido:</span>
-                  <span>- {formatMoney(orcamento.desconto)}</span>
+            ) : (
+              <div className="p-4 rounded-xl bg-card border border-border/80 space-y-2 text-xs">
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Subtotal dos Procedimentos:</span>
+                  <span className="font-semibold text-foreground">{formatMoney(orcamento.subtotal)}</span>
                 </div>
-              )}
 
-              <Separator className="my-1" />
+                {orcamento.desconto > 0 && (
+                  <div className="flex justify-between text-emerald-600 font-semibold">
+                    <span>Desconto Especial Oferecido:</span>
+                    <span>- {formatMoney(orcamento.desconto)}</span>
+                  </div>
+                )}
 
-              <div className="flex justify-between items-baseline pt-1">
-                <div>
-                  <span className="text-sm font-bold text-foreground block">
-                    Valor Total do Investimento:
-                  </span>
-                  <span className="text-[11px] text-muted-foreground">
-                    Valores em Reais (BRL)
-                  </span>
-                </div>
-                <div className="text-right">
-                  <span className="text-xl sm:text-2xl font-black text-primary block">
-                    {formatMoney(orcamento.total)}
-                  </span>
+                <Separator className="my-1" />
+
+                <div className="flex justify-between items-baseline pt-1">
+                  <div>
+                    <span className="text-sm font-bold text-foreground block">
+                      Valor Total do Investimento:
+                    </span>
+                    <span className="text-[11px] text-muted-foreground">
+                      Valores em Reais (BRL)
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xl sm:text-2xl font-black text-primary block">
+                      {formatMoney(orcamento.total)}
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
             {/* SEÇÃO 4: Escolha da Forma de Pagamento */}
             <div className="space-y-3 pt-2">

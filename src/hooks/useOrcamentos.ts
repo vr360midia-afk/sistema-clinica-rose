@@ -51,6 +51,7 @@ export interface Orcamento {
   assinaturaDraStatus?: string | null;
   assinaturaPacienteStatus?: string | null;
   pdfPath?: string | null;
+  ocultarValorTotal?: boolean;
 
   parceiroId?: string | null;
   parceiroNome?: string | null;
@@ -92,6 +93,7 @@ const rowToOrcamento = (row: any): Orcamento | null => {
     assinaturaDraStatus: row.assinatura_dra_status || snap.assinaturaDraStatus || null,
     assinaturaPacienteStatus: row.assinatura_paciente_status || snap.assinaturaPacienteStatus || null,
     pdfPath: row.pdf_path || snap.pdfPath || null,
+    ocultarValorTotal: Boolean((row as any).ocultar_valor_total ?? snap.ocultarValorTotal ?? snap.ocultar_valor_total ?? false),
     parceiroId: row.parceiro_id,
     parceiroNome: row.parceiro_nome,
     parceiroTipoRepasse: row.parceiro_tipo_repasse,
@@ -164,6 +166,7 @@ export const useOrcamentos = (pacienteId?: string) => {
       assinaturaDraStatus: o.assinaturaDraStatus,
       assinaturaPacienteStatus: o.assinaturaPacienteStatus,
       pdfPath: o.pdfPath,
+      ocultarValorTotal: Boolean(o.ocultarValorTotal),
       versao: o.versao || 1,
       solicitacoesAjuste: o.solicitacoesAjuste || [],
       historicoVersoes: o.historicoVersoes || [],
@@ -206,6 +209,7 @@ export const useOrcamentos = (pacienteId?: string) => {
           id: savedId,
           identificador: identificador || `ORC-${String(savedId).slice(0, 8).toUpperCase()}`,
           tokenAssinatura: o.tokenAssinatura,
+          ocultarValorTotal: o.ocultarValorTotal,
           total,
           versao: o.versao || 1,
           solicitacoesAjuste: o.solicitacoesAjuste || [],

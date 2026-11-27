@@ -89,6 +89,7 @@ export interface OrcamentoPublicoDados {
   contratoLink?: string | null;
   assinaturaDraStatus?: 'concluida' | 'pendente' | null;
   assinaturaPacienteStatus?: 'concluida' | 'pendente' | null;
+  ocultarValorTotal?: boolean;
   clinica: {
     nome: string;
     logoUrl?: string | null;
@@ -830,6 +831,7 @@ export async function obterOrcamentoPublico(
       contratoStatus,
       contratoIdentificador,
       contratoLink,
+      ocultarValorTotal: Boolean(snap.ocultarValorTotal ?? snap.ocultar_valor_total ?? (row as any).ocultar_valor_total ?? false),
       clinica: clinicaInfo,
     },
   };

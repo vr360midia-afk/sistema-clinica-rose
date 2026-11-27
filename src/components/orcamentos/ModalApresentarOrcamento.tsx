@@ -1032,32 +1032,50 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
                 <div className="space-y-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      Investimento Total do Tratamento
+                      {orcamento.ocultarValorTotal ? 'Proposta com Opções Alternativas' : 'Investimento Total do Tratamento'}
                     </span>
-                    {desconto > 0 && (
+                    {orcamento.ocultarValorTotal && (
+                      <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/20 font-medium">
+                        Multi-Opções do Mesmo Protocolo
+                      </Badge>
+                    )}
+                    {!orcamento.ocultarValorTotal && desconto > 0 && (
                       <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 font-medium">
                         Condição Especial Aplicada
                       </Badge>
                     )}
                   </div>
 
-                  <div className="flex items-baseline gap-3 flex-wrap">
-                    <span className="text-3xl sm:text-4xl font-extrabold text-foreground tracking-tight">
-                      {formatMoney(total)}
-                    </span>
-                    {desconto > 0 && (
-                      <div className="text-xs text-muted-foreground flex items-center gap-1.5 font-medium">
-                        <span className="line-through">{formatMoney(subtotal)}</span>
-                        <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
-                          (-{formatMoney(desconto)})
+                  {orcamento.ocultarValorTotal ? (
+                    <div className="space-y-1 py-1">
+                      <span className="text-xl sm:text-2xl font-bold text-primary tracking-tight">
+                        Valores Discriminados por Opção
+                      </span>
+                      <p className="text-xs text-muted-foreground">
+                        Total cumulativo oculto para que o paciente decida e selecione uma das opções alternativas planejadas.
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-baseline gap-3 flex-wrap">
+                        <span className="text-3xl sm:text-4xl font-extrabold text-foreground tracking-tight">
+                          {formatMoney(total)}
                         </span>
+                        {desconto > 0 && (
+                          <div className="text-xs text-muted-foreground flex items-center gap-1.5 font-medium">
+                            <span className="line-through">{formatMoney(subtotal)}</span>
+                            <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                              (-{formatMoney(desconto)})
+                            </span>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
 
-                  <p className="text-xs text-muted-foreground">
-                    Inclui todos os {itens.length} {itens.length === 1 ? 'procedimento clínico planejado' : 'procedimentos clínicos planejados'} para o paciente.
-                  </p>
+                      <p className="text-xs text-muted-foreground">
+                        Inclui todos os {itens.length} {itens.length === 1 ? 'procedimento clínico planejado' : 'procedimentos clínicos planejados'} para o paciente.
+                      </p>
+                    </>
+                  )}
                 </div>
 
                 {/* Gatilho Discreto para Expandir Negociação / Desconto */}

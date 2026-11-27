@@ -37,6 +37,7 @@ export interface OrcamentoPdf {
   contratoId?: string | null;
   identificador?: string | null;
   versao?: number;
+  ocultarValorTotal?: boolean;
 }
 
 const money = (v: number) =>
@@ -254,11 +255,26 @@ export const construirHtmlOrcamento = (o: OrcamentoPdf, clinica: ClinicaInfo = {
       </tbody>
     </table>
 
+    ${
+      o.ocultarValorTotal
+        ? `
+    <div style="margin: 22px 0 16px; padding: 14px 18px; background: #f8fafc; border: 1.5px solid #cbd5e1; border-left: 4px solid #1a1a1a; border-radius: 6px; font-family: Helvetica, Arial, sans-serif; page-break-inside: avoid; break-inside: avoid;">
+      <div style="font-size: 11.5px; font-weight: 700; color: #0f172a; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;">
+        📋 Proposta com Opções Alternativas de Tratamento
+      </div>
+      <div style="font-size: 11px; color: #475569; line-height: 1.5;">
+        Este orçamento apresenta opções terapêuticas alternativas para o mesmo protocolo clínico. Os valores estão discriminados individualmente por procedimento acima para livre escolha e decisão do paciente, sem soma cumulativa de opções excludentes.
+      </div>
+    </div>
+    `
+        : `
     <div class="totais">
       <div><span>Subtotal</span><span>${money(subtotal)}</span></div>
       <div><span>Desconto</span><span>- ${money(o.desconto || 0)}</span></div>
       <div class="grande"><span>Total</span><span>${money(o.total)}</span></div>
     </div>
+    `
+    }
 
     ${blocoFormasPagamentoHtml}
     ${o.observacoes ? `<div class="bloco"><h3>Observações</h3>${String(o.observacoes).replace(/\n/g, '<br/>')}</div>` : ''}
