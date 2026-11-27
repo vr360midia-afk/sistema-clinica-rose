@@ -1182,8 +1182,10 @@ export function gerarParcelasCronogramaFinanceiro(params: ParamsGerarParcelasCro
       const dataVencVista = condicao.dataEntrada
         ? formatarData(condicao.dataEntrada)
         : (condicao.dataPrimeiroVencimento ? formatarData(condicao.dataPrimeiroVencimento) : formatarData(dataAprovacao || hoje));
-      // Situação rigorosa: PIX não pode ser marcado como Quitada sem comprovação efetiva de pagamento
-      const pixComprovado = Boolean(condicao.pagamentoConfirmado || condicao.pago || (condicao.situacaoEntrada === 'Quitada' && condicao.comprovado));
+      // Situação rigorosa: PIX reflete pagamentos efetivamente comprovados ou registrados
+      const descOuTit = `${condicao.descricao || ''} ${condicao.titulo || ''}`.toLowerCase();
+      const temTagQuitada = /quitad|pago|paga/i.test(descOuTit) || /quitad|pago|paga/i.test(condicao.situacao || '') || /quitad|pago|paga/i.test(condicao.situacaoEntrada || '');
+      const pixComprovado = Boolean(condicao.pagamentoConfirmado || condicao.pago || temTagQuitada || (condicao.situacaoEntrada === 'Quitada' && condicao.comprovado));
       const sitVista = pixComprovado ? 'Quitada' : 'Pendente';
 
       const p1: ContratoParcela = {
@@ -1227,8 +1229,10 @@ export function gerarParcelasCronogramaFinanceiro(params: ParamsGerarParcelasCro
       }
       const isDebito = condicao.tipoCartao === 'debito';
       const metodoNome = isDebito ? 'Cartão de Débito' : 'Cartão de Crédito';
-      // Situação rigorosa: Cartão não pode ser marcado como Autorizado sem confirmação da operadora ou registro financeiro confiável
-      const cartaoAutorizado = Boolean(condicao.cartaoAutorizado || condicao.autorizacaoConfirmada || condicao.nsu || condicao.codigoAutorizacao);
+      // Situação rigorosa: Cartão reflete confirmação da operadora ou comprovação financeira
+      const descTitCartao = `${condicao.descricao || ''} ${condicao.titulo || ''}`.toLowerCase();
+      const temTagCartaoAut = /autoriz|quitad|pago|paga/i.test(descTitCartao) || /autoriz|quitad|pago|paga/i.test(condicao.situacao || '') || /autoriz|quitad|pago|paga/i.test(condicao.situacaoEntrada || '');
+      const cartaoAutorizado = Boolean(condicao.cartaoAutorizado || condicao.autorizacaoConfirmada || condicao.nsu || condicao.codigoAutorizacao || temTagCartaoAut);
       const sitCartao = cartaoAutorizado ? (isDebito ? 'Quitada' : 'Autorizado') : 'Pendente';
 
       // Arredondamento monetário seguro: distribuição exata dos centavos
@@ -2944,6 +2948,7 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
 
   const isFormaAvista =
     /à\s*vista|a\s*vista|avista|pix\s*com\s*desconto|dinheiro|transfer[eê]ncia/i.test(financeiro.formaPagamento || '') ||
+    /à\s*vista|a\s*vista|avista|pix\s*com\s*desconto|dinheiro|transfer[eê]ncia/i.test(orcamento.formasPagamento || '') ||
     (financeiro.quantidadeParcelas <= 1 && parcelasEfetivas.length <= 1);
 
   const isCapim =
@@ -3586,12 +3591,20 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
       const parcelaEntrada = financeiro.parcelas?.find((p) =>
         /entrada|sinal/i.test(p.descricao || '')
       ) || (financeiro.entrada > 0 && financeiro.parcelas?.length > 0 ? financeiro.parcelas[0] : undefined);
-      const isEntradaPaga = parcelaEntrada?.status ? /quitad|pago|paga/i.test(parcelaEntrada.status) : false;
+      const isEntradaPaga = parcelaEntrada?.status
+        ? /quitad|pago|paga/i.test(parcelaEntrada.status)
+        : (/quitad|pago|paga/i.test(financeiro.formaPagamento || '') || /quitad|pago|paga/i.test(orcamento?.formasPagamento || ''));
 
       const parcelasPixNaoPagas = (financeiro.parcelas || []).filter((p) => {
         const isCartao = isMetodoCartao(p.metodo, p.descricao) || (p.vencimento && /fatura/i.test(p.vencimento));
         const isPix = !isCartao && (isMetodoPix(p.metodo, p.descricao) || temAlgumPix);
-        const isPaga = Boolean(p.status && /paga|pago|quitad/i.test(p.status));
+        const isPaga = Boolean(
+          (p.status && /paga|pago|quitad/i.test(p.status)) ||
+          (p.descricao && /quitad|pago|paga/i.test(p.descricao)) ||
+          (p.metodo && /quitad|pago|paga/i.test(p.metodo)) ||
+          (/quitad|pago|paga/i.test(financeiro.formaPagamento || '') && (financeiro.parcelas?.length === 1 || !p.descricao?.toLowerCase().includes('entrada'))) ||
+          (/quitad|pago|paga/i.test(orcamento?.formasPagamento || '') && (financeiro.parcelas?.length === 1 || !p.descricao?.toLowerCase().includes('entrada')))
+        );
         return isPix && !isPaga;
       });
 
@@ -3719,7 +3732,13 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
       const isCartao = isMetodoCartao(parc.metodo, parc.descricao) || (parc.vencimento && /fatura/i.test(parc.vencimento));
       const vencTexto = isCartao ? 'Fatura do Cartão' : (parc.vencimento || '-');
       const isPix = !isCartao && (isMetodoPix(parc.metodo, parc.descricao) || temAlgumPix);
-      const isPaga = Boolean(parc.status && /paga|pago|quitad/i.test(parc.status));
+      const isPaga = Boolean(
+        (parc.status && /paga|pago|quitad/i.test(parc.status)) ||
+        (parc.descricao && /quitad|pago|paga/i.test(parc.descricao)) ||
+        (parc.metodo && /quitad|pago|paga/i.test(parc.metodo)) ||
+        (/quitad|pago|paga/i.test(financeiro.formaPagamento || '') && (financeiro.parcelas?.length === 1 || !parc.descricao?.toLowerCase().includes('entrada'))) ||
+        (/quitad|pago|paga/i.test(orcamento?.formasPagamento || '') && (financeiro.parcelas?.length === 1 || !parc.descricao?.toLowerCase().includes('entrada')))
+      );
 
       let parcPayload = isPaga ? '' : (parc.payloadPix || '');
       let parcQrCode = isPaga ? '' : (parc.qrCodePixUrl || '');

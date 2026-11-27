@@ -102,6 +102,7 @@ const Shell = ({ children }: { children: React.ReactNode }) => (
 
 function sanitizarSnapshotContrato(snap: ContratoSnapshot): ContratoSnapshot {
   if (!snap) return snap;
+  const isQuitadoGlobal = /quitad|pago|paga/i.test(snap.financeiro?.formaPagamento || '') || /quitad|pago|paga/i.test(snap.orcamento?.formasPagamento || '');
   return {
     ...snap,
     financeiro: snap.financeiro
@@ -111,11 +112,20 @@ function sanitizarSnapshotContrato(snap: ContratoSnapshot): ContratoSnapshot {
         metodoParcelamento: snap.financeiro.metodoParcelamento
           ? limparFormaPagamentoParaContrato(snap.financeiro.metodoParcelamento)
           : undefined,
-        parcelas: (snap.financeiro.parcelas || []).map((p) => ({
-          ...p,
-          descricao: limparFormaPagamentoParaContrato(p.descricao),
-          metodo: p.metodo ? limparFormaPagamentoParaContrato(p.metodo) : p.metodo,
-        })),
+        parcelas: (snap.financeiro.parcelas || []).map((p) => {
+          const isParcPaga = Boolean(
+            (p.status && /paga|pago|quitad/i.test(p.status)) ||
+            (p.descricao && /quitad|pago|paga/i.test(p.descricao)) ||
+            (p.metodo && /quitad|pago|paga/i.test(p.metodo)) ||
+            (isQuitadoGlobal && (snap.financeiro?.parcelas?.length === 1 || !p.descricao?.toLowerCase().includes('entrada')))
+          );
+          return {
+            ...p,
+            descricao: limparFormaPagamentoParaContrato(p.descricao),
+            metodo: p.metodo ? limparFormaPagamentoParaContrato(p.metodo) : p.metodo,
+            status: isParcPaga ? 'Quitada' : p.status,
+          };
+        }),
       }
       : snap.financeiro,
     orcamento: snap.orcamento
@@ -524,10 +534,16 @@ export default function AssinarContrato() {
             }
             query = query.or(orConditions.join(','));
 
-            const { data: docs } = await query.order('criado_em', { ascending: false }).limit(5);
+            const { data: docs } = await query
+              .order('atualizado_em', { ascending: false })
+              .order('criado_em', { ascending: false })
+              .limit(5);
             let doc = (token ? docs?.find((d: any) => {
               const s = (d.itens || {}) as any;
-              return s.token === token || s.contratoToken === token || s.tokenAssinatura === token;
+              const t = token.trim();
+              return (s.token && s.token.trim() === t) ||
+                     (s.contratoToken && s.contratoToken.trim() === t) ||
+                     (s.tokenAssinatura && s.tokenAssinatura.trim() === t);
             }) : null) || docs?.[0];
 
             // Se ainda não encontrou e temos o slug do paciente, busca pelo nome do paciente

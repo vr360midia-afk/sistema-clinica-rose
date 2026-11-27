@@ -309,6 +309,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
       if (!isManuallyEdited) {
         if (isAssinado) {
           setSnapshotAtual(snapDoc);
+          setDocumentoIdSendoEditado(null);
         } else if (orcamentoAtual && patient) {
           // Resolve o paciente mais atualizado: prop ou cadastro global em pacientes
           const pacienteCadastrado =
@@ -316,88 +317,28 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
             (patient?.nome && pacientes?.find((p) => p.nome && p.nome.trim().toLowerCase() === patient.nome.trim().toLowerCase())) ||
             patient;
 
-          // Se NÃO está assinado pelo paciente, verifica se o orçamento foi atualizado ou possui divergência
-          const valExistente = snapDoc?.financeiro ? validarIntegridadeOrcamentoContrato(orcamentoAtual, snapDoc) : null;
-          const formasOrc = String(orcamentoAtual.formasPagamento || (orcamentoAtual as any).formas_pagamento || '').trim();
-          const formasSnap = String(snapDoc?.financeiro?.formaPagamento || '').trim();
-          const totalOrc = Number(orcamentoAtual.total || 0);
-          const totalSnap = Number(snapDoc?.financeiro?.total ?? snapDoc?.financeiro?.valorTotal ?? 0);
-
-          const temClinicaPlaceholder =
-            !snapDoc?.clinica?.nome ||
-            snapDoc.clinica.nome === 'Clínica Odontológica' ||
-            !snapDoc?.clinica?.cnpj ||
-            snapDoc.clinica.cnpj === 'Não informado' ||
-            !snapDoc?.clinica?.endereco ||
-            snapDoc.clinica.endereco === 'Endereço da clínica';
-
-          const temPacientePlaceholder =
-            !temValorValido(snapDoc?.paciente?.cpf) ||
-            !temValorValido(snapDoc?.paciente?.endereco) ||
-            !temValorValido(snapDoc?.paciente?.telefone) ||
-            !temValorValido(snapDoc?.paciente?.email);
-
-          const pacienteTemNovosDados = Boolean(
-            pacienteCadastrado && (
-              (temValorValido(pacienteCadastrado.cpf) && (!temValorValido(snapDoc?.paciente?.cpf) || snapDoc?.paciente?.cpf !== pacienteCadastrado.cpf)) ||
-              (temValorValido(pacienteCadastrado.telefone) && (!temValorValido(snapDoc?.paciente?.telefone) || snapDoc?.paciente?.telefone !== pacienteCadastrado.telefone)) ||
-              (temValorValido(pacienteCadastrado.endereco) && (!temValorValido(snapDoc?.paciente?.endereco) || snapDoc?.paciente?.endereco !== pacienteCadastrado.endereco)) ||
-              (temValorValido(pacienteCadastrado.email) && (!temValorValido(snapDoc?.paciente?.email) || snapDoc?.paciente?.email !== pacienteCadastrado.email)) ||
-              (temValorValido(pacienteCadastrado.rg) && (!temValorValido(snapDoc?.paciente?.rg) || snapDoc?.paciente?.rg !== pacienteCadastrado.rg))
-            )
-          );
-
-          const requerAtualizacao =
-            temClinicaPlaceholder ||
-            (temPacientePlaceholder && pacienteTemNovosDados) ||
-            valExistente?.divergenciaFinanceira ||
-            (totalOrc > 0 && Math.abs(totalOrc - totalSnap) > 0.05) ||
-            (formasOrc && formasSnap && formasOrc !== formasSnap);
-
-          if (requerAtualizacao) {
-            const snapAtualizado = mapearDadosContrato({
-              patient: pacienteCadastrado || patient,
-              orcamento: orcamentoAtual,
-              transacoes: transacoesOrcamento,
-              configuracoes,
-              configContrato,
-              dentistaNome: selectedDentistaNome || configContrato?.dentistaResponsavelContrato || configuracoes?.croResponsavel,
-              dentistaCro: dentistaAtual?.cro || configContrato?.croResponsavelContrato || configuracoes?.croResponsavel,
-              cidadeLocal: cidadeLocal || configContrato?.cidadeForoContrato,
-              dadosRestauracoesPreexistentes: (pacienteCadastrado || patient)?.restauracoesPreexistentes,
-            });
-
-            if (snapDoc.contratoId) snapAtualizado.contratoId = snapDoc.contratoId;
-            if (snapDoc.token) snapAtualizado.token = snapDoc.token;
-            if (snapDoc.assinaturaDentista) {
-              snapAtualizado.assinaturaDentista = snapDoc.assinaturaDentista;
-              snapAtualizado.statusAssinaturaDentista = snapDoc.statusAssinaturaDentista;
+          // Se o contrato já existe gravado, mescla apenas os dados cadastrais atualizados do paciente sem desestruturar o documento
+          const endCad = formatarEnderecoCompleto(pacienteCadastrado) || (temValorValido(pacienteCadastrado?.endereco) ? pacienteCadastrado.endereco : '');
+          const snapMesclado: ContratoSnapshot = {
+            ...snapDoc,
+            paciente: {
+              ...snapDoc.paciente,
+              nome: pacienteCadastrado?.nome || snapDoc?.paciente?.nome || 'Nome não informado',
+              cpf: temValorValido(pacienteCadastrado?.cpf) ? formatarDocumento(pacienteCadastrado.cpf) : (temValorValido(snapDoc?.paciente?.cpf) ? snapDoc.paciente.cpf : 'Não informado'),
+              rg: temValorValido(pacienteCadastrado?.rg) ? String(pacienteCadastrado.rg).trim() : (snapDoc?.paciente?.rg || ''),
+              telefone: temValorValido(pacienteCadastrado?.telefone) ? formatarTelefone(pacienteCadastrado.telefone) : (temValorValido(snapDoc?.paciente?.telefone) ? snapDoc.paciente.telefone : 'Não informado'),
+              email: temValorValido(pacienteCadastrado?.email) ? pacienteCadastrado.email : (temValorValido(snapDoc?.paciente?.email) ? snapDoc.paciente.email : 'Não informado'),
+              endereco: temValorValido(endCad) ? endCad : (temValorValido(snapDoc?.paciente?.endereco) ? snapDoc.paciente.endereco : 'Não informado'),
+              dataNascimento: temValorValido(pacienteCadastrado?.dataNascimento || (pacienteCadastrado as any)?.data_nascimento) ? formatarData(pacienteCadastrado.dataNascimento || (pacienteCadastrado as any).data_nascimento) : (snapDoc?.paciente?.dataNascimento || 'Não informada'),
+              profissao: temValorValido(pacienteCadastrado?.profissao) ? String(pacienteCadastrado.profissao).trim() : (snapDoc?.paciente?.profissao || ''),
+              estadoCivil: temValorValido(pacienteCadastrado?.estadoCivil || (pacienteCadastrado as any)?.estado_civil) ? String(pacienteCadastrado.estadoCivil || (pacienteCadastrado as any).estado_civil).trim() : (snapDoc?.paciente?.estadoCivil || ''),
             }
-
-            setSnapshotAtual(snapAtualizado);
-            setDocumentoIdSendoEditado(contratoExistenteOrcamento.id);
-          } else {
-            // Mesmo se não requerer recriação completa, mescla os dados cadastrais do paciente atualizados se o contrato não foi assinado
-            const endCad = formatarEnderecoCompleto(pacienteCadastrado) || (temValorValido(pacienteCadastrado?.endereco) ? pacienteCadastrado.endereco : '');
-            const snapMesclado: ContratoSnapshot = {
-              ...snapDoc,
-              paciente: {
-                ...snapDoc.paciente,
-                nome: pacienteCadastrado?.nome || snapDoc?.paciente?.nome || 'Nome não informado',
-                cpf: temValorValido(pacienteCadastrado?.cpf) ? formatarDocumento(pacienteCadastrado.cpf) : (temValorValido(snapDoc?.paciente?.cpf) ? snapDoc.paciente.cpf : 'Não informado'),
-                rg: temValorValido(pacienteCadastrado?.rg) ? String(pacienteCadastrado.rg).trim() : (snapDoc?.paciente?.rg || ''),
-                telefone: temValorValido(pacienteCadastrado?.telefone) ? formatarTelefone(pacienteCadastrado.telefone) : (temValorValido(snapDoc?.paciente?.telefone) ? snapDoc.paciente.telefone : 'Não informado'),
-                email: temValorValido(pacienteCadastrado?.email) ? pacienteCadastrado.email : (temValorValido(snapDoc?.paciente?.email) ? snapDoc.paciente.email : 'Não informado'),
-                endereco: temValorValido(endCad) ? endCad : (temValorValido(snapDoc?.paciente?.endereco) ? snapDoc.paciente.endereco : 'Não informado'),
-                dataNascimento: temValorValido(pacienteCadastrado?.dataNascimento || (pacienteCadastrado as any)?.data_nascimento) ? formatarData(pacienteCadastrado.dataNascimento || (pacienteCadastrado as any).data_nascimento) : (snapDoc?.paciente?.dataNascimento || 'Não informada'),
-                profissao: temValorValido(pacienteCadastrado?.profissao) ? String(pacienteCadastrado.profissao).trim() : (snapDoc?.paciente?.profissao || ''),
-                estadoCivil: temValorValido(pacienteCadastrado?.estadoCivil || (pacienteCadastrado as any)?.estado_civil) ? String(pacienteCadastrado.estadoCivil || (pacienteCadastrado as any).estado_civil).trim() : (snapDoc?.paciente?.estadoCivil || ''),
-              }
-            };
-            setSnapshotAtual(snapMesclado);
-          }
+          };
+          setSnapshotAtual(snapMesclado);
+          setDocumentoIdSendoEditado(null);
         } else {
           setSnapshotAtual(snapDoc);
+          setDocumentoIdSendoEditado(null);
         }
       }
     } else {
@@ -1356,30 +1297,12 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
 
       if ((finalTargetDocId || docExistente) && docExistente && isPendenteNaoAssinado) {
         const snapExistente = (docExistente.itens || {}) as any;
-        const versaoAnteriorRaw = snapExistente.versao !== undefined && snapExistente.versao !== null
-          ? String(snapExistente.versao).trim()
-          : '';
+        // Preserva o token de acesso existente para que o link público permaneça 100% estável e funcional para o paciente
+        const tokenEstavel = snapExistente.token || snapshotAtual.token || contratoVisualizacao?.itens?.token || initialOrcamento?.contratoToken || (initialOrcamento as any)?.contrato_token || gerarTokenAcesso();
 
-        // Formato seguro da versão anterior (default '1.0' caso não exista ainda no registro)
-        const versaoAnteriorValida = (versaoAnteriorRaw && /^\d+(\.\d+)?$/.test(versaoAnteriorRaw))
-          ? versaoAnteriorRaw
-          : '1.0';
-
-        const versaoAnteriorNum = Number(versaoAnteriorValida);
-        const novaVersaoNum = Math.floor(versaoAnteriorNum) + 1;
-        const novaVersaoStr = versaoAnteriorValida.includes('.') ? `${novaVersaoNum}.0` : `${novaVersaoNum}`;
-        const tokenAntigo = snapExistente.token || snapshotAtual.token;
-        const tokensRevogadosAnteriores = Array.isArray(snapExistente.tokensRevogados) ? snapExistente.tokensRevogados : [];
-        const tokensRevogadosAtualizados = Array.from(new Set([...tokensRevogadosAnteriores, tokenAntigo].filter(Boolean)));
-        const historicoAnterior = Array.isArray(snapExistente.versoesAnteriores) ? snapExistente.versoesAnteriores : [];
-
-        // Rotação segura do token de acesso (invalida o link e token anteriores)
-        const novoToken = gerarTokenAcesso();
-
-        // Validação da assinatura profissional para a versão retificada:
-        // Apenas aplica assinatura se existir autorização expressa válida da Dra. Rosângela.
-        // Caso contrário, exige nova assinatura manual da cirurgiã-dentista.
-        let assinaturaDentistaFinal = snapshotParaSalvar.assinaturaDentista;
+        // Validação da assinatura profissional para a versão atualizada:
+        // Se já assinada ou com autorização expressa da Dra. Rosângela, preserva a assinatura oficial
+        let assinaturaDentistaFinal = snapshotParaSalvar.assinaturaDentista || snapExistente.assinaturaDentista;
         const isAutorizacaoValida = Boolean(
           autorizacaoAtiva &&
           autorizacaoAtiva.ativo &&
@@ -1387,7 +1310,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
           validarAutorizacaoAssinatura(autorizacaoAtiva, snapshotParaSalvar.tipoModeloContrato)
         );
 
-        if (isAutorizacaoValida) {
+        if (!assinaturaDentistaFinal && isAutorizacaoValida) {
           assinaturaDentistaFinal = {
             assinaturaData: autorizacaoAtiva.assinaturaGrafica || gerarRubricaPadraoDra(autorizacaoAtiva.profissionalNome, autorizacaoAtiva.profissionalCro),
             nome: autorizacaoAtiva.profissionalNome,
@@ -1399,38 +1322,21 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
             autorizadoEm: autorizacaoAtiva.autorizadoEm || new Date().toISOString(),
             autorizacaoExpressa: true,
           };
-        } else {
-          // Exige nova assinatura da Dra. caso não haja autorização expressa válida para os termos retificados
-          assinaturaDentistaFinal = null;
         }
 
         snapshotParaSalvar = {
           ...snapshotParaSalvar,
-          versao: novaVersaoStr,
+          versao: snapExistente.versao || snapshotParaSalvar.versao || '1.0',
           contratoAnteriorId: snapExistente.contratoAnteriorId && snapExistente.contratoAnteriorId !== docExistente.id
             ? snapExistente.contratoAnteriorId
             : null,
           contratoId: docExistente.identificador || snapExistente.contratoId || snapshotAtual.contratoId,
           orcamentoId: docExistente.orcamento_id || snapExistente.orcamentoId || orcamentoAtual?.id || '',
-          token: novoToken,
-          tokensRevogados: tokensRevogadosAtualizados,
-          tokenValidoAte: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          token: tokenEstavel,
+          tokenValidoAte: snapExistente.tokenValidoAte || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
           assinaturaDentista: assinaturaDentistaFinal,
           statusAssinaturaDentista: assinaturaDentistaFinal ? 'assinado' : 'pendente',
-          status: assinaturaDentistaFinal ? 'aguardando_assinatura_paciente' : 'aguardando_assinatura_dentista',
-          versoesAnteriores: [
-            ...historicoAnterior,
-            {
-              versao: versaoAnteriorRaw,
-              substituidoEm: new Date().toISOString(),
-              motivo: 'Retificação de valores para alinhamento estrito com o orçamento aprovado',
-              token: tokenAntigo,
-              financeiro: snapExistente.financeiro,
-              orcamento: snapExistente.orcamento,
-              assinaturaDentista: snapExistente.assinaturaDentista,
-              conteudoHtml: docExistente.conteudo || null,
-            },
-          ],
+          status: assinaturaDentistaFinal ? 'aguardando_assinatura_paciente' : 'pendente',
         } as any;
 
         // Atualização estrita in-place no mesmo registro (preserva UUID sem duplicatas)
@@ -1486,7 +1392,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
       });
 
       if (docCriado) {
-        // Se houve rotação de token, sincroniza também na tabela orçamentos
+        // Sincroniza também na tabela orçamentos
         if (orcamentoAtual?.id && snapshotParaSalvar.token) {
           try {
             await supabase.from('orcamentos').update({
@@ -1497,10 +1403,19 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
           } catch (_) {}
         }
 
+        // Persiste também via Edge Function emitirContratoPersistido para sincronizar service_role backend
+        try {
+          await emitirContratoPersistido(snapshotParaSalvar, docCriado.id);
+        } catch (_) {}
+
         try {
           const snapJson = JSON.stringify(snapshotParaSalvar);
           localStorage.setItem(`contrato_${docCriado.id}`, snapJson);
-          localStorage.setItem(`contrato_${snapshotParaSalvar.contratoId}`, snapJson);
+          if (snapshotParaSalvar.contratoId) {
+            localStorage.setItem(`contrato_${snapshotParaSalvar.contratoId}`, snapJson);
+            localStorage.setItem(`contrato_${snapshotParaSalvar.contratoId.toUpperCase()}`, snapJson);
+            localStorage.setItem(`contrato_${snapshotParaSalvar.contratoId.toLowerCase()}`, snapJson);
+          }
         } catch (_) {}
 
         setSnapshotAtual(snapshotParaSalvar);
@@ -1511,7 +1426,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
 
         toast.success(
           isPendenteNaoAssinado
-            ? 'Contrato retificado com sucesso! Novo token de acesso gerado e token anterior revogado.'
+            ? 'Contrato salvo e atualizado com sucesso!'
             : 'Contrato emitido e gravado com sucesso!',
           {
             description: `Identificador: ${snapshotParaSalvar.contratoId}`,
@@ -1684,13 +1599,14 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
 
     const emissaoRes = await emitirContratoPersistido(snapshotAtual, docId || undefined);
     if (emissaoRes.id) {
-      setDocumentoIdSendoEditado(emissaoRes.id);
       setContratoVisualizacao((prev: any) => ({
         ...(prev || {}),
         id: emissaoRes.id,
         identificador: emissaoRes.identificador,
         itens: emissaoRes.snapshot,
       }));
+      setDocumentoIdSendoEditado(null);
+      setIsManuallyEdited(false);
     }
     const link = emissaoRes.link;
     navigator.clipboard.writeText(link);
@@ -1733,13 +1649,14 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
 
     const emissaoRes = await emitirContratoPersistido(snapshotAtual, docId || undefined);
     if (emissaoRes.id) {
-      setDocumentoIdSendoEditado(emissaoRes.id);
       setContratoVisualizacao((prev: any) => ({
         ...(prev || {}),
         id: emissaoRes.id,
         identificador: emissaoRes.identificador,
         itens: emissaoRes.snapshot,
       }));
+      setDocumentoIdSendoEditado(null);
+      setIsManuallyEdited(false);
     }
     const link = emissaoRes.link;
     window.open(link, '_blank');
@@ -1787,13 +1704,14 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     const bancoPix = snapshotAtual?.clinica?.bancoPix || configContrato?.bancoPix || '';
     const emissaoResWhats = await emitirContratoPersistido(snapshotAtual, docId || undefined);
     if (emissaoResWhats.id) {
-      setDocumentoIdSendoEditado(emissaoResWhats.id);
       setContratoVisualizacao((prev: any) => ({
         ...(prev || {}),
         id: emissaoResWhats.id,
         identificador: emissaoResWhats.identificador,
         itens: emissaoResWhats.snapshot,
       }));
+      setDocumentoIdSendoEditado(null);
+      setIsManuallyEdited(false);
     }
     const linkAssinatura = emissaoResWhats.link;
 

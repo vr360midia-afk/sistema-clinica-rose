@@ -461,12 +461,13 @@ async function extrairTokenArmazenadoValido(
 ): Promise<{ valido: boolean; tokenArmazenado: string | null; ambiguidade?: boolean; erroEspecifico?: string }> {
   if (!doc || !token) return { valido: false, tokenArmazenado: null };
 
-  // Checagem expressa de revogação de token (ex: retificação contratual com rotação segura de token)
+  // Checagem expressa de revogação de token (apenas para contratos formalizados/assinados que foram formalmente retificados)
+  const isAssinado = Boolean(doc.assinado_em || doc.itens?.assinaturaPaciente?.assinaturaData || doc.itens?.status === 'assinado' || doc.itens?.status === 'formalizado');
   const tokensRevogados: string[] = Array.isArray(doc.itens?.tokensRevogados) ? doc.itens.tokensRevogados : [];
   const versoesAnteriores: any[] = Array.isArray(doc.itens?.versoesAnteriores) ? doc.itens.versoesAnteriores : [];
   const tokensHistoricosRevogados = versoesAnteriores.map((v: any) => v?.token).filter(Boolean);
 
-  if (tokensRevogados.includes(token) || tokensHistoricosRevogados.includes(token)) {
+  if (isAssinado && (tokensRevogados.includes(token) || tokensHistoricosRevogados.includes(token))) {
     return {
       valido: false,
       tokenArmazenado: null,
@@ -831,6 +832,7 @@ async function localizarContratoCompativelBase(
     .from("documentos_clinicos")
     .select("*")
     .or(orFilters.join(","))
+    .order("atualizado_em", { ascending: false })
     .order("criado_em", { ascending: false });
 
   if (rows && rows.length > 0) {
@@ -847,6 +849,7 @@ async function localizarContratoCompativelBase(
       .from("documentos_clinicos")
       .select("*")
       .ilike("id", `${code8.toLowerCase()}-%`)
+      .order("atualizado_em", { ascending: false })
       .order("criado_em", { ascending: false });
     if (rowsLike && rowsLike.length > 0) {
       const selecaoLike = selecionarCandidatoCanonico(rowsLike, token);
