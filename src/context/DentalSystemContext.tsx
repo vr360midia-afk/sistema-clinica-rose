@@ -153,7 +153,24 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
           historiaFamiliar: existing.historiaFamiliar || localItem.historiaFamiliar,
           habitosViciosPositivos: existing.habitosViciosPositivos || localItem.habitosViciosPositivos,
           habitosViciosNegativos: existing.habitosViciosNegativos || localItem.habitosViciosNegativos,
-          respostas: existing.respostas || localItem.respostas,
+          respostas: (() => {
+            const extrairR = (item: any) => {
+              if (!item) return null;
+              if (item.respostas && typeof item.respostas === 'object' && Object.keys(item.respostas).length > 0) return item.respostas;
+              if (typeof item.respostas === 'string') {
+                try { return JSON.parse(item.respostas); } catch (_) {}
+              }
+              const extra = item.exameExtraBucal || item.exame_extra_bucal;
+              if (typeof extra === 'string' && extra.includes('respostas')) {
+                try {
+                  const p = JSON.parse(extra);
+                  if (p?.respostas) return p.respostas;
+                } catch (_) {}
+              }
+              return null;
+            };
+            return extrairR(existing) || extrairR(localItem) || existing.respostas || localItem.respostas || {};
+          })(),
         });
       } else {
         mapAna.set(localItem.id, localItem);

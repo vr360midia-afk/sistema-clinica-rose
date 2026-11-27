@@ -32,13 +32,14 @@ import {
   Download,
   Printer,
   RefreshCw,
+  Activity,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { useConfiguracoesContrato } from '@/hooks/useConfiguracoesContrato';
-import { downloadAnamnesePdf, imprimirAnamneseHtml, AnamnesePdfData } from '@/utils/anamnesePdf';
+import { downloadAnamnesePdf, imprimirAnamneseHtml, AnamnesePdfData, ITENS_TRIAGEM_PADRAO } from '@/utils/anamnesePdf';
 import AnamneseModal from '@/components/anamnese/AnamneseModal';
 import { ModalEnviarAnamnese } from '@/components/anamnese/ModalEnviarAnamnese';
 import DigitalSignature, { SignatureData } from '@/components/signature/DigitalSignature';
@@ -84,6 +85,29 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
     }
   }, [patient?.id]);
 
+  const extrairRespostas = (item: any): Record<string, 'sim' | 'nao'> => {
+    if (!item) return {};
+    let r = item.respostas;
+    if (!r || (typeof r === 'object' && Object.keys(r).length === 0)) {
+      const extra = item.exameExtraBucal || item.exame_extra_bucal;
+      if (typeof extra === 'string' && extra.includes('respostas')) {
+        try {
+          const parsed = JSON.parse(extra);
+          if (parsed?.respostas) r = parsed.respostas;
+        } catch (_) {}
+      }
+    }
+    if (typeof r === 'string') {
+      try {
+        r = JSON.parse(r);
+      } catch (_) {}
+    }
+    if (r && typeof r === 'object' && !Array.isArray(r)) {
+      return r;
+    }
+    return {};
+  };
+
   const obterDadosPdfAnamnese = (anamnese: any): AnamnesePdfData => {
     return {
       paciente: {
@@ -113,7 +137,7 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
         habitosViciosPositivos: anamnese.habitosViciosPositivos || anamnese.habitos_vicios_positivos,
         habitosViciosNegativos: anamnese.habitosViciosNegativos || anamnese.habitos_vicios_negativos,
         observacoes: anamnese.observacoes,
-        respostas: anamnese.respostas || {},
+        respostas: extrairRespostas(anamnese),
       },
       assinatura: anamnese.assinaturaPaciente ? {
         signature: typeof anamnese.assinaturaPaciente === 'string'
@@ -263,6 +287,13 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
         historiaAtual: (winner.historiaAtual && winner.historiaAtual !== 'Ficha enviada ao paciente para preenchimento e assinatura digital')
           ? winner.historiaAtual
           : (loser.historiaAtual || winner.historiaAtual),
+        respostas: (() => {
+          const rWin = extrairRespostas(winner);
+          if (Object.keys(rWin).length > 0) return rWin;
+          const rLose = extrairRespostas(loser);
+          if (Object.keys(rLose).length > 0) return rLose;
+          return winner.respostas || loser.respostas || {};
+        })(),
       });
     } else {
       mapDistinct.set(a.id, a);
@@ -710,6 +741,77 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
                   </div>
                 )}
 
+                {/* Triagem de Saúde: Perguntas e Respostas Objetivas de Sim / Não */}
+                {(() => {
+                  const resp = extrairRespostas(anamnese);
+                  const chaves = Object.keys(resp);
+                  if (chaves.length === 0) return null;
+
+                  const totalSim = Object.values(resp).filter((v) => v === 'sim').length;
+                  const itensExtras = chaves
+                    .filter((k) => !ITENS_TRIAGEM_PADRAO.some((i) => i.id === k))
+                    .map((k) => ({
+                      id: k,
+                      titulo: k.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+                    }));
+                  const todosItens = [...ITENS_TRIAGEM_PADRAO, ...itensExtras];
+
+                  return (
+                    <div className="pt-2 border-t border-border/60 space-y-2">
+                      <div className="flex items-center justify-between flex-wrap gap-1">
+                        <span className="font-semibold text-foreground flex items-center gap-1.5 text-xs">
+                          <Activity className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                          Triagem de Saúde (Questionário Sim / Não):
+                        </span>
+                        {totalSim > 0 ? (
+                          <Badge className="bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950/50 dark:text-amber-200 text-[10px] font-semibold gap-1">
+                            <AlertTriangle className="h-3 w-3 text-amber-600" />
+                            {totalSim} {totalSim === 1 ? 'alerta SIM' : 'alertas SIM'}
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                            Nenhum alerta relatado
+                          </Badge>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                        {todosItens.map((item) => {
+                          const valor = resp[item.id];
+                          if (!valor) return null;
+                          const isSim = valor === 'sim';
+
+                          return (
+                            <div
+                              key={item.id}
+                              className={cn(
+                                "p-2 rounded-md border text-xs flex items-center justify-between gap-2 transition-colors",
+                                isSim
+                                  ? "bg-amber-500/10 border-amber-500/30 text-amber-950 dark:text-amber-200 font-medium"
+                                  : "bg-muted/30 border-border/50 text-muted-foreground"
+                              )}
+                            >
+                              <span className="truncate pr-1" title={item.titulo}>
+                                {item.titulo}
+                              </span>
+                              <Badge
+                                className={cn(
+                                  "text-[10px] px-2 py-0.5 font-bold uppercase shrink-0",
+                                  isSim
+                                    ? "bg-amber-600 text-white shadow-xs"
+                                    : "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                                )}
+                              >
+                                {isSim ? '⚠ Sim' : 'Não'}
+                              </Badge>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {Boolean(anamnese.assinaturaPaciente) && (
                   <div className="pt-2 border-t border-border flex items-center gap-2 text-xs text-emerald-700 dark:text-emerald-400 font-medium">
                     <FileCheck className="h-4 w-4" />
@@ -871,6 +973,71 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
                       <p className="text-muted-foreground mt-0.5">{observacoes}</p>
                     </div>
                   )}
+
+                  {/* 7. Triagem de Saúde (Perguntas Objetivas Sim / Não) */}
+                  {(() => {
+                    const resp = extrairRespostas(selectedAnamnese);
+                    const chaves = Object.keys(resp);
+                    if (chaves.length === 0) return null;
+
+                    const totalSim = Object.values(resp).filter((v) => v === 'sim').length;
+                    const itensExtras = chaves
+                      .filter((k) => !ITENS_TRIAGEM_PADRAO.some((i) => i.id === k))
+                      .map((k) => ({
+                        id: k,
+                        titulo: k.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+                      }));
+                    const todosItens = [...ITENS_TRIAGEM_PADRAO, ...itensExtras];
+
+                    return (
+                      <div className="pt-2">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="font-bold text-foreground flex items-center gap-1.5 text-sm">
+                            <Activity className="h-4 w-4 text-emerald-600" />
+                            7. Triagem de Saúde Odontológica (Perguntas Sim / Não):
+                          </p>
+                          {totalSim > 0 && (
+                            <Badge className="bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950/50 dark:text-amber-200 text-[10px] font-semibold gap-1">
+                              <AlertTriangle className="h-3 w-3 text-amber-600" />
+                              {totalSim} {totalSim === 1 ? 'alerta SIM' : 'alertas SIM'}
+                            </Badge>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {todosItens.map((item) => {
+                            const valor = resp[item.id];
+                            if (!valor) return null;
+                            const isSim = valor === 'sim';
+
+                            return (
+                              <div
+                                key={item.id}
+                                className={cn(
+                                  "p-2.5 rounded-lg border text-xs flex items-center justify-between gap-2",
+                                  isSim
+                                    ? "bg-amber-500/10 border-amber-500/30 text-amber-950 dark:text-amber-200"
+                                    : "bg-muted/30 border-border text-muted-foreground"
+                                )}
+                              >
+                                <span className="font-medium pr-1">{item.titulo}</span>
+                                <Badge
+                                  className={cn(
+                                    "text-[10px] px-2 py-0.5 font-bold uppercase shrink-0",
+                                    isSim
+                                      ? "bg-amber-600 text-white shadow-xs"
+                                      : "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                                  )}
+                                >
+                                  {isSim ? '⚠ Sim' : 'Não'}
+                                </Badge>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Bloco de Assinatura Digital */}
