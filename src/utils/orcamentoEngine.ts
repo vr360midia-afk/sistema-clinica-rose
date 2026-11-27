@@ -1750,9 +1750,34 @@ export async function gerarContratoDoOrcamentoAprovado(params: {
   // 3.5. Garante hidratação completa dos dados cadastrais do paciente (CPF, RG, endereço completo, telefone, etc.)
   let pacienteCompleto = { ...(patient || {}) };
   const targetPacId = pacienteCompleto.id || orcamento.pacienteId || (orcamento as any).paciente_id;
-  if (targetPacId && (!temValorValido(pacienteCompleto.cpf) || !temValorValido(pacienteCompleto.endereco) || !temValorValido(pacienteCompleto.telefone))) {
+  const targetPacNome = (pacienteCompleto.nome || orcamento.pacienteNome || (orcamento as any).paciente_nome || '').trim();
+
+  if ((targetPacId || targetPacNome) && (!temValorValido(pacienteCompleto.cpf) || !temValorValido(pacienteCompleto.endereco) || !temValorValido(pacienteCompleto.telefone) || !temValorValido(pacienteCompleto.email))) {
     try {
-      const { data: pDb } = await supabase.from('pacientes').select('*').eq('id', targetPacId).maybeSingle();
+      let pDb: any = null;
+      // 1. Tenta carregar do cache local
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const rawPacientes = localStorage.getItem('dental-system-pacientes');
+        if (rawPacientes) {
+          try {
+            const arr = JSON.parse(rawPacientes);
+            if (Array.isArray(arr)) {
+              pDb = arr.find((p: any) => (targetPacId && p.id === targetPacId) || (targetPacNome && p.nome && p.nome.trim().toLowerCase() === targetPacNome.toLowerCase()));
+            }
+          } catch (_) {}
+        }
+      }
+
+      // 2. Se não achou no cache local, tenta no Supabase
+      if (!pDb && targetPacId) {
+        const res = await supabase.from('pacientes').select('*').eq('id', targetPacId).maybeSingle();
+        pDb = res.data;
+      }
+      if (!pDb && targetPacNome) {
+        const res = await supabase.from('pacientes').select('*').ilike('nome', targetPacNome).maybeSingle();
+        pDb = res.data;
+      }
+
       if (pDb) {
         const endFmt = formatarEnderecoCompleto(pDb) || (temValorValido(pDb.endereco) ? pDb.endereco : '');
         pacienteCompleto = {

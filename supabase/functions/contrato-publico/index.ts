@@ -1853,25 +1853,48 @@ Deno.serve(async (req) => {
       }
 
       let snapshotRetorno = doc.itens ? { ...doc.itens } : {};
-      if (!isAssinadoPaciente && doc.paciente_id) {
+      if (!isAssinadoPaciente) {
         const pacCurrent = snapshotRetorno.paciente || {};
-        if (!temValorValido(pacCurrent.cpf) || !temValorValido(pacCurrent.endereco) || !temValorValido(pacCurrent.telefone)) {
+        const targetPacId = doc.paciente_id || snapshotRetorno.pacienteId || snapshotRetorno.paciente?.id || doc.itens?.pacienteId;
+        const targetPacNome = (doc.paciente_nome || snapshotRetorno.pacienteNome || snapshotRetorno.paciente?.nome || "").trim();
+
+        if (!temValorValido(pacCurrent.cpf) || !temValorValido(pacCurrent.endereco) || !temValorValido(pacCurrent.telefone) || !temValorValido(pacCurrent.email)) {
           try {
-            const { data: pDb } = await supabase.from("pacientes").select("*").eq("id", doc.paciente_id).maybeSingle();
+            let pDb: any = null;
+            if (targetPacId) {
+              const { data: pById } = await supabase.from("pacientes").select("*").eq("id", targetPacId).maybeSingle();
+              pDb = pById;
+            }
+            if (!pDb && targetPacNome) {
+              const { data: pByNome } = await supabase.from("pacientes").select("*").ilike("nome", targetPacNome).maybeSingle();
+              pDb = pByNome;
+            }
+
             if (pDb) {
               const endDb = formatarEnderecoCompleto(pDb) || pDb.endereco || "";
               snapshotRetorno.paciente = {
                 ...pacCurrent,
-                nome: pacCurrent.nome || pDb.nome,
-                cpf: temValorValido(pacCurrent.cpf) ? pacCurrent.cpf : (pDb.cpf ? formatarDocumento(pDb.cpf) : null),
-                rg: temValorValido(pacCurrent.rg) ? pacCurrent.rg : (pDb.rg || null),
-                telefone: temValorValido(pacCurrent.telefone) ? pacCurrent.telefone : (pDb.telefone ? formatarTelefone(pDb.telefone) : null),
-                email: temValorValido(pacCurrent.email) ? pacCurrent.email : (pDb.email || null),
-                endereco: temValorValido(pacCurrent.endereco) ? pacCurrent.endereco : (endDb || null),
+                id: pDb.id || pacCurrent.id || targetPacId,
+                nome: pDb.nome || pacCurrent.nome,
+                cpf: temValorValido(pacCurrent.cpf) ? pacCurrent.cpf : (pDb.cpf ? formatarDocumento(pDb.cpf) : "Não informado"),
+                rg: temValorValido(pacCurrent.rg) ? pacCurrent.rg : (pDb.rg || ""),
+                telefone: temValorValido(pacCurrent.telefone) ? pacCurrent.telefone : (pDb.telefone ? formatarTelefone(pDb.telefone) : "Não informado"),
+                email: temValorValido(pacCurrent.email) ? pacCurrent.email : (pDb.email || "Não informado"),
+                endereco: temValorValido(pacCurrent.endereco) ? pacCurrent.endereco : (endDb || "Não informado"),
                 dataNascimento: temValorValido(pacCurrent.dataNascimento) ? pacCurrent.dataNascimento : (pDb.data_nascimento || null),
                 profissao: temValorValido(pacCurrent.profissao) ? pacCurrent.profissao : (pDb.profissao || null),
                 estadoCivil: temValorValido(pacCurrent.estadoCivil) ? pacCurrent.estadoCivil : (pDb.estado_civil || null),
               };
+
+              // Persiste o snapshot hidratado e paciente_id em documentos_clinicos
+              await supabase
+                .from("documentos_clinicos")
+                .update({
+                  paciente_id: doc.paciente_id || pDb.id,
+                  paciente_nome: doc.paciente_nome || pDb.nome,
+                  itens: snapshotRetorno,
+                })
+                .eq("id", doc.id);
             }
           } catch (_) {}
         }
@@ -1953,20 +1976,32 @@ Deno.serve(async (req) => {
       }
 
       // Se dados cadastrais do paciente estiverem ausentes no snapshot prévio, hidrata do banco
-      const targetPacId = doc.paciente_id || updatedSnapshot.pacienteId || updatedSnapshot.paciente?.id;
-      if (targetPacId && (!temValorValido(updatedSnapshot.paciente?.cpf) || !temValorValido(updatedSnapshot.paciente?.endereco) || !temValorValido(updatedSnapshot.paciente?.telefone))) {
+      const targetPacId = doc.paciente_id || updatedSnapshot.pacienteId || updatedSnapshot.paciente?.id || doc.itens?.pacienteId;
+      const targetPacNome = (doc.paciente_nome || updatedSnapshot.pacienteNome || updatedSnapshot.paciente?.nome || "").trim();
+
+      if (!temValorValido(updatedSnapshot.paciente?.cpf) || !temValorValido(updatedSnapshot.paciente?.endereco) || !temValorValido(updatedSnapshot.paciente?.telefone) || !temValorValido(updatedSnapshot.paciente?.email)) {
         try {
-          const { data: pDb } = await supabase.from("pacientes").select("*").eq("id", targetPacId).maybeSingle();
+          let pDb: any = null;
+          if (targetPacId) {
+            const { data: pById } = await supabase.from("pacientes").select("*").eq("id", targetPacId).maybeSingle();
+            pDb = pById;
+          }
+          if (!pDb && targetPacNome) {
+            const { data: pByNome } = await supabase.from("pacientes").select("*").ilike("nome", targetPacNome).maybeSingle();
+            pDb = pByNome;
+          }
+
           if (pDb) {
             const endDb = formatarEnderecoCompleto(pDb) || pDb.endereco || "";
             updatedSnapshot.paciente = {
               ...(updatedSnapshot.paciente || {}),
-              nome: updatedSnapshot.paciente?.nome || pDb.nome,
-              cpf: temValorValido(updatedSnapshot.paciente?.cpf) ? updatedSnapshot.paciente.cpf : (pDb.cpf ? formatarDocumento(pDb.cpf) : null),
-              rg: temValorValido(updatedSnapshot.paciente?.rg) ? updatedSnapshot.paciente.rg : (pDb.rg || null),
-              telefone: temValorValido(updatedSnapshot.paciente?.telefone) ? updatedSnapshot.paciente.telefone : (pDb.telefone ? formatarTelefone(pDb.telefone) : null),
-              email: temValorValido(updatedSnapshot.paciente?.email) ? updatedSnapshot.paciente.email : (pDb.email || null),
-              endereco: temValorValido(updatedSnapshot.paciente?.endereco) ? updatedSnapshot.paciente.endereco : (endDb || null),
+              id: pDb.id || updatedSnapshot.paciente?.id || targetPacId,
+              nome: pDb.nome || updatedSnapshot.paciente?.nome,
+              cpf: temValorValido(updatedSnapshot.paciente?.cpf) ? updatedSnapshot.paciente.cpf : (pDb.cpf ? formatarDocumento(pDb.cpf) : "Não informado"),
+              rg: temValorValido(updatedSnapshot.paciente?.rg) ? updatedSnapshot.paciente.rg : (pDb.rg || ""),
+              telefone: temValorValido(updatedSnapshot.paciente?.telefone) ? updatedSnapshot.paciente.telefone : (pDb.telefone ? formatarTelefone(pDb.telefone) : "Não informado"),
+              email: temValorValido(updatedSnapshot.paciente?.email) ? updatedSnapshot.paciente.email : (pDb.email || "Não informado"),
+              endereco: temValorValido(updatedSnapshot.paciente?.endereco) ? updatedSnapshot.paciente.endereco : (endDb || "Não informado"),
               dataNascimento: temValorValido(updatedSnapshot.paciente?.dataNascimento) ? updatedSnapshot.paciente.dataNascimento : (pDb.data_nascimento || null),
               profissao: temValorValido(updatedSnapshot.paciente?.profissao) ? updatedSnapshot.paciente.profissao : (pDb.profissao || null),
               estadoCivil: temValorValido(updatedSnapshot.paciente?.estadoCivil) ? updatedSnapshot.paciente.estadoCivil : (pDb.estado_civil || null),
@@ -1980,6 +2015,25 @@ Deno.serve(async (req) => {
       const cpf = signerInfo.cpf || updatedSnapshot.paciente?.cpf || null;
       const rg = signerInfo.rg || updatedSnapshot.paciente?.rg || null;
       const email = signerInfo.email || updatedSnapshot.paciente?.email || null;
+
+      if (temValorValido(cpf) && !temValorValido(updatedSnapshot.paciente?.cpf)) {
+        updatedSnapshot.paciente = {
+          ...(updatedSnapshot.paciente || {}),
+          cpf: formatarDocumento(cpf),
+        };
+      }
+      if (temValorValido(email) && !temValorValido(updatedSnapshot.paciente?.email)) {
+        updatedSnapshot.paciente = {
+          ...(updatedSnapshot.paciente || {}),
+          email: String(email).trim(),
+        };
+      }
+      if (temValorValido(rg) && !temValorValido(updatedSnapshot.paciente?.rg)) {
+        updatedSnapshot.paciente = {
+          ...(updatedSnapshot.paciente || {}),
+          rg: String(rg).trim(),
+        };
+      }
 
       // Validação impeditiva para novos contratos se faltar identificação obrigatória
       const pacCad = updatedSnapshot.paciente || {};

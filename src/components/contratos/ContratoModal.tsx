@@ -122,7 +122,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
   const { configuracoes } = useConfiguracoes();
   const { configContrato, autorizacaoAtiva } = useConfiguracoesContrato();
   const { dentistas } = useDentistas();
-  const { transacoes, addTransacao, deleteTransacao, updatePaciente } = useDentalSystem();
+  const { transacoes, addTransacao, deleteTransacao, updatePaciente, pacientes } = useDentalSystem();
   const { documentos, salvarDocumento } = useDocumentosClinicos(patient?.id);
   const { parceiros } = useParceiros();
 
@@ -294,6 +294,12 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
         if (isAssinado) {
           setSnapshotAtual(snapDoc);
         } else if (orcamentoAtual && patient) {
+          // Resolve o paciente mais atualizado: prop ou cadastro global em pacientes
+          const pacienteCadastrado =
+            (patient?.id && pacientes?.find((p) => p.id === patient.id)) ||
+            (patient?.nome && pacientes?.find((p) => p.nome && p.nome.trim().toLowerCase() === patient.nome.trim().toLowerCase())) ||
+            patient;
+
           // Se NÃO está assinado pelo paciente, verifica se o orçamento foi atualizado ou possui divergência
           const valExistente = snapDoc?.financeiro ? validarIntegridadeOrcamentoContrato(orcamentoAtual, snapDoc) : null;
           const formasOrc = String(orcamentoAtual.formasPagamento || (orcamentoAtual as any).formas_pagamento || '').trim();
@@ -309,15 +315,32 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
             !snapDoc?.clinica?.endereco ||
             snapDoc.clinica.endereco === 'Endereço da clínica';
 
+          const temPacientePlaceholder =
+            !temValorValido(snapDoc?.paciente?.cpf) ||
+            !temValorValido(snapDoc?.paciente?.endereco) ||
+            !temValorValido(snapDoc?.paciente?.telefone) ||
+            !temValorValido(snapDoc?.paciente?.email);
+
+          const pacienteTemNovosDados = Boolean(
+            pacienteCadastrado && (
+              (temValorValido(pacienteCadastrado.cpf) && (!temValorValido(snapDoc?.paciente?.cpf) || snapDoc?.paciente?.cpf !== pacienteCadastrado.cpf)) ||
+              (temValorValido(pacienteCadastrado.telefone) && (!temValorValido(snapDoc?.paciente?.telefone) || snapDoc?.paciente?.telefone !== pacienteCadastrado.telefone)) ||
+              (temValorValido(pacienteCadastrado.endereco) && (!temValorValido(snapDoc?.paciente?.endereco) || snapDoc?.paciente?.endereco !== pacienteCadastrado.endereco)) ||
+              (temValorValido(pacienteCadastrado.email) && (!temValorValido(snapDoc?.paciente?.email) || snapDoc?.paciente?.email !== pacienteCadastrado.email)) ||
+              (temValorValido(pacienteCadastrado.rg) && (!temValorValido(snapDoc?.paciente?.rg) || snapDoc?.paciente?.rg !== pacienteCadastrado.rg))
+            )
+          );
+
           const requerAtualizacao =
             temClinicaPlaceholder ||
+            (temPacientePlaceholder && pacienteTemNovosDados) ||
             valExistente?.divergenciaFinanceira ||
             (totalOrc > 0 && Math.abs(totalOrc - totalSnap) > 0.05) ||
             (formasOrc && formasSnap && formasOrc !== formasSnap);
 
           if (requerAtualizacao) {
             const snapAtualizado = mapearDadosContrato({
-              patient,
+              patient: pacienteCadastrado || patient,
               orcamento: orcamentoAtual,
               transacoes: transacoesOrcamento,
               configuracoes,
@@ -325,7 +348,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
               dentistaNome: selectedDentistaNome || configContrato?.dentistaResponsavelContrato || configuracoes?.croResponsavel,
               dentistaCro: dentistaAtual?.cro || configContrato?.croResponsavelContrato || configuracoes?.croResponsavel,
               cidadeLocal: cidadeLocal || configContrato?.cidadeForoContrato,
-              dadosRestauracoesPreexistentes: patient?.restauracoesPreexistentes,
+              dadosRestauracoesPreexistentes: (pacienteCadastrado || patient)?.restauracoesPreexistentes,
             });
 
             if (snapDoc.contratoId) snapAtualizado.contratoId = snapDoc.contratoId;
@@ -338,7 +361,24 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
             setSnapshotAtual(snapAtualizado);
             setDocumentoIdSendoEditado(contratoExistenteOrcamento.id);
           } else {
-            setSnapshotAtual(snapDoc);
+            // Mesmo se não requerer recriação completa, mescla os dados cadastrais do paciente atualizados se o contrato não foi assinado
+            const endCad = formatarEnderecoCompleto(pacienteCadastrado) || (temValorValido(pacienteCadastrado?.endereco) ? pacienteCadastrado.endereco : '');
+            const snapMesclado: ContratoSnapshot = {
+              ...snapDoc,
+              paciente: {
+                ...snapDoc.paciente,
+                nome: pacienteCadastrado?.nome || snapDoc?.paciente?.nome || 'Nome não informado',
+                cpf: temValorValido(pacienteCadastrado?.cpf) ? formatarDocumento(pacienteCadastrado.cpf) : (temValorValido(snapDoc?.paciente?.cpf) ? snapDoc.paciente.cpf : 'Não informado'),
+                rg: temValorValido(pacienteCadastrado?.rg) ? String(pacienteCadastrado.rg).trim() : (snapDoc?.paciente?.rg || ''),
+                telefone: temValorValido(pacienteCadastrado?.telefone) ? formatarTelefone(pacienteCadastrado.telefone) : (temValorValido(snapDoc?.paciente?.telefone) ? snapDoc.paciente.telefone : 'Não informado'),
+                email: temValorValido(pacienteCadastrado?.email) ? pacienteCadastrado.email : (temValorValido(snapDoc?.paciente?.email) ? snapDoc.paciente.email : 'Não informado'),
+                endereco: temValorValido(endCad) ? endCad : (temValorValido(snapDoc?.paciente?.endereco) ? snapDoc.paciente.endereco : 'Não informado'),
+                dataNascimento: temValorValido(pacienteCadastrado?.dataNascimento || (pacienteCadastrado as any)?.data_nascimento) ? formatarData(pacienteCadastrado.dataNascimento || (pacienteCadastrado as any).data_nascimento) : (snapDoc?.paciente?.dataNascimento || 'Não informada'),
+                profissao: temValorValido(pacienteCadastrado?.profissao) ? String(pacienteCadastrado.profissao).trim() : (snapDoc?.paciente?.profissao || ''),
+                estadoCivil: temValorValido(pacienteCadastrado?.estadoCivil || (pacienteCadastrado as any)?.estado_civil) ? String(pacienteCadastrado.estadoCivil || (pacienteCadastrado as any).estado_civil).trim() : (snapDoc?.paciente?.estadoCivil || ''),
+              }
+            };
+            setSnapshotAtual(snapMesclado);
           }
         } else {
           setSnapshotAtual(snapDoc);
@@ -353,6 +393,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     isManuallyEdited,
     orcamentoAtual,
     patient,
+    pacientes,
     transacoesOrcamento,
     configuracoes,
     configContrato,
@@ -437,49 +478,90 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
 
   // Sincroniza campos rápidos quando snapshot ou patient mudar
   useEffect(() => {
-    const cpfFonte = patient?.cpf && patient.cpf !== 'Não informado'
-      ? patient.cpf
-      : (snapshotAtual?.paciente?.cpf && snapshotAtual.paciente.cpf !== 'Não informado' ? snapshotAtual.paciente.cpf : '');
-    setQuickCpf(cpfFonte);
+    const pacFonte = (patient?.id && pacientes?.find((p) => p.id === patient.id)) ||
+      (patient?.nome && pacientes?.find((p) => p.nome && p.nome.trim().toLowerCase() === patient.nome.trim().toLowerCase())) ||
+      patient;
 
-    const endFonte = patient?.endereco && patient.endereco !== 'Não informado'
-      ? patient.endereco
-      : (snapshotAtual?.paciente?.endereco && snapshotAtual.paciente.endereco !== 'Não informado' ? snapshotAtual.paciente.endereco : '');
-    setQuickEndereco(endFonte);
+    const cpfFonte = temValorValido(pacFonte?.cpf)
+      ? pacFonte.cpf
+      : (temValorValido(snapshotAtual?.paciente?.cpf) ? snapshotAtual.paciente.cpf : '');
+    setQuickCpf(cpfFonte || '');
 
-    const telFonte = patient?.telefone && patient.telefone !== 'Não informado'
-      ? patient.telefone
-      : (snapshotAtual?.paciente?.telefone && snapshotAtual.paciente.telefone !== 'Não informado' ? snapshotAtual.paciente.telefone : '');
-    setQuickTelefone(telFonte);
-  }, [patient, snapshotAtual?.paciente?.cpf, snapshotAtual?.paciente?.endereco, snapshotAtual?.paciente?.telefone]);
+    const endFonte = formatarEnderecoCompleto(pacFonte) || (temValorValido(pacFonte?.endereco) ? pacFonte.endereco : '')
+      || (temValorValido(snapshotAtual?.paciente?.endereco) ? snapshotAtual.paciente.endereco : '');
+    setQuickEndereco(endFonte || '');
+
+    const telFonte = temValorValido(pacFonte?.telefone)
+      ? pacFonte.telefone
+      : (temValorValido(snapshotAtual?.paciente?.telefone) ? snapshotAtual.paciente.telefone : '');
+    setQuickTelefone(telFonte || '');
+  }, [patient, pacientes, snapshotAtual?.paciente?.cpf, snapshotAtual?.paciente?.endereco, snapshotAtual?.paciente?.telefone]);
 
   // Hidrata dados do paciente caso estejam ausentes no momento da abertura
   useEffect(() => {
     const rawId = patient?.id;
-    if (!rawId || !isOpen) return;
+    if (!isOpen) return;
 
-    const cpfFaltando = !temValorValido(patient?.cpf) || patient.cpf === 'Não informado';
-    const endFaltando = !temValorValido(patient?.endereco) || patient.endereco === 'Não informado';
-    const telFaltando = !temValorValido(patient?.telefone) || patient.telefone === 'Não informado';
+    const isAssinado = Boolean(
+      snapshotAtual?.status === 'formalizado' ||
+      snapshotAtual?.status === 'assinado' ||
+      snapshotAtual?.assinaturaPaciente?.assinaturaData ||
+      contratoVisualizacao?.assinadoEm
+    );
+    if (isAssinado) return;
 
-    if (cpfFaltando || endFaltando || telFaltando) {
-      // 1. Tenta carregar do localStorage
+    const snapCpfFaltando = !temValorValido(snapshotAtual?.paciente?.cpf);
+    const snapEndFaltando = !temValorValido(snapshotAtual?.paciente?.endereco);
+    const snapTelFaltando = !temValorValido(snapshotAtual?.paciente?.telefone);
+    const snapEmailFaltando = !temValorValido(snapshotAtual?.paciente?.email);
+
+    const cpfFaltando = snapCpfFaltando || !temValorValido(patient?.cpf);
+    const endFaltando = snapEndFaltando || !temValorValido(patient?.endereco);
+    const telFaltando = snapTelFaltando || !temValorValido(patient?.telefone);
+    const emailFaltando = snapEmailFaltando || !temValorValido(patient?.email);
+
+    if (cpfFaltando || endFaltando || telFaltando || emailFaltando) {
+      // 1. Tenta carregar do DentalSystemContext (pacientes)
+      const pacContext = (rawId && pacientes?.find((p) => p.id === rawId)) ||
+        (patient?.nome && pacientes?.find((p) => p.nome && p.nome.trim().toLowerCase() === patient.nome.trim().toLowerCase()));
+
+      if (pacContext) {
+        const endCtx = formatarEnderecoCompleto(pacContext) || (temValorValido(pacContext.endereco) ? pacContext.endereco : '');
+        setSnapshotAtual((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            paciente: {
+              ...prev.paciente,
+              cpf: temValorValido(pacContext.cpf) ? formatarDocumento(pacContext.cpf) : prev.paciente.cpf,
+              endereco: temValorValido(endCtx) ? endCtx : prev.paciente.endereco,
+              telefone: temValorValido(pacContext.telefone) ? formatarTelefone(pacContext.telefone) : prev.paciente.telefone,
+              email: temValorValido(pacContext.email) ? pacContext.email : prev.paciente.email,
+              rg: temValorValido(pacContext.rg) ? pacContext.rg : prev.paciente.rg,
+            },
+          };
+        });
+      }
+
+      // 2. Tenta carregar do localStorage
       try {
         const raw = localStorage.getItem('dental-system-pacientes');
         if (raw) {
           const arr = JSON.parse(raw);
           if (Array.isArray(arr)) {
-            const achado = arr.find((p: any) => p.id === rawId || (p.nome && patient.nome && p.nome.trim().toLowerCase() === patient.nome.trim().toLowerCase()));
+            const achado = arr.find((p: any) => (rawId && p.id === rawId) || (p.nome && patient?.nome && p.nome.trim().toLowerCase() === patient.nome.trim().toLowerCase()));
             if (achado) {
+              const endAchado = formatarEnderecoCompleto(achado) || (temValorValido(achado.endereco) ? achado.endereco : '');
               setSnapshotAtual((prev) => {
                 if (!prev) return prev;
                 return {
                   ...prev,
                   paciente: {
                     ...prev.paciente,
-                    cpf: cpfFaltando && temValorValido(achado.cpf) ? formatarDocumento(achado.cpf) : prev.paciente.cpf,
-                    endereco: endFaltando && temValorValido(achado.endereco) ? (formatarEnderecoCompleto(achado) || achado.endereco) : prev.paciente.endereco,
-                    telefone: telFaltando && temValorValido(achado.telefone) ? formatarTelefone(achado.telefone) : prev.paciente.telefone,
+                    cpf: !temValorValido(prev.paciente.cpf) && temValorValido(achado.cpf) ? formatarDocumento(achado.cpf) : prev.paciente.cpf,
+                    endereco: !temValorValido(prev.paciente.endereco) && temValorValido(endAchado) ? endAchado : prev.paciente.endereco,
+                    telefone: !temValorValido(prev.paciente.telefone) && temValorValido(achado.telefone) ? formatarTelefone(achado.telefone) : prev.paciente.telefone,
+                    email: !temValorValido(prev.paciente.email) && temValorValido(achado.email) ? achado.email : prev.paciente.email,
                     rg: temValorValido(achado.rg) ? achado.rg : prev.paciente.rg,
                   },
                 };
@@ -489,33 +571,36 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
         }
       } catch (_) {}
 
-      // 2. Tenta carregar do Supabase
-      supabase
-        .from('pacientes')
-        .select('*')
-        .eq('id', rawId)
-        .maybeSingle()
-        .then(({ data: pDb }) => {
-          if (pDb) {
-            const endDb = formatarEnderecoCompleto(pDb) || (temValorValido(pDb.endereco) ? pDb.endereco : '');
-            setSnapshotAtual((prev) => {
-              if (!prev) return prev;
-              return {
-                ...prev,
-                paciente: {
-                  ...prev.paciente,
-                  cpf: cpfFaltando && temValorValido(pDb.cpf) ? formatarDocumento(pDb.cpf) : prev.paciente.cpf,
-                  endereco: endFaltando && temValorValido(endDb) ? endDb : prev.paciente.endereco,
-                  telefone: telFaltando && temValorValido(pDb.telefone) ? formatarTelefone(pDb.telefone) : prev.paciente.telefone,
-                  rg: temValorValido(pDb.rg) ? pDb.rg : prev.paciente.rg,
-                },
-              };
-            });
-          }
-        })
-        .catch(() => {});
+      // 3. Tenta carregar do Supabase
+      if (rawId || patient?.nome) {
+        let q = supabase.from('pacientes').select('*');
+        if (rawId) q = q.eq('id', rawId);
+        else if (patient?.nome) q = q.ilike('nome', patient.nome.trim());
+
+        q.maybeSingle()
+          .then(({ data: pDb }) => {
+            if (pDb) {
+              const endDb = formatarEnderecoCompleto(pDb) || (temValorValido(pDb.endereco) ? pDb.endereco : '');
+              setSnapshotAtual((prev) => {
+                if (!prev) return prev;
+                return {
+                  ...prev,
+                  paciente: {
+                    ...prev.paciente,
+                    cpf: !temValorValido(prev.paciente.cpf) && temValorValido(pDb.cpf) ? formatarDocumento(pDb.cpf) : prev.paciente.cpf,
+                    endereco: !temValorValido(prev.paciente.endereco) && temValorValido(endDb) ? endDb : prev.paciente.endereco,
+                    telefone: !temValorValido(prev.paciente.telefone) && temValorValido(pDb.telefone) ? formatarTelefone(pDb.telefone) : prev.paciente.telefone,
+                    email: !temValorValido(prev.paciente.email) && temValorValido(pDb.email) ? pDb.email : prev.paciente.email,
+                    rg: temValorValido(pDb.rg) ? pDb.rg : prev.paciente.rg,
+                  },
+                };
+              });
+            }
+          })
+          .catch(() => {});
+      }
     }
-  }, [patient?.id, isOpen]);
+  }, [patient?.id, patient?.nome, isOpen, pacientes]);
 
   const handleSalvarDadosPacienteRapido = async () => {
     if (!quickCpf && !quickEndereco && !quickTelefone) {
@@ -4096,9 +4181,9 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
         documentType="contrato"
         requireIdentificationFields={signerRole === 'paciente'}
         requireSelfie={false}
-        initialEmail={signerRole === 'paciente' ? patient?.email : snapshotAtual?.clinica?.email}
-        initialCpf={signerRole === 'paciente' ? patient?.cpf : snapshotAtual?.clinica?.cnpj}
-        initialRg={signerRole === 'paciente' ? (temValorValido(patient?.rg) ? patient.rg : '') : snapshotAtual?.clinica?.cro}
+        initialEmail={signerRole === 'paciente' ? (temValorValido(patient?.email) ? patient.email : (temValorValido(snapshotAtual?.paciente?.email) ? snapshotAtual?.paciente?.email : '')) : snapshotAtual?.clinica?.email}
+        initialCpf={signerRole === 'paciente' ? (temValorValido(patient?.cpf) ? patient.cpf : (temValorValido(snapshotAtual?.paciente?.cpf) ? snapshotAtual?.paciente?.cpf : '')) : snapshotAtual?.clinica?.cnpj}
+        initialRg={signerRole === 'paciente' ? (temValorValido(patient?.rg) ? patient.rg : (temValorValido(snapshotAtual?.paciente?.rg) ? snapshotAtual?.paciente?.rg : '')) : snapshotAtual?.clinica?.cro}
         onSignatureComplete={handleAssinaturaConcluida}
       />
 

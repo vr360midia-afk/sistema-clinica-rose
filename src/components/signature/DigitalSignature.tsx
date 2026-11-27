@@ -83,10 +83,14 @@ const DigitalSignature = ({
   const [hasSignature, setHasSignature] = useState(false);
 
   // Campos de identificação
+  const emailInicialLimpo = temValorValido(initialEmail) ? initialEmail : '';
+  const cpfInicialLimpo = temValorValido(initialCpf) ? formatCpf(initialCpf) : '';
+  const rgInicialLimpo = temValorValido(initialRg) ? formatRg(initialRg) : '';
+
   const [nomeCompleto, setNomeCompleto] = useState(signerName || '');
-  const [signerEmail, setSignerEmail] = useState(initialEmail || '');
-  const [signerCpf, setSignerCpf] = useState(initialCpf ? formatCpf(initialCpf) : '');
-  const [signerRg, setSignerRg] = useState(temValorValido(initialRg) ? formatRg(initialRg) : '');
+  const [signerEmail, setSignerEmail] = useState(emailInicialLimpo);
+  const [signerCpf, setSignerCpf] = useState(cpfInicialLimpo);
+  const [signerRg, setSignerRg] = useState(rgInicialLimpo);
 
   // Selfie / Câmera
   const [selfiePhoto, setSelfiePhoto] = useState<string | null>(null);
@@ -111,19 +115,19 @@ const DigitalSignature = ({
   }, [signerName]);
 
   useEffect(() => {
-    if (initialEmail && !signerEmail) {
+    if (temValorValido(initialEmail) && (!signerEmail || !temValorValido(signerEmail))) {
       setSignerEmail(initialEmail);
     }
   }, [initialEmail]);
 
   useEffect(() => {
-    if (initialCpf && !signerCpf) {
+    if (temValorValido(initialCpf) && (!signerCpf || !temValorValido(signerCpf))) {
       setSignerCpf(formatCpf(initialCpf));
     }
   }, [initialCpf]);
 
   useEffect(() => {
-    if (initialRg && !signerRg) {
+    if (temValorValido(initialRg) && (!signerRg || !temValorValido(signerRg))) {
       setSignerRg(formatRg(initialRg));
     }
   }, [initialRg]);

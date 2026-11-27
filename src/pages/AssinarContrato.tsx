@@ -770,19 +770,44 @@ export default function AssinarContrato() {
 
         // Hidratação cadastral preventiva para contratos em aberto (sem alterar contratos já assinados)
         const targetPacId = foundSnapshot.pacienteId || foundSnapshot.paciente?.id;
+        const targetPacNome = (foundSnapshot.pacienteNome || foundSnapshot.paciente?.nome || '').trim();
         const pacCurrent = foundSnapshot.paciente || {};
         const isContratoJaAssinado = Boolean(foundSnapshot.assinaturaPaciente?.assinaturaData || foundSnapshot.status === 'assinado' || foundSnapshot.status === 'formalizado');
         if (
           !isContratoJaAssinado &&
-          targetPacId &&
-          (!temValorValido(pacCurrent.cpf) || !temValorValido(pacCurrent.endereco) || !temValorValido(pacCurrent.telefone))
+          (targetPacId || targetPacNome) &&
+          (!temValorValido(pacCurrent.cpf) || !temValorValido(pacCurrent.endereco) || !temValorValido(pacCurrent.telefone) || !temValorValido(pacCurrent.email))
         ) {
           try {
-            const { data: pDb } = await supabase.from('pacientes').select('*').eq('id', targetPacId).maybeSingle();
+            let pDb: any = null;
+            // 1. Tenta carregar do cache local
+            if (typeof window !== 'undefined' && window.localStorage) {
+              const rawPacientes = localStorage.getItem('dental-system-pacientes');
+              if (rawPacientes) {
+                try {
+                  const arr = JSON.parse(rawPacientes);
+                  if (Array.isArray(arr)) {
+                    pDb = arr.find((p: any) => (targetPacId && p.id === targetPacId) || (targetPacNome && p.nome && p.nome.trim().toLowerCase() === targetPacNome.toLowerCase()));
+                  }
+                } catch (_) {}
+              }
+            }
+
+            // 2. Se não achou no cache local, tenta carregar do Supabase
+            if (!pDb && targetPacId) {
+              const res = await supabase.from('pacientes').select('*').eq('id', targetPacId).maybeSingle();
+              if (res.data) pDb = res.data;
+            }
+            if (!pDb && targetPacNome) {
+              const res = await supabase.from('pacientes').select('*').ilike('nome', targetPacNome).maybeSingle();
+              if (res.data) pDb = res.data;
+            }
+
             if (pDb) {
               const endCompleto = formatarEnderecoCompleto(pDb) || (temValorValido(pDb.endereco) ? pDb.endereco : '');
               foundSnapshot.paciente = {
                 ...pacCurrent,
+                id: pDb.id || pacCurrent.id || targetPacId,
                 nome: pacCurrent.nome || pDb.nome,
                 cpf: temValorValido(pacCurrent.cpf) ? pacCurrent.cpf : (pDb.cpf ? formatarDocumento(pDb.cpf) : 'Não informado'),
                 rg: temValorValido(pacCurrent.rg) ? pacCurrent.rg : (pDb.rg || ''),
@@ -2841,8 +2866,8 @@ export default function AssinarContrato() {
               documentType="contrato"
               requireIdentificationFields={true}
               requireSelfie={false}
-              initialEmail={snapshot.paciente.email}
-              initialCpf={snapshot.paciente.cpf}
+              initialEmail={temValorValido(snapshot.paciente.email) ? snapshot.paciente.email : ''}
+              initialCpf={temValorValido(snapshot.paciente.cpf) ? snapshot.paciente.cpf : ''}
               initialRg={temValorValido(snapshot.paciente.rg) ? snapshot.paciente.rg : ''}
               onSignatureComplete={handleSignatureComplete}
               onCancel={() => setShowSignatureModal(false)}

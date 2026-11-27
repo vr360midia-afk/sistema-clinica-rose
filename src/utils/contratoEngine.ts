@@ -4208,9 +4208,21 @@ export async function emitirContratoPersistido(
     };
 
     // Hidrata dados completos do paciente caso estejam ausentes no snapshot
-    if (rawPacienteId && (!temValorValido(snapshotFinal.paciente?.cpf) || !temValorValido(snapshotFinal.paciente?.endereco) || !temValorValido(snapshotFinal.paciente?.telefone))) {
+    const targetPacId = rawPacienteId || snapshotFinal.pacienteId || snapshotFinal.paciente?.id;
+    const targetPacNome = (pacienteNome || snapshotFinal.pacienteNome || snapshotFinal.paciente?.nome || '').trim();
+
+    if ((targetPacId || targetPacNome) && (!temValorValido(snapshotFinal.paciente?.cpf) || !temValorValido(snapshotFinal.paciente?.endereco) || !temValorValido(snapshotFinal.paciente?.telefone) || !temValorValido(snapshotFinal.paciente?.email))) {
       try {
-        const { data: pDb } = await supabase.from('pacientes').select('*').eq('id', rawPacienteId).maybeSingle();
+        let pDb: any = null;
+        if (targetPacId) {
+          const res = await supabase.from('pacientes').select('*').eq('id', targetPacId).maybeSingle();
+          pDb = res.data;
+        }
+        if (!pDb && targetPacNome) {
+          const res = await supabase.from('pacientes').select('*').ilike('nome', targetPacNome).maybeSingle();
+          pDb = res.data;
+        }
+
         if (pDb) {
           const endDb = formatarEnderecoCompleto(pDb) || (temValorValido(pDb.endereco) ? pDb.endereco : '');
           snapshotFinal.paciente = {
