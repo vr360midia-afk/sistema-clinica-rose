@@ -7,6 +7,7 @@ export type TipoCondicaoPagamento =
   | 'entrada_saldo'
   | 'pix_parcelado'
   | 'boleto'
+  | 'financiamento_capim'
   | 'personalizado';
 
 export interface ItemFormaComposta {
@@ -52,6 +53,10 @@ export interface CondicaoPagamento {
   dataPrimeiroVencimento?: string;
   situacaoSaldo?: 'A vencer' | 'Quitado' | 'Autorizado';
   diaVencimento?: number;
+  taxaJuros?: number; // Taxa de juros do financiamento Capim (% a.m.)
+  taxaValor?: number; // Valor das taxas ou acréscimo
+  valorFinanciado?: number; // Valor financiado
+  observacoesFinanciamento?: string; // Detalhes da aprovação Capim
   descricao: string;
   formasCompostas?: ItemFormaComposta[];
   selecionada?: boolean;
@@ -234,6 +239,14 @@ export function calcularDescricaoCondicao(
       const valP = total / p;
       const dia = cond.diaVencimento || 10;
       return `Boleto Bancário em ${p}x de ${formatMoney(valP)} (Vencimento todo dia ${dia})${tagSitSaldo}`;
+    }
+
+    case 'financiamento_capim': {
+      const p = Math.max(1, cond.parcelas || 12);
+      const valP = cond.valorParcela && cond.valorParcela > 0 ? cond.valorParcela : (total / p);
+      const taxaTexto = cond.taxaJuros && cond.taxaJuros > 0 ? ` (Taxa: ${cond.taxaJuros}% a.m.)` : '';
+      const entTexto = cond.valorEntrada && cond.valorEntrada > 0 ? `Entrada de ${formatMoney(cond.valorEntrada)} + ` : '';
+      return `Financiamento Capim: ${entTexto}${p}x de ${formatMoney(valP)}${taxaTexto} (Total: ${formatMoney(total)})${tagSitSaldo}`;
     }
 
     case 'personalizado':

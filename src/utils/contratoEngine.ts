@@ -199,6 +199,13 @@ export interface ContratoCardPagamento {
   statusBadge?: string;
 }
 
+export interface ContratoClausulaPersonalizada {
+  id: string;
+  titulo: string;
+  conteudo: string;
+  ativa: boolean;
+}
+
 export interface ContratoDadosFinanceiro {
   subtotal: number;
   desconto: number;
@@ -248,6 +255,9 @@ export interface ContratoSnapshot {
   financeiro: ContratoDadosFinanceiro;
   observacoesCustomizadas?: string;
   incluiLentesResina?: boolean;
+  clausulaPixBoletoParcelado?: boolean;
+  percentualMinimoInicioTratamento?: number;
+  clausulasPersonalizadas?: ContratoClausulaPersonalizada[];
   dadosRestauracoesPreexistentes?: AvaliacaoRestauracoesPreexistentes;
   dadosEndodontia?: ContratoDadosEndodontia;
   termoUsoImagem?: ContratoTermoUsoImagem;
@@ -1151,8 +1161,12 @@ export function gerarParcelasCronogramaFinanceiro(params: ParamsGerarParcelasCro
     const descLower = (condicao.descricao || condicao.titulo || '').toLowerCase();
     if (descLower.includes('entrada') && (descLower.includes('saldo') || descLower.includes('+') || descLower.includes('restante'))) {
       tipoEfetivo = 'entrada_saldo';
+    } else if (descLower.includes('capim') || descLower.includes('financiamento capim')) {
+      tipoEfetivo = 'financiamento_capim';
     } else if (descLower.includes('pix parcelado') || descLower.includes('pix em')) {
       tipoEfetivo = 'pix_parcelado';
+    } else if (descLower.includes('boleto')) {
+      tipoEfetivo = 'boleto';
     } else if (descLower.includes('cartao') || descLower.includes('cartão') || descLower.includes('crédito')) {
       tipoEfetivo = 'cartao';
     } else if (descLower.includes('vista') || descLower.includes('pix')) {
@@ -1488,6 +1502,92 @@ export function gerarParcelasCronogramaFinanceiro(params: ParamsGerarParcelasCro
       quantidadeParcelas = qtd;
       valorParcela = (entVal > 0 ? parcelas[1]?.valor : parcelas[0]?.valor) || Number((baseParaParcelar / qtd).toFixed(2));
       metodoParcelamento = 'PIX Parcelado';
+      break;
+    }
+
+    case 'boleto': {
+      const entVal = parseBrMoney(condicao.valorEntrada);
+      const saldoTotal = Math.max(0, Number((total - entVal).toFixed(2)));
+      const qtd = Math.max(1, condicao.parcelas || condicao.saldoParcelas || 1);
+      const entComprovada = Boolean(condicao.entradaConfirmada || condicao.pagamentoConfirmado || condicao.pago || (condicao.situacaoEntrada === 'Quitada' && condicao.comprovado));
+      const sitEntrada = entComprovada ? 'Quitada' : 'Pendente';
+
+      entrada = entVal;
+      parcelas = [];
+
+      if (entVal > 0) {
+        parcelas.push({
+          numero: 1,
+          descricao: `Entrada Inicial (${condicao.metodoEntrada || 'PIX'})`,
+          vencimento: condicao.dataEntrada ? formatarData(condicao.dataEntrada) : formatarData(hoje),
+          valor: entVal,
+          metodo: condicao.metodoEntrada || 'PIX',
+          status: sitEntrada,
+        });
+      }
+
+      const baseParaParcelar = entVal > 0 ? saldoTotal : total;
+      const valBase = Math.floor((baseParaParcelar / qtd) * 100) / 100;
+      const centavos = Math.round((baseParaParcelar - (valBase * qtd)) * 100);
+
+      for (let i = 0; i < qtd; i++) {
+        const valParc = Number((valBase + (i < centavos ? 0.01 : 0)).toFixed(2));
+        const d = primDataVenc ? (i === 0 ? primDataVenc : somarMesesSeguro(primDataVenc, i, diaVencPadrao)) : somarMesesSeguro(hoje, i + 1, diaVencPadrao);
+        parcelas.push({
+          numero: parcelas.length + 1,
+          descricao: qtd > 1 ? `Boleto Bancário (${i + 1}/${qtd})` : 'Boleto Bancário',
+          vencimento: formatarData(d),
+          valor: valParc,
+          metodo: 'Boleto Bancário',
+          status: condicao.situacaoSaldo === 'Quitado' ? 'Quitada' : 'Pendente',
+        });
+      }
+
+      quantidadeParcelas = qtd;
+      valorParcela = (entVal > 0 ? parcelas[1]?.valor : parcelas[0]?.valor) || Number((baseParaParcelar / qtd).toFixed(2));
+      metodoParcelamento = 'Boleto Bancário';
+      break;
+    }
+
+    case 'financiamento_capim': {
+      const p = Math.max(1, condicao.parcelas || 12);
+      const valEnt = Number(condicao.valorEntrada || 0);
+      const saldoFinanciado = Math.max(0, total - valEnt);
+      const valParcelaCalculada = condicao.valorParcela && condicao.valorParcela > 0
+        ? condicao.valorParcela
+        : Number((saldoFinanciado / p).toFixed(2));
+
+      entrada = valEnt;
+      parcelas = [];
+
+      if (valEnt > 0) {
+        const entMetodo = condicao.metodoEntrada || 'PIX';
+        const sitEnt = (condicao.situacaoEntrada === 'Quitada' || condicao.pago) ? 'Quitada' : 'Pendente';
+        parcelas.push({
+          numero: 1,
+          descricao: `Entrada Inicial (${entMetodo})`,
+          vencimento: condicao.dataEntrada ? formatarData(condicao.dataEntrada) : formatarData(dataAprovacao || hoje),
+          valor: valEnt,
+          metodo: entMetodo,
+          status: sitEnt,
+        });
+      }
+
+      for (let i = 0; i < p; i++) {
+        const d = primDataVenc ? (i === 0 ? primDataVenc : somarMesesSeguro(primDataVenc, i, diaVencPadrao)) : somarMesesSeguro(hoje, i + 1, diaVencPadrao);
+        parcelas.push({
+          numero: parcelas.length + 1,
+          descricao: `Parcela ${i + 1}/${p} — Financiamento Capim`,
+          vencimento: formatarData(d),
+          valor: valParcelaCalculada,
+          metodo: 'Financiamento Capim',
+          status: condicao.situacaoSaldo === 'Quitado' ? 'Quitada' : 'A vencer',
+        });
+      }
+
+      quantidadeParcelas = p;
+      valorParcela = valParcelaCalculada;
+      metodoParcelamento = 'Financiamento Capim';
       break;
     }
 
@@ -2846,6 +2946,23 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
     /à\s*vista|a\s*vista|avista|pix\s*com\s*desconto|dinheiro|transfer[eê]ncia/i.test(financeiro.formaPagamento || '') ||
     (financeiro.quantidadeParcelas <= 1 && parcelasEfetivas.length <= 1);
 
+  const isCapim =
+    /capim|financiamento\s*capim/i.test(financeiro.formaPagamento || '') ||
+    /capim/i.test(orcamento.formasPagamento || '') ||
+    parcelasEfetivas.some((p) => /capim/i.test(p?.metodo || p?.descricao || ''));
+
+  const formaPagamentoTexto = `${financeiro.formaPagamento || ''} ${orcamento.formasPagamento || ''}`.toLowerCase();
+  const isPixParceladoOuBoleto =
+    /pix\s*parcelado|boleto|parcelado\s*no\s*boleto|carn[eê]|promiss[oó]ria/i.test(formaPagamentoTexto) ||
+    parcelasEfetivas.some((p) => /pix\s*parcelado|boleto/i.test(p?.metodo || p?.descricao || ''));
+
+  const clausulaPixBoletoAtiva =
+    snapshot.clausulaPixBoletoParcelado !== undefined
+      ? Boolean(snapshot.clausulaPixBoletoParcelado)
+      : isPixParceladoOuBoleto;
+
+  const percentualMinimoInicio = snapshot.percentualMinimoInicioTratamento || 70;
+
   const todasQuitadas =
     parcelasEfetivas.length > 0 &&
     parcelasEfetivas.every((p) => Boolean(p.status && /paga|pago|quitad/i.test(p.status)));
@@ -2860,6 +2977,8 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
 
   // Apenas exibe parágrafos de mora/multa e suspensão por inadimplência se houver parcelas mensais futuras sob cobrança direta da clínica
   const temParcelasPendentesDiretasClinica =
+    !isCapim &&
+    !clausulaPixBoletoAtiva &&
     !isFormaAvista &&
     !todasQuitadas &&
     !todasCartaoOuQuitadas &&
@@ -2870,7 +2989,9 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
     });
 
   let tituloClausulaPagamento = 'DO PAGAMENTO, PARCELAMENTO E CONDIÇÕES ACORDADAS';
-  if (isFormaAvista) {
+  if (isCapim) {
+    tituloClausulaPagamento = 'DO FINANCIAMENTO ODONTOLÓGICO (CAPIM) E CONDIÇÕES ACORDADAS';
+  } else if (isFormaAvista) {
     tituloClausulaPagamento = temAlgumPix
       ? 'DO PAGAMENTO À VISTA VIA PIX E CONDIÇÕES ACORDADAS'
       : 'DO PAGAMENTO À VISTA E CONDIÇÕES ACORDADAS';
@@ -3663,6 +3784,12 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
       </p>
       ` : ''}
 
+      ${isCapim ? `
+      <p class="paragrafo" style="font-size: 11px; color: #4b5563;">
+        <strong>Parágrafo (Financiamento Odontológico Capim):</strong> O plano de pagamento foi estruturado e aprovado na modalidade de <strong>Financiamento Odontológico Capim</strong>, viabilizado por meio da instituição de crédito parceira. O adimplemento das parcelas mensais, datas de vencimento e liquidação dos valores dar-se-á diretamente perante os canais oficiais da Capim, garantindo a realização integral e contínua dos atos clínicos contratados perante a <strong>CONTRATADA</strong>.
+      </p>
+      ` : ''}
+
       ${temParcelasPendentesDiretasClinica ? `
       <p class="paragrafo" style="font-size: 11px; color: #4b5563;">
         <strong>Parágrafo Primeiro (Mora e Encargos):</strong> O não pagamento de qualquer das parcelas mensais na data de seus respectivos vencimentos sujeitará o(a) <strong>CONTRATANTE</strong> à incidência de multa moratória de 2% (dois por cento) sobre o montante em atraso, acrescida de juros de mora legais de 1% (um por cento) ao mês calculados <em>pro rata die</em>, nos termos do art. 52, § 1º do Código de Defesa do Consumidor e art. 406 do Código Civil.
@@ -3672,6 +3799,52 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
       </p>
       ` : ''}
     </div>
+
+    ${clausulaPixBoletoAtiva ? `
+    <!-- CLÁUSULA – DO PAGAMENTO VIA PIX OU BOLETO PARCELADO, INADIMPLÊNCIA E INÍCIO DO TRATAMENTO -->
+    <div class="clausula-bloco">
+      <div class="clausula-titulo">${numClausula()} — DO PAGAMENTO VIA PIX OU BOLETO PARCELADO, INADIMPLÊNCIA E INÍCIO DO TRATAMENTO</div>
+      <p class="paragrafo">
+        Quando o <strong>CONTRATANTE</strong> optar pela modalidade de pagamento parcelado via PIX ou boleto bancário, diretamente com a <strong>CONTRATADA</strong>, ficam estabelecidas as seguintes condições:
+      </p>
+      <p class="paragrafo">
+        <strong>§ 1º.</strong> O início do tratamento odontológico eletivo contratado estará condicionado ao pagamento de, no mínimo, ${percentualMinimoInicio}% (${percentualMinimoInicio === 70 ? 'setenta por cento' : `${percentualMinimoInicio} por cento`}) do valor total contratado.
+      </p>
+      <p class="paragrafo">
+        <strong>§ 2º.</strong> O saldo remanescente deverá ser quitado conforme as parcelas, valores e vencimentos previamente acordados entre as partes.
+      </p>
+      <p class="paragrafo">
+        <strong>§ 3º.</strong> O agendamento do procedimento será realizado após a confirmação do recebimento do percentual mínimo exigido, respeitando a disponibilidade da agenda da profissional e as condições clínicas do paciente.
+      </p>
+      <p class="paragrafo">
+        <strong>§ 4º.</strong> Em caso de atraso no pagamento de qualquer parcela, incidirá multa moratória de 2% (dois por cento) sobre o valor da parcela vencida, acrescida de juros de mora de 1% (um por cento) ao mês, calculados proporcionalmente aos dias de atraso.
+      </p>
+      <p class="paragrafo">
+        <strong>§ 5º.</strong> A inadimplência poderá ocasionar o adiamento do início do tratamento eletivo até a regularização dos pagamentos e o cumprimento do percentual mínimo exigido, sem que isso caracterize descumprimento contratual por parte da <strong>CONTRATADA</strong>.
+      </p>
+      <p class="paragrafo">
+        <strong>§ 6º.</strong> Decorridos 30 (trinta) dias corridos do vencimento da parcela, sem a regularização do débito, a <strong>CONTRATADA</strong> poderá adotar as medidas legais de cobrança cabíveis, incluindo:
+        <br/>a) Inscrição do <strong>CONTRATANTE</strong> nos órgãos de proteção ao crédito, tais como SPC e Serasa;
+        <br/>b) Encaminhamento de título ou documento de dívida legalmente apto para protesto em cartório;
+        <br/>c) Cobrança extrajudicial ou judicial dos valores vencidos e legalmente exigíveis.
+      </p>
+      <p class="paragrafo">
+        <strong>§ 7º.</strong> As medidas de cobrança serão realizadas mediante observância das notificações prévias legalmente exigidas, do Código de Defesa do Consumidor, da Lei nº 9.492/1997 e da Lei Geral de Proteção de Dados Pessoais (LGPD), preservando o sigilo profissional e os dados clínicos do paciente.
+      </p>
+      <p class="paragrafo">
+        <strong>§ 8º.</strong> Após a regularização integral do débito que motivou a negativação, a <strong>CONTRATADA</strong> deverá solicitar a exclusão do registro de inadimplência no prazo de até 5 (cinco) dias úteis. Em caso de protesto, deverá fornecer os documentos necessários ao seu cancelamento, observadas as disposições legais aplicáveis.
+      </p>
+      <p class="paragrafo">
+        <strong>§ 9º.</strong> Caso o tratamento já tenha sido iniciado, eventual inadimplência deverá ser administrada respeitando as normas éticas odontológicas, a segurança do paciente e a continuidade da assistência clinicamente necessária.
+      </p>
+      <p class="paragrafo">
+        <strong>§ 10º.</strong> Em caso de desistência ou rescisão contratual, os valores pagos e eventualmente devidos serão apurados considerando os serviços efetivamente prestados, as despesas comprovadas e as demais disposições contratuais, respeitando a legislação vigente.
+      </p>
+      <p class="paragrafo">
+        O <strong>CONTRATANTE</strong> declara estar plenamente ciente e de acordo com as condições de pagamento, os encargos por inadimplência, as medidas legais de cobrança e os critérios estabelecidos para o início do tratamento odontológico.
+      </p>
+    </div>
+    ` : ''}
 
     ${incluiLentes ? `
     <!-- CLÁUSULA — DA MANUTENÇÃO SEMESTRAL DAS LENTES EM RESINA COMPOSTA -->
@@ -3789,10 +3962,22 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
       </p>
     </div>
 
+    ${(snapshot.clausulasPersonalizadas || [])
+      .filter((cl) => cl.ativa !== false && cl.conteudo && cl.conteudo.trim())
+      .map((cl) => `
+    <!-- CLÁUSULA PERSONALIZADA -->
+    <div class="clausula-bloco">
+      <div class="clausula-titulo">${numClausula()} — ${cl.titulo?.trim().toUpperCase() || 'DISPOSIÇÃO ADICIONAL CONVENCIONADA'}</div>
+      <p class="paragrafo">
+        ${cl.conteudo.trim().replace(/\n/g, '<br/>')}
+      </p>
+    </div>
+    `).join('')}
+
     ${snapshot.observacoesCustomizadas && snapshot.observacoesCustomizadas.trim() && snapshot.observacoesCustomizadas.trim() !== orcamento.observacoes?.trim() ? `
     <!-- Cláusula Especial / Observações Complementares -->
     <div class="clausula-bloco">
-      <div class="clausula-titulo">CLÁUSULA ESPECIAL — DAS DISPOSIÇÕES COMPLEMENTARES E CONVENCIONADAS</div>
+      <div class="clausula-titulo">${numClausula()} — DAS OBSERVAÇÕES E DISPOSIÇÕES COMPLEMENTARES</div>
       <p class="paragrafo">
         ${snapshot.observacoesCustomizadas.trim().replace(/\n/g, '<br/>')}
       </p>

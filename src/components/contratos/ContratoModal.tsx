@@ -53,6 +53,8 @@ import {
   ChevronDown,
   ChevronUp,
   MapPin,
+  Trash2,
+  ShieldAlert,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -79,6 +81,7 @@ import {
   gerarHtmlContrato,
   ContratoSnapshot,
   ContratoParcela,
+  ContratoClausulaPersonalizada,
   gerarLinkAssinaturaContrato,
   emitirContratoPersistido,
   isContratoLenteResina,
@@ -161,6 +164,10 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
   const [condicaoContratoAtivaId, setCondicaoContratoAtivaId] = useState<string>('');
   const [modalFlexibilizarContratoOpen, setModalFlexibilizarContratoOpen] = useState(false);
   const [condicaoFlexibilizarContrato, setCondicaoFlexibilizarContrato] = useState<Partial<CondicaoPagamento> | null>(null);
+
+  // Gestão de cláusulas personalizadas e observações
+  const [modalNovaClausulaOpen, setModalNovaClausulaOpen] = useState(false);
+  const [clausulaEmEdicao, setClausulaEmEdicao] = useState<ContratoClausulaPersonalizada | null>(null);
 
   // Assinatura digital interna
   const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
@@ -898,6 +905,10 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
       saldoValorParcela: condicaoFlexibilizarContrato.saldoValorParcela,
       diaVencimento: condicaoFlexibilizarContrato.diaVencimento,
       tipoCartao: condicaoFlexibilizarContrato.tipoCartao,
+      taxaJuros: condicaoFlexibilizarContrato.taxaJuros,
+      taxaValor: condicaoFlexibilizarContrato.taxaValor,
+      valorFinanciado: condicaoFlexibilizarContrato.valorFinanciado,
+      observacoesFinanciamento: condicaoFlexibilizarContrato.observacoesFinanciamento,
       descricao: condicaoFlexibilizarContrato.descricao?.trim() || descAuto,
       destaque: true,
       selecionada: true,
@@ -987,6 +998,19 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
   const temEndodontiaNoContrato = useMemo(() => {
     if (!snapshotAtual) return false;
     return isContratoEndodontia(snapshotAtual);
+  }, [snapshotAtual]);
+
+  // Identifica se a cláusula de PIX / Boleto parcelado direto (início condicionado a 70% pago) está ativa
+  const temClausulaPixBoleto = useMemo(() => {
+    if (!snapshotAtual) return false;
+    if (snapshotAtual.clausulaPixBoletoParcelado !== undefined) {
+      return Boolean(snapshotAtual.clausulaPixBoletoParcelado);
+    }
+    const formaTexto = `${snapshotAtual.financeiro?.formaPagamento || ''} ${snapshotAtual.orcamento?.formasPagamento || ''}`.toLowerCase();
+    return (
+      /pix\s*parcelado|boleto|parcelado\s*no\s*boleto|carn[eê]|promiss[oó]ria/i.test(formaTexto) ||
+      (snapshotAtual.financeiro?.parcelas || []).some((p) => /pix\s*parcelado|boleto/i.test(p?.metodo || p?.descricao || ''))
+    );
   }, [snapshotAtual]);
 
   // HTML renderizado do contrato atual a partir dos dados do snapshot em memória
@@ -2350,6 +2374,158 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
               </div>
             </div>
           )}
+        </div>
+
+        {/* Cláusula PIX / Boleto Parcelado Direto (Início aos 70%) */}
+        <div className="p-3 bg-card rounded-lg border border-border shadow-sm flex items-center justify-between gap-2.5 text-xs">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="p-1.5 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 shrink-0">
+              <ShieldAlert className="h-3.5 w-3.5" />
+            </div>
+            <div className="min-w-0">
+              <div className="font-semibold text-foreground text-[11px] truncate">
+                PIX / Boleto Direto (Início 70%)
+              </div>
+              <p className="text-[10px] text-muted-foreground truncate">
+                {temClausulaPixBoleto ? '✓ Condiciona início a 70% pago + SPC/Serasa' : 'Desativado'}
+              </p>
+            </div>
+          </div>
+          <Switch
+            id="togglePixBoletoParcelado"
+            checked={temClausulaPixBoleto}
+            onCheckedChange={(checked) => {
+              setIsManuallyEdited(true);
+              setSnapshotAtual((prev) => (prev ? { ...prev, clausulaPixBoletoParcelado: checked } : prev));
+            }}
+          />
+        </div>
+
+        {/* Gestão de Cláusulas Personalizadas e Observações */}
+        <div className="p-3 bg-card rounded-lg border border-border shadow-sm text-xs space-y-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="p-1.5 rounded-md bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 shrink-0">
+                <FileText className="h-3.5 w-3.5" />
+              </div>
+              <div className="min-w-0">
+                <div className="font-semibold text-foreground text-[11px] truncate">
+                  Cláusulas Personalizadas & Observações
+                </div>
+                <p className="text-[10px] text-muted-foreground truncate">
+                  {(snapshotAtual?.clausulasPersonalizadas || []).filter((c) => c.ativa).length} ativa(s) • Adicione ou edite livremente
+                </p>
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setClausulaEmEdicao({
+                  id: String(Date.now()),
+                  titulo: '',
+                  conteudo: '',
+                  ativa: true,
+                });
+                setModalNovaClausulaOpen(true);
+              }}
+              className="h-7 px-2 text-[10px] gap-1 shrink-0 font-semibold"
+            >
+              <Plus className="h-3 w-3" /> Cláusula
+            </Button>
+          </div>
+
+          {/* Lista de Cláusulas Personalizadas */}
+          {(snapshotAtual?.clausulasPersonalizadas || []).length > 0 && (
+            <div className="space-y-1.5 pt-1">
+              {(snapshotAtual?.clausulasPersonalizadas || []).map((cl) => (
+                <div
+                  key={cl.id}
+                  className="p-2 rounded border border-border bg-muted/30 space-y-1 text-xs"
+                >
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="font-semibold text-[11px] text-foreground truncate flex-1">
+                      {cl.titulo || 'Cláusula Adicional'}
+                    </span>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          setClausulaEmEdicao({ ...cl });
+                          setModalNovaClausulaOpen(true);
+                        }}
+                        className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                        title="Editar cláusula"
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          setIsManuallyEdited(true);
+                          setSnapshotAtual((prev) => {
+                            if (!prev) return prev;
+                            return {
+                              ...prev,
+                              clausulasPersonalizadas: (prev.clausulasPersonalizadas || []).filter((c) => c.id !== cl.id),
+                            };
+                          });
+                        }}
+                        className="h-6 w-6 text-rose-500 hover:text-rose-700 hover:bg-rose-500/10"
+                        title="Remover cláusula"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                      <Switch
+                        checked={cl.ativa !== false}
+                        onCheckedChange={(checked) => {
+                          setIsManuallyEdited(true);
+                          setSnapshotAtual((prev) => {
+                            if (!prev) return prev;
+                            return {
+                              ...prev,
+                              clausulasPersonalizadas: (prev.clausulasPersonalizadas || []).map((c) =>
+                                c.id === cl.id ? { ...c, ativa: checked } : c
+                              ),
+                            };
+                          });
+                        }}
+                        className="scale-75"
+                        title={cl.ativa ? 'Desativar no contrato' : 'Ativar no contrato'}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground line-clamp-2 leading-relaxed">
+                    {cl.conteudo}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Observações Gerais do Contrato */}
+          <div className="pt-2 border-t border-border/70 space-y-1">
+            <Label className="text-[10px] font-semibold text-foreground flex items-center justify-between">
+              <span>Observações Gerais do Contrato:</span>
+              <span className="text-[9px] text-muted-foreground font-normal">Aparece na Cláusula Especial</span>
+            </Label>
+            <Textarea
+              rows={2}
+              value={snapshotAtual?.observacoesCustomizadas || ''}
+              onChange={(e) => {
+                setIsManuallyEdited(true);
+                const val = e.target.value;
+                setSnapshotAtual((prev) => (prev ? { ...prev, observacoesCustomizadas: val } : prev));
+              }}
+              placeholder="Digite aqui observações adicionais, condições clínicas específicas ou acordos verbais..."
+              className="text-[11px] min-h-[50px] leading-tight"
+            />
+          </div>
         </div>
       </div>
 
@@ -4331,6 +4507,14 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                       upd.diaVencimento = upd.diaVencimento || 10;
                       upd.valorTotal = orcamentoAtual.total;
                       upd.valorParcela = Number((orcamentoAtual.total / (upd.parcelas || 4)).toFixed(2));
+                    } else if (t === 'financiamento_capim') {
+                      upd.parcelas = upd.parcelas || 12;
+                      upd.taxaJuros = upd.taxaJuros ?? 1.99;
+                      upd.valorEntrada = upd.valorEntrada ?? 0;
+                      upd.valorTotal = orcamentoAtual.total;
+                      const s = Math.max(0, orcamentoAtual.total - (upd.valorEntrada || 0));
+                      upd.valorFinanciado = s;
+                      upd.valorParcela = Number((s / (upd.parcelas || 12)).toFixed(2));
                     }
                     upd.descricao = calcularDescricaoCondicao(upd, orcamentoAtual.total);
                     setCondicaoFlexibilizarContrato(upd);
@@ -4342,6 +4526,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                   <option value="entrada_saldo">Entrada + Saldo Parcelado</option>
                   <option value="pix_parcelado">PIX Parcelado</option>
                   <option value="boleto">Boleto Bancário</option>
+                  <option value="financiamento_capim">Financiamento Capim</option>
                   <option value="personalizado">Personalizado</option>
                 </select>
               </div>
@@ -4576,6 +4761,98 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                 </div>
               )}
 
+              {condicaoFlexibilizarContrato.tipo === 'financiamento_capim' && (
+                <div className="p-2.5 rounded bg-muted/40 border border-border text-xs space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-[11px] font-semibold">Parcelas Financiamento Capim:</Label>
+                      <select
+                        value={condicaoFlexibilizarContrato.parcelas || 12}
+                        onChange={(e) => {
+                          const p = Number(e.target.value) || 12;
+                          const ent = condicaoFlexibilizarContrato.valorEntrada || 0;
+                          const financiado = Math.max(0, (condicaoFlexibilizarContrato.valorTotal || orcamentoAtual.total) - ent);
+                          const upd = {
+                            ...condicaoFlexibilizarContrato,
+                            parcelas: p,
+                            valorFinanciado: financiado,
+                            valorParcela: Number((financiado / p).toFixed(2)),
+                          };
+                          upd.descricao = calcularDescricaoCondicao(upd, orcamentoAtual.total);
+                          setCondicaoFlexibilizarContrato(upd);
+                        }}
+                        className="w-full h-8 px-2 text-xs font-semibold rounded bg-background border border-border"
+                      >
+                        {[1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 18, 20, 24, 30, 36].map((n) => (
+                          <option key={n} value={n}>
+                            {n}x parcelas
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[11px] font-semibold">Taxa de Juros (% a.m.):</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min={0}
+                        placeholder="Ex: 1.99"
+                        value={condicaoFlexibilizarContrato.taxaJuros ?? ''}
+                        onChange={(e) => {
+                          const tx = Number(e.target.value) || 0;
+                          const upd = { ...condicaoFlexibilizarContrato, taxaJuros: tx };
+                          upd.descricao = calcularDescricaoCondicao(upd, orcamentoAtual.total);
+                          setCondicaoFlexibilizarContrato(upd);
+                        }}
+                        className="h-8 text-xs font-bold"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-[11px] font-semibold">Valor de Entrada (R$ opcional):</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min={0}
+                        value={condicaoFlexibilizarContrato.valorEntrada ?? ''}
+                        onChange={(e) => {
+                          const ent = Number(e.target.value) || 0;
+                          const p = condicaoFlexibilizarContrato.parcelas || 12;
+                          const financiado = Math.max(0, (condicaoFlexibilizarContrato.valorTotal || orcamentoAtual.total) - ent);
+                          const upd = {
+                            ...condicaoFlexibilizarContrato,
+                            valorEntrada: ent,
+                            valorFinanciado: financiado,
+                            valorParcela: Number((financiado / p).toFixed(2)),
+                          };
+                          upd.descricao = calcularDescricaoCondicao(upd, orcamentoAtual.total);
+                          setCondicaoFlexibilizarContrato(upd);
+                        }}
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[11px] font-semibold">Valor de Cada Parcela (R$):</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min={0}
+                        value={condicaoFlexibilizarContrato.valorParcela ?? ''}
+                        onChange={(e) => {
+                          const vp = Number(e.target.value) || 0;
+                          const upd = { ...condicaoFlexibilizarContrato, valorParcela: vp };
+                          upd.descricao = calcularDescricaoCondicao(upd, orcamentoAtual.total);
+                          setCondicaoFlexibilizarContrato(upd);
+                        }}
+                        className="h-8 text-xs font-bold text-primary"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-1">
                 <div className="flex justify-between items-center">
                   <Label className="text-[11px] font-semibold">Descrição no Contrato (Cláusula 3ª):</Label>
@@ -4614,6 +4891,97 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
                   onClick={handleSalvarFlexibilizacaoContrato}
                 >
                   Aplicar ao Contrato e Salvar
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal para Adicionar / Editar Cláusula Personalizada */}
+      <Dialog open={modalNovaClausulaOpen} onOpenChange={(open) => !open && setModalNovaClausulaOpen(false)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-bold flex items-center gap-2">
+              <FileText className="h-4 w-4 text-primary" />
+              {clausulaEmEdicao?.id && (snapshotAtual?.clausulasPersonalizadas || []).some((c) => c.id === clausulaEmEdicao.id)
+                ? 'Editar Cláusula do Contrato'
+                : 'Nova Cláusula Personalizada'}
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Insira o título e o texto completo da cláusula. Ela será numerada e formatada automaticamente no corpo oficial do contrato.
+            </DialogDescription>
+          </DialogHeader>
+
+          {clausulaEmEdicao && (
+            <div className="space-y-3 pt-2 text-xs">
+              <div className="space-y-1">
+                <Label className="text-[11px] font-semibold">Título da Cláusula:</Label>
+                <Input
+                  placeholder="Ex: DA GARANTIA ESTENDIDA OU REVISÕES"
+                  value={clausulaEmEdicao.titulo}
+                  onChange={(e) => setClausulaEmEdicao((prev) => (prev ? { ...prev, titulo: e.target.value } : null))}
+                  className="h-8 text-xs font-semibold uppercase"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-[11px] font-semibold">Conteúdo da Cláusula:</Label>
+                <Textarea
+                  rows={5}
+                  placeholder="Digite o texto da cláusula com todos os parágrafos ou condições acordadas..."
+                  value={clausulaEmEdicao.conteudo}
+                  onChange={(e) => setClausulaEmEdicao((prev) => (prev ? { ...prev, conteudo: e.target.value } : null))}
+                  className="text-xs"
+                />
+              </div>
+
+              <div className="flex items-center justify-between p-2 rounded bg-muted/40 border border-border">
+                <Label className="text-[11px] font-semibold">Cláusula Ativa no Contrato</Label>
+                <Switch
+                  checked={clausulaEmEdicao.ativa !== false}
+                  onCheckedChange={(checked) => setClausulaEmEdicao((prev) => (prev ? { ...prev, ativa: checked } : null))}
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-border">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setModalNovaClausulaOpen(false)}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={!clausulaEmEdicao.titulo?.trim() || !clausulaEmEdicao.conteudo?.trim()}
+                  onClick={() => {
+                    if (!clausulaEmEdicao.titulo?.trim() || !clausulaEmEdicao.conteudo?.trim()) return;
+                    setIsManuallyEdited(true);
+                    setSnapshotAtual((prev) => {
+                      if (!prev) return prev;
+                      const existentes = prev.clausulasPersonalizadas || [];
+                      const idx = existentes.findIndex((c) => c.id === clausulaEmEdicao.id);
+                      let novas: ContratoClausulaPersonalizada[];
+                      if (idx >= 0) {
+                        novas = [...existentes];
+                        novas[idx] = { ...clausulaEmEdicao };
+                      } else {
+                        novas = [...existentes, { ...clausulaEmEdicao }];
+                      }
+                      return {
+                        ...prev,
+                        clausulasPersonalizadas: novas,
+                      };
+                    });
+                    setModalNovaClausulaOpen(false);
+                    toast.success('Cláusula salva no contrato!');
+                  }}
+                  className="font-bold bg-primary text-primary-foreground hover:bg-primary/90"
+                >
+                  Salvar Cláusula
                 </Button>
               </div>
             </div>

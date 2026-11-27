@@ -939,6 +939,27 @@ export const gerarHtmlContratoEndodontia = (snapshot: ContratoSnapshot): string 
       </p>
     </div>
 
+    ${(snapshot.clausulasPersonalizadas || [])
+      .filter((cl) => cl.ativa !== false && cl.conteudo && cl.conteudo.trim())
+      .map((cl, idx) => `
+    <!-- CLÁUSULA ADICIONAL -->
+    <div class="clausula-bloco">
+      <div class="clausula-titulo">CLÁUSULA ${18 + idx}ª — ${cl.titulo?.trim().toUpperCase() || 'DISPOSIÇÃO ADICIONAL'}</div>
+      <p class="paragrafo">
+        ${cl.conteudo.trim().replace(/\n/g, '<br/>')}
+      </p>
+    </div>
+    `).join('')}
+
+    ${snapshot.observacoesCustomizadas && snapshot.observacoesCustomizadas.trim() ? `
+    <div class="clausula-bloco">
+      <div class="clausula-titulo">OBSERVAÇÕES E DISPOSIÇÕES COMPLEMENTARES</div>
+      <p class="paragrafo">
+        ${snapshot.observacoesCustomizadas.trim().replace(/\n/g, '<br/>')}
+      </p>
+    </div>
+    ` : ''}
+
     <!-- DECLARAÇÃO DE CONSENTIMENTO E AUTORIZAÇÃO -->
     <div class="clausula-bloco">
       <div class="clausula-titulo">DECLARAÇÃO DE CONSENTIMENTO E AUTORIZAÇÃO</div>

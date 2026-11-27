@@ -6138,6 +6138,14 @@ const PatientOrcamentos = ({ patient }: Props) => {
                             upd.diaVencimento = upd.diaVencimento || 10;
                             upd.valorTotal = aprovandoOrcamento.total;
                             upd.valorParcela = Number((aprovandoOrcamento.total / (upd.parcelas || 4)).toFixed(2));
+                          } else if (t === 'financiamento_capim') {
+                            upd.parcelas = upd.parcelas || 12;
+                            upd.taxaJuros = upd.taxaJuros ?? 1.99;
+                            upd.valorEntrada = upd.valorEntrada ?? 0;
+                            upd.valorTotal = aprovandoOrcamento.total;
+                            const s = Math.max(0, aprovandoOrcamento.total - (upd.valorEntrada || 0));
+                            upd.valorFinanciado = s;
+                            upd.valorParcela = Number((s / (upd.parcelas || 12)).toFixed(2));
                           }
                           upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
                           setCondicaoAprovacaoEmEdicao(upd);
@@ -6149,6 +6157,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
                         <option value="entrada_saldo">Entrada + Saldo (em Dias ou Parcelas)</option>
                         <option value="pix_parcelado">PIX Parcelado</option>
                         <option value="boleto">Boleto Bancário</option>
+                        <option value="financiamento_capim">Financiamento Capim</option>
                         <option value="personalizado">Personalizado</option>
                       </select>
                     </div>
@@ -6721,6 +6730,106 @@ const PatientOrcamentos = ({ patient }: Props) => {
                     );
                   })()}
 
+                  {condicaoAprovacaoEmEdicao.tipo === 'financiamento_capim' && (() => {
+                    const vTot = typeof condicaoAprovacaoEmEdicao.valorTotal === 'number' && condicaoAprovacaoEmEdicao.valorTotal > 0
+                      ? condicaoAprovacaoEmEdicao.valorTotal
+                      : aprovandoOrcamento.total;
+                    const ent = Math.min(vTot, Math.max(0, condicaoAprovacaoEmEdicao.valorEntrada || 0));
+                    const financiado = Math.max(0, vTot - ent);
+                    const p = Math.max(1, condicaoAprovacaoEmEdicao.parcelas || 12);
+                    const valParc = condicaoAprovacaoEmEdicao.valorParcela && condicaoAprovacaoEmEdicao.valorParcela > 0
+                      ? condicaoAprovacaoEmEdicao.valorParcela
+                      : Number((financiado / p).toFixed(2));
+                    return (
+                      <div className="p-2.5 rounded bg-background border border-border text-xs space-y-2">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <Label className="text-[11px] font-semibold">Parcelas Financiamento Capim:</Label>
+                            <select
+                              value={condicaoAprovacaoEmEdicao.parcelas || 12}
+                              onChange={(e) => {
+                                const parc = Number(e.target.value) || 12;
+                                const upd = {
+                                  ...condicaoAprovacaoEmEdicao,
+                                  parcelas: parc,
+                                  valorFinanciado: financiado,
+                                  valorParcela: Number((financiado / parc).toFixed(2)),
+                                };
+                                upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
+                                setCondicaoAprovacaoEmEdicao(upd);
+                              }}
+                              className="w-full h-7 px-2 text-xs font-semibold rounded bg-background border border-border"
+                            >
+                              {[1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 18, 20, 24, 30, 36].map((n) => (
+                                <option key={n} value={n}>
+                                  {n}x parcelas
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[11px] font-semibold">Taxa de Juros (% a.m.):</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min={0}
+                              placeholder="Ex: 1.99"
+                              value={condicaoAprovacaoEmEdicao.taxaJuros ?? ''}
+                              onChange={(e) => {
+                                const tx = Number(e.target.value) || 0;
+                                const upd = { ...condicaoAprovacaoEmEdicao, taxaJuros: tx };
+                                upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
+                                setCondicaoAprovacaoEmEdicao(upd);
+                              }}
+                              className="h-7 text-xs font-bold"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <Label className="text-[11px] font-semibold">Entrada (R$ opcional):</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min={0}
+                              value={condicaoAprovacaoEmEdicao.valorEntrada ?? ''}
+                              onChange={(e) => {
+                                const valEnt = Number(e.target.value) || 0;
+                                const saldoFin = Math.max(0, vTot - valEnt);
+                                const upd = {
+                                  ...condicaoAprovacaoEmEdicao,
+                                  valorEntrada: valEnt,
+                                  valorFinanciado: saldoFin,
+                                  valorParcela: Number((saldoFin / p).toFixed(2)),
+                                };
+                                upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
+                                setCondicaoAprovacaoEmEdicao(upd);
+                              }}
+                              className="h-7 text-xs"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[11px] font-semibold">Valor da Parcela (R$):</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min={0}
+                              value={condicaoAprovacaoEmEdicao.valorParcela ?? valParc}
+                              onChange={(e) => {
+                                const vp = Number(e.target.value) || 0;
+                                const upd = { ...condicaoAprovacaoEmEdicao, valorParcela: vp };
+                                upd.descricao = calcularDescricaoCondicao(upd, aprovandoOrcamento.total);
+                                setCondicaoAprovacaoEmEdicao(upd);
+                              }}
+                              className="h-7 text-xs font-bold text-primary"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                   {/* Bloco de Ajuste de Datas e Situação de Pagamento */}
                   <div className="p-3 rounded-xl bg-muted/40 border border-border/80 space-y-2.5">
                     <div className="flex items-center justify-between">
@@ -7151,6 +7260,14 @@ const PatientOrcamentos = ({ patient }: Props) => {
                       updated.diaVencimento = updated.diaVencimento || 10;
                       updated.valorTotal = total;
                       updated.valorParcela = Number((total / (updated.parcelas || 4)).toFixed(2));
+                    } else if (t === 'financiamento_capim') {
+                      updated.parcelas = updated.parcelas || 12;
+                      updated.taxaJuros = updated.taxaJuros ?? 1.99;
+                      updated.valorEntrada = updated.valorEntrada ?? 0;
+                      updated.valorTotal = total;
+                      const s = Math.max(0, total - (updated.valorEntrada || 0));
+                      updated.valorFinanciado = s;
+                      updated.valorParcela = Number((s / (updated.parcelas || 12)).toFixed(2));
                     } else if (t === 'personalizado') {
                       if (!updated.formasCompostas || updated.formasCompostas.length === 0) {
                         updated.formasCompostas = parseTextoParaFormasCompostas(updated.descricao || '', total);
@@ -7166,6 +7283,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
                   <option value="entrada_saldo">Entrada Facilitada + Saldo (em Dias ou Parcelas)</option>
                   <option value="pix_parcelado">PIX Parcelado (Sem Cartão)</option>
                   <option value="boleto">Boleto Bancário</option>
+                  <option value="financiamento_capim">Financiamento Capim</option>
                   <option value="personalizado">Personalizado (Composição com Todas as Formas)</option>
                 </select>
               </div>
@@ -7819,6 +7937,132 @@ const PatientOrcamentos = ({ patient }: Props) => {
                               <div className="h-8 px-2 flex items-center justify-between font-bold text-xs bg-muted/40 rounded border border-border">
                                 <span>{formatMoney(saldo)}</span>
                                 <span className="text-[10px] text-muted-foreground font-medium">({qtd}x de {formatMoney(valParc)})</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Detalhes de Financiamento Capim */}
+                    {condicaoEmEdicao.tipo === 'financiamento_capim' && (() => {
+                      const vTotal = typeof condicaoEmEdicao.valorTotal === 'number' && condicaoEmEdicao.valorTotal > 0 ? condicaoEmEdicao.valorTotal : total;
+                      const ent = Math.min(vTotal, Math.max(0, condicaoEmEdicao.valorEntrada || 0));
+                      const financiado = Math.max(0, vTotal - ent);
+                      const p = Math.max(1, condicaoEmEdicao.parcelas || 12);
+                      const valParc = condicaoEmEdicao.valorParcela && condicaoEmEdicao.valorParcela > 0
+                        ? condicaoEmEdicao.valorParcela
+                        : Number((financiado / p).toFixed(2));
+                      return (
+                        <div className="p-3 rounded-xl bg-muted/40 border border-border/70 space-y-3">
+                          <div className="flex items-center justify-between pb-1 border-b border-border/60">
+                            <span className="text-xs font-bold text-primary flex items-center gap-1.5">
+                              <DollarSign className="w-3.5 h-3.5" /> Configuração Financiamento Capim
+                            </span>
+                            <span className="text-xs font-extrabold text-foreground">
+                              Total: {formatMoney(vTotal)}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-2 rounded-lg bg-background border border-border/60">
+                            <div className="space-y-1">
+                              <Label className="text-[11px] font-semibold">Parcelas Capim:</Label>
+                              <select
+                                value={p}
+                                onChange={(e) => {
+                                  const parc = Number(e.target.value) || 12;
+                                  const updated: Partial<CondicaoPagamento> = {
+                                    ...condicaoEmEdicao,
+                                    parcelas: parc,
+                                    valorFinanciado: financiado,
+                                    valorParcela: Number((financiado / parc).toFixed(2)),
+                                  };
+                                  updated.descricao = calcularDescricaoCondicao(updated, total);
+                                  setCondicaoEmEdicao(updated);
+                                }}
+                                className="w-full h-8 px-2 text-xs font-bold rounded-md bg-background border border-primary/60 text-primary"
+                              >
+                                {[1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 18, 20, 24, 30, 36].map((n) => (
+                                  <option key={n} value={n}>
+                                    {n}x parcelas
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div className="space-y-1">
+                              <Label className="text-[11px] font-semibold">Taxa de Juros (% a.m.):</Label>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min={0}
+                                placeholder="Ex: 1.99"
+                                value={condicaoEmEdicao.taxaJuros ?? ''}
+                                onChange={(e) => {
+                                  const tx = Number(e.target.value) || 0;
+                                  const updated: Partial<CondicaoPagamento> = {
+                                    ...condicaoEmEdicao,
+                                    taxaJuros: tx,
+                                  };
+                                  updated.descricao = calcularDescricaoCondicao(updated, total);
+                                  setCondicaoEmEdicao(updated);
+                                }}
+                                className="h-8 text-xs font-bold"
+                              />
+                            </div>
+
+                            <div className="space-y-1">
+                              <Label className="text-[11px] font-semibold">Entrada (R$ opcional):</Label>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min={0}
+                                max={vTotal}
+                                placeholder="0,00"
+                                value={condicaoEmEdicao.valorEntrada || ''}
+                                onChange={(e) => {
+                                  const valEnt = Math.min(vTotal, Math.max(0, Number(e.target.value) || 0));
+                                  const saldoFin = Math.max(0, vTotal - valEnt);
+                                  const updated: Partial<CondicaoPagamento> = {
+                                    ...condicaoEmEdicao,
+                                    valorEntrada: valEnt,
+                                    valorFinanciado: saldoFin,
+                                    valorParcela: Number((saldoFin / p).toFixed(2)),
+                                  };
+                                  updated.descricao = calcularDescricaoCondicao(updated, total);
+                                  setCondicaoEmEdicao(updated);
+                                }}
+                                className="h-8 text-xs"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-2 rounded-lg bg-background border border-border/60">
+                            <div className="space-y-1">
+                              <Label className="text-[11px] font-semibold">Valor de Cada Parcela (R$):</Label>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min={0}
+                                value={condicaoEmEdicao.valorParcela ?? valParc}
+                                onChange={(e) => {
+                                  const vp = Number(e.target.value) || 0;
+                                  const updated: Partial<CondicaoPagamento> = {
+                                    ...condicaoEmEdicao,
+                                    valorParcela: vp,
+                                  };
+                                  updated.descricao = calcularDescricaoCondicao(updated, total);
+                                  setCondicaoEmEdicao(updated);
+                                }}
+                                className="h-8 text-xs font-bold text-primary"
+                              />
+                            </div>
+
+                            <div className="space-y-1">
+                              <Label className="text-[11px] font-semibold">Valor Financiado:</Label>
+                              <div className="h-8 px-2 flex items-center justify-between font-bold text-xs bg-muted/40 rounded border border-border">
+                                <span>{formatMoney(financiado)}</span>
+                                <span className="text-[10px] text-muted-foreground font-medium">({p}x de {formatMoney(condicaoEmEdicao.valorParcela ?? valParc)})</span>
                               </div>
                             </div>
                           </div>
