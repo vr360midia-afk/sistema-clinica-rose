@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -71,7 +71,7 @@ const PerguntaSimNao = ({
   onChange: (val: 'sim' | 'nao') => void;
   alertaSeSim?: boolean;
 }) => (
-  <div className="p-3 rounded-lg border bg-card/70 hover:bg-card transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+  <div className="p-3 sm:p-3.5 rounded-lg border bg-card/70 hover:bg-card transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3 select-none">
     <div className="space-y-0.5 pr-2">
       <p className="text-xs sm:text-sm font-semibold text-foreground flex items-center gap-1.5">
         {alertaSeSim && valor === 'sim' && <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />}
@@ -79,15 +79,15 @@ const PerguntaSimNao = ({
       </p>
       {descricao && <p className="text-[11px] text-muted-foreground leading-relaxed">{descricao}</p>}
     </div>
-    <div className="flex items-center gap-1.5 shrink-0 self-start sm:self-auto">
+    <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto touch-manipulation">
       <button
         type="button"
         onClick={() => onChange('nao')}
         className={cn(
-          "px-3 py-1 text-xs font-semibold rounded-md border transition-all cursor-pointer",
+          "min-w-[62px] px-3.5 py-1.5 text-xs font-bold rounded-md border transition-all cursor-pointer touch-manipulation select-none",
           valor === 'nao'
-            ? "bg-slate-800 text-white border-slate-800 dark:bg-slate-200 dark:text-slate-900 shadow-xs"
-            : "bg-background text-muted-foreground border-border hover:bg-accent"
+            ? "bg-slate-800 text-white border-slate-800 dark:bg-slate-200 dark:text-slate-900 shadow-xs ring-1 ring-slate-400"
+            : "bg-background text-muted-foreground border-border hover:bg-accent active:scale-95"
         )}
       >
         Não
@@ -96,12 +96,12 @@ const PerguntaSimNao = ({
         type="button"
         onClick={() => onChange('sim')}
         className={cn(
-          "px-3 py-1 text-xs font-semibold rounded-md border transition-all cursor-pointer",
+          "min-w-[62px] px-3.5 py-1.5 text-xs font-bold rounded-md border transition-all cursor-pointer touch-manipulation select-none",
           valor === 'sim'
             ? alertaSeSim
-              ? "bg-amber-600 text-white border-amber-600 shadow-xs"
-              : "bg-primary text-primary-foreground border-primary shadow-xs"
-            : "bg-background text-muted-foreground border-border hover:bg-accent"
+              ? "bg-amber-600 text-white border-amber-600 shadow-xs ring-1 ring-amber-400"
+              : "bg-primary text-primary-foreground border-primary shadow-xs ring-1 ring-primary/50"
+            : "bg-background text-muted-foreground border-border hover:bg-accent active:scale-95"
         )}
       >
         Sim
@@ -109,6 +109,20 @@ const PerguntaSimNao = ({
     </div>
   </div>
 );
+
+// Identifica se o texto carregado é apenas um placeholder automático inicial do sistema
+const isGenericPlaceholder = (val?: string) => {
+  if (!val) return false;
+  const norm = val.trim().toLowerCase();
+  return (
+    norm === 'avaliação odontológica inicial' ||
+    norm === 'avaliacao odontologica inicial' ||
+    norm === 'avaliação inicial e questionário de saúde' ||
+    norm === 'avaliacao inicial e questionario de saude' ||
+    norm === 'ficha enviada ao paciente para preenchimento e assinatura digital' ||
+    norm === 'aguardando preenchimento pelo paciente via link digital'
+  );
+};
 
 const ITENS_TRIAGEM = [
   {
@@ -286,6 +300,14 @@ const AssinarAnamnese = () => {
   // Triagem de Segurança Odontológica (Perguntas Objetivas Sim / Não)
   const [triagem, setTriagem] = useState<Record<string, 'sim' | 'nao'>>({});
 
+  const pacienteRef = useRef(paciente);
+  useEffect(() => {
+    pacienteRef.current = paciente;
+  }, [paciente]);
+
+  const dadosCarregadosRef = useRef(false);
+  const loadedTargetIdRef = useRef<string | null>(null);
+
   const handleTriagemChange = (campo: string, valor: 'sim' | 'nao') => {
     setTriagem((prev) => ({ ...prev, [campo]: valor }));
   };
@@ -311,7 +333,7 @@ const AssinarAnamnese = () => {
         try {
           const assinaturaPayload = {
             signature: extra.signature,
-            signerName: extra.signerName || paciente?.nome || 'Paciente',
+            signerName: extra.signerName || pacienteRef.current?.nome || 'Paciente',
             signerRole: 'paciente',
             timestamp: new Date().toISOString(),
           };
@@ -321,7 +343,7 @@ const AssinarAnamnese = () => {
             p_token: token || null,
             p_assinatura: assinaturaPayload,
             p_respostas: extra.respostasAtualizadas || {},
-            p_signer_name: (extra.signerName as string) || paciente?.nome || 'Paciente',
+            p_signer_name: (extra.signerName as string) || pacienteRef.current?.nome || 'Paciente',
           });
 
           if (!rpcErr && rpcData && rpcData.ok) {
@@ -363,7 +385,7 @@ const AssinarAnamnese = () => {
           .maybeSingle();
 
         if (dbErr || !anamneseDb) {
-          // 3. Fallback LocalStorage (útil para testes em desenvolvimento)
+          // 4. Fallback LocalStorage (útil para testes em desenvolvimento)
           try {
             const localAnams = JSON.parse(localStorage.getItem('dental-system-anamneses') || '[]');
             const localMatch = localAnams.find((a: any) => a.id === targetId);
@@ -435,7 +457,7 @@ const AssinarAnamnese = () => {
       if (action === 'sign') {
         const assinaturaData = {
           signature: extra.signature,
-          signerName: extra.signerName || paciente?.nome || 'Paciente',
+          signerName: extra.signerName || pacienteRef.current?.nome || 'Paciente',
           signerRole: 'paciente',
           timestamp: new Date().toISOString(),
         };
@@ -492,7 +514,7 @@ const AssinarAnamnese = () => {
         try {
           const sig = assinaturaData;
           const sigImg = typeof sig === 'string' ? sig : sig.signature;
-          const sigName = typeof sig === 'object' ? (sig.signerName || paciente?.nome) : 'Paciente';
+          const sigName = typeof sig === 'object' ? (sig.signerName || pacienteRef.current?.nome) : 'Paciente';
           await supabase.from('documentos_clinicos').insert({
             paciente_id: targetId,
             paciente_nome: sigName,
@@ -543,12 +565,21 @@ const AssinarAnamnese = () => {
         return { ok: true };
       }
     },
-    [targetId, token, paciente]
+    [targetId, token]
   );
 
   useEffect(() => {
+    let cancelado = false;
+
+    // Se o targetId mudar, permite nova carga limpa
+    if (dadosCarregadosRef.current && targetId !== loadedTargetIdRef.current) {
+      dadosCarregadosRef.current = false;
+    }
+    loadedTargetIdRef.current = targetId;
+
     // Função auxiliar para popular os campos da anamnese no estado
     const popularDados = (anamneseData: any, pacienteData?: any) => {
+      if (cancelado) return;
       setAnamnese(anamneseData);
       if (pacienteData) {
         setPaciente({
@@ -558,26 +589,36 @@ const AssinarAnamnese = () => {
           email: pacienteData.email,
         });
       }
-      setQueixaPrincipal(anamneseData.queixaPrincipal || anamneseData.queixa_principal || '');
-      setHistoriaAtual(anamneseData.historiaAtual || anamneseData.historia_atual || '');
-      setHistoriaFamiliar(anamneseData.historiaFamiliar || anamneseData.historia_familiar || '');
-      setHistoriaMedica(anamneseData.historiaMedica || anamneseData.historia_medica || '');
-      setAlergias(anamneseData.alergias || '');
-      setMedicamentos(anamneseData.medicamentos || '');
-      setHabitosViciosPositivos(
-        anamneseData.habitosViciosPositivos || anamneseData.habitos_vicios_positivos || ''
-      );
-      setHabitosViciosNegativos(
-        anamneseData.habitosViciosNegativos ||
-          anamneseData.habitos_vicios_negativos ||
-          anamneseData.habitos ||
-          ''
-      );
-      setObservacoes(anamneseData.observacoes || '');
 
-      const resp = anamneseData.respostas || {};
-      if (typeof resp === 'object' && resp !== null) {
-        setTriagem({ ...resp });
+      // IMPORTANTE: Só popula os campos editáveis se ainda não tiverem sido carregados
+      // Isso impede que qualquer re-render ou re-execução sobrescreva o que o paciente está digitando
+      if (!dadosCarregadosRef.current) {
+        dadosCarregadosRef.current = true;
+        const q = anamneseData.queixaPrincipal || anamneseData.queixa_principal || '';
+        setQueixaPrincipal(isGenericPlaceholder(q) ? '' : q);
+
+        const h = anamneseData.historiaAtual || anamneseData.historia_atual || '';
+        setHistoriaAtual(isGenericPlaceholder(h) ? '' : h);
+
+        setHistoriaFamiliar(anamneseData.historiaFamiliar || anamneseData.historia_familiar || '');
+        setHistoriaMedica(anamneseData.historiaMedica || anamneseData.historia_medica || '');
+        setAlergias(anamneseData.alergias || '');
+        setMedicamentos(anamneseData.medicamentos || '');
+        setHabitosViciosPositivos(
+          anamneseData.habitosViciosPositivos || anamneseData.habitos_vicios_positivos || ''
+        );
+        setHabitosViciosNegativos(
+          anamneseData.habitosViciosNegativos ||
+            anamneseData.habitos_vicios_negativos ||
+            anamneseData.habitos ||
+            ''
+        );
+        setObservacoes(anamneseData.observacoes || '');
+
+        const resp = anamneseData.respostas || {};
+        if (typeof resp === 'object' && resp !== null) {
+          setTriagem({ ...resp });
+        }
       }
     };
 
@@ -697,7 +738,11 @@ const AssinarAnamnese = () => {
         setStatus(String(err?.message || '').includes('410') ? 'expired' : 'invalid');
       }
     })();
-  }, [targetId, token, encodedData, call, effectiveSlug]);
+
+    return () => {
+      cancelado = true;
+    };
+  }, [targetId, token, encodedData, effectiveSlug]);
 
   const handleSignature = async (signatureData: SignatureData) => {
     try {
@@ -1432,10 +1477,22 @@ const AssinarAnamnese = () => {
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label className="font-semibold text-foreground flex items-center gap-1.5 text-xs sm:text-sm">
-                      <HeartPulse className="h-3.5 w-3.5 text-rose-500" />
-                      Qual é a sua Queixa Principal ou motivo do atendimento? *
-                    </Label>
+                    <div className="flex items-center justify-between">
+                      <Label className="font-semibold text-foreground flex items-center gap-1.5 text-xs sm:text-sm">
+                        <HeartPulse className="h-3.5 w-3.5 text-rose-500" />
+                        Qual é a sua Queixa Principal ou motivo do atendimento? *
+                      </Label>
+                      {queixaPrincipal ? (
+                        <button
+                          type="button"
+                          onClick={() => setQueixaPrincipal('')}
+                          className="text-[11px] text-muted-foreground hover:text-foreground underline cursor-pointer select-none"
+                          title="Limpar campo para digitar novamente"
+                        >
+                          Limpar
+                        </button>
+                      ) : null}
+                    </div>
                     <Textarea
                       rows={2}
                       placeholder="Ex: Dor de dente, limpeza e avaliação geral, restauração, clareamento, troca de prótese..."
@@ -1446,10 +1503,22 @@ const AssinarAnamnese = () => {
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label className="font-semibold text-foreground flex items-center gap-1.5 text-xs sm:text-sm">
-                      <Clock className="h-3.5 w-3.5 text-blue-500" />
-                      História Atual da Queixa (Quando começou? Sente dor contínua ou ao mastigar/gelado?)
-                    </Label>
+                    <div className="flex items-center justify-between">
+                      <Label className="font-semibold text-foreground flex items-center gap-1.5 text-xs sm:text-sm">
+                        <Clock className="h-3.5 w-3.5 text-blue-500" />
+                        História Atual da Queixa (Quando começou? Sente dor contínua ou ao mastigar/gelado?)
+                      </Label>
+                      {historiaAtual ? (
+                        <button
+                          type="button"
+                          onClick={() => setHistoriaAtual('')}
+                          className="text-[11px] text-muted-foreground hover:text-foreground underline cursor-pointer select-none"
+                          title="Limpar campo para digitar novamente"
+                        >
+                          Limpar
+                        </button>
+                      ) : null}
+                    </div>
                     <Textarea
                       rows={2}
                       placeholder="Ex: Começou há 3 dias, dói quando tomo água gelada, piora à noite..."
