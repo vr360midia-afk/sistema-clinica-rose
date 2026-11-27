@@ -182,10 +182,61 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     }
   }, [initialOrcamento, orcamentosAprovados, selectedOrcamentoId]);
 
+  // Dentista responsável padrão
+  useEffect(() => {
+    if (dentistas.length > 0 && !selectedDentistaNome) {
+      setSelectedDentistaNome(dentistas[0].nome);
+    }
+  }, [dentistas, selectedDentistaNome]);
+
+  // Cidade da Comarca / Foro padrão (sempre Maceió por padrão ou o configurado no modelo de contrato)
+  useEffect(() => {
+    const cidadeConfig = (configContrato?.cidadeForoContrato || '').trim();
+    const cidadeFinal = cidadeConfig && !cidadeConfig.toLowerCase().includes('são paulo') && !cidadeConfig.toLowerCase().includes('sao paulo')
+      ? cidadeConfig
+      : 'Maceió';
+
+    if (!cidadeLocal || cidadeLocal.toLowerCase().includes('são paulo') || cidadeLocal.toLowerCase().includes('sao paulo')) {
+      setCidadeLocal(cidadeFinal);
+    }
+  }, [configContrato?.cidadeForoContrato, cidadeLocal]);
+
+  // Orçamento ativo
+  const orcamentoAtual = useMemo(() => {
+    return (
+      orcamentos.find((o) => o.id === selectedOrcamentoId) ||
+      initialOrcamento ||
+      orcamentosAprovados[0] ||
+      null
+    );
+  }, [orcamentos, selectedOrcamentoId, initialOrcamento, orcamentosAprovados]);
+
+  // Dentista ativo
+  const dentistaAtual = useMemo(() => {
+    return dentistas.find((d) => d.nome === selectedDentistaNome);
+  }, [dentistas, selectedDentistaNome]);
+
+  // Transações vinculadas ao orçamento
+  const transacoesOrcamento = useMemo(() => {
+    if (!orcamentoAtual?.id) return [];
+    return transacoes.filter((t: any) => t.orcamentoId === orcamentoAtual.id);
+  }, [transacoes, orcamentoAtual]);
+
+  const somaTransacoesOrcamento = useMemo(() => {
+    return transacoesOrcamento.reduce((acc, t) => acc + (Number(t.valor) || 0), 0);
+  }, [transacoesOrcamento]);
+
+  const transacoesSuspeitasOuDivergentes = useMemo(() => {
+    if (!orcamentoAtual || transacoesOrcamento.length === 0) return false;
+    const temValorZerado = transacoesOrcamento.some((t: any) => Number(t.valor) < 0.5 && orcamentoAtual.total > 10);
+    const divergeTotal = Math.abs(somaTransacoesOrcamento - orcamentoAtual.total) > 0.5;
+    return temValorZerado || divergeTotal;
+  }, [orcamentoAtual, transacoesOrcamento, somaTransacoesOrcamento]);
+
   // Localiza contrato oficial já persistido no banco para o orçamento selecionado (assinado ou pendente)
   const contratoExistenteOrcamento = useMemo(() => {
-    const targetOrcId = initialOrcamento?.id || selectedOrcamentoId;
-    const targetContratoId = initialOrcamento?.contratoId || (orcamentos || []).find((o) => o?.id === targetOrcId)?.contratoId;
+    const targetOrcId = orcamentoAtual?.id || initialOrcamento?.id || selectedOrcamentoId;
+    const targetContratoId = orcamentoAtual?.contratoId || initialOrcamento?.contratoId || (orcamentos || []).find((o) => o?.id === targetOrcId)?.contratoId;
     if ((!targetOrcId && !targetContratoId) || documentos.length === 0) return null;
 
     const candidatos = documentos.filter(
@@ -347,6 +398,43 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     return Boolean(hasAssinaturaPaciente && hasAssinaturaProfissional);
   }, [hasAssinaturaPaciente, hasAssinaturaProfissional]);
 
+  // Validação em tempo real da integridade matemática e financeira entre orçamento e contrato
+  const validacaoIntegridade = useMemo(() => {
+    if (!snapshotAtual) return null;
+    return validarIntegridadeOrcamentoContrato(orcamentoAtual, snapshotAtual);
+  }, [snapshotAtual, orcamentoAtual]);
+
+  // Identifica se o contrato exibido já está oficialmente gravado e sem pendências de retificação
+  const isContratoGravado = useMemo(() => {
+    // 1. Contratos formalizados ou assinados pelo paciente são juridicamente imutáveis e permanecem SEMPRE gravados,
+    // mesmo se houver qualquer tentativa de edição manual ou flag isManuallyEdited ativa em memória.
+    const isFormalizadoOuAssinado = Boolean(
+      hasAssinaturaPaciente ||
+      contratoVisualizacao?.assinadoEm ||
+      contratoExistenteOrcamento?.assinadoEm ||
+      contratoVisualizacao?.status === 'formalizado' ||
+      contratoExistenteOrcamento?.status === 'formalizado' ||
+      snapshotAtual?.status === 'formalizado' ||
+      snapshotAtual?.status === 'assinado' ||
+      snapshotAtual?.assinaturaPaciente?.assinaturaData
+    );
+    if (isFormalizadoOuAssinado) {
+      return true;
+    }
+
+    // 2. Em contratos pendentes (não assinados pelo paciente), se houver edição manual ativa, retificação em andamento
+    // ou divergência financeira identificada, o contrato requer gravação.
+    if (documentoIdSendoEditado || isManuallyEdited) {
+      return false;
+    }
+    if (validacaoIntegridade?.divergenciaFinanceira) {
+      return false;
+    }
+
+    // 3. Minuta pendente já persistida no banco sem pendência de retificação
+    return Boolean(contratoVisualizacao?.id || contratoExistenteOrcamento?.id);
+  }, [documentoIdSendoEditado, isManuallyEdited, contratoVisualizacao, contratoExistenteOrcamento, snapshotAtual, validacaoIntegridade, hasAssinaturaPaciente]);
+
   // Sincroniza campos rápidos quando snapshot ou patient mudar
   useEffect(() => {
     const cpfFonte = patient?.cpf && patient.cpf !== 'Não informado'
@@ -473,25 +561,6 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     }
   };
 
-  // Dentista responsável padrão
-  useEffect(() => {
-    if (dentistas.length > 0 && !selectedDentistaNome) {
-      setSelectedDentistaNome(dentistas[0].nome);
-    }
-  }, [dentistas, selectedDentistaNome]);
-
-  // Cidade da Comarca / Foro padrão (sempre Maceió por padrão ou o configurado no modelo de contrato)
-  useEffect(() => {
-    const cidadeConfig = (configContrato?.cidadeForoContrato || '').trim();
-    const cidadeFinal = cidadeConfig && !cidadeConfig.toLowerCase().includes('são paulo') && !cidadeConfig.toLowerCase().includes('sao paulo')
-      ? cidadeConfig
-      : 'Maceió';
-
-    if (!cidadeLocal || cidadeLocal.toLowerCase().includes('são paulo') || cidadeLocal.toLowerCase().includes('sao paulo')) {
-      setCidadeLocal(cidadeFinal);
-    }
-  }, [configContrato?.cidadeForoContrato, cidadeLocal]);
-
   // Atalho para sair da tela cheia com a tecla ESC
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -504,75 +573,6 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [isFullScreen]);
-
-  // Orçamento ativo
-  const orcamentoAtual = useMemo(() => {
-    return (
-      orcamentos.find((o) => o.id === selectedOrcamentoId) ||
-      initialOrcamento ||
-      orcamentosAprovados[0] ||
-      null
-    );
-  }, [orcamentos, selectedOrcamentoId, initialOrcamento, orcamentosAprovados]);
-
-  // Validação em tempo real da integridade matemática e financeira entre orçamento e contrato
-  const validacaoIntegridade = useMemo(() => {
-    if (!snapshotAtual) return null;
-    return validarIntegridadeOrcamentoContrato(orcamentoAtual, snapshotAtual);
-  }, [snapshotAtual, orcamentoAtual]);
-
-  // Identifica se o contrato exibido já está oficialmente gravado e sem pendências de retificação
-  const isContratoGravado = useMemo(() => {
-    // 1. Contratos formalizados ou assinados pelo paciente são juridicamente imutáveis e permanecem SEMPRE gravados,
-    // mesmo se houver qualquer tentativa de edição manual ou flag isManuallyEdited ativa em memória.
-    const isFormalizadoOuAssinado = Boolean(
-      hasAssinaturaPaciente ||
-      contratoVisualizacao?.assinadoEm ||
-      contratoExistenteOrcamento?.assinadoEm ||
-      contratoVisualizacao?.status === 'formalizado' ||
-      contratoExistenteOrcamento?.status === 'formalizado' ||
-      snapshotAtual?.status === 'formalizado' ||
-      snapshotAtual?.status === 'assinado' ||
-      snapshotAtual?.assinaturaPaciente?.assinaturaData
-    );
-    if (isFormalizadoOuAssinado) {
-      return true;
-    }
-
-    // 2. Em contratos pendentes (não assinados pelo paciente), se houver edição manual ativa, retificação em andamento
-    // ou divergência financeira identificada, o contrato requer gravação.
-    if (documentoIdSendoEditado || isManuallyEdited) {
-      return false;
-    }
-    if (validacaoIntegridade?.divergenciaFinanceira) {
-      return false;
-    }
-
-    // 3. Minuta pendente já persistida no banco sem pendência de retificação
-    return Boolean(contratoVisualizacao?.id || contratoExistenteOrcamento?.id);
-  }, [documentoIdSendoEditado, isManuallyEdited, contratoVisualizacao, contratoExistenteOrcamento, snapshotAtual, validacaoIntegridade, hasAssinaturaPaciente]);
-
-  // Dentista ativo
-  const dentistaAtual = useMemo(() => {
-    return dentistas.find((d) => d.nome === selectedDentistaNome);
-  }, [dentistas, selectedDentistaNome]);
-
-  // Transações vinculadas ao orçamento
-  const transacoesOrcamento = useMemo(() => {
-    if (!orcamentoAtual?.id) return [];
-    return transacoes.filter((t: any) => t.orcamentoId === orcamentoAtual.id);
-  }, [transacoes, orcamentoAtual]);
-
-  const somaTransacoesOrcamento = useMemo(() => {
-    return transacoesOrcamento.reduce((acc, t) => acc + (Number(t.valor) || 0), 0);
-  }, [transacoesOrcamento]);
-
-  const transacoesSuspeitasOuDivergentes = useMemo(() => {
-    if (!orcamentoAtual || transacoesOrcamento.length === 0) return false;
-    const temValorZerado = transacoesOrcamento.some((t: any) => Number(t.valor) < 0.5 && orcamentoAtual.total > 10);
-    const divergeTotal = Math.abs(somaTransacoesOrcamento - orcamentoAtual.total) > 0.5;
-    return temValorZerado || divergeTotal;
-  }, [orcamentoAtual, transacoesOrcamento, somaTransacoesOrcamento]);
 
   const [sincronizandoFinanceiro, setSincronizandoFinanceiro] = useState(false);
 

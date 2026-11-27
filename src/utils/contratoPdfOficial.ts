@@ -350,13 +350,13 @@ export async function dispararDownloadPdfOficial(
     } catch (_) {}
 
     // Fallback de navegação se fetch falhar por CORS
-    const a = document.createElement('a');
-    a.href = resultado.signedUrl;
-    a.download = filename;
-    a.target = '_blank';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    const aFallback = document.createElement('a');
+    aFallback.href = resultado.signedUrl;
+    aFallback.download = filename;
+    aFallback.target = '_blank';
+    document.body.appendChild(aFallback);
+    aFallback.click();
+    document.body.removeChild(aFallback);
     return true;
   }
 

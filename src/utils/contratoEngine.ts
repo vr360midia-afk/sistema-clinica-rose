@@ -45,7 +45,6 @@ export {
   downloadContratoEndodontiaPdf,
   gerarHtmlTcleEndodontia,
   downloadTcleEndodontiaPdf,
-  formatarData,
 };
 
 export type TipoModeloContrato = 'geral' | 'lentes_resina' | 'endodontia';
@@ -285,7 +284,7 @@ const parseDataIsoOuBr = (d: Date | string | undefined | null): Date | null => {
   return isNaN(dt.getTime()) ? null : dt;
 };
 
-const formatarData = (d: Date | string | undefined | null): string => {
+export const formatarData = (d: Date | string | undefined | null): string => {
   if (!d) return 'Não informada';
   const data = parseDataIsoOuBr(d);
   if (!data) return String(d);
@@ -2319,7 +2318,7 @@ export const mapearDadosContrato = ({
 
       // 4. Saldo a parcelar e valor da parcela mensal
       const saldo = Math.max(0, total - entrada);
-      const valorParcela = valParcExpl > 0 ? valParcExpl : (saldo / qtdParcelas);
+      const valorParcelaCalculada = valParcExpl > 0 ? valParcExpl : (saldo / qtdParcelas);
 
       const listaParcelas: ContratoParcela[] = [];
 
@@ -2387,7 +2386,7 @@ export const mapearDadosContrato = ({
           numero: listaParcelas.length + 1,
           descricao: descFinal,
           vencimento: vencFinal,
-          valor: valorParcela,
+          valor: valorParcelaCalculada,
           metodo: isSaldoACombinar ? 'A combinar' : metodoRestante,
           status: statusFinal,
         });
