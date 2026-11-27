@@ -67,6 +67,17 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const localAna = (localList || []).filter(Boolean);
     const mapAna = new Map<string, any>();
 
+    const normalizeDateStr = (d: any) => {
+      if (!d) return '';
+      try {
+        const dt = new Date(d);
+        if (isNaN(dt.getTime())) return '';
+        return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+      } catch {
+        return '';
+      }
+    };
+
     // 1. Registra todas as remotas primeiro com ID canônico
     remoteAna.forEach((item: any) => {
       if (item && item.id) {
@@ -74,7 +85,7 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
       }
     });
 
-    // 2. Mescla locais: se já existe pelo id OU pelo mesmo paciente e data aproximada
+    // 2. Mescla locais: se já existe pelo id OU pelo mesmo paciente e data aproximada ou status assinado
     localAna.forEach((localItem: any) => {
       if (!localItem) return;
       let matchedRemoteId = mapAna.has(localItem.id) ? localItem.id : null;
@@ -84,10 +95,26 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
           const pIdMatch =
             (rItem.pacienteId && (rItem.pacienteId === localItem.pacienteId || rItem.pacienteId === localItem.paciente_id)) ||
             (rItem.paciente_id && (rItem.paciente_id === localItem.pacienteId || rItem.paciente_id === localItem.paciente_id));
+          
           if (pIdMatch) {
-            const rData = rItem.data ? new Date(rItem.data).toISOString().slice(0, 10) : '';
-            const lData = localItem.data ? new Date(localItem.data).toISOString().slice(0, 10) : '';
-            if (rData && lData && rData === lData) {
+            const rData = normalizeDateStr(rItem.data);
+            const lData = normalizeDateStr(localItem.data);
+            const tokenMatch = Boolean(rItem.tokenAssinatura && localItem.tokenAssinatura && rItem.tokenAssinatura === localItem.tokenAssinatura);
+            const rIsSigned = Boolean(
+              rItem.statusAssinatura === 'paciente_assinado' ||
+              rItem.statusAssinatura === 'completo' ||
+              rItem.status_assinatura === 'paciente_assinado' ||
+              rItem.assinaturaPaciente
+            );
+            const lIsSigned = Boolean(
+              localItem.statusAssinatura === 'paciente_assinado' ||
+              localItem.statusAssinatura === 'completo' ||
+              localItem.status_assinatura === 'paciente_assinado' ||
+              localItem.assinaturaPaciente
+            );
+
+            // Se é o mesmo paciente e (mesma data OU mesmo token OU se um dos registros é assinado e o outro é rascunho pendente)
+            if (tokenMatch || (rData && lData && rData === lData) || rIsSigned || lIsSigned) {
               matchedRemoteId = rId;
               break;
             }
@@ -97,20 +124,32 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
       if (matchedRemoteId) {
         const existing = mapAna.get(matchedRemoteId);
+        const hasSignature = existing.assinaturaPaciente || localItem.assinaturaPaciente;
+        const isSigned = Boolean(
+          hasSignature ||
+          existing.statusAssinatura === 'paciente_assinado' ||
+          existing.statusAssinatura === 'completo' ||
+          existing.status_assinatura === 'paciente_assinado' ||
+          localItem.statusAssinatura === 'paciente_assinado' ||
+          localItem.statusAssinatura === 'completo'
+        );
+
         mapAna.set(matchedRemoteId, {
-          ...existing,
           ...localItem,
+          ...existing, // Registro canônico remoto prevalece sobre rascunho local
           id: matchedRemoteId, // Mantém ID canônico da remota
           assinaturaPaciente: existing.assinaturaPaciente || localItem.assinaturaPaciente,
           assinaturaDoutor: existing.assinaturaDoutor || localItem.assinaturaDoutor,
           linkAssinatura: existing.linkAssinatura || localItem.linkAssinatura,
           tokenAssinatura: existing.tokenAssinatura || localItem.tokenAssinatura,
-          statusAssinatura:
-            (existing.assinaturaPaciente || localItem.assinaturaPaciente)
-              ? (existing.statusAssinatura === 'completo' ? 'completo' : 'paciente_assinado')
-              : (existing.statusAssinatura || localItem.statusAssinatura),
+          statusAssinatura: isSigned
+            ? (existing.statusAssinatura === 'completo' || localItem.statusAssinatura === 'completo' ? 'completo' : 'paciente_assinado')
+            : (existing.statusAssinatura || localItem.statusAssinatura || 'pendente'),
+          queixaPrincipal: existing.queixaPrincipal || localItem.queixaPrincipal,
+          historiaAtual: (existing.historiaAtual && existing.historiaAtual !== 'Ficha enviada ao paciente para preenchimento e assinatura digital')
+            ? existing.historiaAtual
+            : (localItem.historiaAtual || existing.historiaAtual),
           observacoes: existing.observacoes || localItem.observacoes,
-          historiaAtual: existing.historiaAtual || localItem.historiaAtual,
           historiaFamiliar: existing.historiaFamiliar || localItem.historiaFamiliar,
           habitosViciosPositivos: existing.habitosViciosPositivos || localItem.habitosViciosPositivos,
           habitosViciosNegativos: existing.habitosViciosNegativos || localItem.habitosViciosNegativos,

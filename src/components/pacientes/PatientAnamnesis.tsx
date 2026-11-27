@@ -54,6 +54,7 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
   const { config: configContrato } = useConfiguracoesContrato();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEnviarModalOpen, setIsEnviarModalOpen] = useState(false);
+  const [anamneseParaEnviar, setAnamneseParaEnviar] = useState<any | null>(null);
   const [copiandoId, setCopiandoId] = useState<string | null>(null);
   const [gerandoLink, setGerandoLink] = useState(false);
   const [selectedAnamnese, setSelectedAnamnese] = useState<any | null>(null);
@@ -158,20 +159,84 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
   };
 
   const rawPatientAnamnesis = (anamneses || []).filter(
-    (a) => a.pacienteId === patient.id || (a as any).paciente_id === patient.id
+    (a) =>
+      (a.pacienteId && String(a.pacienteId).toLowerCase() === String(patient.id).toLowerCase()) ||
+      ((a as any).paciente_id && String((a as any).paciente_id).toLowerCase() === String(patient.id).toLowerCase())
   );
+
+  // Ordena prioritariamente itens assinados na frente, para que se houver rascunho pendente duplicado, colapse nele
+  const sortedRaw = [...rawPatientAnamnesis].sort((a, b) => {
+    const aSigned = Boolean(
+      a.assinaturaPaciente ||
+      a.statusAssinatura === 'paciente_assinado' ||
+      a.statusAssinatura === 'completo' ||
+      (a as any).status_assinatura === 'paciente_assinado'
+    );
+    const bSigned = Boolean(
+      b.assinaturaPaciente ||
+      b.statusAssinatura === 'paciente_assinado' ||
+      b.statusAssinatura === 'completo' ||
+      (b as any).status_assinatura === 'paciente_assinado'
+    );
+    if (aSigned && !bSigned) return -1;
+    if (!aSigned && bSigned) return 1;
+    return new Date(b.data || 0).getTime() - new Date(a.data || 0).getTime();
+  });
+
+  const normalizeDateStr = (d: any) => {
+    if (!d) return '';
+    try {
+      const dt = new Date(d);
+      if (isNaN(dt.getTime())) return '';
+      return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+    } catch {
+      return '';
+    }
+  };
 
   // Deduplicação defensiva para garantir que nunca sejam exibidas duplicatas na tela
   const mapDistinct = new Map<string, any>();
-  rawPatientAnamnesis.forEach((a) => {
-    const dateStr = a.data ? new Date(a.data).toISOString().slice(0, 10) : '';
-    const secondaryKey = `${dateStr}__${(a.queixaPrincipal || '').trim().toLowerCase()}`;
+  sortedRaw.forEach((a) => {
+    const aDate = normalizeDateStr(a.data);
+    const aSigned = Boolean(
+      a.assinaturaPaciente ||
+      a.statusAssinatura === 'paciente_assinado' ||
+      a.statusAssinatura === 'completo' ||
+      (a as any).status_assinatura === 'paciente_assinado'
+    );
 
     let existingKey: string | null = null;
     for (const [k, item] of mapDistinct.entries()) {
-      const itemDate = item.data ? new Date(item.data).toISOString().slice(0, 10) : '';
-      const itemSecKey = `${itemDate}__${(item.queixaPrincipal || '').trim().toLowerCase()}`;
-      if (k === a.id || (secondaryKey && secondaryKey === itemSecKey)) {
+      const itemDate = normalizeDateStr(item.data);
+      const itemSigned = Boolean(
+        item.assinaturaPaciente ||
+        item.statusAssinatura === 'paciente_assinado' ||
+        item.statusAssinatura === 'completo' ||
+        (item as any).status_assinatura === 'paciente_assinado'
+      );
+
+      // 1. Mesmo ID
+      if (k === a.id || item.id === a.id) {
+        existingKey = k;
+        break;
+      }
+      // 2. Mesmo token de assinatura
+      if (a.tokenAssinatura && item.tokenAssinatura && a.tokenAssinatura === item.tokenAssinatura) {
+        existingKey = k;
+        break;
+      }
+      // 3. Mesma data para o mesmo paciente
+      if (aDate && itemDate && aDate === itemDate) {
+        existingKey = k;
+        break;
+      }
+      // 4. Se já temos um assinado e este 'a' é pendente para o mesmo paciente
+      if (itemSigned && !aSigned) {
+        existingKey = k;
+        break;
+      }
+      // 5. Ou se este 'a' é assinado e o item anterior era pendente
+      if (!itemSigned && aSigned) {
         existingKey = k;
         break;
       }
@@ -179,15 +244,25 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
 
     if (existingKey) {
       const prev = mapDistinct.get(existingKey);
-      const preferA = (!prev.assinaturaPaciente && a.assinaturaPaciente) || (typeof a.id === 'string' && a.id.includes('-'));
+      const preferA = (!prev.assinaturaPaciente && a.assinaturaPaciente) || (typeof a.id === 'string' && a.id.includes('-') && !prev.id?.includes('-'));
+      const winner = preferA ? a : prev;
+      const loser = preferA ? prev : a;
+
       mapDistinct.set(existingKey, {
-        ...(preferA ? prev : a),
-        ...(preferA ? a : prev),
-        id: (prev.id && prev.id.includes('-')) ? prev.id : a.id,
-        assinaturaPaciente: prev.assinaturaPaciente || a.assinaturaPaciente,
-        statusAssinatura: (prev.assinaturaPaciente || a.assinaturaPaciente)
-          ? (prev.statusAssinatura === 'completo' || a.statusAssinatura === 'completo' ? 'completo' : 'paciente_assinado')
-          : (prev.statusAssinatura || a.statusAssinatura),
+        ...loser,
+        ...winner,
+        id: (winner.id && typeof winner.id === 'string' && winner.id.includes('-')) ? winner.id : (loser.id || winner.id),
+        assinaturaPaciente: winner.assinaturaPaciente || loser.assinaturaPaciente,
+        assinaturaDoutor: winner.assinaturaDoutor || loser.assinaturaDoutor,
+        linkAssinatura: winner.linkAssinatura || loser.linkAssinatura,
+        tokenAssinatura: winner.tokenAssinatura || loser.tokenAssinatura,
+        statusAssinatura: (winner.assinaturaPaciente || loser.assinaturaPaciente || winner.statusAssinatura === 'paciente_assinado' || loser.statusAssinatura === 'paciente_assinado' || winner.status_assinatura === 'paciente_assinado' || loser.status_assinatura === 'paciente_assinado')
+          ? (winner.statusAssinatura === 'completo' || loser.statusAssinatura === 'completo' ? 'completo' : 'paciente_assinado')
+          : (winner.statusAssinatura || loser.statusAssinatura || 'pendente'),
+        queixaPrincipal: winner.queixaPrincipal || loser.queixaPrincipal,
+        historiaAtual: (winner.historiaAtual && winner.historiaAtual !== 'Ficha enviada ao paciente para preenchimento e assinatura digital')
+          ? winner.historiaAtual
+          : (loser.historiaAtual || winner.historiaAtual),
       });
     } else {
       mapDistinct.set(a.id, a);
@@ -381,7 +456,10 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
 
           <Button
             size="sm"
-            onClick={() => setIsEnviarModalOpen(true)}
+            onClick={() => {
+              setAnamneseParaEnviar(patientAnamnesis[0] || null);
+              setIsEnviarModalOpen(true);
+            }}
             className="text-xs h-8 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold gap-1.5 shadow-xs cursor-pointer"
             title="Enviar link individual ao paciente para preencher ou apenas assinar"
           >
@@ -418,7 +496,10 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5 pt-2">
               <Button
-                onClick={() => setIsEnviarModalOpen(true)}
+                onClick={() => {
+                  setAnamneseParaEnviar(patientAnamnesis[0] || null);
+                  setIsEnviarModalOpen(true);
+                }}
                 className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-xs gap-1.5"
               >
                 <Link2 className="h-4 w-4" />
@@ -527,7 +608,10 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => setIsEnviarModalOpen(true)}
+                      onClick={() => {
+                        setAnamneseParaEnviar(anamnese);
+                        setIsEnviarModalOpen(true);
+                      }}
                       className="h-8 text-xs font-semibold border-indigo-300 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:border-indigo-800 dark:text-indigo-300 gap-1.5"
                       title="Opções de envio por link (Preencher e Assinar ou Apenas Assinar)"
                     >
@@ -646,8 +730,12 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
 
       <ModalEnviarAnamnese
         isOpen={isEnviarModalOpen}
-        onClose={() => setIsEnviarModalOpen(false)}
+        onClose={() => {
+          setIsEnviarModalOpen(false);
+          setAnamneseParaEnviar(null);
+        }}
         patient={patient}
+        anamnese={anamneseParaEnviar}
         onOpenClinicaModal={handleNewAnamnesis}
       />
 

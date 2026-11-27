@@ -32,6 +32,7 @@ interface ModalEnviarAnamneseProps {
   isOpen: boolean;
   onClose: () => void;
   onOpenClinicaModal?: () => void;
+  anamnese?: any;
 }
 
 export const ModalEnviarAnamnese = ({
@@ -39,6 +40,7 @@ export const ModalEnviarAnamnese = ({
   isOpen,
   onClose,
   onOpenClinicaModal,
+  anamnese,
 }: ModalEnviarAnamneseProps) => {
   const { anamneses, addAnamnese, generateSignatureLink } = useDentalSystem();
 
@@ -60,28 +62,39 @@ export const ModalEnviarAnamnese = ({
     const inicializarLinks = async () => {
       setLoading(true);
       try {
-        const pacienteAnams = (anamneses || []).filter(
-          (a) => a.pacienteId === patient.id || (a as any).paciente_id === patient.id
-        );
+        // 1. Se já recebemos a anamnese selecionada explicitamente via prop
+        let targetAnamnese = anamnese || null;
 
-        let targetAnamnese = pacienteAnams.sort(
-          (a, b) => new Date(b.data).getTime() - new Date(a.data).getTime()
-        )[0];
+        // 2. Se não foi passada via prop, procura no estado da aplicação (priorizando a mais recente ou assinada)
+        if (!targetAnamnese) {
+          const pacienteAnams = (anamneses || []).filter(
+            (a) => a.pacienteId === patient.id || (a as any).paciente_id === patient.id
+          );
+          if (pacienteAnams.length > 0) {
+            targetAnamnese = pacienteAnams.sort((a, b) => {
+              const aAssinada = Boolean(a.assinaturaPaciente || a.statusAssinatura === 'paciente_assinado' || a.statusAssinatura === 'completo' || (a as any).status_assinatura === 'paciente_assinado');
+              const bAssinada = Boolean(b.assinaturaPaciente || b.statusAssinatura === 'paciente_assinado' || b.statusAssinatura === 'completo' || (b as any).status_assinatura === 'paciente_assinado');
+              if (aAssinada && !bAssinada) return -1;
+              if (!aAssinada && bAssinada) return 1;
+              return new Date(b.data || 0).getTime() - new Date(a.data || 0).getTime();
+            })[0];
+          }
+        }
 
-        // Se ainda não achou em anamneses de estado, busca no localStorage antes de criar
+        // 3. Se ainda não achou em anamneses de estado, busca no localStorage antes de criar
         if (!targetAnamnese) {
           try {
             const rawLocal = JSON.parse(localStorage.getItem('dental-system-anamneses') || '[]');
             const matchLocal = rawLocal.filter(
               (a: any) => a.pacienteId === patient.id || a.paciente_id === patient.id
-            ).sort((a: any, b: any) => new Date(b.data).getTime() - new Date(a.data).getTime())[0];
+            ).sort((a: any, b: any) => new Date(b.data || 0).getTime() - new Date(a.data || 0).getTime())[0];
             if (matchLocal) {
               targetAnamnese = matchLocal;
             }
           } catch (_) {}
         }
 
-        // Se realmente não existir nenhuma anamnese para este paciente, cria uma ficha inicial
+        // 4. Se e somente se o paciente NÃO tem absolutamente nenhuma anamnese, cria a ficha inicial
         if (!targetAnamnese) {
           targetAnamnese = await addAnamnese({
             pacienteId: patient.id,
@@ -159,12 +172,13 @@ export const ModalEnviarAnamnese = ({
     return () => {
       cancelado = true;
     };
-  }, [isOpen, patient?.id]);
+  }, [isOpen, patient?.id, anamnese]);
 
   const isAssinada = Boolean(
     anamneseAtiva?.assinaturaPaciente ||
       anamneseAtiva?.statusAssinatura === 'completo' ||
-      anamneseAtiva?.statusAssinatura === 'paciente_assinado'
+      anamneseAtiva?.statusAssinatura === 'paciente_assinado' ||
+      (anamneseAtiva as any)?.status_assinatura === 'paciente_assinado'
   );
 
   const handleCopiar = async (tipo: 'preencher' | 'assinar') => {
