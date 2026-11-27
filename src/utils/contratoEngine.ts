@@ -3184,12 +3184,60 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
         gap: 20px;
       }
     }
+    .pagina-exclusiva {
+      page-break-before: always !important;
+      break-before: page !important;
+      margin-top: 0 !important;
+      padding-top: 14px !important;
+    }
+    .anexo-tcle, .anexo-termo-imagem {
+      font-size: 11px;
+      line-height: 1.4;
+    }
+    .anexo-tcle .clausula-bloco,
+    .anexo-termo-imagem .clausula-bloco {
+      margin-bottom: 7px;
+    }
+    .anexo-tcle .clausula-titulo,
+    .anexo-termo-imagem .clausula-titulo {
+      margin-top: 6px;
+      margin-bottom: 2px;
+      font-size: 11px;
+    }
+    .anexo-tcle .paragrafo,
+    .anexo-termo-imagem .paragrafo {
+      margin: 0 0 3px;
+      font-size: 10.5px;
+      line-height: 1.38;
+      text-indent: 14px;
+    }
+    .anexo-tcle .titulo-principal,
+    .anexo-termo-imagem .titulo-principal {
+      margin: 8px 0 12px !important;
+    }
+    .anexo-tcle .titulo-principal h2,
+    .anexo-termo-imagem .titulo-principal h2 {
+      font-size: 13.5px;
+      margin: 0 0 2px;
+    }
+    .anexo-tcle .titulo-principal p,
+    .anexo-termo-imagem .titulo-principal p {
+      font-size: 10px;
+    }
     @media print {
       body {
         padding: 0 !important;
       }
       .contrato-container {
         max-width: 100%;
+      }
+      .pagina-exclusiva {
+        page-break-before: always !important;
+        break-before: page !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+        margin-top: 0 !important;
+        padding-top: 0 !important;
       }
       .box-pix,
       .evitar-corte,
@@ -3768,11 +3816,8 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
 
     ${incluiLentes ? `
     <!-- ANEXO I: TCLE ESPECÍFICO PARA LENTES EM RESINA COMPOSTA (RECOMENDAÇÃO CFO) -->
-    <div style="page-break-before: always; margin-top: 36px; padding-top: 24px; border-top: 2px solid #0284c7;">
-      <div style="background-color: #0284c7; color: #ffffff; padding: 5px 12px; font-weight: bold; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; border-radius: 3px; display: inline-block; margin-bottom: 12px;">
-        Documento Integrante • Anexo I (TCLE)
-      </div>
-      <div class="titulo-principal" style="margin: 10px 0 16px;">
+    <div class="pagina-exclusiva anexo-tcle" style="page-break-before: always !important; break-before: page !important; margin-top: 0; padding-top: 8px;">
+      <div class="titulo-principal" style="margin: 8px 0 12px;">
         <h2>TERMO DE CONSENTIMENTO LIVRE E ESCLARECIDO (TCLE)</h2>
         <p>Procedimento de Lentes em Resina Composta e Facetas Estéticas (Resolução CFO nº 118/2012)</p>
       </div>

@@ -304,10 +304,58 @@ export const gerarHtmlContratoEndodontia = (snapshot: ContratoSnapshot): string 
       page-break-inside: avoid;
       break-inside: avoid;
     }
+    .pagina-exclusiva {
+      page-break-before: always !important;
+      break-before: page !important;
+      margin-top: 0 !important;
+      padding-top: 14px !important;
+    }
+    .anexo-tcle, .anexo-termo-imagem {
+      font-size: 11px;
+      line-height: 1.4;
+    }
+    .anexo-tcle .clausula-bloco,
+    .anexo-termo-imagem .clausula-bloco {
+      margin-bottom: 7px;
+    }
+    .anexo-tcle .clausula-titulo,
+    .anexo-termo-imagem .clausula-titulo {
+      margin-top: 6px;
+      margin-bottom: 2px;
+      font-size: 11px;
+    }
+    .anexo-tcle .paragrafo,
+    .anexo-termo-imagem .paragrafo {
+      margin: 0 0 3px;
+      font-size: 10.5px;
+      line-height: 1.38;
+      text-indent: 14px;
+    }
+    .anexo-tcle .titulo-principal,
+    .anexo-termo-imagem .titulo-principal {
+      margin: 8px 0 12px !important;
+    }
+    .anexo-tcle .titulo-principal h2,
+    .anexo-termo-imagem .titulo-principal h2 {
+      font-size: 13.5px;
+      margin: 0 0 2px;
+    }
+    .anexo-tcle .titulo-principal p,
+    .anexo-termo-imagem .titulo-principal p {
+      font-size: 10px;
+    }
     @media print {
       body { padding: 0; }
       .clausula-bloco { page-break-inside: avoid; break-inside: avoid; }
       .grid-assinaturas { page-break-inside: avoid; break-inside: avoid; }
+      .pagina-exclusiva {
+        page-break-before: always !important;
+        break-before: page !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+      }
     }
   </style>
 </head>

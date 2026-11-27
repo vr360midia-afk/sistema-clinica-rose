@@ -490,12 +490,8 @@ export const gerarFragmentoHtmlTermoUsoImagem = (snapshot: ContratoSnapshot, num
 
   return `
   <!-- ANEXO: TERMO DE AUTORIZAÇÃO DE USO DE IMAGEM, VOZ E REGISTROS ODONTOLÓGICOS -->
-  <div style="page-break-before: always; margin-top: 36px; padding-top: 24px; border-top: 2px solid #059669;">
-    <div style="background-color: #059669; color: #ffffff; padding: 5px 12px; font-weight: bold; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; border-radius: 3px; display: inline-block; margin-bottom: 12px;">
-      Documento Integrante • ${numeroAnexo} (Autorização de Imagem e Voz)
-    </div>
-    
-    <div class="titulo-principal" style="margin: 10px 0 16px;">
+  <div class="pagina-exclusiva anexo-termo-imagem" style="page-break-before: always !important; break-before: page !important; margin-top: 0; padding-top: 8px;">
+    <div class="titulo-principal" style="margin: 8px 0 12px;">
       <h2>TERMO DE AUTORIZAÇÃO DE USO DE IMAGEM, VOZ E REGISTROS ODONTOLÓGICOS</h2>
       <p>Consentimento Livre, Informado e Específico • Lei nº 13.709/2018 (LGPD) e Normas Éticas do CFO</p>
     </div>

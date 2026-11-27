@@ -117,6 +117,20 @@ export const renderHtmlToPdf = async (html: string): Promise<jsPDF | null> => {
       };
     });
 
+    const forceBreakSelectors = [
+      '.pagina-exclusiva',
+      '.quebra-pagina-antes',
+      '[style*="break-before: page"]',
+      '[style*="page-break-before: always"]',
+      '[style*="page-break-before:always"]',
+      '[style*="break-before:page"]',
+    ];
+    const rawForceBreakElements = Array.from(idoc.querySelectorAll(forceBreakSelectors.join(',')));
+    const domForceBreakTops = rawForceBreakElements.map((el) => {
+      const rect = el.getBoundingClientRect();
+      return rect.top + scrollY;
+    });
+
     const scale = 2;
     const canvas = await html2canvas(body, {
       scale,
@@ -153,6 +167,9 @@ export const renderHtmlToPdf = async (html: string): Promise<jsPDF | null> => {
       bottom: Math.ceil(r.bottom * domRatio),
       isHeader: r.isHeader,
     }));
+    const canvasForceBreakTops = domForceBreakTops
+      .map((top) => Math.floor(top * domRatio))
+      .filter((top) => top > 30);
 
     if (fullHeight <= maxSliceH) {
       // Documento cabe integralmente em uma página
@@ -213,8 +230,16 @@ export const renderHtmlToPdf = async (html: string): Promise<jsPDF | null> => {
         // Ponto máximo teórico onde a página terminaria
         let targetCut = currentOffset + maxSliceH;
 
-        // 1. Evita cortar no meio de caixas, tabelas e cabeçalhos mapeados
-        for (const range of canvasAvoidRanges) {
+        // 0. Verifica se há elemento com quebra forçada de página antes
+        const nextForceBreak = canvasForceBreakTops
+          .filter((fbTop) => fbTop > currentOffset + 30 && fbTop <= targetCut)
+          .sort((a, b) => a - b)[0];
+
+        if (nextForceBreak) {
+          targetCut = nextForceBreak - 4;
+        } else {
+          // 1. Evita cortar no meio de caixas, tabelas e cabeçalhos mapeados
+          for (const range of canvasAvoidRanges) {
           const rangeHeight = range.bottom - range.top;
           // Se o elemento cabe numa página inteira e o corte cruza seu interior
           if (rangeHeight < maxSliceH * 0.85 && range.top < targetCut && range.bottom > targetCut) {
@@ -230,6 +255,7 @@ export const renderHtmlToPdf = async (html: string): Promise<jsPDF | null> => {
               break;
             }
           }
+        }
         }
 
         // 2. Busca uma linha horizontal em branco (sem pixels escuros de texto)
@@ -278,8 +304,10 @@ export const renderHtmlToPdf = async (html: string): Promise<jsPDF | null> => {
           }
         }
 
-        // Se não encontrou linha livre dentro do limite razoável, usa o targetCut seguro
-        if (!foundBlank || bestCut <= currentOffset + maxSliceH * 0.4) {
+        // Se encontrou quebra forçada, corta imediatamente nela; caso contrário, valida limite seguro
+        if (nextForceBreak) {
+          bestCut = targetCut;
+        } else if (!foundBlank || bestCut <= currentOffset + maxSliceH * 0.4) {
           bestCut = targetCut;
         }
 
