@@ -94,7 +94,7 @@ import {
 } from '@/utils/contratoEngine';
 import { downloadTcleLentesResinaPdf } from '@/utils/tcleLentesResina';
 import { downloadTermoUsoImagemPdf } from '@/utils/termoUsoImagem';
-import { somarMesesSeguro } from '@/utils/documentoFormat';
+import { somarMesesSeguro, formatarEnderecoCompleto, formatarDocumento, formatarTelefone } from '@/utils/documentoFormat';
 import { downloadHtmlAsPdf } from '@/utils/pdfDownload';
 import { openWhatsApp } from '@/lib/whatsapp';
 import { formatMoney } from '@/utils/exportCsv';
