@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -31,8 +31,10 @@ import {
   FileSignature,
   Download,
   Printer,
+  RefreshCw,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 import { useDentalSystem } from '@/context/DentalSystemContext';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { useConfiguracoesContrato } from '@/hooks/useConfiguracoesContrato';
@@ -47,7 +49,7 @@ interface PatientAnamnesisProps {
 }
 
 const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
-  const { anamneses, addAnamnese, generateSignatureLink, deleteAnamnese, signAnamnese } = useDentalSystem();
+  const { anamneses, addAnamnese, generateSignatureLink, deleteAnamnese, signAnamnese, reloadAnamneses } = useDentalSystem();
   const { configuracoes } = useConfiguracoes();
   const { config: configContrato } = useConfiguracoesContrato();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -59,6 +61,27 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
   const [anamneseParaAssinar, setAnamneseParaAssinar] = useState<any | null>(null);
   const [gerandoPdf, setGerandoPdf] = useState(false);
   const [imprimindo, setImprimindo] = useState(false);
+  const [recarregando, setRecarregando] = useState(false);
+
+  const handleSincronizar = async () => {
+    try {
+      setRecarregando(true);
+      if (reloadAnamneses) {
+        await reloadAnamneses();
+      }
+      toast.success('Anamneses sincronizadas!');
+    } catch (e) {
+      console.warn('Erro ao sincronizar anamneses:', e);
+    } finally {
+      setRecarregando(false);
+    }
+  };
+
+  useEffect(() => {
+    if (reloadAnamneses) {
+      reloadAnamneses();
+    }
+  }, [patient?.id]);
 
   const obterDadosPdfAnamnese = (anamnese: any): AnamnesePdfData => {
     return {
@@ -134,7 +157,46 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
     }
   };
 
-  const patientAnamnesis = (anamneses || []).filter((a) => a.pacienteId === patient.id);
+  const rawPatientAnamnesis = (anamneses || []).filter(
+    (a) => a.pacienteId === patient.id || (a as any).paciente_id === patient.id
+  );
+
+  // Deduplicação defensiva para garantir que nunca sejam exibidas duplicatas na tela
+  const mapDistinct = new Map<string, any>();
+  rawPatientAnamnesis.forEach((a) => {
+    const dateStr = a.data ? new Date(a.data).toISOString().slice(0, 10) : '';
+    const secondaryKey = `${dateStr}__${(a.queixaPrincipal || '').trim().toLowerCase()}`;
+
+    let existingKey: string | null = null;
+    for (const [k, item] of mapDistinct.entries()) {
+      const itemDate = item.data ? new Date(item.data).toISOString().slice(0, 10) : '';
+      const itemSecKey = `${itemDate}__${(item.queixaPrincipal || '').trim().toLowerCase()}`;
+      if (k === a.id || (secondaryKey && secondaryKey === itemSecKey)) {
+        existingKey = k;
+        break;
+      }
+    }
+
+    if (existingKey) {
+      const prev = mapDistinct.get(existingKey);
+      const preferA = (!prev.assinaturaPaciente && a.assinaturaPaciente) || (typeof a.id === 'string' && a.id.includes('-'));
+      mapDistinct.set(existingKey, {
+        ...(preferA ? prev : a),
+        ...(preferA ? a : prev),
+        id: (prev.id && prev.id.includes('-')) ? prev.id : a.id,
+        assinaturaPaciente: prev.assinaturaPaciente || a.assinaturaPaciente,
+        statusAssinatura: (prev.assinaturaPaciente || a.assinaturaPaciente)
+          ? (prev.statusAssinatura === 'completo' || a.statusAssinatura === 'completo' ? 'completo' : 'paciente_assinado')
+          : (prev.statusAssinatura || a.statusAssinatura),
+      });
+    } else {
+      mapDistinct.set(a.id, a);
+    }
+  });
+
+  const patientAnamnesis = Array.from(mapDistinct.values()).sort(
+    (a, b) => new Date(b.data).getTime() - new Date(a.data).getTime()
+  );
 
   const handleNewAnamnesis = () => {
     setIsModalOpen(true);
@@ -291,6 +353,18 @@ const PatientAnamnesis = ({ patient }: PatientAnamnesisProps) => {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={handleSincronizar}
+            disabled={recarregando}
+            className="text-xs h-8 text-muted-foreground hover:text-foreground gap-1.5 cursor-pointer border border-border/50"
+            title="Recarregar anamneses do banco de dados e verificar assinaturas digitais recebidas"
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5", recarregando && "animate-spin text-primary")} />
+            <span>{recarregando ? 'Atualizando...' : 'Sincronizar'}</span>
+          </Button>
+
           {/* Botão Assinar na Clínica (se houver anamnese cadastrada) */}
           {patientAnamnesis.length > 0 && (
             <Button

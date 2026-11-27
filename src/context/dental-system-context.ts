@@ -49,6 +49,7 @@ export interface DentalSystemContextType {
   clearAnamneses: () => Promise<void>;
   migrateFromLocalStorage: () => Promise<void>;
   reloadTransacoes: () => Promise<void>;
+  reloadAnamneses: () => Promise<void>;
   loadAllData: () => Promise<void>;
 }
 

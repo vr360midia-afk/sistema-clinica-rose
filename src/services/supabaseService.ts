@@ -281,7 +281,7 @@ class SupabaseService {
     consultas: ['user_id','paciente_id','paciente_nome','data','hora','tipo','status','valor','observacoes','duracao','procedimento','dentista','confirmacao_status','confirmado_em'],
     transacoes: ['user_id','tipo','descricao','valor','categoria','data','paciente_id','paciente_nome','status','consulta_id','metodo_pagamento','vencimento','observacoes','taxa_cartao_percentual','taxa_cartao_valor','parcelas','valor_parcela','valor_liquido','parceiro_id','parceiro_nome','valor_parceiro','orcamento_id','comprovantes'],
     prontuarios: ['user_id','paciente_id','paciente_nome','data','queixa_principal','diagnostico','tratamento','observacoes','odontograma','imagens','assinatura','procedimentos','consulta_id','historia_doenca','exame_clinico','plano_tratamento','procedimentos_realizados','anexos'],
-    anamneses: ['user_id', 'paciente_id', 'data', 'queixa_principal', 'historia_medica', 'alergias', 'medicamentos', 'exame_extra_bucal', 'exame_intra_bucal', 'status_assinatura', 'criado_em'],
+    anamneses: ['user_id', 'paciente_id', 'data', 'queixa_principal', 'historia_medica', 'alergias', 'medicamentos', 'exame_extra_bucal', 'exame_intra_bucal', 'status_assinatura', 'assinatura_paciente', 'assinatura_doutor', 'data_assinatura', 'respostas', 'criado_em'],
     documentos_paciente: ['user_id','paciente_id','nome','tipo','url','tamanho','analise_ia','analise_dados','analise_status'],
     produtos: ['user_id','nome','categoria','quantidade','minimo','preco'],
   };
@@ -788,7 +788,6 @@ class SupabaseService {
           .from('anamneses')
           .update(updateData)
           .eq('id', id)
-          .eq('user_id', userId)
           .select()
           .maybeSingle();
 

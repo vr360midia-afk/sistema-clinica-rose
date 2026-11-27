@@ -292,19 +292,69 @@ const AssinarAnamnese = () => {
 
   const call = useCallback(
     async (action: 'get' | 'sign', extra: Record<string, unknown> = {}) => {
-      // 1. Tenta Edge Function 'assinatura-publica'
+      // 1. Tenta RPC PostgreSQL 'obter_anamnese_publica' ou 'assinar_anamnese_publica' (SECURITY DEFINER - mais rápido e confiável)
+      if (action === 'get') {
+        try {
+          const { data: rpcData, error: rpcErr } = await supabase.rpc('obter_anamnese_publica', {
+            p_identificador: targetId,
+            p_token: token || null,
+          });
+          if (!rpcErr && rpcData && rpcData.ok && rpcData.anamnese) {
+            return rpcData;
+          }
+        } catch (rpcEx) {
+          console.warn('RPC obter_anamnese_publica indisponível, tentando Edge Function:', rpcEx);
+        }
+      }
+
+      if (action === 'sign') {
+        try {
+          const assinaturaPayload = {
+            signature: extra.signature,
+            signerName: extra.signerName || paciente?.nome || 'Paciente',
+            signerRole: 'paciente',
+            timestamp: new Date().toISOString(),
+          };
+
+          const { data: rpcData, error: rpcErr } = await supabase.rpc('assinar_anamnese_publica', {
+            p_identificador: targetId,
+            p_token: token || null,
+            p_assinatura: assinaturaPayload,
+            p_respostas: extra.respostasAtualizadas || {},
+            p_signer_name: (extra.signerName as string) || paciente?.nome || 'Paciente',
+          });
+
+          if (!rpcErr && rpcData && rpcData.ok) {
+            try {
+              localStorage.setItem('anamnese:atualizada', Date.now().toString());
+              window.dispatchEvent(new Event('anamnese:atualizada'));
+            } catch (_) {}
+            return { ok: true, ...rpcData };
+          }
+        } catch (rpcEx) {
+          console.warn('RPC assinar_anamnese_publica indisponível, tentando Edge Function:', rpcEx);
+        }
+      }
+
+      // 2. Tenta Edge Function 'assinatura-publica'
       try {
         const { data, error } = await supabase.functions.invoke('assinatura-publica', {
           body: { action, id: targetId, token, ...extra },
         });
         if (!error && data && !data.error) {
+          try {
+            if (action === 'sign') {
+              localStorage.setItem('anamnese:atualizada', Date.now().toString());
+              window.dispatchEvent(new Event('anamnese:atualizada'));
+            }
+          } catch (_) {}
           return data;
         }
       } catch (err) {
         console.warn('Edge function indisponível, recorrendo ao fallback direto:', err);
       }
 
-      // 2. Fallback direto no Supabase
+      // 3. Fallback direto no Supabase
       if (action === 'get') {
         const { data: anamneseDb, error: dbErr } = await supabase
           .from('anamneses')

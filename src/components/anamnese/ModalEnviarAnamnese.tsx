@@ -61,14 +61,27 @@ export const ModalEnviarAnamnese = ({
       setLoading(true);
       try {
         const pacienteAnams = (anamneses || []).filter(
-          (a) => a.pacienteId === patient.id
+          (a) => a.pacienteId === patient.id || (a as any).paciente_id === patient.id
         );
 
         let targetAnamnese = pacienteAnams.sort(
           (a, b) => new Date(b.data).getTime() - new Date(a.data).getTime()
         )[0];
 
-        // Se ainda não existir nenhuma anamnese para este paciente, cria automaticamente uma ficha inicial
+        // Se ainda não achou em anamneses de estado, busca no localStorage antes de criar
+        if (!targetAnamnese) {
+          try {
+            const rawLocal = JSON.parse(localStorage.getItem('dental-system-anamneses') || '[]');
+            const matchLocal = rawLocal.filter(
+              (a: any) => a.pacienteId === patient.id || a.paciente_id === patient.id
+            ).sort((a: any, b: any) => new Date(b.data).getTime() - new Date(a.data).getTime())[0];
+            if (matchLocal) {
+              targetAnamnese = matchLocal;
+            }
+          } catch (_) {}
+        }
+
+        // Se realmente não existir nenhuma anamnese para este paciente, cria uma ficha inicial
         if (!targetAnamnese) {
           targetAnamnese = await addAnamnese({
             pacienteId: patient.id,

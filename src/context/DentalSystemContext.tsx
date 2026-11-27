@@ -62,6 +62,72 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
   }, [user?.id]);
 
 
+  const deduplicateAndMergeAnamneses = (remoteList: any[], localList: any[]): any[] => {
+    const remoteAna = (remoteList || []).filter(Boolean);
+    const localAna = (localList || []).filter(Boolean);
+    const mapAna = new Map<string, any>();
+
+    // 1. Registra todas as remotas primeiro com ID canônico
+    remoteAna.forEach((item: any) => {
+      if (item && item.id) {
+        mapAna.set(item.id, item);
+      }
+    });
+
+    // 2. Mescla locais: se já existe pelo id OU pelo mesmo paciente e data aproximada
+    localAna.forEach((localItem: any) => {
+      if (!localItem) return;
+      let matchedRemoteId = mapAna.has(localItem.id) ? localItem.id : null;
+
+      if (!matchedRemoteId) {
+        for (const [rId, rItem] of mapAna.entries()) {
+          const pIdMatch =
+            (rItem.pacienteId && (rItem.pacienteId === localItem.pacienteId || rItem.pacienteId === localItem.paciente_id)) ||
+            (rItem.paciente_id && (rItem.paciente_id === localItem.pacienteId || rItem.paciente_id === localItem.paciente_id));
+          if (pIdMatch) {
+            const rData = rItem.data ? new Date(rItem.data).toISOString().slice(0, 10) : '';
+            const lData = localItem.data ? new Date(localItem.data).toISOString().slice(0, 10) : '';
+            if (rData && lData && rData === lData) {
+              matchedRemoteId = rId;
+              break;
+            }
+          }
+        }
+      }
+
+      if (matchedRemoteId) {
+        const existing = mapAna.get(matchedRemoteId);
+        mapAna.set(matchedRemoteId, {
+          ...existing,
+          ...localItem,
+          id: matchedRemoteId, // Mantém ID canônico da remota
+          assinaturaPaciente: existing.assinaturaPaciente || localItem.assinaturaPaciente,
+          assinaturaDoutor: existing.assinaturaDoutor || localItem.assinaturaDoutor,
+          linkAssinatura: existing.linkAssinatura || localItem.linkAssinatura,
+          tokenAssinatura: existing.tokenAssinatura || localItem.tokenAssinatura,
+          statusAssinatura:
+            (existing.assinaturaPaciente || localItem.assinaturaPaciente)
+              ? (existing.statusAssinatura === 'completo' ? 'completo' : 'paciente_assinado')
+              : (existing.statusAssinatura || localItem.statusAssinatura),
+          observacoes: existing.observacoes || localItem.observacoes,
+          historiaAtual: existing.historiaAtual || localItem.historiaAtual,
+          historiaFamiliar: existing.historiaFamiliar || localItem.historiaFamiliar,
+          habitosViciosPositivos: existing.habitosViciosPositivos || localItem.habitosViciosPositivos,
+          habitosViciosNegativos: existing.habitosViciosNegativos || localItem.habitosViciosNegativos,
+          respostas: existing.respostas || localItem.respostas,
+        });
+      } else {
+        mapAna.set(localItem.id, localItem);
+      }
+    });
+
+    const finalAnamneses = Array.from(mapAna.values());
+    try {
+      localStorage.setItem('dental-system-anamneses', JSON.stringify(finalAnamneses));
+    } catch (_) {}
+    return finalAnamneses;
+  };
+
   const loadAllData = async (silencioso = false) => {
     // Se já existirem dados na memória, atualiza em segundo plano SEM travar ou resetar as telas do usuário
     if (!silencioso && pacientes.length === 0) {
@@ -94,38 +160,16 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
       load('documentos', () => supabaseService.getDocumentos(), []),
     ]);
 
-    // Mescla anamneses remotas e locais para preservar assinaturas e campos detalhados
+    // Mescla anamneses remotas e locais para preservar assinaturas e campos detalhados sem duplicações
     const localAna = localStorageService.getAnamneses() || [];
     const remoteAna = (ana.data || []).filter(Boolean);
-    const mapAna = new Map<string, any>();
-    remoteAna.forEach((item: any) => mapAna.set(item.id, item));
-    localAna.forEach((localItem: any) => {
-      const existing = mapAna.get(localItem.id);
-      if (existing) {
-        mapAna.set(localItem.id, {
-          ...existing,
-          ...localItem,
-          assinaturaPaciente: existing.assinaturaPaciente || localItem.assinaturaPaciente,
-          assinaturaDoutor: existing.assinaturaDoutor || localItem.assinaturaDoutor,
-          linkAssinatura: existing.linkAssinatura || localItem.linkAssinatura,
-          tokenAssinatura: existing.tokenAssinatura || localItem.tokenAssinatura,
-          statusAssinatura: existing.statusAssinatura || localItem.statusAssinatura,
-          observacoes: existing.observacoes || localItem.observacoes,
-          historiaAtual: existing.historiaAtual || localItem.historiaAtual,
-          historiaFamiliar: existing.historiaFamiliar || localItem.historiaFamiliar,
-          habitosViciosPositivos: existing.habitosViciosPositivos || localItem.habitosViciosPositivos,
-          habitosViciosNegativos: existing.habitosViciosNegativos || localItem.habitosViciosNegativos,
-        });
-      } else {
-        mapAna.set(localItem.id, localItem);
-      }
-    });
+    const finalAnamneses = deduplicateAndMergeAnamneses(remoteAna, localAna);
 
     setPacientes((pac.data || []).filter(Boolean));
     setConsultas((con.data || []).filter(Boolean));
     setTransacoes((tra.data || []).filter(Boolean));
     setProntuarios((pro.data || []).filter(Boolean));
-    setAnamneses(Array.from(mapAna.values()));
+    setAnamneses(finalAnamneses);
     setDocumentos((doc.data || []).filter(Boolean));
 
     const falhas = [pac, con, tra, pro, ana, doc].filter(r => !r.ok).map(r => r.nome);
@@ -146,14 +190,32 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   };
 
+  const reloadAnamneses = async () => {
+    try {
+      const ana = await supabaseService.getAnamneses();
+      const localAna = localStorageService.getAnamneses() || [];
+      const consolidated = deduplicateAndMergeAnamneses(ana || [], localAna);
+      setAnamneses(consolidated);
+    } catch (error) {
+      console.warn('[DentalSystemContext] Erro ao recarregar anamneses:', error);
+    }
+  };
+
   useEffect(() => {
     const handleUpdate = () => {
       reloadTransacoes();
     };
+    const handleAnamneseUpdate = () => {
+      reloadAnamneses();
+    };
     if (typeof window !== 'undefined') {
       window.addEventListener('financeiro:transacoes-atualizadas', handleUpdate);
+      window.addEventListener('anamnese:atualizada', handleAnamneseUpdate);
+      window.addEventListener('focus', handleAnamneseUpdate);
       return () => {
         window.removeEventListener('financeiro:transacoes-atualizadas', handleUpdate);
+        window.removeEventListener('anamnese:atualizada', handleAnamneseUpdate);
+        window.removeEventListener('focus', handleAnamneseUpdate);
       };
     }
   }, []);
@@ -705,6 +767,7 @@ export const DentalSystemProvider: React.FC<{ children: React.ReactNode }> = ({ 
     clearAnamneses,
     migrateFromLocalStorage,
     reloadTransacoes,
+    reloadAnamneses,
     loadAllData
   };
 

@@ -268,14 +268,30 @@ class LocalStorageService {
     return this.getItem<Anamnese>(STORAGE_KEYS.ANAMNESES);
   }
 
-  saveAnamnese(anamnese: Omit<Anamnese, 'id' | 'criadoEm' | 'atualizadoEm'>): Anamnese {
+  saveAnamnese(anamnese: Omit<Anamnese, 'id' | 'criadoEm' | 'atualizadoEm'> & { id?: string; criadoEm?: Date; atualizadoEm?: Date }): Anamnese {
     const anamneses = this.getAnamneses();
     const now = new Date();
+    const finalId = (anamnese as any).id || this.generateId();
+    
+    // Se já existir uma anamnese com este mesmo ID, atualiza in-place para prevenir duplicações
+    const existingIndex = anamneses.findIndex(a => a.id === finalId);
+    if (existingIndex >= 0) {
+      const updated: Anamnese = {
+        ...anamneses[existingIndex],
+        ...anamnese,
+        id: finalId,
+        atualizadoEm: now,
+      };
+      anamneses[existingIndex] = updated;
+      this.setItem(STORAGE_KEYS.ANAMNESES, anamneses);
+      return updated;
+    }
+
     const newAnamnese: Anamnese = {
       ...anamnese,
-      id: this.generateId(),
-      criadoEm: now,
-      atualizadoEm: now,
+      id: finalId,
+      criadoEm: (anamnese as any).criadoEm ? new Date((anamnese as any).criadoEm) : now,
+      atualizadoEm: (anamnese as any).atualizadoEm ? new Date((anamnese as any).atualizadoEm) : now,
       statusAssinatura: anamnese.statusAssinatura || 'pendente'
     };
     
