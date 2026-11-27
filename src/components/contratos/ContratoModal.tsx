@@ -47,6 +47,9 @@ import {
   Stethoscope,
   Wallet,
   SlidersHorizontal,
+  Clock,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -146,6 +149,8 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
   const [quickTelefone, setQuickTelefone] = useState<string>('');
   const [showQuickFill, setShowQuickFill] = useState<boolean>(false);
   const [salvandoDadosPaciente, setSalvandoDadosPaciente] = useState<boolean>(false);
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
+  const [mobileOptionsOpen, setMobileOptionsOpen] = useState<boolean>(false);
 
   // Múltiplas condições e flexibilização de pagamento do contrato
   const [condicoesContrato, setCondicoesContrato] = useState<CondicaoPagamento[]>([]);
@@ -1853,15 +1858,542 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     }
   };
 
+  // Renderiza o painel completo de parâmetros e modelos de contrato
+  const renderPainelOpcoes = () => (
+    <div className="space-y-3.5">
+      {/* Status do Orçamento Selecionado e Condições de Pagamento */}
+      {orcamentoAtual && (
+        <div className="p-3.5 bg-card rounded-lg border border-border shadow-sm text-xs text-foreground space-y-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Badge
+                variant={orcamentoAtual?.status === 'aprovado' ? 'default' : 'secondary'}
+                className="capitalize text-[10px] h-5"
+              >
+                {orcamentoAtual?.status || 'rascunho'}
+              </Badge>
+              <span className="font-bold text-sm text-foreground">
+                {formatMoney(snapshotAtual?.financeiro?.total || orcamentoAtual?.total || 0)}
+              </span>
+            </div>
+            <span className="text-muted-foreground text-[11px]">
+              {orcamentoAtual?.itens?.length || 0} procedimento(s)
+            </span>
+          </div>
+
+          {snapshotAtual?.financeiro?.formaPagamento && (
+            <div className="text-[11px] text-muted-foreground bg-muted/40 p-2 rounded border border-border/60">
+              <span className="font-medium text-foreground">Pagamento atual:</span>{" "}
+              <span className="font-semibold text-primary">
+                {limparFormaPagamentoParaContrato(snapshotAtual.financeiro.formaPagamento)}
+              </span>
+            </div>
+          )}
+
+          {condicoesContrato.length > 1 ? (
+            <div className="pt-2 border-t border-border/70 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-foreground flex items-center gap-1">
+                  <Wallet className="h-3.5 w-3.5 text-primary" />
+                  Opção Fechada para este Contrato:
+                </span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    const sel = condicoesContrato.find((c) => c.id === condicaoContratoAtivaId) || condicoesContrato[0];
+                    setCondicaoFlexibilizarContrato({ ...sel });
+                    setModalFlexibilizarContratoOpen(true);
+                  }}
+                  className="h-6 text-[10px] gap-1 text-primary hover:bg-primary/10 font-medium px-1.5"
+                >
+                  <Pencil className="h-3 w-3" />
+                  Flexibilizar
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-1 gap-1.5">
+                {condicoesContrato.map((c, idx) => {
+                  const isAtiva = c.id === condicaoContratoAtivaId;
+                  return (
+                    <button
+                      key={c.id || idx}
+                      type="button"
+                      onClick={() => handleTrocarCondicaoContrato(c.id)}
+                      className={`w-full text-left px-2.5 py-1.5 rounded-md text-[11px] font-medium transition-all flex items-center justify-between border ${
+                        isAtiva
+                          ? "bg-emerald-600 text-white border-emerald-500 shadow-xs"
+                          : "bg-background hover:bg-muted text-muted-foreground hover:text-foreground border-border"
+                      }`}
+                    >
+                      <span className="truncate">{c.titulo}</span>
+                      {isAtiva && <Check className="h-3.5 w-3.5 shrink-0 ml-1.5" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div className="pt-2 border-t border-border/50 flex items-center justify-between gap-2">
+              <span className="text-[11px] text-muted-foreground">Condição de pagamento definida.</span>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  const sel = condicoesContrato[0] || {
+                    id: "1",
+                    titulo: "Condição de Pagamento",
+                    tipo: "personalizado" as const,
+                    valorTotal: orcamentoAtual.total,
+                    descricao: snapshotAtual?.financeiro.formaPagamento || orcamentoAtual.formasPagamento || "",
+                    selecionada: true,
+                  };
+                  setCondicaoFlexibilizarContrato({ ...sel });
+                  setModalFlexibilizarContratoOpen(true);
+                }}
+                className="h-6 text-[10px] gap-1 text-primary border-primary/40 hover:bg-primary/10 font-medium"
+              >
+                <Pencil className="h-3 w-3" />
+                Flexibilizar
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Barra de Seleção e Parâmetros */}
+      <div className="p-3.5 bg-card rounded-lg border border-border shadow-sm space-y-2.5">
+        <div className="font-semibold text-xs text-foreground flex items-center gap-1.5">
+          <SlidersHorizontal className="h-3.5 w-3.5 text-primary" />
+          Parâmetros do Contrato
+        </div>
+
+        <div className="space-y-2">
+          <div className="space-y-1">
+            <Label className="text-[11px] font-medium text-muted-foreground flex items-center gap-1">
+              <DollarSign className="h-3 w-3 text-primary" />
+              Orçamento Vinculado
+            </Label>
+            <Select value={selectedOrcamentoId} onValueChange={handleTrocarOrcamento}>
+              <SelectTrigger className="h-8 text-xs border-border bg-background text-foreground">
+                <SelectValue placeholder="Selecione um orçamento" />
+              </SelectTrigger>
+              <SelectContent>
+                {orcamentos.length === 0 ? (
+                  <SelectItem value="none" disabled>Nenhum orçamento encontrado</SelectItem>
+                ) : (
+                  (orcamentos || []).filter(Boolean).map((o) => (
+                    <SelectItem key={o.id} value={o.id}>
+                      {o.titulo} — {formatMoney(o.total || 0)} {o?.status === 'aprovado' ? '✓ (Aprovado)' : `(${o?.status || ''})`}
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1">
+            <Label className="text-[11px] font-medium text-muted-foreground flex items-center gap-1">
+              <ShieldCheck className="h-3 w-3 text-primary" />
+              Profissional Responsável
+            </Label>
+            <Select value={selectedDentistaNome} onValueChange={setSelectedDentistaNome}>
+              <SelectTrigger className="h-8 text-xs border-border bg-background text-foreground">
+                <SelectValue placeholder="Selecione o profissional" />
+              </SelectTrigger>
+              <SelectContent>
+                {dentistas.length === 0 ? (
+                  <SelectItem value={configuracoes?.croResponsavel || 'Clínica'}>
+                    {configuracoes?.nomeClinica || 'Responsável Técnico'}
+                  </SelectItem>
+                ) : (
+                  dentistas.map((d) => (
+                    <SelectItem key={d.id} value={d.nome}>
+                      {d.nome} {d.cro ? `(CRO ${d.cro})` : ""}
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1">
+            <Label className="text-[11px] font-medium text-muted-foreground flex items-center gap-1">
+              <Calendar className="h-3 w-3 text-primary" />
+              Comarca / Cidade
+            </Label>
+            <Input
+              type="text"
+              value={cidadeLocal}
+              onChange={(e) => setCidadeLocal(e.target.value)}
+              placeholder="Maceió"
+              className="h-8 text-xs border-border bg-background text-foreground"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Modelos e Cláusulas Especiais */}
+      <div className="space-y-2">
+        {/* Lentes em Resina Composta */}
+        <div className="p-3 bg-card rounded-lg border border-border shadow-sm flex items-center justify-between gap-2.5 text-xs">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="p-1.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 shrink-0">
+              <Sparkles className="h-3.5 w-3.5" />
+            </div>
+            <div className="min-w-0">
+              <div className="font-semibold text-foreground text-[11px] truncate">
+                Lentes em Resina (CFO 118/2012)
+              </div>
+              <p className="text-[10px] text-muted-foreground truncate">
+                {temLentesResinaNoContrato ? '✓ Cláusulas 4ª e 5ª inclusas' : 'Não aplicável'}
+              </p>
+            </div>
+          </div>
+          <Switch
+            id="toggleLentesResina"
+            checked={temLentesResinaNoContrato}
+            onCheckedChange={(checked) => {
+              setIsManuallyEdited(true);
+              setSnapshotAtual((prev) => (prev ? { ...prev, incluiLentesResina: checked } : prev));
+            }}
+          />
+        </div>
+
+        {/* Termo de Uso de Imagem e Voz */}
+        <div className="p-3 bg-card rounded-lg border border-border shadow-sm flex items-center justify-between gap-2.5 text-xs">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="p-1.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shrink-0">
+              <Camera className="h-3.5 w-3.5" />
+            </div>
+            <div className="min-w-0">
+              <div className="font-semibold text-foreground text-[11px] truncate">
+                Uso de Imagem e Voz (LGPD)
+              </div>
+              <p className="text-[10px] text-muted-foreground truncate">
+                {snapshotAtual?.termoUsoImagem?.autorizado ? '✓ Anexo Oficial Ativo' : 'Opcional / Não anexado'}
+              </p>
+            </div>
+          </div>
+          <Switch
+            id="toggleTermoImagem"
+            checked={Boolean(snapshotAtual?.termoUsoImagem?.autorizado)}
+            onCheckedChange={(checked) => {
+              setIsManuallyEdited(true);
+              setSnapshotAtual((prev) => {
+                if (!prev) return prev;
+                return {
+                  ...prev;
+                  termoUsoImagem: {
+                    ativo: true,
+                    autorizado: checked,
+                    usoDidaticoCientifico: prev.termoUsoImagem?.usoDidaticoCientifico !== false,
+                    usoPublicitarioRedesSociais: prev.termoUsoImagem?.usoPublicitarioRedesSociais !== false,
+                    identificacaoFacialVoz: prev.termoUsoImagem?.identificacaoFacialVoz || "rosto_e_voz",
+                    depoimentos: prev.termoUsoImagem?.depoimentos !== false,
+                    canalContatoLgpd: prev.clinica.email || prev.clinica.telefone,
+                  },
+                };
+              });
+            }}
+          />
+        </div>
+
+        {/* Tratamento Endodôntico (Canal) */}
+        <div className="p-3 bg-card rounded-lg border border-border shadow-sm text-xs space-y-2">
+          <div className="flex items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="p-1.5 rounded-md bg-purple-500/10 text-purple-600 dark:text-purple-400 shrink-0">
+                <Stethoscope className="h-3.5 w-3.5" />
+              </div>
+              <div className="min-w-0">
+                <div className="font-semibold text-foreground text-[11px] truncate">
+                  Tratamento de Canal (Endodontia)
+                </div>
+                <p className="text-[10px] text-muted-foreground truncate">
+                  {temEndodontiaNoContrato ? '✓ 17 Cláusulas Endodontia ativas' : 'Padrão / Desativado'}
+                </p>
+              </div>
+            </div>
+            <Switch
+              id="toggleEndodontia"
+              checked={temEndodontiaNoContrato}
+              onCheckedChange={(checked) => {
+                setIsManuallyEdited(true);
+                setSnapshotAtual((prev) => {
+                  if (!prev) return prev;
+                  const dentesOrcamento = prev.orcamento.itens?.map((i) => i.denteOuRegiao).filter(Boolean).join(", ") || "";
+                  const procsOrcamento = prev.orcamento.itens?.map((i) => `${i.nome}${i.denteOuRegiao ? ` (${i.denteOuRegiao})` : ""}`).join(", ") || prev.orcamento.titulo;
+                  return {
+                    ...prev,
+                    tipoModeloContrato: checked ? 'endodontia' : 'geral',
+                    dadosEndodontia: {
+                      ativo: checked,
+                      executorTipo: prev.dadosEndodontia?.executorTipo || 'dentista_titular',
+                      parceiro: prev.dadosEndodontia?.parceiro || null,
+                      dentes: prev.dadosEndodontia?.dentes || dentesOrcamento || 'Elemento(s) dentário(s) indicado(s) na avaliação clínica',
+                      procedimentosAprovados: prev.dadosEndodontia?.procedimentosAprovados || procsOrcamento,
+                      diagnostico: prev.dadosEndodontia?.diagnostico || 'Avaliação clínica compatível com necessidade de intervenção endodôntica',
+                      etapasPrevistas: prev.dadosEndodontia?.etapasPrevistas || 'Abertura coronária, localização dos canais, limpeza, instrumentação biomecânica, desinfecção e obturação radicular',
+                      procedimentosIncluidos: prev.dadosEndodontia?.procedimentosIncluidos || 'Tratamento endodôntico (canal), instrumentação, medicação intracanal (quando indicada) e obturação dos canais radiculares',
+                      procedimentosNaoIncluidos: prev.dadosEndodontia?.procedimentosNaoIncluidos || 'Restaurações definitivas, coroas protéticas, pinos/núcleos intracanais, reconstruções estéticas ou cirurgias parendodônticas',
+                    },
+                  };
+                });
+              }}
+            />
+          </div>
+
+          {temEndodontiaNoContrato && (
+            <div className="pt-2 border-t border-border/80 space-y-2">
+              <div className="space-y-1">
+                <Label className="text-[10px] font-semibold text-foreground">Profissional Executor</Label>
+                <Select
+                  value={snapshotAtual?.dadosEndodontia?.executorTipo || 'dentista_titular'}
+                  onValueChange={(val: 'dentista_titular' | 'parceiro') => {
+                    setIsManuallyEdited(true);
+                    setSnapshotAtual((prev) => {
+                      if (!prev) return prev;
+                      return {
+                        ...prev,
+                        dadosEndodontia: {
+                          ...prev.dadosEndodontia!,
+                          ativo: true,
+                          executorTipo: val,
+                        },
+                      };
+                    });
+                  }}
+                >
+                  <SelectTrigger className="h-7 text-[11px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="dentista_titular">Dra. Rosângela (CRO-AL 06267)</SelectItem>
+                    <SelectItem value="parceiro">Cirurgião Parceiro Cadastrado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {snapshotAtual?.dadosEndodontia?.executorTipo === 'parceiro' && (
+                <div className="space-y-1.5 bg-muted/40 p-2 rounded border border-border">
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-semibold text-foreground">Selecionar Parceiro</Label>
+                    <Select
+                      value={snapshotAtual?.dadosEndodontia?.parceiro?.id || 'manual'}
+                      onValueChange={(pId) => {
+                        setIsManuallyEdited(true);
+                        const parcEncontrado = parceiros.find((p) => p.id === pId);
+                        setSnapshotAtual((prev) => {
+                          if (!prev) return prev;
+                          return {
+                            ...prev,
+                            dadosEndodontia: {
+                              ...prev.dadosEndodontia!,
+                              ativo: true,
+                              executorTipo: "parceiro",
+                              parceiro: parcEncontrado ? {
+                                id: parcEncontrado.id,
+                                nome: parcEncontrado.nome,
+                                croUf: (prev.dadosEndodontia?.parceiro?.croUf) || "",
+                                documento: (prev.dadosEndodontia?.parceiro?.documento) || "",
+                                especialidade: parcEncontrado.especialidade || "",
+                                telefone: parcEncontrado.telefone || "",
+                              } : prev.dadosEndodontia?.parceiro,
+                            },
+                          };
+                        });
+                      }}
+                    >
+                      <SelectTrigger className="h-7 text-[11px]">
+                        <SelectValue placeholder="Selecione um parceiro" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="manual">-- Outro parceiro / Digitação direta --</SelectItem>
+                        {parceiros.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.nome} {p.especialidade ? `(${p.especialidade})` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-semibold text-foreground">Nome do Parceiro</Label>
+                    <Input
+                      value={snapshotAtual?.dadosEndodontia?.parceiro?.nome || ""}
+                      onChange={(e) => {
+                        setIsManuallyEdited(true);
+                        const val = e.target.value;
+                        setSnapshotAtual((prev) => prev ? {
+                          ...prev,
+                          dadosEndodontia: {
+                            ...prev.dadosEndodontia!,
+                            ativo: true,
+                            executorTipo: "parceiro",
+                            parceiro: {
+                              ...(prev.dadosEndodontia?.parceiro || { nome: "", croUf: "" }),
+                              nome: val,
+                            },
+                          },
+                        } : prev);
+                      }}
+                      placeholder="Dr(a). Nome do Cirurgião Parceiro"
+                      className="h-7 text-[11px]"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-semibold text-foreground">CRO / UF</Label>
+                      <Input
+                        value={snapshotAtual?.dadosEndodontia?.parceiro?.croUf || ""}
+                        onChange={(e) => {
+                          setIsManuallyEdited(true);
+                          const val = e.target.value;
+                          setSnapshotAtual((prev) => prev ? {
+                            ...prev,
+                            dadosEndodontia: {
+                              ...prev.dadosEndodontia!,
+                              ativo: true,
+                              executorTipo: "parceiro",
+                              parceiro: {
+                                ...(prev.dadosEndodontia?.parceiro || { nome: "", croUf: "" }),
+                                croUf: val,
+                              },
+                            },
+                          } : prev);
+                        }}
+                        placeholder="CRO-AL 12345"
+                        className="h-7 text-[11px]"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-semibold text-foreground">CPF / CNPJ</Label>
+                      <Input
+                        value={snapshotAtual?.dadosEndodontia?.parceiro?.documento || ""}
+                        onChange={(e) => {
+                          setIsManuallyEdited(true);
+                          const val = e.target.value;
+                          setSnapshotAtual((prev) => prev ? {
+                            ...prev,
+                            dadosEndodontia: {
+                              ...prev.dadosEndodontia!,
+                              ativo: true,
+                              executorTipo: "parceiro",
+                              parceiro: {
+                                ...(prev.dadosEndodontia?.parceiro || { nome: "", croUf: "" }),
+                                documento: val,
+                              },
+                            },
+                          } : prev);
+                        }}
+                        placeholder="000.000.000-00"
+                        className="h-7 text-[11px]"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-1">
+                <Label className="text-[10px] font-semibold text-foreground">Dente(s) Tratado(s)</Label>
+                <Input
+                  value={snapshotAtual?.dadosEndodontia?.dentes || ""}
+                  onChange={(e) => {
+                    setIsManuallyEdited(true);
+                    const val = e.target.value;
+                    setSnapshotAtual((prev) => prev ? {
+                      ...prev,
+                      dadosEndodontia: {
+                        ...prev.dadosEndodontia!,
+                        ativo: true,
+                        executorTipo: prev.dadosEndodontia?.executorTipo || 'dentista_titular',
+                        dentes: val,
+                      },
+                    } : prev);
+                  }}
+                  placeholder="Ex: Dente 16, Elemento 21..."
+                  className="h-7 text-[11px]"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Alerta de Pendências Cadastrais */}
+      {pendenciasCadastrais.length > 0 && (
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-amber-900 dark:text-amber-100 space-y-2 text-xs">
+          <div className="flex items-center gap-1.5 font-semibold text-[11px]">
+            <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+            <span>Dados pendentes no paciente:</span>
+            <span className="text-amber-700 dark:text-amber-300 font-bold">{pendenciasCadastrais.join(", ")}</span>
+          </div>
+          <div className="space-y-1.5 pt-1 border-t border-amber-500/20">
+            <Input
+              placeholder="CPF do Paciente (000.000.000-00)"
+              value={quickCpf}
+              onChange={(e) => setQuickCpf(formatarDocumento(e.target.value))}
+              className="h-7 text-[11px] bg-background text-foreground"
+            />
+            <Input
+              placeholder="Endereço Completo"
+              value={quickEndereco}
+              onChange={(e) => setQuickEndereco(e.target.value)}
+              className="h-7 text-[11px] bg-background text-foreground"
+            />
+            <Button
+              size="sm"
+              type="button"
+              disabled={salvandoDadosPaciente}
+              onClick={handleSalvarDadosPacienteRapido}
+              className="w-full h-7 text-[11px] font-semibold bg-amber-600 hover:bg-amber-700 text-white"
+            >
+              {salvandoDadosPaciente ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : "💾 Salvar no Paciente"}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Alerta de Divergência Financeira */}
+      {transacoesSuspeitasOuDivergentes && (
+        <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-lg text-rose-800 dark:text-rose-200 text-xs space-y-2">
+          <div className="font-semibold flex items-center gap-1.5 text-[11px]">
+            <AlertTriangle className="h-3.5 w-3.5 text-rose-600 shrink-0" />
+            <span>Divergência Financeira Detectada</span>
+          </div>
+          <p className="text-[10px] leading-tight text-muted-foreground">
+            As parcelas no financeiro diferem do total do contrato ({formatMoney(snapshotAtual?.financeiro?.total || 0)}).
+          </p>
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-full h-7 text-[11px] border-rose-400 text-rose-700 hover:bg-rose-100"
+            disabled={sincronizandoFinanceiro}
+            onClick={handleSincronizarFinanceiroComContrato}
+          >
+            {sincronizandoFinanceiro ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+            Sincronizar Financeiro
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
         <DialogContent
+          position="center"
           className={cn(
-            "flex flex-col p-0 overflow-hidden bg-background text-foreground transition-all duration-200",
+            "flex flex-col p-0 overflow-hidden bg-background text-foreground transition-all duration-200 !z-50",
             isFullScreen
-              ? "!fixed !inset-0 !z-50 !w-screen !h-[100dvh] !max-w-none !max-h-none !rounded-none !m-0 !p-0 !border-0 !top-0 !left-0 !translate-x-0 !translate-y-0 [&>button:last-child]:hidden"
-              : "!max-w-5xl !w-[calc(100vw-1rem)] sm:!w-full !max-h-[94dvh] !h-[94dvh] sm:!h-[90vh] rounded-lg border border-border shadow-2xl !translate-x-[-50%] !translate-y-[-50%]"
+              ? "!fixed !inset-0 !w-screen !h-[100dvh] !max-w-none !max-h-none !rounded-none !m-0 !p-0 !border-0 !top-0 !left-0 !translate-x-0 !translate-y-0 [&>button:last-child]:hidden"
+              : "!fixed !top-2 !bottom-2 !left-2 !right-2 sm:!top-4 sm:!bottom-4 sm:!left-4 sm:!right-4 md:!top-6 md:!bottom-6 md:!left-6 md:!right-6 lg:!top-[50px] lg:!bottom-[50px] lg:!left-[50px] lg:!right-[50px] !w-[calc(100vw-16px)] sm:!w-[calc(100vw-32px)] md:!w-[calc(100vw-48px)] lg:!w-[calc(100vw-100px)] !h-[calc(100dvh-16px)] sm:!h-[calc(100dvh-32px)] md:!h-[calc(100dvh-48px)] lg:!h-[calc(100dvh-100px)] !max-w-none !max-h-none !translate-x-0 !translate-y-0 !m-0 rounded-2xl border border-border shadow-2xl"
           )}
         >
           {isFullScreen ? (
@@ -2097,764 +2629,201 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
           </div>
 
           {/* Conteúdo das Abas */}
-          <div className="flex-1 overflow-y-auto p-4 sm:p-5 bg-muted/20">
-            {/* ABA 1: VISUALIZAR CONTRATO */}
+          <div className="flex-1 overflow-hidden flex flex-col min-h-0 bg-muted/20">
+            {/* ABA 1: VISUALIZAR CONTRATO (Layout Responsivo Especial: 2 Colunas no Desktop / Otimizado iPad e Mobile) */}
             {activeTab === 'gerar' && (
-              <div className="space-y-4">
-                {/* Barra de Seleção e Parâmetros */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 p-3.5 bg-card rounded-lg border border-border shadow-sm">
-                  {/* Seleção do Orçamento Aprovado */}
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold flex items-center gap-1.5 text-foreground">
-                      <DollarSign className="h-3.5 w-3.5 text-primary" />
-                      Orçamento Vinculado
-                    </Label>
-                    <Select value={selectedOrcamentoId} onValueChange={handleTrocarOrcamento}>
-                      <SelectTrigger className="h-9 text-xs border-border bg-background text-foreground">
-                        <SelectValue placeholder="Selecione um orçamento" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {orcamentos.length === 0 ? (
-                          <SelectItem value="none" disabled>
-                            Nenhum orçamento encontrado
-                          </SelectItem>
-                        ) : (
-                          (orcamentos || []).filter(Boolean).map((o) => (
-                            <SelectItem key={o.id} value={o.id}>
-                              {o.titulo} — {formatMoney(o.total || 0)}{' '}
-                              {o?.status === 'aprovado' ? '✓ (Aprovado)' : `(${o?.status || ''})`}
-                            </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Seleção do Dentista Responsável */}
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold flex items-center gap-1.5 text-foreground">
-                      <ShieldCheck className="h-3.5 w-3.5 text-primary" />
-                      Profissional Responsável
-                    </Label>
-                    <Select value={selectedDentistaNome} onValueChange={setSelectedDentistaNome}>
-                      <SelectTrigger className="h-9 text-xs border-border bg-background text-foreground">
-                        <SelectValue placeholder="Selecione o profissional" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {dentistas.length === 0 ? (
-                          <SelectItem value={configuracoes?.croResponsavel || 'Clínica'}>
-                            {configuracoes?.nomeClinica || 'Responsável Técnico'}
-                          </SelectItem>
-                        ) : (
-                          dentistas.map((d) => (
-                            <SelectItem key={d.id} value={d.nome}>
-                              {d.nome} {d.cro ? `(CRO ${d.cro})` : ''}
-                            </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Cidade da Comarca */}
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold flex items-center gap-1.5 text-foreground">
-                      <Calendar className="h-3.5 w-3.5 text-primary" />
-                      Comarca / Cidade
-                    </Label>
-                    <Input
-                      type="text"
-                      value={cidadeLocal}
-                      onChange={(e) => setCidadeLocal(e.target.value)}
-                      placeholder="Maceió"
-                      className="h-9 text-xs border-border bg-background text-foreground"
-                    />
-                  </div>
-                </div>
-
-                {/* Disposições Específicas: Lentes em Resina Composta e Restaurações Preexistentes */}
-                <div className="p-3 bg-card rounded-lg border border-border shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                  <div className="flex items-center gap-2.5">
-                    <div className="p-1.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 shrink-0">
-                      <Sparkles className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <div className="font-semibold text-foreground flex items-center gap-2">
-                        <span>Cláusulas de Lentes em Resina e Restaurações Preexistentes</span>
-                        <Badge
-                          variant={temLentesResinaNoContrato ? 'default' : 'outline'}
-                          className={cn(
-                            "text-[10px] h-4 px-1.5 font-medium",
-                            temLentesResinaNoContrato ? "bg-amber-600 text-white hover:bg-amber-700" : ""
-                          )}
-                        >
-                          {temLentesResinaNoContrato ? '✓ Cláusulas 4ª e 5ª Inclusas' : 'Não aplicável'}
-                        </Badge>
-                      </div>
-                      <p className="text-[11px] text-muted-foreground mt-0.5">
-                        {temLentesResinaNoContrato
-                          ? 'Inclui automaticamente a Cláusula 4ª (Manutenção Semestral a cada 6 meses) e Cláusula 5ª (Restaurações Preexistentes, Condições Ocultas e Orçamento Complementar).'
-                          : 'As cláusulas de lentes em resina e restaurações preexistentes são inseridas automaticamente para orçamentos de lentes/facetas ou pelo botão ao lado.'}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
-                    <Label htmlFor="toggleLentesResina" className="text-xs text-muted-foreground cursor-pointer select-none">
-                      {temLentesResinaNoContrato ? 'Incluir Cláusulas' : 'Desativadas'}
-                    </Label>
-                    <Switch
-                      id="toggleLentesResina"
-                      checked={temLentesResinaNoContrato}
-                      onCheckedChange={(checked) => {
-                        setIsManuallyEdited(true);
-                        setSnapshotAtual((prev) => (prev ? { ...prev, incluiLentesResina: checked } : prev));
-                      }}
-                    />
-                  </div>
-                </div>
-
-                {/* Opção: Termo de Autorização de Uso de Imagem e Voz */}
-                <div className="p-3 bg-card rounded-lg border border-border shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                  <div className="flex items-center gap-2.5">
-                    <div className="p-1.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shrink-0">
-                      <Camera className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <div className="font-semibold text-foreground flex items-center gap-2">
-                        <span>Termo de Autorização de Uso de Imagem e Voz (Facultativo)</span>
-                        <Badge
-                          variant={snapshotAtual?.termoUsoImagem?.autorizado ? 'default' : 'outline'}
-                          className={cn(
-                            "text-[10px] h-4 px-1.5 font-medium",
-                            snapshotAtual?.termoUsoImagem?.autorizado ? "bg-emerald-600 text-white hover:bg-emerald-700" : ""
-                          )}
-                        >
-                          {snapshotAtual?.termoUsoImagem?.autorizado ? '✓ Anexo de Imagem Autorizado' : 'Não Anexado (Opcional)'}
-                        </Badge>
-                      </div>
-                      <p className="text-[11px] text-muted-foreground mt-0.5">
-                        {snapshotAtual?.termoUsoImagem?.autorizado
-                          ? 'O paciente autorizou o uso. O Termo oficial (10 seções LGPD/CFO) é anexado automaticamente ao contrato e PDF.'
-                          : 'O termo é facultativo. O paciente poderá escolher autorizar ou recusar no link de assinatura digital do contrato.'}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
-                    <Label htmlFor="toggleTermoImagem" className="text-xs text-muted-foreground cursor-pointer select-none">
-                      {snapshotAtual?.termoUsoImagem?.autorizado ? 'Autorizado (Anexo Ativo)' : 'Não Autorizado'}
-                    </Label>
-                    <Switch
-                      id="toggleTermoImagem"
-                      checked={Boolean(snapshotAtual?.termoUsoImagem?.autorizado)}
-                      onCheckedChange={(checked) => {
-                        setIsManuallyEdited(true);
-                        setSnapshotAtual((prev) => {
-                          if (!prev) return prev;
-                          return {
-                            ...prev,
-                            termoUsoImagem: {
-                              ativo: true,
-                              autorizado: checked,
-                              usoDidaticoCientifico: prev.termoUsoImagem?.usoDidaticoCientifico !== false,
-                              usoPublicitarioRedesSociais: prev.termoUsoImagem?.usoPublicitarioRedesSociais !== false,
-                              identificacaoFacialVoz: prev.termoUsoImagem?.identificacaoFacialVoz || 'rosto_e_voz',
-                              depoimentos: prev.termoUsoImagem?.depoimentos !== false,
-                              canalContatoLgpd: prev.clinica.email || prev.clinica.telefone,
-                            },
-                          };
-                        });
-                      }}
-                    />
-                  </div>
-                </div>
-
-                {/* Opção: Contrato de Tratamento Endodôntico (Tratamento de Canal) com Parceiro Executor */}
-                <div className="p-3 bg-card rounded-lg border border-border shadow-sm flex flex-col gap-3 text-xs">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="flex items-center gap-2.5">
-                      <div className="p-1.5 rounded-md bg-purple-500/10 text-purple-600 dark:text-purple-400 shrink-0">
-                        <Stethoscope className="h-4 w-4" />
-                      </div>
-                      <div>
-                        <div className="font-semibold text-foreground flex items-center gap-2">
-                          <span>Contrato de Tratamento de Canal (Endodontia)</span>
-                          <Badge
-                            variant={temEndodontiaNoContrato ? 'default' : 'outline'}
-                            className={cn(
-                              "text-[10px] h-4 px-1.5 font-medium",
-                              temEndodontiaNoContrato ? "bg-purple-600 text-white hover:bg-purple-700" : ""
-                            )}
-                          >
-                            {temEndodontiaNoContrato ? '✓ 17 Cláusulas Endodontia Ativo' : 'Padrão / Desativado'}
-                          </Badge>
-                        </div>
-                        <p className="text-[11px] text-muted-foreground mt-0.5">
-                          Modelo oficial com 17 cláusulas para Tratamento Endodôntico personalizado para a Dra. Rosângela Santos Pereira, com suporte à identificação de cirurgião-dentista parceiro cadastrado.
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
-                      <Label htmlFor="toggleEndodontia" className="text-xs text-muted-foreground cursor-pointer select-none">
-                        {temEndodontiaNoContrato ? 'Modelo Ativo' : 'Ativar Modelo'}
-                      </Label>
-                      <Switch
-                        id="toggleEndodontia"
-                        checked={temEndodontiaNoContrato}
-                        onCheckedChange={(checked) => {
-                          setIsManuallyEdited(true);
-                          setSnapshotAtual((prev) => {
-                            if (!prev) return prev;
-                            const dentesOrcamento = prev.orcamento.itens?.map((i) => i.denteOuRegiao).filter(Boolean).join(', ') || '';
-                            const procsOrcamento = prev.orcamento.itens?.map((i) => `${i.nome}${i.denteOuRegiao ? ` (${i.denteOuRegiao})` : ''}`).join(', ') || prev.orcamento.titulo;
-                            return {
-                              ...prev,
-                              tipoModeloContrato: checked ? 'endodontia' : 'geral',
-                              dadosEndodontia: {
-                                ativo: checked,
-                                executorTipo: prev.dadosEndodontia?.executorTipo || 'dentista_titular',
-                                parceiro: prev.dadosEndodontia?.parceiro || null,
-                                dentes: prev.dadosEndodontia?.dentes || dentesOrcamento || 'Elemento(s) dentário(s) indicado(s) na avaliação clínica',
-                                procedimentosAprovados: prev.dadosEndodontia?.procedimentosAprovados || procsOrcamento,
-                                diagnostico: prev.dadosEndodontia?.diagnostico || 'Avaliação clínica compatível com necessidade de intervenção endodôntica',
-                                etapasPrevistas: prev.dadosEndodontia?.etapasPrevistas || 'Abertura coronária, localização dos canais, limpeza, instrumentação biomecânica, desinfecção e obturação radicular',
-                                procedimentosIncluidos: prev.dadosEndodontia?.procedimentosIncluidos || 'Tratamento endodôntico (canal), instrumentação, medicação intracanal (quando indicada) e obturação dos canais radiculares',
-                                procedimentosNaoIncluidos: prev.dadosEndodontia?.procedimentosNaoIncluidos || 'Restaurações definitivas, coroas protéticas, pinos/núcleos intracanais, reconstruções estéticas ou cirurgias parendodônticas',
-                              },
-                            };
-                          });
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  {temEndodontiaNoContrato && (
-                    <div className="pt-2.5 border-t border-border/80 space-y-3">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                        <div className="space-y-1">
-                          <Label className="text-xs font-semibold text-foreground">Profissional Executor</Label>
-                          <Select
-                            value={snapshotAtual?.dadosEndodontia?.executorTipo || 'dentista_titular'}
-                            onValueChange={(val: 'dentista_titular' | 'parceiro') => {
-                              setIsManuallyEdited(true);
-                              setSnapshotAtual((prev) => {
-                                if (!prev) return prev;
-                                return {
-                                  ...prev,
-                                  dadosEndodontia: {
-                                    ...prev.dadosEndodontia!,
-                                    ativo: true,
-                                    executorTipo: val,
-                                  },
-                                };
-                              });
-                            }}
-                          >
-                            <SelectTrigger className="h-8 text-xs">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="dentista_titular">Dra. Rosângela Santos Pereira (CRO-AL 06267)</SelectItem>
-                              <SelectItem value="parceiro">Cirurgião-Dentista Parceiro Cadastrado</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        {snapshotAtual?.dadosEndodontia?.executorTipo === 'parceiro' && (
-                          <>
-                            <div className="space-y-1">
-                              <Label className="text-xs font-semibold text-foreground">Selecionar Parceiro</Label>
-                              <Select
-                                value={snapshotAtual?.dadosEndodontia?.parceiro?.id || 'manual'}
-                                onValueChange={(pId) => {
-                                  setIsManuallyEdited(true);
-                                  const parcEncontrado = parceiros.find((p) => p.id === pId);
-                                  setSnapshotAtual((prev) => {
-                                    if (!prev) return prev;
-                                    return {
-                                      ...prev,
-                                      dadosEndodontia: {
-                                        ...prev.dadosEndodontia!,
-                                        ativo: true,
-                                        executorTipo: 'parceiro',
-                                        parceiro: parcEncontrado ? {
-                                          id: parcEncontrado.id,
-                                          nome: parcEncontrado.nome,
-                                          croUf: (prev.dadosEndodontia?.parceiro?.croUf) || '',
-                                          documento: (prev.dadosEndodontia?.parceiro?.documento) || '',
-                                          especialidade: parcEncontrado.especialidade || '',
-                                          telefone: parcEncontrado.telefone || '',
-                                        } : prev.dadosEndodontia?.parceiro,
-                                      },
-                                    };
-                                  });
-                                }}
-                              >
-                                <SelectTrigger className="h-8 text-xs">
-                                  <SelectValue placeholder="Selecione um parceiro cadastrado" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="manual">-- Outro parceiro / Digitação direta --</SelectItem>
-                                  {parceiros.map((p) => (
-                                    <SelectItem key={p.id} value={p.id}>
-                                      {p.nome} {p.especialidade ? `(${p.especialidade})` : ''}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-
-                            <div className="space-y-1">
-                              <Label className="text-xs font-semibold text-foreground">Nome do Parceiro</Label>
-                              <Input
-                                value={snapshotAtual?.dadosEndodontia?.parceiro?.nome || ''}
-                                onChange={(e) => {
-                                  setIsManuallyEdited(true);
-                                  const val = e.target.value;
-                                  setSnapshotAtual((prev) => prev ? {
-                                    ...prev,
-                                    dadosEndodontia: {
-                                      ...prev.dadosEndodontia!,
-                                      ativo: true,
-                                      executorTipo: 'parceiro',
-                                      parceiro: {
-                                        ...(prev.dadosEndodontia?.parceiro || { nome: '', croUf: '' }),
-                                        nome: val,
-                                      },
-                                    },
-                                  } : prev);
-                                }}
-                                placeholder="Dr(a). Nome do Cirurgião Parceiro"
-                                className="h-8 text-xs"
-                              />
-                            </div>
-
-                            <div className="space-y-1">
-                              <Label className="text-xs font-semibold text-foreground">CRO / UF do Parceiro</Label>
-                              <Input
-                                value={snapshotAtual?.dadosEndodontia?.parceiro?.croUf || ''}
-                                onChange={(e) => {
-                                  setIsManuallyEdited(true);
-                                  const val = e.target.value;
-                                  setSnapshotAtual((prev) => prev ? {
-                                    ...prev,
-                                    dadosEndodontia: {
-                                      ...prev.dadosEndodontia!,
-                                      ativo: true,
-                                      executorTipo: 'parceiro',
-                                      parceiro: {
-                                        ...(prev.dadosEndodontia?.parceiro || { nome: '', croUf: '' }),
-                                        croUf: val,
-                                      },
-                                    },
-                                  } : prev);
-                                }}
-                                placeholder="Ex: CRO-AL 12345"
-                                className="h-8 text-xs"
-                              />
-                            </div>
-
-                            <div className="space-y-1">
-                              <Label className="text-xs font-semibold text-foreground">CPF / CNPJ do Parceiro</Label>
-                              <Input
-                                value={snapshotAtual?.dadosEndodontia?.parceiro?.documento || ''}
-                                onChange={(e) => {
-                                  setIsManuallyEdited(true);
-                                  const val = e.target.value;
-                                  setSnapshotAtual((prev) => prev ? {
-                                    ...prev,
-                                    dadosEndodontia: {
-                                      ...prev.dadosEndodontia!,
-                                      ativo: true,
-                                      executorTipo: 'parceiro',
-                                      parceiro: {
-                                        ...(prev.dadosEndodontia?.parceiro || { nome: '', croUf: '' }),
-                                        documento: val,
-                                      },
-                                    },
-                                  } : prev);
-                                }}
-                                placeholder="000.000.000-00 (quando pertinente)"
-                                className="h-8 text-xs"
-                              />
-                            </div>
-                          </>
-                        )}
-
-                        <div className="space-y-1">
-                          <Label className="text-xs font-semibold text-foreground">Dente(s) Tratado(s)</Label>
-                          <Input
-                            value={snapshotAtual?.dadosEndodontia?.dentes || ''}
-                            onChange={(e) => {
-                              setIsManuallyEdited(true);
-                              const val = e.target.value;
-                              setSnapshotAtual((prev) => prev ? {
-                                ...prev,
-                                dadosEndodontia: {
-                                  ...prev.dadosEndodontia!,
-                                  ativo: true,
-                                  executorTipo: prev.dadosEndodontia?.executorTipo || 'dentista_titular',
-                                  dentes: val,
-                                },
-                              } : prev);
-                            }}
-                            placeholder="Ex: Dente 16, Elemento 21..."
-                            className="h-8 text-xs"
-                          />
-                        </div>
-                      </div>
-
-                      {snapshotAtual?.dadosEndodontia?.executorTipo === 'dentista_titular' && (
-                        <p className="text-[11px] text-muted-foreground bg-muted/40 p-2 rounded border border-border">
-                          ℹ️ <strong>Executor Designado:</strong> O procedimento será executado pela Dra. Rosângela Santos Pereira (CRO-AL 06267). Os campos e assinaturas de cirurgião parceiro serão omitidos automaticamente no contrato oficial e no PDF.
-                        </p>
+              <div className="flex-1 w-full h-full overflow-hidden flex flex-col lg:flex-row min-h-0">
+                {/* Em Mobile e iPad: Barra Superior com Resumo da Condição e Botão de Opções */}
+                <div className="lg:hidden shrink-0 bg-card border-b border-border shadow-xs">
+                  <div className="p-2 sm:p-3 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Badge
+                        variant={orcamentoAtual?.status === 'aprovado' ? 'default' : 'secondary'}
+                        className="text-[10px] h-5 px-1.5 shrink-0 capitalize"
+                      >
+                        {orcamentoAtual?.status || 'Aprovado'}
+                      </Badge>
+                      <span className="text-xs font-bold truncate text-foreground">
+                        {formatMoney(snapshotAtual?.financeiro?.total || orcamentoAtual?.total || 0)}
+                      </span>
+                      {snapshotAtual?.financeiro?.formaPagamento && (
+                        <span className="hidden sm:inline text-xs text-primary font-medium truncate">
+                          • {limparFormaPagamentoParaContrato(snapshotAtual.financeiro.formaPagamento)}
+                        </span>
                       )}
-                      {snapshotAtual?.dadosEndodontia?.executorTipo === 'parceiro' && (
-                        <p className="text-[11px] text-muted-foreground bg-purple-500/10 text-purple-900 dark:text-purple-200 p-2 rounded border border-purple-500/20">
-                          ℹ️ <strong>Parceiro Executor Vinculado:</strong> O contrato identificará o profissional parceiro acima nas Partes, na Cláusula 2ª e incluirá seu campo específico para assinatura profissional.
-                        </p>
-                      )}
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs gap-1.5 shrink-0 border-border text-foreground hover:bg-muted"
+                      onClick={() => setMobileOptionsOpen((prev) => !prev)}
+                    >
+                      <SlidersHorizontal className="h-3.5 w-3.5 text-primary" />
+                      <span>{mobileOptionsOpen ? "Ocultar Ajustes" : "Ajustes & Opções"}</span>
+                      {mobileOptionsOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                    </Button>
+                  </div>
+
+                  {mobileOptionsOpen && (
+                    <div className="max-h-[50vh] overflow-y-auto p-3.5 bg-card/95 border-t border-border shadow-inner space-y-3.5">
+                      {renderPainelOpcoes()}
                     </div>
                   )}
                 </div>
 
-                {/* Alerta e Formulário Rápido de Preenchimento Cadastral do Paciente */}
-                {pendenciasCadastrais.length > 0 && (
-                  <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-amber-900 dark:text-amber-100 space-y-2.5">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                {/* Em Desktop: Barra Lateral Fixa com Rolagem Independente (380px) */}
+                {sidebarOpen && (
+                  <div className="hidden lg:flex w-[380px] xl:w-[420px] shrink-0 border-r border-border bg-card/70 flex-col h-full overflow-hidden">
+                    <div className="p-3 border-b border-border/80 flex items-center justify-between bg-card shrink-0">
                       <div className="flex items-center gap-2">
-                        <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
-                        <span className="text-xs font-semibold">
-                          Dados pendentes no cadastro de <em>{patient?.nome || snapshotAtual?.paciente?.nome}</em>: <span className="text-amber-700 dark:text-amber-300 font-bold">{pendenciasCadastrais.join(', ')}</span>
-                        </span>
+                        <SlidersHorizontal className="h-4 w-4 text-primary" />
+                        <span className="text-xs font-bold text-foreground">Ajustes & Parâmetros do Contrato</span>
                       </div>
-                      <div className="flex items-center gap-2 self-end sm:self-auto">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-xs border-amber-500/40 text-amber-800 dark:text-amber-200 hover:bg-amber-500/20 px-2.5 font-medium"
-                          onClick={() => setShowQuickFill((prev) => !prev)}
-                        >
-                          {showQuickFill ? 'Ocultar campos rápidos' : '✏️ Preencher agora (salva no paciente)'}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 text-xs text-amber-800 dark:text-amber-200 hover:bg-amber-500/20 px-2"
-                          onClick={() => setActiveTab('editar')}
-                        >
-                          Aba Editar
-                        </Button>
-                      </div>
-                    </div>
-
-                    {(showQuickFill || pendenciasCadastrais.includes('CPF') || pendenciasCadastrais.includes('Endereço')) && (
-                      <div className="pt-2 border-t border-amber-500/20 grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end">
-                        <div className="sm:col-span-4 space-y-1">
-                          <Label className="text-[11px] font-semibold text-amber-950 dark:text-amber-100">
-                            CPF do Paciente
-                          </Label>
-                          <Input
-                            placeholder="000.000.000-00"
-                            value={quickCpf}
-                            onChange={(e) => setQuickCpf(formatarDocumento(e.target.value))}
-                            className="h-8 text-xs bg-background text-foreground border-amber-500/40 focus-visible:ring-amber-500"
-                          />
-                        </div>
-
-                        <div className="sm:col-span-5 space-y-1">
-                          <Label className="text-[11px] font-semibold text-amber-950 dark:text-amber-100">
-                            Endereço Residencial Completo
-                          </Label>
-                          <Input
-                            placeholder="Rua, número, bairro, cidade - UF"
-                            value={quickEndereco}
-                            onChange={(e) => setQuickEndereco(e.target.value)}
-                            className="h-8 text-xs bg-background text-foreground border-amber-500/40 focus-visible:ring-amber-500"
-                          />
-                        </div>
-
-                        <div className="sm:col-span-3">
-                          <Button
-                            size="sm"
-                            type="button"
-                            disabled={salvandoDadosPaciente}
-                            onClick={handleSalvarDadosPacienteRapido}
-                            className="w-full h-8 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white shadow-sm"
-                          >
-                            {salvandoDadosPaciente ? (
-                              <>
-                                <Loader2 className="h-3 w-3 mr-1 animate-spin" /> Salvando...
-                              </>
-                            ) : (
-                              '💾 Salvar no Paciente'
-                            )}
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Alerta de Divergência Financeira vs Orçamento */}
-                {transacoesSuspeitasOuDivergentes && (
-                  <Alert variant="default" className="bg-rose-500/10 border-rose-500/30 text-rose-800 dark:text-rose-200 py-2.5">
-                    <AlertTriangle className="h-4 w-4 text-rose-600 dark:text-rose-400 shrink-0" />
-                    <AlertDescription className="text-xs flex flex-wrap items-center justify-between gap-2 w-full">
-                      <span className="flex-1 min-w-[240px]">
-                        <strong>Divergência Detectada no Financeiro:</strong> As parcelas lançadas anteriormente no Contas a Receber somam {formatMoney(somaTransacoesOrcamento)}, divergindo do orçamento de {formatMoney(orcamentoAtual?.total || 0)}. O contrato abaixo foi gerado com as parcelas e valores corretos ({snapshotAtual?.financeiro.parcelas.length} parcelas totalizando {formatMoney(snapshotAtual?.financeiro.total ?? (snapshotAtual?.financeiro as any)?.valorTotal ?? 0)}).
-                      </span>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs border-rose-400 text-rose-700 hover:bg-rose-100 dark:text-rose-200 dark:hover:bg-rose-950 px-2.5 font-medium shrink-0"
-                        disabled={sincronizandoFinanceiro}
-                        onClick={handleSincronizarFinanceiroComContrato}
-                      >
-                        {sincronizandoFinanceiro ? (
-                          <>
-                            <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> Sincronizando...
-                          </>
-                        ) : (
-                          <>
-                            <RefreshCw className="h-3.5 w-3.5 mr-1" /> Sincronizar Financeiro
-                          </>
-                        )}
-                      </Button>
-                    </AlertDescription>
-                  </Alert>
-                )}
-
-                {/* Status do Orçamento Selecionado e Ações Rápidas */}
-                {orcamentoAtual && (
-                  <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 bg-card rounded-md border border-border text-xs text-foreground">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <span>
-                        Status:{' '}
-                        <Badge
-                          variant={orcamentoAtual?.status === 'aprovado' ? 'default' : 'secondary'}
-                          className="capitalize text-[11px]"
-                        >
-                          {orcamentoAtual?.status || 'rascunho'}
-                        </Badge>
-                      </span>
-                      <span>
-                        Total:{' '}
-                        <strong className="text-foreground">{formatMoney(snapshotAtual?.financeiro?.total || orcamentoAtual?.total || 0)}</strong>
-                      </span>
-                      <span>
-                        Procedimentos: <strong>{orcamentoAtual?.itens?.length || 0}</strong>
-                      </span>
-                      {snapshotAtual?.financeiro?.formaPagamento && (
-                        <span>
-                          Pagamento:{' '}
-                          <span className="font-semibold text-primary">{limparFormaPagamentoParaContrato(snapshotAtual.financeiro.formaPagamento)}</span>
-                        </span>
-                      )}
-                    </div>
-
-                    {condicoesContrato.length > 1 ? (
-                      <div className="w-full mt-2 pt-2 border-t border-border/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-[11px] font-bold text-foreground flex items-center gap-1">
-                            <Wallet className="h-3.5 w-3.5 text-primary" />
-                            Opção Fechada para este Contrato:
-                          </span>
-                          {condicoesContrato.map((c, idx) => {
-                            const isAtiva = c.id === condicaoContratoAtivaId;
-                            return (
-                              <button
-                                key={c.id || idx}
-                                type="button"
-                                onClick={() => handleTrocarCondicaoContrato(c.id)}
-                                className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all flex items-center gap-1.5 ${
-                                  isAtiva
-                                    ? 'bg-emerald-600 text-white shadow-xs ring-1 ring-emerald-500'
-                                    : 'bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/80'
-                                }`}
-                              >
-                                <span>{c.titulo}</span>
-                                {isAtiva && <Check className="h-3 w-3" />}
-                              </button>
-                            );
-                          })}
-                        </div>
-
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            const sel = condicoesContrato.find((c) => c.id === condicaoContratoAtivaId) || condicoesContrato[0];
-                            setCondicaoFlexibilizarContrato({ ...sel });
-                            setModalFlexibilizarContratoOpen(true);
-                          }}
-                          className="h-6 text-[11px] gap-1 text-primary border-primary/40 hover:bg-primary/10 font-medium"
-                        >
-                          <Pencil className="h-3 w-3" />
-                          Flexibilizar Pagamento
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="w-full mt-1.5 pt-1.5 border-t border-border/50 flex items-center justify-between gap-2">
-                        <span className="text-[11px] text-muted-foreground">
-                          Condição de pagamento do contrato definida. Deseja flexibilizar os termos antes de assinar?
-                        </span>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            const sel = condicoesContrato[0] || {
-                              id: '1',
-                              titulo: 'Condição de Pagamento',
-                              tipo: 'personalizado' as const,
-                              valorTotal: orcamentoAtual.total,
-                              descricao: snapshotAtual?.financeiro.formaPagamento || orcamentoAtual.formasPagamento || '',
-                              selecionada: true,
-                            };
-                            setCondicaoFlexibilizarContrato({ ...sel });
-                            setModalFlexibilizarContratoOpen(true);
-                          }}
-                          className="h-6 text-[11px] gap-1 text-primary border-primary/40 hover:bg-primary/10 font-medium"
-                        >
-                          <Pencil className="h-3 w-3" />
-                          Flexibilizar Pagamento
-                        </Button>
-                      </div>
-                    )}
-
-                    <div className="flex items-center gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs gap-1.5 text-foreground hover:bg-muted border-border"
-                        onClick={() => setActiveTab('editar')}
-                      >
-                        <Pencil className="h-3 w-3 text-amber-500" />
-                        Editar Campos
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs gap-1.5 text-foreground hover:bg-muted border-border"
-                        onClick={() => handleAbrirAssinatura('paciente')}
-                      >
-                        <PenTool className="h-3 w-3 text-primary" />
-                        {snapshotAtual?.assinaturaPaciente ? '✓ Assinado Paciente' : 'Assinar Paciente'}
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs gap-1.5 text-foreground hover:bg-muted border-border"
-                        onClick={() => handleAbrirAssinatura('dentista')}
-                      >
-                        <ShieldCheck className="h-3 w-3 text-emerald-600" />
-                        {snapshotAtual?.assinaturaDentista ? '✓ Assinado Dentista' : 'Assinar Profissional'}
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs gap-1.5 text-foreground hover:bg-muted border-border"
-                        onClick={() => setIsFullScreen(true)}
-                      >
-                        <Maximize2 className="h-3 w-3" />
-                        Tela Cheia
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Pré-visualização do Documento (Isolado em Iframe para não quebrar estilos do sistema) */}
-                <div className="bg-card rounded-lg border border-border shadow-md overflow-hidden flex flex-col">
-                  <div className="bg-muted px-4 py-2 border-b border-border flex items-center justify-between text-xs text-muted-foreground font-medium">
-                    <span className="flex items-center gap-1.5 text-foreground">
-                      <FileText className="h-3.5 w-3.5 text-primary" />
-                      Visualização Oficial do Contrato (Padrão A4)
-                      {isEmModoEdicaoOuRetificacao && (
-                        <Badge variant="outline" className="ml-2 font-bold text-[10px] bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500">
-                          ⚠️ Prévia não salva
-                        </Badge>
-                      )}
-                    </span>
-                    <span className="flex items-center gap-2">
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="h-6 text-[11px] gap-1 px-1.5 text-muted-foreground hover:text-foreground"
-                        onClick={() => setIsFullScreen(true)}
+                        className="h-6 text-[10px] text-muted-foreground hover:text-foreground px-1.5"
+                        onClick={() => setSidebarOpen(false)}
+                        title="Ocultar painel para foco total no contrato"
                       >
-                        <Maximize2 className="h-3 w-3" />
-                        Modo Tela Cheia
+                        Ocultar ◀
                       </Button>
-                    </span>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-3.5 space-y-3.5">
+                      {renderPainelOpcoes()}
+                    </div>
+                  </div>
+                )}
+
+                {/* Coluna Principal: O Visualizador do Contrato (Foco Total, Altura Máxima, 100% Visível) */}
+                <div className="flex-1 h-full flex flex-col overflow-hidden bg-slate-200/80 dark:bg-slate-950/80 min-w-0">
+                  {/* Barra de Ferramentas da Visualização */}
+                  <div className="px-3 sm:px-4 py-2 border-b border-border bg-card flex items-center justify-between text-xs text-muted-foreground shrink-0 shadow-xs">
+                    <div className="flex items-center gap-2 min-w-0">
+                      {!sidebarOpen && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="hidden lg:flex h-7 text-xs gap-1.5 px-2.5 border-primary/40 text-primary hover:bg-primary/10 shrink-0 font-medium"
+                          onClick={() => setSidebarOpen(true)}
+                        >
+                          <SlidersHorizontal className="h-3.5 w-3.5" />
+                          <span>Exibir Ajustes</span>
+                        </Button>
+                      )}
+                      <span className="flex items-center gap-1.5 text-foreground font-semibold truncate text-[11px] sm:text-xs">
+                        <FileText className="h-3.5 w-3.5 text-primary shrink-0" />
+                        <span>Visualização Oficial do Contrato</span>
+                        <Badge variant="outline" className="hidden sm:inline-flex text-[10px] px-1.5 py-0 h-4 border-emerald-500/40 text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30">
+                          Padrão A4
+                        </Badge>
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs gap-1 border-border text-foreground hover:bg-muted"
+                        onClick={() => handleAbrirAssinatura("paciente")}
+                      >
+                        <PenTool className="h-3 w-3 text-primary" />
+                        <span className="hidden sm:inline">{snapshotAtual?.assinaturaPaciente ? "✓ Assinado Paciente" : "Assinar Paciente"}</span>
+                      </Button>
+
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs gap-1 border-border text-foreground hover:bg-muted"
+                        onClick={() => handleAbrirAssinatura("dentista")}
+                      >
+                        <ShieldCheck className="h-3 w-3 text-emerald-600" />
+                        <span className="hidden sm:inline">{snapshotAtual?.assinaturaDentista ? "✓ Assinado Dentista" : "Assinar Profissional"}</span>
+                      </Button>
+
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs gap-1 border-border text-foreground hover:bg-muted"
+                        onClick={() => setIsFullScreen(true)}
+                        title="Visualizar em Tela Cheia"
+                      >
+                        <Maximize2 className="h-3 w-3 text-primary" />
+                        <span className="hidden md:inline font-medium">Tela Cheia</span>
+                      </Button>
+                    </div>
                   </div>
 
+                  {/* Alerta de Edição ou Divergência se houver */}
+                  {isEmModoEdicaoOuRetificacao && (
+                    <div className="mx-3 mt-2 p-2.5 rounded-lg border text-xs shadow-xs shrink-0 bg-amber-50 border-amber-300 text-amber-900 dark:bg-amber-950/40 dark:border-amber-700 dark:text-amber-200 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="font-bold px-1.5 py-0.5 rounded bg-amber-200 dark:bg-amber-800 text-[10px] uppercase shrink-0">
+                          Prévia não salva
+                        </span>
+                        <span className="truncate text-[11px]">Você está visualizando valores recalculados em memória.</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-6 text-[11px] border-amber-400 text-amber-900 px-2"
+                          onClick={handleDescartarEdicao}
+                        >
+                          Descartar
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="h-6 text-[11px] font-semibold bg-emerald-600 hover:bg-emerald-700 text-white px-2"
+                          onClick={handleEmitirContrato}
+                          disabled={salvando}
+                        >
+                          {salvando ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3 mr-1" />}
+                          Salvar
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {validacaoIntegridade?.divergenciaFinanceira && (
+                    <div className="mx-3 mt-2 p-2.5 rounded-lg border text-xs shadow-xs shrink-0 bg-amber-50 border-amber-300 text-amber-950 dark:bg-amber-950/40 dark:border-amber-800 dark:text-amber-200">
+                      <div className="font-bold flex items-center gap-1.5 uppercase tracking-wide text-[11px] mb-1 text-amber-800 dark:text-amber-300">
+                        {hasAssinaturaPaciente ? "⚠️ Alerta de Integridade Histórica (Contrato Assinado)" : "🚨 Divergência Financeira Detectada"}
+                      </div>
+                      <p className="leading-relaxed text-[11px]">
+                        {hasAssinaturaPaciente
+                          ? "Este contrato foi formalizado anteriormente e mantém sua integridade documental histórica inalterada. Foi constatada divergência entre o orçamento e os valores formalizados."
+                          : `O contrato gerado apresenta inconsistência financeira com o orçamento aprovado: ${validacaoIntegridade.erros.join("; ")}.`}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* O Iframe do Contrato em Destaque Absoluto */ }
                   <div
-                    className="p-1 sm:p-4 bg-slate-200/70 dark:bg-slate-950/80 flex flex-col items-center justify-start overflow-auto w-full transition-all min-h-[380px] h-[58vh] sm:h-[68vh] flex-1"
+                    className="flex-1 w-full h-full p-2 sm:p-4 md:p-6 flex items-center justify-center overflow-auto"
+                    style={{ WebkitOverflowScrolling: "touch" }}
                   >
-                    {isEmModoEdicaoOuRetificacao && (
-                      <div className="w-full max-w-[840px] mb-3 p-3 rounded-lg border text-xs shadow-sm shrink-0 bg-amber-50 border-amber-300 text-amber-900 dark:bg-amber-950/40 dark:border-amber-700 dark:text-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold px-2 py-0.5 rounded bg-amber-200 dark:bg-amber-800 text-amber-900 dark:text-amber-100 uppercase text-[10px] shrink-0">
-                            Prévia não salva
-                          </span>
-                          <span className="leading-snug">
-                            Você está visualizando os valores recalculados em memória. Salve as alterações para oficializar a retificação no sistema.
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className="h-7 text-xs border-amber-400 dark:border-amber-700 text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/50"
-                            onClick={handleDescartarEdicao}
-                          >
-                            Descartar
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            className="h-7 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 shadow-xs"
-                            onClick={handleEmitirContrato}
-                            disabled={salvando}
-                          >
-                            {salvando ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
-                            Salvar Alterações
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                    {validacaoIntegridade?.divergenciaFinanceira && (
-                      <div className="w-full max-w-[840px] mb-3 p-3.5 rounded-lg border text-xs shadow-md shrink-0 bg-amber-50 border-amber-300 text-amber-950 dark:bg-amber-950/40 dark:border-amber-800 dark:text-amber-200">
-                        <div className="font-bold flex items-center gap-1.5 uppercase tracking-wide text-[11px] mb-1 text-amber-800 dark:text-amber-300">
-                          {hasAssinaturaPaciente ? '⚠️ Alerta de Integridade Histórica (Contrato Assinado)' : '🚨 Divergência Financeira Detectada'}
-                        </div>
-                        <p className="leading-relaxed">
-                          {hasAssinaturaPaciente
-                            ? 'Este contrato foi formalizado anteriormente e mantém sua integridade documental histórica inalterada. Foi constatada divergência entre o orçamento e os valores formalizados. Para conformidade regulatória, contratos assinados não são alterados silenciosamente no sistema. Recomendada revisão administrativa para emissão de eventual Termo Aditivo ou Retificação Formal.'
-                            : `O contrato gerado apresenta inconsistência financeira com o orçamento aprovado: ${validacaoIntegridade.erros.join('; ')}. A emissão e assinatura deste novo contrato estão bloqueadas até a correção dos valores.`
-                          }
-                        </p>
-                      </div>
-                    )}
                     <iframe
                       srcDoc={htmlPreview}
                       title="Contrato Oficial A4"
-                      className="w-full h-full max-w-[840px] rounded border border-border bg-white shadow-xl min-h-[360px]"
+                      className="w-full h-full max-w-[880px] rounded-lg border border-slate-300 dark:border-slate-800 bg-white shadow-2xl transition-all"
+                      style={{ minHeight: "100%", height: "100%" }}
                     />
                   </div>
                 </div>
               </div>
             )}
-
             {/* ABA 2: EDITAR CAMPOS MANUALMENTE */}
             {activeTab === 'editar' && (
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-muted/20 space-y-4">
               <div className="space-y-4">
                 {/* Banner Informativo de Edição Manual */}
                 <div className="p-3.5 bg-card rounded-lg border border-border shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
