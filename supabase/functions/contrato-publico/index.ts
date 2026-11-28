@@ -482,6 +482,11 @@ async function extrairTokenArmazenadoValido(
     return { valido: true, tokenArmazenado: tokenDireto };
   }
 
+  // 1.1 Se o contrato ainda NÃO está assinado pelo paciente, aceita token histórico revogado da mesma proposta pendente
+  if (!isAssinado && (tokensRevogados.includes(token) || tokensHistoricosRevogados.includes(token))) {
+    return { valido: true, tokenArmazenado: tokenDireto };
+  }
+
   // 2. Resolução estrita de documentos irmãos vinculados à mesma emissão e versão contratual
   const cid = (doc.identificador || doc.itens?.contratoId || "").trim().toUpperCase();
   const pacienteId = doc.paciente_id || doc.itens?.pacienteId;
@@ -613,7 +618,15 @@ function pontuarRegistroCanonico(doc: any, tokenInformado?: string): number {
 
   // GARANTIA 1: Se token foi informado e o documento possui token divergente, DESQUALIFICA IMEDIATAMENTE
   if (tokenInformado && tDoc && tDoc !== tokenInformado.trim()) {
-    return -10000;
+    const isAssinadoPac = Boolean(doc.assinado_em || snap.assinaturaPaciente?.assinaturaData);
+    const rev = Array.isArray(snap.tokensRevogados) ? snap.tokensRevogados : [];
+    const versoes = Array.isArray(snap.versoesAnteriores) ? snap.versoesAnteriores : [];
+    const hist = versoes.map((v: any) => v?.token).filter(Boolean);
+    const isTokenHistoricoValido = !isAssinadoPac && (rev.includes(tokenInformado.trim()) || hist.includes(tokenInformado.trim()));
+
+    if (!isTokenHistoricoValido) {
+      return -10000;
+    }
   }
 
   const isAssinadoPac = Boolean(doc.assinado_em || snap.assinaturaPaciente?.assinaturaData);
@@ -713,18 +726,36 @@ function selecionarCandidatoCanonico(
       };
     }
 
-    // Se há token registrado e não coincide rigorosamente com o informado, BLOQUEIA IMEDIATAMENTE
+    // Se há token registrado e não coincide rigorosamente com o informado, checa se é token histórico de proposta pendente
     if (tokensDistintos.size === 1) {
       const tokenLegitimo = Array.from(tokensDistintos)[0];
       if (cleanToken !== tokenLegitimo) {
-        return { doc: null, ambiguidade: false, erro: "Token de acesso inválido ou expirado" };
+        const aceitaHistorico = elegiveis.some((c: any) => {
+          const isAss = Boolean(c.assinado_em || c.itens?.assinaturaPaciente?.assinaturaData);
+          if (isAss) return false;
+          const rev = Array.isArray(c.itens?.tokensRevogados) ? c.itens.tokensRevogados : [];
+          const versoes = Array.isArray(c.itens?.versoesAnteriores) ? c.itens.versoesAnteriores : [];
+          const hist = versoes.map((v: any) => v?.token).filter(Boolean);
+          return rev.includes(cleanToken) || hist.includes(cleanToken);
+        });
+        if (!aceitaHistorico) {
+          return { doc: null, ambiguidade: false, erro: "Token de acesso inválido ou expirado" };
+        }
       }
     }
 
-    // Filtra exclusivamente candidatos que possuem o token correto
+    // Filtra candidatos que possuem o token direto ou token histórico válido
     const candidatosComTokenCorreto = elegiveis.filter((c: any) => {
       const t = (c.itens?.token || c.itens?.contratoToken || c.itens?.tokenAssinatura || "").trim();
-      return t === cleanToken;
+      if (t === cleanToken) return true;
+      const isAss = Boolean(c.assinado_em || c.itens?.assinaturaPaciente?.assinaturaData);
+      if (!isAss) {
+        const rev = Array.isArray(c.itens?.tokensRevogados) ? c.itens.tokensRevogados : [];
+        const versoes = Array.isArray(c.itens?.versoesAnteriores) ? c.itens.versoesAnteriores : [];
+        const hist = versoes.map((v: any) => v?.token).filter(Boolean);
+        return rev.includes(cleanToken) || hist.includes(cleanToken);
+      }
+      return false;
     });
 
     if (candidatosComTokenCorreto.length > 0) {
@@ -1736,6 +1767,15 @@ Deno.serve(async (req) => {
       }
 
       if (existingDoc) {
+        // Se já está exatamente no mesmo token e versão, evita update redundante que dispararia trigger
+        if (
+          existingDoc.itens?.token &&
+          existingDoc.itens?.token === snap.token &&
+          String(existingDoc.itens?.versao || '1.0') === String(snap.versao || '1.0')
+        ) {
+          return json({ ok: true, id: existingDoc.id, identificador, token, action: "already_current" });
+        }
+
         // Preserva token original legítimo caso o novo snapshot não contenha
         if (!snap.token && existingDoc.itens?.token) {
           snap.token = existingDoc.itens.token;

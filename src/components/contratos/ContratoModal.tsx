@@ -83,6 +83,7 @@ import {
   ContratoParcela,
   ContratoClausulaPersonalizada,
   gerarLinkAssinaturaContrato,
+  construirUrlPublicaContrato,
   emitirContratoPersistido,
   isContratoLenteResina,
   isContratoEndodontia,
@@ -1284,7 +1285,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
         ];
       }
 
-      // Proteção 3: Versionamento estrito e rotação segura de token em caso de retificação de contrato pendente
+      // Proteção 3: Versionamento estrito e rotação atômica de token em caso de retificação de contrato pendente
       let idParaGravar: string | undefined = undefined;
       let snapshotParaSalvar = {
         ...snapshotAtual,
@@ -1295,13 +1296,41 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
         },
       };
 
-      if ((finalTargetDocId || docExistente) && docExistente && isPendenteNaoAssinado) {
-        const snapExistente = (docExistente.itens || {}) as any;
-        // Preserva o token de acesso existente para que o link público permaneça 100% estável e funcional para o paciente
-        const tokenEstavel = snapExistente.token || snapshotAtual.token || contratoVisualizacao?.itens?.token || initialOrcamento?.contratoToken || (initialOrcamento as any)?.contrato_token || gerarTokenAcesso();
+      // Recupera o registro mais atualizado diretamente do banco para evitar violação de concorrência com a trigger Postgres
+      const targetIdDb = finalTargetDocId || docExistente?.id || contratoVisualizacao?.id || contratoExistenteOrcamento?.id || null;
+      let docFreshest: any = docExistente;
 
+      if (targetIdDb && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetIdDb)) {
+        try {
+          const { data: dbData } = await supabase
+            .from('documentos_clinicos')
+            .select('*')
+            .eq('id', targetIdDb)
+            .maybeSingle();
+          if (dbData) {
+            docFreshest = dbData;
+          }
+        } catch (_) {}
+      }
+
+      const snapExistente = (docFreshest?.itens || {}) as any;
+      const temPreassinaturaDra = Boolean(
+        docFreshest &&
+        snapExistente &&
+        snapExistente.assinaturaDentista &&
+        typeof snapExistente.assinaturaDentista === 'object'
+      );
+      const isPendenteNaoAssinado = Boolean(
+        docFreshest &&
+        !docFreshest.assinado_em &&
+        !docFreshest.assinatura_data &&
+        !snapExistente.assinaturaPaciente &&
+        snapExistente.status !== 'formalizado' &&
+        snapExistente.status !== 'assinado'
+      );
+
+      if (docFreshest && isPendenteNaoAssinado && temPreassinaturaDra) {
         // Validação da assinatura profissional para a versão atualizada:
-        // Se já assinada ou com autorização expressa da Dra. Rosângela, preserva a assinatura oficial
         let assinaturaDentistaFinal = snapshotParaSalvar.assinaturaDentista || snapExistente.assinaturaDentista;
         const isAutorizacaoValida = Boolean(
           autorizacaoAtiva &&
@@ -1324,35 +1353,64 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
           };
         }
 
+        const historicoAnterior = Array.isArray(snapExistente.versoesAnteriores)
+          ? snapExistente.versoesAnteriores
+          : [];
+        const tokensRevogadosAnterior = Array.isArray(snapExistente.tokensRevogados)
+          ? snapExistente.tokensRevogados
+          : [];
+
+        // Versão anterior numérica no formato estrito aceito pela trigger (regex ^[0-9]+(\.[0-9]+)?$)
+        const versaoAnteriorRaw = snapExistente.versao ? String(snapExistente.versao).trim() : '1.0';
+        const versaoAnteriorNum = Number(versaoAnteriorRaw) || 1;
+        const novaVersaoNum = Math.floor(versaoAnteriorNum) + 1;
+        const novaVersaoStr = `${novaVersaoNum}.0`;
+
+        // Rotação estrita de token exigida pela trigger Postgres de auditoria
+        const tokenAntigo = String(snapExistente.token || snapshotAtual.token || '').trim();
+        const novoToken = gerarTokenAcesso();
+        const tokensRevogadosAtualizados = Array.from(
+          new Set([...tokensRevogadosAnterior, tokenAntigo].filter(Boolean))
+        );
+
+        const novaVersaoArquivada = {
+          versao: versaoAnteriorRaw,
+          substituidoEm: new Date().toISOString(),
+          motivo: 'Retificação e atualização dos termos contratuais',
+          token: tokenAntigo,
+          financeiro: snapExistente.financeiro || snapshotAtual.financeiro,
+          orcamento: snapExistente.orcamento || snapshotAtual.orcamento,
+          assinaturaDentista: snapExistente.assinaturaDentista || snapshotAtual.assinaturaDentista,
+          conteudoHtml: docFreshest.conteudo || null,
+        };
+
+        const novoHistorico = [...historicoAnterior, novaVersaoArquivada];
+
         snapshotParaSalvar = {
           ...snapshotParaSalvar,
-          versao: snapExistente.versao || snapshotParaSalvar.versao || '1.0',
-          contratoAnteriorId: snapExistente.contratoAnteriorId && snapExistente.contratoAnteriorId !== docExistente.id
+          versao: novaVersaoStr,
+          contratoAnteriorId: snapExistente.contratoAnteriorId && snapExistente.contratoAnteriorId !== docFreshest.id
             ? snapExistente.contratoAnteriorId
             : null,
-          contratoId: docExistente.identificador || snapExistente.contratoId || snapshotAtual.contratoId,
-          orcamentoId: docExistente.orcamento_id || snapExistente.orcamentoId || orcamentoAtual?.id || '',
-          token: tokenEstavel,
-          tokenValidoAte: snapExistente.tokenValidoAte || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          contratoId: docFreshest.identificador || snapExistente.contratoId || snapshotAtual.contratoId,
+          orcamentoId: docFreshest.orcamento_id || snapExistente.orcamentoId || orcamentoAtual?.id || '',
+          token: novoToken,
+          tokenValidoAte: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          tokensRevogados: tokensRevogadosAtualizados,
+          versoesAnteriores: novoHistorico,
           assinaturaDentista: assinaturaDentistaFinal,
           statusAssinaturaDentista: assinaturaDentistaFinal ? 'assinado' : 'pendente',
           status: assinaturaDentistaFinal ? 'aguardando_assinatura_paciente' : 'pendente',
         } as any;
 
         // Atualização estrita in-place no mesmo registro (preserva UUID sem duplicatas)
-        idParaGravar = docExistente.id;
+        idParaGravar = docFreshest.id;
       } else {
-        idParaGravar = finalTargetDocId || documentoIdSendoEditado || contratoVisualizacao?.id || contratoExistenteOrcamento?.id || undefined;
+        idParaGravar = targetIdDb || undefined;
       }
 
       if (!snapshotParaSalvar.token) {
-        snapshotParaSalvar.token =
-          contratoVisualizacao?.itens?.token ||
-          contratoExistenteOrcamento?.itens?.token ||
-          initialOrcamento?.contratoToken ||
-          (initialOrcamento as any)?.contrato_token ||
-          snapshotAtual.token ||
-          gerarTokenAcesso();
+        snapshotParaSalvar.token = gerarTokenAcesso();
       }
       if (!snapshotParaSalvar.contratoId) {
         snapshotParaSalvar.contratoId =
@@ -1361,8 +1419,21 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
           snapshotAtual.contratoId ||
           gerarIdentificadorContrato();
       }
+      if (!snapshotParaSalvar.versao) {
+        snapshotParaSalvar.versao = '1.0';
+      }
+      if (!snapshotParaSalvar.versoesAnteriores) {
+        snapshotParaSalvar.versoesAnteriores = [];
+      }
+      if (!snapshotParaSalvar.tokensRevogados) {
+        snapshotParaSalvar.tokensRevogados = [];
+      }
+
       snapshotAtual.token = snapshotParaSalvar.token;
       snapshotAtual.contratoId = snapshotParaSalvar.contratoId;
+      snapshotAtual.versao = snapshotParaSalvar.versao;
+      snapshotAtual.tokensRevogados = snapshotParaSalvar.tokensRevogados;
+      snapshotAtual.versoesAnteriores = snapshotParaSalvar.versoesAnteriores;
 
       // Validação impeditiva obrigatória: bloqueia emissão de novo contrato com divergência financeira
       const validacaoIntegridadeEmissao = validarIntegridadeOrcamentoContrato(orcamentoAtual, snapshotParaSalvar);
@@ -1386,9 +1457,9 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
         conteudo: htmlFinal,
         itens: snapshotParaSalvar as any,
         dentista: snapshotParaSalvar?.clinica?.dentistaResponsavel || selectedDentistaNome || null,
-        assinadoEm: snapshotParaSalvar.assinaturaPaciente ? new Date() : null,
-        assinanteNome: snapshotParaSalvar.assinaturaPaciente?.nome || null,
-        assinaturaData: snapshotParaSalvar.assinaturaPaciente?.assinaturaData || null,
+        assinadoEm: null,
+        assinanteNome: null,
+        assinaturaData: null,
       });
 
       if (docCriado) {
@@ -1402,11 +1473,6 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
             }).eq('id', orcamentoAtual.id);
           } catch (_) {}
         }
-
-        // Persiste também via Edge Function emitirContratoPersistido para sincronizar service_role backend
-        try {
-          await emitirContratoPersistido(snapshotParaSalvar, docCriado.id);
-        } catch (_) {}
 
         try {
           const snapJson = JSON.stringify(snapshotParaSalvar);
@@ -1426,10 +1492,10 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
 
         toast.success(
           isPendenteNaoAssinado
-            ? 'Contrato salvo e atualizado com sucesso!'
+            ? 'Contrato retificado e salvo com sucesso!'
             : 'Contrato emitido e gravado com sucesso!',
           {
-            description: `Identificador: ${snapshotParaSalvar.contratoId}`,
+            description: `Identificador: ${snapshotParaSalvar.contratoId} • Versão ${snapshotParaSalvar.versao}`,
           }
         );
       }
@@ -1575,7 +1641,7 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     }
   };
 
-  // Copia link de assinatura pública (garantindo que o contrato esteja registrado no banco)
+  // Copia link de assinatura pública do contrato vigente
   const handleCopiarLinkAssinatura = async () => {
     if (!snapshotAtual) return;
     if (isEmModoEdicaoOuRetificacao) {
@@ -1584,37 +1650,27 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
       });
       return;
     }
-    const docId = contratoVisualizacao?.id || documentoIdSendoEditado || contratoExistenteOrcamento?.id;
+    setCopiandoLink(true);
 
-    // Garante que o snapshot possua identificador e token válidos antes de emitir
-    if (!snapshotAtual.contratoId) {
-      snapshotAtual.contratoId = docId && !docId.includes('-') ? docId : gerarIdentificadorContrato();
-    }
-    if (!snapshotAtual.token) {
-      snapshotAtual.token = gerarTokenAcesso();
-    }
-    if (!snapshotAtual.tokenValidoAte) {
-      snapshotAtual.tokenValidoAte = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-    }
+    const pacienteNome = snapshotAtual.pacienteNome || patient?.nome || 'Paciente';
+    const identificador = snapshotAtual.contratoId || gerarIdentificadorContrato();
+    const token = snapshotAtual.token || gerarTokenAcesso();
 
-    const emissaoRes = await emitirContratoPersistido(snapshotAtual, docId || undefined);
-    if (emissaoRes.id) {
-      setContratoVisualizacao((prev: any) => ({
-        ...(prev || {}),
-        id: emissaoRes.id,
-        identificador: emissaoRes.identificador,
-        itens: emissaoRes.snapshot,
-      }));
-      setDocumentoIdSendoEditado(null);
-      setIsManuallyEdited(false);
-    }
-    const link = emissaoRes.link;
+    const link = construirUrlPublicaContrato({
+      pacienteNome,
+      identificador,
+      token,
+    });
+
     navigator.clipboard.writeText(link);
     setCopiouLink(true);
     toast.success('Link seguro de assinatura copiado!', {
       description: 'Envie o link para o paciente assinar pelo celular.',
     });
-    setTimeout(() => setCopiouLink(false), 2500);
+    setTimeout(() => {
+      setCopiouLink(false);
+      setCopiandoLink(false);
+    }, 2500);
   };
 
   // Abre a tela pública de assinatura em nova aba
@@ -1634,31 +1690,16 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
       });
       return;
     }
-    const docId = contratoVisualizacao?.id || documentoIdSendoEditado || contratoExistenteOrcamento?.id;
 
-    // Garante que o snapshot possua identificador e token válidos antes de emitir
-    if (!snapshotAtual.contratoId) {
-      snapshotAtual.contratoId = docId && !docId.includes('-') ? docId : gerarIdentificadorContrato();
-    }
-    if (!snapshotAtual.token) {
-      snapshotAtual.token = gerarTokenAcesso();
-    }
-    if (!snapshotAtual.tokenValidoAte) {
-      snapshotAtual.tokenValidoAte = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-    }
+    const pacienteNome = snapshotAtual.pacienteNome || patient?.nome || 'Paciente';
+    const identificador = snapshotAtual.contratoId || gerarIdentificadorContrato();
+    const token = snapshotAtual.token || gerarTokenAcesso();
 
-    const emissaoRes = await emitirContratoPersistido(snapshotAtual, docId || undefined);
-    if (emissaoRes.id) {
-      setContratoVisualizacao((prev: any) => ({
-        ...(prev || {}),
-        id: emissaoRes.id,
-        identificador: emissaoRes.identificador,
-        itens: emissaoRes.snapshot,
-      }));
-      setDocumentoIdSendoEditado(null);
-      setIsManuallyEdited(false);
-    }
-    const link = emissaoRes.link;
+    const link = construirUrlPublicaContrato({
+      pacienteNome,
+      identificador,
+      token,
+    });
     window.open(link, '_blank');
   };
 
@@ -1681,39 +1722,19 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     }
     if (!snapshotAtual) return;
 
-    const docId = contratoVisualizacao?.id || documentoIdSendoEditado || contratoExistenteOrcamento?.id;
-
-    // Garante que o snapshot possua identificador e token válidos antes da emissão
-    if (!snapshotAtual.contratoId) {
-      snapshotAtual.contratoId = docId && !docId.includes('-')
-        ? docId
-        : (contratoVisualizacao?.itens?.contratoId || contratoExistenteOrcamento?.itens?.contratoId || gerarIdentificadorContrato());
-    }
-    if (!snapshotAtual.token) {
-      snapshotAtual.token =
-        contratoVisualizacao?.itens?.token ||
-        contratoExistenteOrcamento?.itens?.token ||
-        gerarTokenAcesso();
-    }
-    if (!snapshotAtual.tokenValidoAte) {
-      snapshotAtual.tokenValidoAte = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-    }
-
     const clinicaPix = snapshotAtual?.clinica?.chavePix || configContrato?.chavePix || configuracoes?.telefone || configuracoes?.cnpj || '';
     const favorecidoPix = snapshotAtual?.clinica?.favorecidoPix || configContrato?.favorecidoPix || snapshotAtual?.clinica?.nome || configuracoes?.nomeClinica || 'Dra. Rosangela Santos';
     const bancoPix = snapshotAtual?.clinica?.bancoPix || configContrato?.bancoPix || '';
-    const emissaoResWhats = await emitirContratoPersistido(snapshotAtual, docId || undefined);
-    if (emissaoResWhats.id) {
-      setContratoVisualizacao((prev: any) => ({
-        ...(prev || {}),
-        id: emissaoResWhats.id,
-        identificador: emissaoResWhats.identificador,
-        itens: emissaoResWhats.snapshot,
-      }));
-      setDocumentoIdSendoEditado(null);
-      setIsManuallyEdited(false);
-    }
-    const linkAssinatura = emissaoResWhats.link;
+
+    const pacienteNome = snapshotAtual.pacienteNome || patient?.nome || 'Paciente';
+    const identificador = snapshotAtual.contratoId || gerarIdentificadorContrato();
+    const token = snapshotAtual.token || gerarTokenAcesso();
+
+    const linkAssinatura = construirUrlPublicaContrato({
+      pacienteNome,
+      identificador,
+      token,
+    });
 
     // Baixa o PDF no computador para facilitar anexar caso a recepcionista deseje arrastar na conversa
     handleDownloadPdf();

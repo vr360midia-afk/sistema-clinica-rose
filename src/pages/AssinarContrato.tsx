@@ -448,6 +448,14 @@ export default function AssinarContrato() {
               if (edgeData.signedPdfUrl) {
                 setSignedPdfUrl(edgeData.signedPdfUrl);
               }
+              // Se o token foi rotacionado por retificação em contrato pendente, atualiza a URL
+              if (edgeData.snapshot.token && token && edgeData.snapshot.token !== token) {
+                try {
+                  const urlObj = new URL(window.location.href);
+                  urlObj.searchParams.set('token', edgeData.snapshot.token);
+                  window.history.replaceState({}, document.title, urlObj.pathname + (urlObj.search ? urlObj.search : ''));
+                } catch (_) {}
+              }
             } else if (edgeData?.error && edgeErr?.status === 403) {
               setErroSeguranca(edgeData.error || 'Token de acesso inválido ou expirado.');
               setLoading(false);
@@ -541,9 +549,13 @@ export default function AssinarContrato() {
             let doc = (token ? docs?.find((d: any) => {
               const s = (d.itens || {}) as any;
               const t = token.trim();
+              const rev = Array.isArray(s.tokensRevogados) ? s.tokensRevogados : [];
+              const versoes = Array.isArray(s.versoesAnteriores) ? s.versoesAnteriores : [];
+              const hist = versoes.map((v: any) => v?.token).filter(Boolean);
               return (s.token && s.token.trim() === t) ||
                      (s.contratoToken && s.contratoToken.trim() === t) ||
-                     (s.tokenAssinatura && s.tokenAssinatura.trim() === t);
+                     (s.tokenAssinatura && s.tokenAssinatura.trim() === t) ||
+                     (!d.assinado_em && (rev.includes(t) || hist.includes(t)));
             }) : null) || docs?.[0];
 
             // Se ainda não encontrou e temos o slug do paciente, busca pelo nome do paciente
@@ -569,11 +581,26 @@ export default function AssinarContrato() {
               const snap = (doc.itens || {}) as unknown as ContratoSnapshot;
               const tokenGravado = (snap as any)?.token;
 
-              // Validação estrita do token: se houver token registrado e token fornecido
-              if (tokenGravado && token && tokenGravado !== token) {
+              // Validação estrita do token com suporte a histórico de proposta pendente
+              const revogados = Array.isArray((snap as any)?.tokensRevogados) ? (snap as any).tokensRevogados : [];
+              const versoes = Array.isArray((snap as any)?.versoesAnteriores) ? (snap as any).versoesAnteriores : [];
+              const historico = versoes.map((v: any) => v?.token).filter(Boolean);
+              const isAssinadoDoc = Boolean(doc.assinado_em || (snap as any)?.assinaturaPaciente?.assinaturaData);
+              const tokenHistoricoValido = !isAssinadoDoc && (revogados.includes(token) || historico.includes(token));
+
+              if (tokenGravado && token && tokenGravado !== token && !tokenHistoricoValido) {
                 setErroSeguranca('Token de acesso inválido ou revogado. Este contrato não pode ser visualizado sem a credencial correta.');
                 setLoading(false);
                 return;
+              }
+
+              // Se o token fornecido é histórico de contrato pendente, atualiza a URL para o token vigente
+              if (tokenGravado && token && tokenGravado !== token && tokenHistoricoValido) {
+                try {
+                  const urlObj = new URL(window.location.href);
+                  urlObj.searchParams.set('token', tokenGravado);
+                  window.history.replaceState({}, document.title, urlObj.pathname + (urlObj.search ? urlObj.search : ''));
+                } catch (_) {}
               }
 
               // Validação de expiração se informada
