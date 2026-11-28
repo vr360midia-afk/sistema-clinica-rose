@@ -853,14 +853,20 @@ export default function AssinarContrato() {
               }
             }
 
-            // 2. Se não achou no cache local, tenta carregar do Supabase
-            if (!pDb && targetPacId) {
+            // 2. Se não achou no cache local, tenta carregar do Supabase (com proteção de UUID)
+            const isPacUuid = Boolean(targetPacId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(targetPacId)));
+            if (!pDb && isPacUuid) {
               const res = await supabase.from('pacientes').select('*').eq('id', targetPacId).maybeSingle();
               if (res.data) pDb = res.data;
             }
             if (!pDb && targetPacNome) {
-              const res = await supabase.from('pacientes').select('*').ilike('nome', targetPacNome).maybeSingle();
+              const nomeLimpo = targetPacNome.trim();
+              const res = await supabase.from('pacientes').select('*').ilike('nome', nomeLimpo).maybeSingle();
               if (res.data) pDb = res.data;
+              if (!pDb) {
+                const resLike = await supabase.from('pacientes').select('*').ilike('nome', `%${nomeLimpo}%`).limit(1).maybeSingle();
+                if (resLike.data) pDb = resLike.data;
+              }
             }
 
             if (pDb) {

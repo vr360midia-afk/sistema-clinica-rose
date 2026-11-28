@@ -1288,6 +1288,14 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
 
       // Proteção 3: Versionamento estrito e rotação atômica de token em caso de retificação de contrato pendente
       let idParaGravar: string | undefined = undefined;
+
+      // Hidratação cadastral prioritária do paciente a partir do cadastro do sistema
+      const pacienteMaisAtualizado =
+        (patient?.id && pacientes?.find((p) => p.id === patient.id)) ||
+        (patient?.nome && pacientes?.find((p) => p.nome && p.nome.trim().toLowerCase() === patient.nome.trim().toLowerCase())) ||
+        (snapshotAtual?.paciente?.nome && pacientes?.find((p) => p.nome && p.nome.trim().toLowerCase() === snapshotAtual.paciente.nome.trim().toLowerCase())) ||
+        patient;
+
       let snapshotParaSalvar = {
         ...snapshotAtual,
         financeiro: {
@@ -1296,6 +1304,24 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
           parcelas: snapshotAtual.financeiro?.parcelas || [],
         },
       };
+
+      if (pacienteMaisAtualizado) {
+        const endCompleto = formatarEnderecoCompleto(pacienteMaisAtualizado) || (temValorValido(pacienteMaisAtualizado.endereco) ? pacienteMaisAtualizado.endereco : '');
+        snapshotParaSalvar.paciente = {
+          ...(snapshotParaSalvar.paciente || {}),
+          id: pacienteMaisAtualizado.id || snapshotParaSalvar.paciente?.id || patient?.id,
+          nome: pacienteMaisAtualizado.nome || snapshotParaSalvar.paciente?.nome || patient?.nome || 'Paciente',
+          cpf: temValorValido(pacienteMaisAtualizado.cpf) ? formatarDocumento(pacienteMaisAtualizado.cpf) : (temValorValido(snapshotParaSalvar.paciente?.cpf) ? snapshotParaSalvar.paciente.cpf : 'Não informado'),
+          rg: temValorValido(pacienteMaisAtualizado.rg) ? pacienteMaisAtualizado.rg : (snapshotParaSalvar.paciente?.rg || ''),
+          telefone: temValorValido(pacienteMaisAtualizado.telefone) ? formatarTelefone(pacienteMaisAtualizado.telefone) : (temValorValido(snapshotParaSalvar.paciente?.telefone) ? snapshotParaSalvar.paciente.telefone : 'Não informado'),
+          email: temValorValido(pacienteMaisAtualizado.email) ? pacienteMaisAtualizado.email : (temValorValido(snapshotParaSalvar.paciente?.email) ? snapshotParaSalvar.paciente.email : 'Não informado'),
+          endereco: endCompleto || (temValorValido(snapshotParaSalvar.paciente?.endereco) ? snapshotParaSalvar.paciente.endereco : 'Não informado'),
+          dataNascimento: temValorValido(snapshotParaSalvar.paciente?.dataNascimento) ? snapshotParaSalvar.paciente.dataNascimento : (pacienteMaisAtualizado.data_nascimento || null),
+          profissao: temValorValido(snapshotParaSalvar.paciente?.profissao) ? snapshotParaSalvar.paciente.profissao : (pacienteMaisAtualizado.profissao || null),
+          estadoCivil: temValorValido(snapshotParaSalvar.paciente?.estadoCivil) ? snapshotParaSalvar.paciente.estadoCivil : (pacienteMaisAtualizado.estado_civil || null),
+        };
+        snapshotAtual.paciente = snapshotParaSalvar.paciente;
+      }
 
       // Recupera o registro mais atualizado diretamente do banco para evitar violação de concorrência com a trigger Postgres
       const targetIdDb = finalTargetDocId || docExistente?.id || contratoVisualizacao?.id || contratoExistenteOrcamento?.id || null;

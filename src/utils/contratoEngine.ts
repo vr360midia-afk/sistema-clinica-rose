@@ -4473,13 +4473,19 @@ export async function emitirContratoPersistido(
     if ((targetPacId || targetPacNome) && (!temValorValido(snapshotFinal.paciente?.cpf) || !temValorValido(snapshotFinal.paciente?.endereco) || !temValorValido(snapshotFinal.paciente?.telefone) || !temValorValido(snapshotFinal.paciente?.email))) {
       try {
         let pDb: any = null;
-        if (targetPacId) {
+        const isPacUuid = Boolean(targetPacId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(targetPacId)));
+        if (isPacUuid) {
           const res = await supabase.from('pacientes').select('*').eq('id', targetPacId).maybeSingle();
           pDb = res.data;
         }
         if (!pDb && targetPacNome) {
-          const res = await supabase.from('pacientes').select('*').ilike('nome', targetPacNome).maybeSingle();
+          const nomeLimpo = targetPacNome.trim();
+          const res = await supabase.from('pacientes').select('*').ilike('nome', nomeLimpo).maybeSingle();
           pDb = res.data;
+          if (!pDb) {
+            const resLike = await supabase.from('pacientes').select('*').ilike('nome', `%${nomeLimpo}%`).limit(1).maybeSingle();
+            pDb = resLike.data;
+          }
         }
 
         if (pDb) {
