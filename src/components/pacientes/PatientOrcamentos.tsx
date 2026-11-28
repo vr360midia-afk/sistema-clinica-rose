@@ -31,7 +31,8 @@ import {
   enviarNovaPropostaOrcamento,
 } from '@/utils/orcamentoEngine';
 import { useDentalSystem } from '@/context/DentalSystemContext';
-import { isContratoLenteResina, isContratoEndodontia, mapearDadosContrato, gerarLinkAssinaturaContrato, parseBrMoney, garantirContratoPersistido, emitirContratoPersistido, gerarHtmlContrato, validarDadosContratada, validarCronogramaFinanceiroContrato } from '@/utils/contratoEngine';
+import { isContratoLenteResina, isContratoEndodontia, mapearDadosContrato, gerarLinkAssinaturaContrato, construirUrlPublicaContrato, parseBrMoney, garantirContratoPersistido, emitirContratoPersistido, gerarHtmlContrato, validarDadosContratada, validarCronogramaFinanceiroContrato } from '@/utils/contratoEngine';
+import { copiarTextoParaClipboard } from '@/utils/clipboardHelper';
 import { downloadHtmlAsPdf } from '@/utils/pdfDownload';
 import { reconciliarContratosEOrcamentos } from '@/utils/reconciliacaoContratos';
 import { obterPdfContratoOficialDefinitivo } from '@/utils/contratoPdfOficial';
@@ -2298,12 +2299,16 @@ const PatientOrcamentos = ({ patient }: Props) => {
       return;
     }
 
-    const resEmissao = await emitirContratoPersistido(snap, o.id);
-    const link = resEmissao.link;
-    navigator.clipboard.writeText(link);
-    toast.success('Link de assinatura do contrato copiado com sucesso!', {
-      description: 'Envie para o paciente assinar pelo celular.',
-    });
+    // Geração instantânea do link (0ms) e persistência segura em segundo plano
+    const link = gerarLinkAssinaturaContrato(snap, o.id);
+    const copiou = await copiarTextoParaClipboard(link);
+    if (copiou) {
+      toast.success('Link de assinatura do contrato copiado com sucesso!', {
+        description: 'Envie para o paciente assinar pelo celular.',
+      });
+    } else {
+      toast.error('Não foi possível copiar o link automaticamente.');
+    }
   };
 
   const enviarWhatsApp = enviarWhatsAppOrcamento;
@@ -2609,7 +2614,11 @@ const PatientOrcamentos = ({ patient }: Props) => {
 
             const tokenContrato = o.contratoToken || contObj?.tokenAssinatura || (contObj?.itens as any)?.token;
             const linkContratoPublico = temContratoEmitido && tokenContrato
-              ? `https://app.lentesemresinamaceio.com.br/contrato/${idContratoExibicao}?token=${encodeURIComponent(tokenContrato)}`
+              ? construirUrlPublicaContrato({
+                  pacienteNome: patient.nome,
+                  identificador: idContratoExibicao,
+                  token: tokenContrato,
+                })
               : null;
 
             const dataFormalizacao = (o as any).contratoFormalizadoEm ||
@@ -3086,9 +3095,13 @@ const PatientOrcamentos = ({ patient }: Props) => {
                           size="sm"
                           variant="outline"
                           className="h-7 text-xs border-emerald-400 text-emerald-800 dark:text-emerald-200 hover:bg-emerald-100/50 gap-1"
-                          onClick={() => {
-                            navigator.clipboard.writeText(linkContratoPublico);
-                            toast.success('Link do contrato copiado para a área de transferência!');
+                          onClick={async () => {
+                            const copiou = await copiarTextoParaClipboard(linkContratoPublico);
+                            if (copiou) {
+                              toast.success('Link do contrato copiado para a área de transferência!');
+                            } else {
+                              toast.error('Não foi possível copiar o link.');
+                            }
                           }}
                         >
                           <LinkIcon className="h-3.5 w-3.5" />

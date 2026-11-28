@@ -57,6 +57,7 @@ import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import { useConfiguracoesContrato } from '@/hooks/useConfiguracoesContrato';
 import { Orcamento, OrcamentoItem } from '@/hooks/useOrcamentos';
 import { mapearDadosContrato, gerarLinkAssinaturaContrato, garantirContratoPersistido, emitirContratoPersistido } from '@/utils/contratoEngine';
+import { copiarTextoParaClipboard } from '@/utils/clipboardHelper';
 import {
   garantirOrcamentoPersistidoComToken,
   construirUrlPublicaOrcamento,
@@ -538,7 +539,7 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
       );
 
       if (res.link) {
-        navigator.clipboard.writeText(res.link);
+        await copiarTextoParaClipboard(res.link);
         setCopiouLinkOrcamento(true);
         toast.success('Link do orçamento copiado com sucesso!', {
           description: 'Envie para o paciente visualizar a proposta e aprovar online.',
@@ -647,14 +648,18 @@ export const ModalApresentarOrcamento: React.FC<ModalApresentarOrcamentoProps> =
       toast.error('Não foi possível gerar o link do contrato.');
       return;
     }
-    const resEmissao = await emitirContratoPersistido(snap, orcamento?.id);
-    const link = resEmissao.link;
-    navigator.clipboard.writeText(link);
-    setCopiouLinkContrato(true);
-    toast.success('Link de assinatura do contrato copiado com sucesso!', {
-      description: 'Envie para o paciente assinar pelo celular.',
-    });
-    setTimeout(() => setCopiouLinkContrato(false), 2500);
+    // Geração instantânea (0ms) e cópia imediata garantida no clipboard
+    const link = gerarLinkAssinaturaContrato(snap, orcamento?.id);
+    const copiou = await copiarTextoParaClipboard(link);
+    if (copiou) {
+      setCopiouLinkContrato(true);
+      toast.success('Link de assinatura do contrato copiado com sucesso!', {
+        description: 'Envie para o paciente assinar pelo celular.',
+      });
+      setTimeout(() => setCopiouLinkContrato(false), 2500);
+    } else {
+      toast.error('Não foi possível copiar o link automaticamente.');
+    }
   };
 
   // Upload e gerenciamento de fotos de planejamento vinculadas ao orçamento

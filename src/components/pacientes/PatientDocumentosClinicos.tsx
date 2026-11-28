@@ -20,6 +20,7 @@ import { toast } from 'sonner';
 import ContratoModal from '@/components/contratos/ContratoModal';
 import { slugifyNome } from '@/utils/anamneseEngine';
 import { gerarLinkAssinaturaContrato, emitirContratoPersistido } from '@/utils/contratoEngine';
+import { copiarTextoParaClipboard } from '@/utils/clipboardHelper';
 
 interface Props {
   patient: any;
@@ -382,12 +383,15 @@ const PatientDocumentosClinicos = ({ patient }: Props) => {
                           conteudoHtmlPersonalizado: doc.conteudo,
                         };
                       }
-                      const resEmissao = await emitirContratoPersistido(snap, doc.id);
-                      const link = resEmissao.link;
-                      navigator.clipboard.writeText(link);
-                      toast.success('Link de assinatura copiado com sucesso!', {
-                        description: 'Envie o link para o paciente assinar pelo celular.',
-                      });
+                      const link = gerarLinkAssinaturaContrato(snap, doc.id);
+                      const copiou = await copiarTextoParaClipboard(link);
+                      if (copiou) {
+                        toast.success('Link de assinatura copiado com sucesso!', {
+                          description: 'Envie o link para o paciente assinar pelo celular.',
+                        });
+                      } else {
+                        toast.error('Não foi possível copiar o link.');
+                      }
                     }}
                     title="Copiar link de assinatura para o paciente"
                   >

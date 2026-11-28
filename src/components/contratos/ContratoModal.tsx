@@ -65,6 +65,7 @@ import {
   calcularDescricaoCondicao,
   CondicaoPagamento,
 } from '@/utils/orcamentoCondicoes';
+import { copiarTextoParaClipboard } from '@/utils/clipboardHelper';
 
 import { useOrcamentos, Orcamento } from '@/hooks/useOrcamentos';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
@@ -1641,15 +1642,9 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
     }
   };
 
-  // Copia link de assinatura pública do contrato vigente
+  // Copia link de assinatura pública do contrato vigente (instantâneo, sem delay e com fallback universal)
   const handleCopiarLinkAssinatura = async () => {
     if (!snapshotAtual) return;
-    if (isEmModoEdicaoOuRetificacao) {
-      toast.warning('Salve as alterações do contrato antes de gerar ou copiar o link de assinatura.', {
-        description: 'O paciente só pode assinar a versão formalmente gravada no sistema.',
-      });
-      return;
-    }
     setCopiandoLink(true);
 
     const pacienteNome = snapshotAtual.pacienteNome || patient?.nome || 'Paciente';
@@ -1662,15 +1657,29 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
       token,
     });
 
-    navigator.clipboard.writeText(link);
-    setCopiouLink(true);
-    toast.success('Link seguro de assinatura copiado!', {
-      description: 'Envie o link para o paciente assinar pelo celular.',
-    });
-    setTimeout(() => {
-      setCopiouLink(false);
+    const copiou = await copiarTextoParaClipboard(link);
+    if (copiou) {
+      setCopiouLink(true);
+      toast.success('Link seguro de assinatura copiado!', {
+        description: 'Envie o link para o paciente assinar pelo celular.',
+      });
+      setTimeout(() => {
+        setCopiouLink(false);
+        setCopiandoLink(false);
+      }, 2500);
+    } else {
       setCopiandoLink(false);
-    }, 2500);
+      toast.error('Não foi possível copiar automaticamente.', {
+        description: link,
+      });
+    }
+
+    // Se houver edições manuais pendentes, salva em segundo plano sem travar a cópia
+    if (isEmModoEdicaoOuRetificacao) {
+      handleEmitirContrato().catch((err) => {
+        console.warn('[ContratoModal] Gravação em segundo plano ao copiar link:', err);
+      });
+    }
   };
 
   // Abre a tela pública de assinatura em nova aba

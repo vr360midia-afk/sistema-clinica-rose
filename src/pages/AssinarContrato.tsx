@@ -87,6 +87,7 @@ import {
 import { downloadHtmlAsPdf, generateHtmlPdfBase64 } from '@/utils/pdfDownload';
 import { openWhatsApp } from '@/lib/whatsapp';
 import { supabase } from '@/integrations/supabase/client';
+import { copiarTextoParaClipboard } from '@/utils/clipboardHelper';
 import { reconciliarContratosEOrcamentos } from '@/utils/reconciliacaoContratos';
 import {
   obterPdfContratoOficialDefinitivo,
@@ -1614,9 +1615,9 @@ export default function AssinarContrato() {
     });
   }, [snapshot, valorPixContrato]);
 
-  const handleCopiarPixCopiaECola = () => {
+  const handleCopiarPixCopiaECola = async () => {
     if (!payloadPixContrato) return;
-    navigator.clipboard.writeText(payloadPixContrato);
+    await copiarTextoParaClipboard(payloadPixContrato);
     setCopiouPayloadPix(true);
     toast.success(
       valorPixContrato > 0
@@ -1626,9 +1627,9 @@ export default function AssinarContrato() {
     setTimeout(() => setCopiouPayloadPix(false), 2500);
   };
 
-  const handleCopiarPix = () => {
+  const handleCopiarPix = async () => {
     if (!snapshot?.clinica?.chavePix) return;
-    navigator.clipboard.writeText(snapshot.clinica?.chavePix || '');
+    await copiarTextoParaClipboard(snapshot.clinica?.chavePix || '');
     setCopiouPix(true);
     toast.success('Chave PIX copiada para a área de transferência!');
     setTimeout(() => setCopiouPix(false), 2500);
@@ -2218,8 +2219,8 @@ export default function AssinarContrato() {
                               </Button>
                               <Button
                                 size="sm"
-                                onClick={() => {
-                                  navigator.clipboard.writeText(parcPayload);
+                                onClick={async () => {
+                                  await copiarTextoParaClipboard(parcPayload);
                                   toast.success(`PIX Copia e Cola da parcela ${parc.numero} (${formatMoney(parc.valor)}) copiado com sucesso!`);
                                 }}
                                 className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1 h-7 px-2 font-semibold"
@@ -3228,8 +3229,8 @@ export default function AssinarContrato() {
 
               <div className="space-y-2">
                 <Button
-                  onClick={() => {
-                    navigator.clipboard.writeText(modalPixParcela.payloadPix);
+                  onClick={async () => {
+                    await copiarTextoParaClipboard(modalPixParcela.payloadPix);
                     setCopiouModalPix(true);
                     toast.success(`Código PIX Copia e Cola (${formatMoney(modalPixParcela.valor)}) copiado com sucesso!`);
                     setTimeout(() => setCopiouModalPix(false), 2500);
