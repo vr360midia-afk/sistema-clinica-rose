@@ -563,9 +563,9 @@ export const obterCardsResumoPagamento = (snapshot?: Partial<ContratoSnapshot> |
   let partesTexto: string[] = [];
   if (formasTexto.includes('+')) {
     partesTexto = formasTexto.split('+').map((p) => p.trim()).filter(Boolean);
-    const parteEntrada = partesTexto.find((p) => /entrada|sinal/i.test(p));
+    const parteEntrada = partesTexto.find((p) => /(?<!data_?|metodo_?|situacao_?)\b(?:entrada|sinal)\b/i.test(p));
     if (parteEntrada) {
-      const entMatch = parteEntrada.match(/entrada[^\d]*?(?:r\$)?\s*([\d.,]+)/i);
+      const entMatch = parteEntrada.match(/(?<!data_?|metodo_?|situacao_?)\bentrada\b[^\d\n\r]*?(?:de|:)?\s*(?:r\$\s*)?([\d.,]+)(?!\s*[-\/]\s*\d)/i);
       if (entMatch && !entradaValor) {
         entradaValor = parseBrMoney(entMatch[1]);
       }
@@ -578,8 +578,8 @@ export const obterCardsResumoPagamento = (snapshot?: Partial<ContratoSnapshot> |
         isEntradaPaga = true;
       }
     }
-  } else if (/entrada/i.test(formasTexto)) {
-    const entMatch = formasTexto.match(/entrada[^\d]*?(?:r\$)?\s*([\d.,]+)/i);
+  } else if (/(?<!data_?|metodo_?|situacao_?)\bentrada\b/i.test(formasTexto)) {
+    const entMatch = formasTexto.match(/(?<!data_?|metodo_?|situacao_?)\bentrada\b[^\d\n\r]*?(?:de|:)?\s*(?:r\$\s*)?([\d.,]+)(?!\s*[-\/]\s*\d)/i);
     if (entMatch && !entradaValor) {
       entradaValor = parseBrMoney(entMatch[1]);
     }
@@ -1811,33 +1811,41 @@ export function validarIntegridadeOrcamentoContrato(
     erros.push('O cronograma financeiro não possui parcelas cadastradas.');
   } else {
     const somaParcelas = parcelas.reduce((acc, p) => acc + (Number(p.valor) || 0), 0);
-    let entradaValor = Number(fin.entrada ?? (fin as any).valorEntrada ?? 0);
+    const temParcelaEntrada = parcelas.some((p) => /(?<!data_?|metodo_?|situacao_?)\b(?:entrada|sinal)\b/i.test(p?.descricao || ''));
+    const isAVistaVal = /à vista|a vista|pagamento único/i.test(fin.formaPagamento || orcamento?.formasPagamento || '') ||
+      (!temParcelaEntrada && Math.abs(somaParcelas - totalContrato) <= 0.05);
 
-    // Defensivo: se entradaValor for 0, tenta extrair da formaPagamento ou condicoes
-    if (entradaValor === 0 && (fin.formaPagamento || (fin as any).condicoes)) {
-      const txt = `${fin.formaPagamento || ''} ${(fin as any).condicoes || ''}`;
-      const matchEnt = txt.match(/entrada[^\d\n\r]*?(?:de|:)?\s*(?:r\$)?\s*([\d.,]+)/i);
+    let entradaValor = isAVistaVal ? 0 : Number(fin.entrada ?? (fin as any).valorEntrada ?? 0);
+    const regexEntradaSegura = /(?<!data_?|metodo_?|situacao_?)\bentrada\b[^\d\n\r]*?(?:de|:)?\s*(?:r\$\s*)?([\d.,]+)(?!\s*[-\/]\s*\d)/i;
+
+    // Defensivo: se entradaValor for 0 e não for à vista, tenta extrair da formaPagamento
+    if (!isAVistaVal && entradaValor === 0 && fin.formaPagamento) {
+      const matchEnt = fin.formaPagamento.match(regexEntradaSegura);
       if (matchEnt) {
-        entradaValor = parseBrMoney(matchEnt[1]);
+        const v = parseBrMoney(matchEnt[1]);
+        if (v > 0 && Math.abs((somaParcelas + v) - totalContrato) <= 0.05) {
+          entradaValor = v;
+        }
       }
     }
 
-    // Defensivo adicional: tenta extrair do próprio orçamento se fornecido
-    if (entradaValor === 0 && orcamento) {
+    // Defensivo adicional: tenta extrair do próprio orçamento se fornecido e não for à vista
+    if (!isAVistaVal && entradaValor === 0 && orcamento?.formasPagamento) {
       let entOrc = Number(orcamento.entrada ?? (orcamento as any).valorEntrada ?? 0);
       if (entOrc === 0) {
-        const txtOrc = `${orcamento.formasPagamento || orcamento.formas_pagamento || ''} ${orcamento.condicoes || ''}`;
-        const matchEntOrc = txtOrc.match(/entrada[^\d\n\r]*?(?:de|:)?\s*(?:r\$)?\s*([\d.,]+)/i);
+        const txtOrc = `${orcamento.formasPagamento || orcamento.formas_pagamento || ''}`;
+        const matchEntOrc = txtOrc.match(regexEntradaSegura);
         if (matchEntOrc) {
-          entOrc = parseBrMoney(matchEntOrc[1]);
+          const v = parseBrMoney(matchEntOrc[1]);
+          if (v > 0 && Math.abs((somaParcelas + v) - totalContrato) <= 0.05) {
+            entOrc = v;
+          }
         }
       }
       if (entOrc > 0) {
         entradaValor = entOrc;
       }
     }
-
-    const temParcelaEntrada = parcelas.some((p) => /entrada|sinal/i.test(p?.descricao || ''));
 
     // O cronograma é válido se a soma das parcelas atingir o total do contrato diretamente (quando a entrada já é uma das parcelas)
     // OU se a soma das parcelas do saldo + o valor da entrada totalizarem o valor global contratual
@@ -2358,12 +2366,14 @@ export const mapearDadosContrato = ({
 
     if (parcelas.length === 0) {
       // 1. Detecta Entrada (ex: "Entrada de R$ 500,00", "Entrada: R$ 500", "Entrada: R$ 500,00 via PIX")
-      const entradaComMoeda = formas.match(/entrada[^\d\n\r]*?(?:de|:)?\s*(?:r\$)\s*([\d.,]+)/i);
-      const entradaSemMoeda = formas.match(/entrada(?:\s*(?:de|:))?\s*([\d.,]+)/i);
-      const entradaMatch = entradaComMoeda || entradaSemMoeda;
+      const regexEntradaSegura = /(?<!data_?|metodo_?|situacao_?)\bentrada\b[^\d\n\r]*?(?:de|:)?\s*(?:r\$\s*)?([\d.,]+)(?!\s*[-\/]\s*\d)/i;
+      const isAVistaDetect = /à\s*vista|a\s*vista|pagamento único/i.test(formas);
       let entradaDetectada = 0;
-      if (entradaMatch) {
-        entradaDetectada = parseBrMoney(entradaMatch[1]);
+      if (!isAVistaDetect) {
+        const entradaMatch = formas.match(regexEntradaSegura);
+        if (entradaMatch) {
+          entradaDetectada = parseBrMoney(entradaMatch[1]);
+        }
       }
       entrada = entradaDetectada;
 
@@ -2583,6 +2593,15 @@ export const mapearDadosContrato = ({
     } else {
       formaLimpa = 'Conforme negociação financeira formalmente acordada';
     }
+  }
+
+  const somaParcelasCalculadas = parcelas.reduce((acc, p) => acc + (Number(p.valor) || 0), 0);
+  const temParcelaEntradaCalc = parcelas.some((p) => /(?<!data_?|metodo_?|situacao_?)\b(?:entrada|sinal)\b/i.test(p?.descricao || ''));
+  const isAVistaMapeado = /à\s*vista|a\s*vista|pagamento único/i.test(formaLimpa || '') ||
+    (!temParcelaEntradaCalc && parcelas.length === 1 && Math.abs(somaParcelasCalculadas - total) <= 0.05);
+
+  if (isAVistaMapeado || (!temParcelaEntradaCalc && Math.abs(somaParcelasCalculadas - total) <= 0.05)) {
+    entrada = 0;
   }
 
   const dadosFinanceiro: ContratoDadosFinanceiro = {
@@ -2882,6 +2901,23 @@ export const gerarHtmlContrato = (snapshot: ContratoSnapshot): string => {
         status: 'Pendente',
       },
     ];
+  }
+
+  // Higienização financeira: se for pagamento à vista OU se as parcelas cadastradas já cobrirem 100% do total sem entrada explícita,
+  // zera terminantemente financeiro.entrada para eliminar resíduos ou falsos positivos de datas/anos (ex: 2026)
+  const somaParcelasIniciais = parcelasEfetivas.reduce((acc, p) => acc + (Number(p?.valor) || 0), 0);
+  const temEntradaNaTabela = parcelasEfetivas.some((p) => /(?<!data_?|metodo_?|situacao_?)\b(?:entrada|sinal)\b/i.test(p?.descricao || ''));
+  const isPagamentoAVista = /à\s*vista|a\s*vista|pagamento único/i.test(financeiro?.formaPagamento || orcamento?.formasPagamento || '') ||
+    (!temEntradaNaTabela && parcelasEfetivas.length === 1 && Math.abs(somaParcelasIniciais - valorTotalReal) <= 0.05);
+
+  if (isPagamentoAVista || (!temEntradaNaTabela && Math.abs(somaParcelasIniciais - valorTotalReal) <= 0.05)) {
+    if (financeiro) {
+      financeiro.entrada = 0;
+      if (parcelasEfetivas.length > 0) {
+        financeiro.quantidadeParcelas = parcelasEfetivas.length;
+        financeiro.valorParcela = parcelasEfetivas[0].valor;
+      }
+    }
   }
 
   // Se houver valor de entrada registrado mas nenhuma parcela de entrada na tabela,

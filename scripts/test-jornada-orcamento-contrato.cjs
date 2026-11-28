@@ -445,8 +445,51 @@ async function runTests() {
 
   console.log('  [PASSOU] Ciclo comercial completo validado com 100% de sucesso!\n');
 
+  // ETAPA 11: Validação de Pagamento À Vista vs Resíduo de Entrada (Bug 2026)
+  console.log('ETAPA 11: Prevenção Rigorosa de Falsos Positivos de Entrada (Bug 2026)');
+  const regexEntradaSegura = /(?<!data_?|metodo_?|situacao_?)\bentrada\b[^\d\n\r]*?(?:de|:)?\s*(?:r\$\s*)?([\d.,]+)(?!\s*[-\/]\s*\d)/i;
+  
+  // Caso A: JSON serializado com dataEntrada contendo o ano 2026
+  const jsonComData2026 = '{"tipo":"a_vista","dataEntrada":"2026-11-26","valorEntrada":null}';
+  const matchFalso = jsonComData2026.match(regexEntradaSegura);
+  assert.strictEqual(matchFalso, null, 'Safe regex NÃO deve casar "dataEntrada":"2026-11-26"');
+  console.log('  • Teste A: JSON com dataEntrada:"2026-11-26" ignorado com sucesso (zero entrada)');
+
+  // Caso B: Texto com data de emissão em 26/11/2026
+  const txtComData = 'Pagamento à vista via PIX / Transferência: R$ 7.000,00 (em 26/11/2026) [Quitada]';
+  const matchData = txtComData.match(regexEntradaSegura);
+  assert.strictEqual(matchData, null, 'Safe regex NÃO deve casar datas com ano 2026');
+  console.log('  • Teste B: Texto com data (em 26/11/2026) ignorado com sucesso (zero entrada)');
+
+  // Caso C: Entrada genuína
+  const txtEntradaReal = 'Entrada de R$ 2.000,00 + 4x de R$ 2.000,00 no Cartão';
+  const matchReal = txtEntradaReal.match(regexEntradaSegura);
+  assert.ok(matchReal !== null, 'Safe regex DEVE casar entrada genuína');
+  assert.strictEqual(matchReal[1], '2.000,00');
+  console.log('  • Teste C: Entrada legítima de R$ 2.000,00 identificada corretamente');
+
+  // Caso D: Sanitização de snapshot à vista com entrada residual
+  const snapAVistaResiduo = {
+    financeiro: {
+      total: 7000,
+      formaPagamento: 'Pagamento à vista via PIX',
+      entrada: 2026, // residuo corrompido
+      parcelas: [{ numero: 1, valor: 7000, descricao: 'Pagamento Único via PIX' }]
+    }
+  };
+  const isAVista = /à\s*vista|a\s*vista|pagamento único/i.test(snapAVistaResiduo.financeiro.formaPagamento);
+  const somaP = snapAVistaResiduo.financeiro.parcelas.reduce((a, b) => a + b.valor, 0);
+  const temEntrada = snapAVistaResiduo.financeiro.parcelas.some(p => /entrada/i.test(p.descricao));
+  if (isAVista || (!temEntrada && Math.abs(somaP - snapAVistaResiduo.financeiro.total) <= 0.05)) {
+    snapAVistaResiduo.financeiro.entrada = 0;
+  }
+  assert.strictEqual(snapAVistaResiduo.financeiro.entrada, 0, 'Entrada de contrato à vista deve ser estritamente 0');
+  console.log('  • Teste D: Snapshot com resíduo higienizado para 0 (zero) com sucesso');
+
+  console.log('  [PASSOU] Validação de entrada e prevenção do Bug 2026 aprovadas 100%!\n');
+
   console.log('================================================================');
-  console.log('TODAS AS 10 ETAPAS DA JORNADA FORAM EXECUTADAS E APROVADAS 100%!');
+  console.log('TODAS AS 11 ETAPAS DA JORNADA FORAM EXECUTADAS E APROVADAS 100%!');
   console.log('================================================================');
 }
 

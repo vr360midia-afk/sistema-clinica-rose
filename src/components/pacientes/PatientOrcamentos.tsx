@@ -1704,10 +1704,10 @@ const PatientOrcamentos = ({ patient }: Props) => {
 
     // Detecta configurações do Assistente de Entrada + Saldo
     let ehApenasEntradaOuSaldoACombinar = false;
-    if (o.formasPagamento && /entrada/i.test(o.formasPagamento)) {
-      const matchEntrada = o.formasPagamento.match(/entrada[^\d\n\r]*?(?:de|:)?\s*(?:r\$)?\s*([\d.,]+)/i);
+    if (o.formasPagamento && /(?<!data_?|metodo_?|situacao_?)\bentrada\b/i.test(o.formasPagamento)) {
+      const matchEntrada = o.formasPagamento.match(/(?<!data_?|metodo_?|situacao_?)\bentrada\b[^\d\n\r]*?(?:de|:)?\s*(?:r\$\s*)?([\d.,]+)(?!\s*[-\/]\s*\d)/i);
       if (matchEntrada) {
-        const parsedEnt = parseBrMoney(matchEntrada[1]);
+        const parsedEnt = parseMoedaTexto(matchEntrada[1]);
         if (parsedEnt > 0) {
           setValorEntrada(parsedEnt);
         }
@@ -1912,7 +1912,7 @@ const PatientOrcamentos = ({ patient }: Props) => {
       setMultiplasFormasAtivo(false);
       setCartaoAssistenteAtivo(false);
       setPixParceladoAtivo(true);
-      const entradaMatch = o.formasPagamento.match(/entrada(?:\s+de)?\s*(?:r\$)?\s*([\d.,]+)/i);
+      const entradaMatch = o.formasPagamento.match(/(?<!data_?|metodo_?|situacao_?)\bentrada(?:\s+de)?\s*(?:r\$\s*)?([\d.,]+)(?!\s*[-\/]\s*\d)/i);
       const entVal = entradaMatch ? Number(entradaMatch[1].replace(/\./g, '').replace(',', '.')) || 0 : 0;
       setPixEntrada(entVal);
 

@@ -104,11 +104,24 @@ const Shell = ({ children }: { children: React.ReactNode }) => (
 function sanitizarSnapshotContrato(snap: ContratoSnapshot): ContratoSnapshot {
   if (!snap) return snap;
   const isQuitadoGlobal = /quitad|pago|paga/i.test(snap.financeiro?.formaPagamento || '') || /quitad|pago|paga/i.test(snap.orcamento?.formasPagamento || '');
+  const totalVal = Number(snap.financeiro?.total ?? (snap.financeiro as any)?.valorTotal ?? 0);
+  const parcelasAtuais = snap.financeiro?.parcelas || [];
+  const somaP = parcelasAtuais.reduce((acc, p) => acc + (Number(p.valor) || 0), 0);
+  const temEntrada = parcelasAtuais.some((p) => /entrada|sinal/i.test(p?.descricao || ''));
+  const isAVista = /à vista|a vista|pagamento único/i.test(snap.financeiro?.formaPagamento || snap.orcamento?.formasPagamento || '') ||
+    (!temEntrada && parcelasAtuais.length === 1 && Math.abs(somaP - totalVal) <= 0.05);
+
+  let entradaSanitizada = Number(snap.financeiro?.entrada || 0);
+  if (isAVista || (!temEntrada && Math.abs(somaP - totalVal) <= 0.05)) {
+    entradaSanitizada = 0;
+  }
+
   return {
     ...snap,
     financeiro: snap.financeiro
       ? {
         ...snap.financeiro,
+        entrada: entradaSanitizada,
         formaPagamento: limparFormaPagamentoParaContrato(snap.financeiro.formaPagamento),
         metodoParcelamento: snap.financeiro.metodoParcelamento
           ? limparFormaPagamentoParaContrato(snap.financeiro.metodoParcelamento)

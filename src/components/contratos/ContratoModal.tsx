@@ -1241,27 +1241,48 @@ export const ContratoModal: React.FC<ContratoModalProps> = ({
       // Conciliação automática da entrada:
       // Se houver entrada e as parcelas cadastradas somarem o saldo (somaParcelas + entrada = total),
       // auto-inclui a entrada como Parcela 1 no snapshot para garantir integridade perfeita do cronograma
-      let entVal = Number(snapshotAtual.financeiro?.entrada || 0);
-      if (entVal === 0 && snapshotAtual.financeiro?.formaPagamento) {
-        const matchEnt = snapshotAtual.financeiro.formaPagamento.match(/entrada[^\d\n\r]*?(?:de|:)?\s*(?:r\$)?\s*([\d.,]+)/i);
-        if (matchEnt) {
-          entVal = parseBrMoney(matchEnt[1]);
-          snapshotAtual.financeiro.entrada = entVal;
-        }
-      }
-      if (entVal === 0 && orcamentoAtual) {
-        const txtOrc = `${orcamentoAtual.formasPagamento || (orcamentoAtual as any).formas_pagamento || ''} ${orcamentoAtual.condicoes || ''}`;
-        const matchEntOrc = txtOrc.match(/entrada[^\d\n\r]*?(?:de|:)?\s*(?:r\$)?\s*([\d.,]+)/i);
-        if (matchEntOrc) {
-          entVal = parseBrMoney(matchEntOrc[1]);
-          snapshotAtual.financeiro.entrada = entVal;
-        }
-      }
-
       const totVal = Number(snapshotAtual.financeiro?.total ?? (snapshotAtual.financeiro as any)?.valorTotal ?? 0);
       const parcelasAtuais = snapshotAtual.financeiro?.parcelas || [];
       const somaP = parcelasAtuais.reduce((acc, p) => acc + (Number(p.valor) || 0), 0);
       const temEntradaNaLista = parcelasAtuais.some((p) => /entrada|sinal/i.test(p?.descricao || ''));
+      const descFormaGeral = `${snapshotAtual.financeiro?.formaPagamento || ''} ${orcamentoAtual?.formasPagamento || ''}`;
+      const isAVistaGlobal = /à vista|a vista|pagamento único/i.test(descFormaGeral) ||
+        (!temEntradaNaLista && parcelasAtuais.length === 1 && Math.abs(somaP - totVal) <= 0.05);
+
+      let entVal = Number(snapshotAtual.financeiro?.entrada || 0);
+
+      // Se for pagamento à vista OU se as parcelas cadastradas já cobrirem 100% do total sem entrada explícita,
+      // zera terminantemente a entrada para evitar resíduos ou falsos positivos de datas/anos (ex: 2026)
+      if (isAVistaGlobal || (!temEntradaNaLista && Math.abs(somaP - totVal) <= 0.05)) {
+        entVal = 0;
+        if (snapshotAtual.financeiro) {
+          snapshotAtual.financeiro.entrada = 0;
+        }
+      } else {
+        const regexEntradaSegura = /(?<!data_?|metodo_?|situacao_?)\bentrada\b[^\d\n\r]*?(?:de|:)?\s*(?:r\$\s*)?([\d.,]+)(?!\s*[-\/]\s*\d)/i;
+        if (entVal === 0 && snapshotAtual.financeiro?.formaPagamento) {
+          const matchEnt = snapshotAtual.financeiro.formaPagamento.match(regexEntradaSegura);
+          if (matchEnt) {
+            const v = parseBrMoney(matchEnt[1]);
+            if (v > 0 && Math.abs((somaP + v) - totVal) <= 0.05) {
+              entVal = v;
+              snapshotAtual.financeiro.entrada = entVal;
+            }
+          }
+        }
+        if (entVal === 0 && orcamentoAtual) {
+          // Apenas analisa formasPagamento - NUNCA concatenar condicoes em string JSON bruta
+          const txtOrc = `${orcamentoAtual.formasPagamento || (orcamentoAtual as any).formas_pagamento || ''}`;
+          const matchEntOrc = txtOrc.match(regexEntradaSegura);
+          if (matchEntOrc) {
+            const v = parseBrMoney(matchEntOrc[1]);
+            if (v > 0 && Math.abs((somaP + v) - totVal) <= 0.05) {
+              entVal = v;
+              snapshotAtual.financeiro.entrada = entVal;
+            }
+          }
+        }
+      }
 
       if (!temEntradaNaLista && entVal > 0 && Math.abs((somaP + entVal) - totVal) <= 0.05) {
         const descForma = snapshotAtual.financeiro?.formaPagamento || orcamentoAtual?.formasPagamento || '';

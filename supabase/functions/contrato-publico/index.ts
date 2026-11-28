@@ -78,7 +78,7 @@ function gerarParcelasServidorContrato(cond: any, total: number, dataIso = new D
     let entVal = Number(cond.valorEntrada || 0);
     const descTexto = String(cond.descricao || cond.titulo || cond.formas_pagamento || cond.formaPagamento || '');
     if (entVal === 0 && descTexto) {
-      const matchEnt = descTexto.match(/entrada[^\d\n\r]*?(?:de|:)?\s*(?:r\$)?\s*([\d.,]+)/i);
+      const matchEnt = descTexto.match(/(?<!data_?|metodo_?|situacao_?)\bentrada\b[^\d\n\r]*?(?:de|:)?\s*(?:r\$\s*)?([\d.,]+)(?!\s*[-\/]\s*\d)/i);
       if (matchEnt) {
         const limpo = matchEnt[1].replace(/\./g, '').replace(',', '.');
         entVal = Number(limpo) || 0;

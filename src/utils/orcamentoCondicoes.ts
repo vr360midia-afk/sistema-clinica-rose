@@ -834,10 +834,12 @@ export function extrairDetalhesCondicaoDeTexto(
 
   // 4. Extrair entrada (suporta tanto "Entrada de R$ X", "Entrada: R$ X" quanto "Entrada R$ X")
   let valorEntrada: number | undefined = undefined;
-  const matchEntrada = str.match(/entrada[^\d\n\r]*?(?:de|:)?\s*(?:r\$)?\s*([\d.,]+)/i);
-  if (matchEntrada) {
-    const limpo = parseMoedaTexto(matchEntrada[1]);
-    if (limpo > 0) valorEntrada = limpo;
+  if (tipo !== 'a_vista') {
+    const matchEntrada = str.match(/(?<!data_?|metodo_?|situacao_?)\bentrada\b[^\d\n\r]*?(?:de|:)?\s*(?:r\$\s*)?([\d.,]+)(?!\s*[-\/]\s*\d)/i);
+    if (matchEntrada) {
+      const limpo = parseMoedaTexto(matchEntrada[1]);
+      if (limpo > 0) valorEntrada = limpo;
+    }
   }
 
   // 4b. Extrair saldo total se explicitado (ex: "Saldo: R$ 4.000,00", "Saldo restante de R$ 3.000,00")
